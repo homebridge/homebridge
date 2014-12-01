@@ -15,6 +15,13 @@
             "play_volume": 25
         },
         {
+            "accessory": "Lockitron",
+            "description": "This shim supports Lockitron locks. It uses the Lockitron cloud API, so the Lockitron must be 'awake' for locking and unlocking to actually happen. You can wake up Lockitron after issuing an lock/unlock command by knocking on the door.",
+            "siri_name": "Front Door",
+            "lock_id": "your-lock-id",
+            "api_token" : "your-lockitron-api-access-token"
+        },
+        {
             "accessory": "XfinityHome",
             "description": "This shim supports the 'Xfinity Home' security system. Unfortunately I don't know how to generate the 'dsig' property, so you'll need to figure yours out by running the Xfinity Home app on your iOS device while connected to a proxy server like Charles. If you didn't understand any of that, sorry! I welcome any suggestions for how to figure out dsig automatically.",
             "siri_name": "Xfinity Home",
