@@ -1,0 +1,9 @@
+{
+  "name": "homebridge",
+  "version": "0.0.0",
+  "scripts": {
+    "server": "node app.js"
+  },
+  "dependencies": {
+  }
+}
