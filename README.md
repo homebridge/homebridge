@@ -20,7 +20,7 @@ Technically, the device manufacturers should be the ones implementing the HomeKi
 
 # Credit
 
-HomeBridge itself is basically just a set of shims and a README. The actual HomeKit API work was done by [KhaosT](http://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project. Additionally, many of the shims benefit from amazing NodeJS projects out there like `sonos` and `wemo` that implement basically all the interesting functionality.
+HomeBridge itself is basically just a set of shims and a README. The actual HomeKit API work was done by [KhaosT](http://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project. Additionally, many of the shims benefit from amazing NodeJS projects out there like `sonos` and `wemo` that implement all the interesting functionality.
 
 # Before you Begin
 
@@ -38,7 +38,7 @@ Additionally, the shims I've created implement the bare minimum of HomeKit neede
 
 # Getting Started
 
-OK, if you're still excited enough about ordering your home to make coffee for you (which, who wouldn't be!) then here's how to set things up. First, clone this repo and also init submodules to grab the HAP-NodeJS project which isn't in npm. You'll also need to run `npm rebuild` on HAP-NodeJS because the `node_modules` folder is already in the Git repo.
+OK, if you're still excited enough about ordering your home to make coffee for you (which, who wouldn't be!) then here's how to set things up. First, clone this repo and also init submodules to grab the [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project which isn't in npm. You'll also need to run `npm rebuild` on HAP-NodeJS because the `node_modules` folder is already in the Git repo.
 
     $ git clone https://github.com/nfarina/homebridge.git
     $ cd homebridge
@@ -69,7 +69,7 @@ Your server is now ready to receive commands from iOS.
 
 # Adding your devices to iOS
 
-This part is a bit painful. HomeKit is actually not an app; it's a "database" similar to HealthKit and PassKit. But where HealthKit has the companion "Health" app and PassKit has "Passbook", Apple has supplied no app for managing your HomeKit database (yet). The HomeKit API is open for developers to write their own apps for adding devices to HomeKit, but there are no apps like that in the App Store (probably not an accident).
+This part is a bit painful. HomeKit is actually not an app; it's a "database" similar to HealthKit and PassKit. But where HealthKit has the companion _Health_ app and PassKit has _Passbook_, Apple has supplied no app for managing your HomeKit database (yet). The HomeKit API is open for developers to write their own apps for adding devices to HomeKit, but there are no apps like that in the App Store (probably not an accident).
 
 That means you'll need to build and run your own HomeKit iOS app using your Apple Developer account.
 
@@ -93,7 +93,7 @@ One final thing to remember is that Siri will almost always prefer its default p
 
 # Final Notes
 
-HomeKit is definitely amazing when it works. Speaking to Siri is often much quicker and easier than launching whatever app that your device manufacturer provides.
+HomeKit is definitely amazing when it works. Speaking to Siri is often much quicker and easier than launching whatever app your device manufacturer provides.
 
 I welcome any suggestions or pull requests, but keep in mind that it's likely not possible to support all the things you might want to do with a device through HomeKit. For instance, you might want to hack the Sonos shim to play the specific kind of music you want and that's great, but it might not be appropriate to merge those specific changes into this repository. The shims here should be mostly simple "canonical examples" and easily hackable by others.
 
