@@ -35,21 +35,20 @@ function loadAccessories() {
         var accessoryModule = require('./accessories/' + accessoryName + ".js"); // like "./accessories/WeMo.js"
         var accessoryConstructor = accessoryModule.accessory; // like "WeMoAccessory", a JavaScript constructor
 
-        // Create a custom logging function that prepends the Siri name for debugging
-        var siriName = accessoryConfig["siri_name"];
-        var log = function(siriName) { return function(s) { console.log("[" + siriName + "] " + s); }; }(siriName);
+        // Create a custom logging function that prepends the device display name for debugging
+        var name = accessoryConfig["name"];
+        var log = function(name) { return function(s) { console.log("[" + name + "] " + s); }; }(name);
 
         log("Initializing " + accessoryName + " accessory...");
         var accessory = new accessoryConstructor(log, accessoryConfig);
         accessories.push(accessory);
 
-        // Extract the raw "accessoryData" for this accessory which is a big object-blob describing the various
+        // Extract the raw "services" for this accessory which is a big array of objects describing the various
         // hooks in and out of HomeKit for the HAP-NodeJS server.
-        var accessoryData = accessory.accessoryData();
-        accessoryData["displayName"] = siriName;
+        var services = accessory.getServices();
 
         // Create the HAP server for this accessory
-        createHAPServer(accessoryData);
+        createHAPServer(name, services);
     }
 }
 
@@ -70,52 +69,47 @@ var accessoryServers = [];
 var accessoryControllers = [];
 var usernames = {};
 
-function createHAPServer(data) {
+function createHAPServer(name, services) {
     var accessoryController = new accessoryController_Factor.AccessoryController();
 
     //loop through services
-    for (var j = 0; j < data.services.length; j++) {
-        var service = new service_Factor.Service(data.services[j].sType);
+    for (var j = 0; j < services.length; j++) {
+        var service = new service_Factor.Service(services[j].sType);
 
         //loop through characteristics
-        for (var k = 0; k < data.services[j].characteristics.length; k++) {
+        for (var k = 0; k < services[j].characteristics.length; k++) {
             var options = {
-                type: data.services[j].characteristics[k].cType,
-                perms: data.services[j].characteristics[k].perms,
-                format: data.services[j].characteristics[k].format,
-                initialValue: data.services[j].characteristics[k].initialValue,
-                supportEvents: data.services[j].characteristics[k].supportEvents,
-                supportBonjour: data.services[j].characteristics[k].supportBonjour,
-                manfDescription: data.services[j].characteristics[k].manfDescription,
-                designedMaxLength: data.services[j].characteristics[k].designedMaxLength,
-                designedMinValue: data.services[j].characteristics[k].designedMinValue,
-                designedMaxValue: data.services[j].characteristics[k].designedMaxValue,
-                designedMinStep: data.services[j].characteristics[k].designedMinStep,
-                unit: data.services[j].characteristics[k].unit
+                type: services[j].characteristics[k].cType,
+                perms: services[j].characteristics[k].perms,
+                format: services[j].characteristics[k].format,
+                initialValue: services[j].characteristics[k].initialValue,
+                supportEvents: services[j].characteristics[k].supportEvents,
+                supportBonjour: services[j].characteristics[k].supportBonjour,
+                manfDescription: services[j].characteristics[k].manfDescription,
+                designedMaxLength: services[j].characteristics[k].designedMaxLength,
+                designedMinValue: services[j].characteristics[k].designedMinValue,
+                designedMaxValue: services[j].characteristics[k].designedMaxValue,
+                designedMinStep: services[j].characteristics[k].designedMinStep,
+                unit: services[j].characteristics[k].unit
             };
 
-            var characteristic = new characteristic_Factor.Characteristic(options, data.services[j].characteristics[k].onUpdate);
+            var characteristic = new characteristic_Factor.Characteristic(options, services[j].characteristics[k].onUpdate);
 
             service.addCharacteristic(characteristic);
         }
         accessoryController.addService(service);
     }
 
-    // grab the intended name for Siri
-    var displayName = data["displayName"];
-
-    console.log(displayName);
-
-    // create a unique "username" for this accessory based on the default Siri name
-    var username = createUsername(displayName);
+    // create a unique "username" for this accessory based on the default display name
+    var username = createUsername(name);
 
     if (usernames[username]) {
-        console.log("Cannot create another accessory with the same name '" + displayName + "'. The 'siri_name' property must be unique for each accessory.");
+        console.log("Cannot create another accessory with the same name '" + name + "'. The 'name' property must be unique for each accessory.");
         return;
     }
 
     // remember that we used this name already
-    usernames[username] = displayName;
+    usernames[username] = name;
 
     // increment ports for each accessory
     nextPort = nextPort + (nextServer*2);
@@ -123,7 +117,7 @@ function createHAPServer(data) {
     // hardcode the PIN to something random (same PIN as HAP-NodeJS sample accessories)
     var pincode = "031-45-154";
 
-    var accessory = new accessory_Factor.Accessory(displayName, username, storage, parseInt(nextPort), pincode, accessoryController);
+    var accessory = new accessory_Factor.Accessory(name, username, storage, parseInt(nextPort), pincode, accessoryController);
     accessoryServers[nextServer] = accessory;
     accessoryControllers[nextServer] = accessoryController;
     accessory.publishAccessory();
@@ -134,7 +128,7 @@ function createHAPServer(data) {
 // Creates a unique "username" for HomeKit from a hash of the given string
 function createUsername(str) {
 
-    // Hash siri_name into something like "098F6BCD4621D373CADE4E832627B4F6"
+    // Hash str into something like "098F6BCD4621D373CADE4E832627B4F6"
     var hash = crypto.createHash('md5').update(str).digest("hex").toUpperCase();
 
     // Turn it into a MAC-address-looking "username" for HomeKit

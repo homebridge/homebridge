@@ -4,34 +4,41 @@
     "accessories": [
         {
             "accessory": "WeMo",
-            "description": "This shim supports Belkin WeMo devices on the same network as this server. You can create duplicate entries for this device and change the 'siri_name' attribute to reflect what device is plugged into the WeMo, for instance 'Air Conditioner' or 'Coffee Maker'. This name will be used by Siri. Make sure to update the 'wemo_name' attribute with the EXACT name of the device in the WeMo app itself. This can be the same value as 'siri_name' but it doesn't have to be.",
-            "siri_name": "Coffee Maker",
+            "name": "Coffee Maker",
+            "description": "This shim supports Belkin WeMo devices on the same network as this server. You can create duplicate entries for this device and change the 'name' attribute to reflect what device is plugged into the WeMo, for instance 'Air Conditioner' or 'Coffee Maker'. This name will be used by Siri. Make sure to update the 'wemo_name' attribute with the EXACT name of the device in the WeMo app itself. This can be the same value as 'name' but it doesn't have to be.",
             "wemo_name": "CoffeeMaker"
         },
         {
+            "accessory": "LiftMaster",
+            "name": "Garage Door",
+            "description": "This shim supports LiftMaster garage door openers that are already internet-connected to the 'MyQ' service.",
+            "username": "your-liftmaster-username",
+            "password" : "your-liftmaster-password"
+        },
+        {
             "accessory": "Sonos",
+            "name": "Speakers",
             "description": "This shim supports Sonos devices on the same network as this server. It acts as a simple switch that calls play() or pause() on the Sonos, so it's only useful for pausing and resuming tracks or radio stations that are already in the queue. When 'play_volume' is nonzero, the volume will be reset to that value when it turns the Sonos on.",
-            "siri_name": "Speakers",
             "play_volume": 25
         },
         {
             "accessory": "Lockitron",
+            "name": "Front Door",
             "description": "This shim supports Lockitron locks. It uses the Lockitron cloud API, so the Lockitron must be 'awake' for locking and unlocking to actually happen. You can wake up Lockitron after issuing an lock/unlock command by knocking on the door.",
-            "siri_name": "Front Door",
             "lock_id": "your-lock-id",
             "api_token" : "your-lockitron-api-access-token"
         },
         {
             "accessory": "Carwings",
+            "name": "Leaf",
             "description": "This shim supports controlling climate control on Nissan cars with Carwings. Note that Carwings is super slow and it may take up to 5 minutes for your command to be processed by the Carwings system.",
-            "siri_name": "Leaf",
             "username": "your-carwings-username",
             "password" : "your-carwings-password"
         },
         {
             "accessory": "XfinityHome",
+            "name": "Xfinity Home",
             "description": "This shim supports the 'Xfinity Home' security system. Unfortunately I don't know how to generate the 'dsig' property, so you'll need to figure yours out by running the Xfinity Home app on your iOS device while connected to a proxy server like Charles. If you didn't understand any of that, sorry! I welcome any suggestions for how to figure out dsig automatically.",
-            "siri_name": "Xfinity Home",
             "email": "your-comcast-email@example.com",
             "password": "your-comcast-password",
             "dsig": "your-digital-signature",

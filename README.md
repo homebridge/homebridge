@@ -82,7 +82,7 @@ At this point, you should be able to tell Siri to control your devices. However,
 
 Also, remember that HomeKit is not very robust yet, and it is common for it to fail intermittently ("Sorry, I wasn't able to control your devices" kind of thing) then start working again for no reason. Also I've noticed that it will get cranky and stop working altogether sometimes. The usual voodoo applies here: reboot your device, or run the BetterHomeKit app and poke around, etc.
 
-One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `siri_name` for the Sonos shim in `config-samples.json` is "Speakers".
+One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos shim in `config-samples.json` is "Speakers".
 
 # Final Notes
 

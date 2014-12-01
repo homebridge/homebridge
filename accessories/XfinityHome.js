@@ -4,7 +4,7 @@ var xmldoc = require("xmldoc");
 
 function XfinityHomeAccessory(log, config) {
   this.log = log;
-  this.siriName = config["siri_name"];
+  this.name = config["name"];
   this.email = config["email"];
   this.password = config["password"];
   this.dsig = config["dsig"];
@@ -144,133 +144,131 @@ XfinityHomeAccessory.prototype = {
     });
   },
 
-  accessoryData: function() {
+  getServices: function() {
     var that = this;
-    return {
-      services: [{
-        sType: types.ACCESSORY_INFORMATION_STYPE,
-        characteristics: [{
-          cType: types.NAME_CTYPE,
-          onUpdate: null,
-          perms: ["pr"],
-          format: "string",
-          initialValue: this.siriName,
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Name of the accessory",
-          designedMaxLength: 255
-        },{
-          cType: types.MANUFACTURER_CTYPE,
-          onUpdate: null,
-          perms: ["pr"],
-          format: "string",
-          initialValue: "Comcast",
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Manufacturer",
-          designedMaxLength: 255
-        },{
-          cType: types.MODEL_CTYPE,
-          onUpdate: null,
-          perms: ["pr"],
-          format: "string",
-          initialValue: "Rev-1",
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Model",
-          designedMaxLength: 255
-        },{
-          cType: types.SERIAL_NUMBER_CTYPE,
-          onUpdate: null,
-          perms: ["pr"],
-          format: "string",
-          initialValue: "A1S2NASF88EW",
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "SN",
-          designedMaxLength: 255
-        },{
-          cType: types.IDENTIFY_CTYPE,
-          onUpdate: null,
-          perms: ["pw"],
-          format: "bool",
-          initialValue: false,
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Identify Accessory",
-          designedMaxLength: 1
-        }]
+    return [{
+      sType: types.ACCESSORY_INFORMATION_STYPE,
+      characteristics: [{
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: this.name,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Name of the accessory",
+        designedMaxLength: 255
       },{
-        sType: types.SWITCH_STYPE,
-        characteristics: [{
-          cType: types.NAME_CTYPE,
-          onUpdate: null,
-          perms: ["pr"],
-          format: "string",
-          initialValue: "Away Mode",
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Away Mode service",
-          designedMaxLength: 255
-        },{
-          cType: types.POWER_STATE_CTYPE,
-          onUpdate: function(value) { that.armWithType(value, "away"); },
-          perms: ["pw","pr","ev"],
-          format: "bool",
-          initialValue: false,
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Turn on the Away alarm",
-          designedMaxLength: 1
-        }]
+        cType: types.MANUFACTURER_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: "Comcast",
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Manufacturer",
+        designedMaxLength: 255
       },{
-        sType: types.SWITCH_STYPE,
-        characteristics: [{
-          cType: types.NAME_CTYPE,
-          onUpdate: null,
-          perms: ["pr"],
-          format: "string",
-          initialValue: "Night Mode",
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Night Mode service",
-          designedMaxLength: 255
-        },{
-          cType: types.POWER_STATE_CTYPE,
-          onUpdate: function(value) { that.armWithType(value, "night"); },
-          perms: ["pw","pr","ev"],
-          format: "bool",
-          initialValue: false,
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Turn on the Night alarm",
-          designedMaxLength: 1
-        }]
+        cType: types.MODEL_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: "Rev-1",
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Model",
+        designedMaxLength: 255
       },{
-        sType: types.SWITCH_STYPE,
-        characteristics: [{
-          cType: types.NAME_CTYPE,
-          onUpdate: null,
-          perms: ["pr"],
-          format: "string",
-          initialValue: "Stay Mode",
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Stay Mode service",
-          designedMaxLength: 255
-        },{
-          cType: types.POWER_STATE_CTYPE,
-          onUpdate: function(value) { that.armWithType(value, "stay"); },
-          perms: ["pw","pr","ev"],
-          format: "bool",
-          initialValue: false,
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Turn on the Stay alarm",
-          designedMaxLength: 1
-        }]
+        cType: types.SERIAL_NUMBER_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: "A1S2NASF88EW",
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "SN",
+        designedMaxLength: 255
+      },{
+        cType: types.IDENTIFY_CTYPE,
+        onUpdate: null,
+        perms: ["pw"],
+        format: "bool",
+        initialValue: false,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Identify Accessory",
+        designedMaxLength: 1
       }]
-    }
+    },{
+      sType: types.SWITCH_STYPE,
+      characteristics: [{
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: "Away Mode",
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Away Mode service",
+        designedMaxLength: 255
+      },{
+        cType: types.POWER_STATE_CTYPE,
+        onUpdate: function(value) { that.armWithType(value, "away"); },
+        perms: ["pw","pr","ev"],
+        format: "bool",
+        initialValue: false,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Turn on the Away alarm",
+        designedMaxLength: 1
+      }]
+    },{
+      sType: types.SWITCH_STYPE,
+      characteristics: [{
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: "Night Mode",
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Night Mode service",
+        designedMaxLength: 255
+      },{
+        cType: types.POWER_STATE_CTYPE,
+        onUpdate: function(value) { that.armWithType(value, "night"); },
+        perms: ["pw","pr","ev"],
+        format: "bool",
+        initialValue: false,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Turn on the Night alarm",
+        designedMaxLength: 1
+      }]
+    },{
+      sType: types.SWITCH_STYPE,
+      characteristics: [{
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: "Stay Mode",
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Stay Mode service",
+        designedMaxLength: 255
+      },{
+        cType: types.POWER_STATE_CTYPE,
+        onUpdate: function(value) { that.armWithType(value, "stay"); },
+        perms: ["pw","pr","ev"],
+        format: "bool",
+        initialValue: false,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Turn on the Stay alarm",
+        designedMaxLength: 1
+      }]
+    }];
   }
 };
 
