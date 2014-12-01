@@ -7,6 +7,15 @@
             "description": "This shim supports Belkin WeMo devices on the same network as this server. You can create duplicate entries for this device and change the 'siri_name' attribute to reflect what device is plugged into the WeMo, for instance 'Air Conditioner' or 'Coffee Maker'. This name will be used by Siri. Make sure to update the 'wemo_name' attribute with the EXACT name of the device in the WeMo app itself. This can be the same value as 'siri_name' but it doesn't have to be.",
             "siri_name": "Coffee Maker",
             "wemo_name": "CoffeeMaker"
+        },
+        {
+            "accessory": "XfinityHome",
+            "description": "This shim supports the 'Xfinity Home' security system. Unfortunately I don't know how to generate the 'dsig' property, so you'll need to figure yours out by running the Xfinity Home app on your iOS device while connected to a proxy server like Charles. If you didn't understand any of that, sorry! I welcome any suggestions for how to figure out dsig automatically.",
+            "siri_name": "Xfinity Home",
+            "email": "your-comcast-email@example.com",
+            "password": "your-comcast-password",
+            "dsig": "your-digital-signature",
+            "pin": "your-security-system-pin-code"
         }
     ]
 }

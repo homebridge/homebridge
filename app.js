@@ -28,7 +28,6 @@ function loadAccessories() {
     for (var i=0; i<config.accessories.length; i++) {
 
         var accessoryConfig = config.accessories[i];
-        console.log(accessoryConfig);
 
         // Load up the class for this accessory
         var accessoryName = accessoryConfig["accessory"]; // like "WeMo"
@@ -105,7 +104,6 @@ function createHAPServer(data) {
     // create a unique "username" for this accessory
     var pincode = "031-45-154";
     var username = "DD:22:3D:EE:5E:" + ("00" + nextServer.toString(16)).substr(-2);
-    console.log("username: " + username);
 
     var accessory = new accessory_Factor.Accessory(data.displayName, username, storage, parseInt(nextPort), pincode, accessoryController);
     accessoryServers[nextServer] = accessory;
