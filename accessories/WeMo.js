@@ -45,7 +45,6 @@ WeMoAccessory.prototype = {
   accessoryData: function() {
     var that = this;
     return {
-      displayName: this.friendlyName,
       services: [{
         sType: types.ACCESSORY_INFORMATION_STYPE,
         characteristics: [{

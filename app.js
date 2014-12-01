@@ -1,6 +1,7 @@
 var fs = require('fs');
 var path = require('path');
 var storage = require('node-persist');
+var crypto = require('crypto');
 
 console.log("Starting HomeBridge server...");
 
@@ -45,6 +46,7 @@ function loadAccessories() {
         // Extract the raw "accessoryData" for this accessory which is a big object-blob describing the various
         // hooks in and out of HomeKit for the HAP-NodeJS server.
         var accessoryData = accessory.accessoryData();
+        accessoryData["displayName"] = siriName;
 
         // Create the HAP server for this accessory
         createHAPServer(accessoryData);
@@ -66,6 +68,7 @@ var nextPort = 51826;
 var nextServer = 0;
 var accessoryServers = [];
 var accessoryControllers = [];
+var usernames = {};
 
 function createHAPServer(data) {
     var accessoryController = new accessoryController_Factor.AccessoryController();
@@ -98,19 +101,49 @@ function createHAPServer(data) {
         accessoryController.addService(service);
     }
 
-    //increment ports for each accessory
+    // grab the intended name for Siri
+    var displayName = data["displayName"];
+
+    console.log(displayName);
+
+    // create a unique "username" for this accessory based on the default Siri name
+    var username = createUsername(displayName);
+
+    if (usernames[username]) {
+        console.log("Cannot create another accessory with the same name '" + displayName + "'. The 'siri_name' property must be unique for each accessory.");
+        return;
+    }
+
+    // remember that we used this name already
+    usernames[username] = displayName;
+
+    // increment ports for each accessory
     nextPort = nextPort + (nextServer*2);
 
-    // create a unique "username" for this accessory
+    // hardcode the PIN to something random (same PIN as HAP-NodeJS sample accessories)
     var pincode = "031-45-154";
-    var username = "DD:22:3D:EE:5E:" + ("00" + nextServer.toString(16)).substr(-2);
 
-    var accessory = new accessory_Factor.Accessory(data.displayName, username, storage, parseInt(nextPort), pincode, accessoryController);
+    var accessory = new accessory_Factor.Accessory(displayName, username, storage, parseInt(nextPort), pincode, accessoryController);
     accessoryServers[nextServer] = accessory;
     accessoryControllers[nextServer] = accessoryController;
     accessory.publishAccessory();
 
     nextServer++;
+}
+
+// Creates a unique "username" for HomeKit from a hash of the given string
+function createUsername(str) {
+
+    // Hash siri_name into something like "098F6BCD4621D373CADE4E832627B4F6"
+    var hash = crypto.createHash('md5').update(str).digest("hex").toUpperCase();
+
+    // Turn it into a MAC-address-looking "username" for HomeKit
+    return hash[0] + hash[1] + ":" +
+           hash[2] + hash[3] + ":" +
+           hash[4] + hash[5] + ":" +
+           hash[6] + hash[7] + ":" +
+           hash[8] + hash[9] + ":" +
+           hash[10] + hash[11];
 }
 
 loadAccessories();

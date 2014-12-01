@@ -63,7 +63,6 @@ SonosAccessory.prototype = {
   accessoryData: function() {
     var that = this;
     return {
-      displayName: "Sonos",
       services: [{
         sType: types.ACCESSORY_INFORMATION_STYPE,
         characteristics: [{

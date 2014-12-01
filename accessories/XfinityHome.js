@@ -146,7 +146,6 @@ XfinityHomeAccessory.prototype = {
   accessoryData: function() {
     var that = this;
     return {
-      displayName: "Xfinity Home",
       services: [{
         sType: types.ACCESSORY_INFORMATION_STYPE,
         characteristics: [{
