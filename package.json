@@ -1,9 +1,21 @@
 {
   "name": "homebridge",
+  "description": "HomeKit support for the impatient",
   "version": "0.0.0",
   "scripts": {
-    "server": "node app.js"
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/nfarina/homebridge.git"
   },
   "dependencies": {
+    "request": "2.49.x",
+    "node-persist": "0.0.x",
+    "xmldoc": "0.1.x",
+
+    "carwingsjs": "0.0.x",
+    "sonos": "0.6.x",
+    "wemo": "0.1.x"
   }
 }

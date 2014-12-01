@@ -9,3 +9,7 @@ npm-debug.log
 # Intellij
 .idea/
 *.iml
+
+# HomeBridge
+config.json
+persist/
