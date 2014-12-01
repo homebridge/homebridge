@@ -1,12 +1,9 @@
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
 var request = require("request");
 
-//
-// Lockitron Accessory
-//
-
 function LockitronAccessory(log, config) {
   this.log = log;
+  this.siriName = config["siri_name"];
   this.lockID = config["lock_id"];
   this.accessToken = config["api_token"];
 }
@@ -47,7 +44,7 @@ LockitronAccessory.prototype = {
           onUpdate: null,
           perms: ["pr"],
           format: "string",
-          initialValue: "Lockitron",
+          initialValue: this.siriName,
           supportEvents: false,
           supportBonjour: false,
           manfDescription: "Name of the accessory",

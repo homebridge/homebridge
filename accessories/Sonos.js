@@ -3,6 +3,7 @@ var sonos = require('sonos');
 
 function SonosAccessory(log, config) {
   this.log = log;
+  this.siriName = config["siri_name"];
   this.playVolume = config["play_volume"];
   this.device = null;
   this.search();
@@ -70,7 +71,7 @@ SonosAccessory.prototype = {
           onUpdate: null,
           perms: ["pr"],
           format: "string",
-          initialValue: "Sonos",
+          initialValue: this.siriName,
           supportEvents: false,
           supportBonjour: false,
           manfDescription: "Name of the accessory",

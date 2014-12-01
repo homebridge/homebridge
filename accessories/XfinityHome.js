@@ -4,6 +4,7 @@ var xmldoc = require("xmldoc");
 
 function XfinityHomeAccessory(log, config) {
   this.log = log;
+  this.siriName = config["siri_name"];
   this.email = config["email"];
   this.password = config["password"];
   this.dsig = config["dsig"];
@@ -153,7 +154,7 @@ XfinityHomeAccessory.prototype = {
           onUpdate: null,
           perms: ["pr"],
           format: "string",
-          initialValue: "Xfinity Home",
+          initialValue: this.siriName,
           supportEvents: false,
           supportBonjour: false,
           manfDescription: "Name of the accessory",

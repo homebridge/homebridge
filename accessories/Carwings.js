@@ -1,44 +1,42 @@
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
-var wemo = require('wemo');
+var carwings = require("carwingsjs");
 
-function WeMoAccessory(log, config) {
+function CarwingsAccessory(log, config) {
   this.log = log;
   this.siriName = config["siri_name"];
-  this.wemoName = config["wemo_name"];
-  this.device = null;
-  this.log("Searching for WeMo device with exact name '" + this.wemoName + "'...");
-  this.search();
+  this.username = config["username"];
+  this.password = config["password"];
 }
 
-WeMoAccessory.prototype = {
-
-  search: function() {
-    var that = this;
-
-    wemo.Search(this.wemoName, function(err, device) {
-      that.log("Found '"+that.wemoName+"' device at " + device.ip);
-      that.device = new wemo(device.ip, device.port);
-    });
-  },
+CarwingsAccessory.prototype = {
 
   setPowerState: function(powerOn) {
-
-    if (!this.device) {
-      this.log("No '"+this.wemoName+"' device found (yet?)");
-      return;
-    }
-
-    var binaryState = powerOn ? 1 : 0;
     var that = this;
-    
-    this.log("Setting power state on the '"+this.wemoName+"' to " + binaryState);
 
-    this.device.setBinaryState(binaryState, function(err, result) {
+    carwings.login(this.username, this.password, function(err, result) {
       if (!err) {
-        that.log("Successfully set power state on the '"+that.wemoName+"' to " + binaryState);
+        that.vin = result.vin;
+        that.log("Got VIN: " + that.vin);
+
+        if (powerOn) {
+          carwings.startClimateControl(that.vin, null, function(err, result) {
+            if (!err)
+              that.log("Started climate control.");
+            else
+              that.log("Error starting climate control: " + err);
+          });
+        }
+        else {
+          carwings.stopClimateControl(that.vin, function(err, result) {
+            if (!err)
+              that.log("Stopped climate control.");
+            else
+              that.log("Error stopping climate control: " + err);
+          });
+        }
       }
       else {
-        that.log("Error setting power state on the '"+that.wemoName+"'")
+        that.log("Error logging in: " + err);
       }
     });
   },
@@ -63,7 +61,7 @@ WeMoAccessory.prototype = {
           onUpdate: null,
           perms: ["pr"],
           format: "string",
-          initialValue: "WeMo",
+          initialValue: "Nissan",
           supportEvents: false,
           supportBonjour: false,
           manfDescription: "Manufacturer",
@@ -119,7 +117,7 @@ WeMoAccessory.prototype = {
           initialValue: false,
           supportEvents: false,
           supportBonjour: false,
-          manfDescription: "Change the power state of the WeMo",
+          manfDescription: "Change the power state of the car",
           designedMaxLength: 1
         }]
       }]
@@ -127,4 +125,43 @@ WeMoAccessory.prototype = {
   }
 };
 
-module.exports.accessory = WeMoAccessory;
+module.exports.accessory = CarwingsAccessory;
+
+//
+// Monkey-patch carwings to support climate control - remove if this PR is merged:
+// https://github.com/crtr0/carwingsjs/pull/2
+//
+
+carwings.startClimateControl = function(vin, date, callback) {
+
+  var payload = ['ns4:SmartphoneRemoteACTimerRequest', {
+    _attr: {
+      'xmlns:ns4' : 'urn:com:airbiquity:smartphone.vehicleservice:v1',
+      'xmlns:ns3' : 'urn:com:hitachi:gdc:type:vehicle:v1',
+      'xmlns:ns2' : 'urn:com:hitachi:gdc:type:portalcommon:v1' },
+    'ns3:ACRemoteRequest' : {
+      'ns3:VehicleServiceRequestHeader': {
+        'ns2:VIN': vin },
+      'ns3:NewACRemoteRequest': {
+        'ns3:ExecuteTime': (date || new Date()).toISOString() }
+    }
+  }];
+
+  _post('vehicleService', payload, callback);
+};
+
+carwings.stopClimateControl = function(vin, callback) {
+
+  var payload = ['ns4:SmartphoneRemoteACOffRequest', {
+    _attr: {
+      'xmlns:ns4' : 'urn:com:airbiquity:smartphone.vehicleservice:v1',
+      'xmlns:ns3' : 'urn:com:hitachi:gdc:type:vehicle:v1',
+      'xmlns:ns2' : 'urn:com:hitachi:gdc:type:portalcommon:v1' },
+    'ns3:ACRemoteOffRequest' : {
+      'ns3:VehicleServiceRequestHeader': {
+        'ns2:VIN': vin }
+    }
+  }];
+
+  _post('vehicleService', payload, callback);
+};
