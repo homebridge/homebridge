@@ -1,6 +1,14 @@
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
 var carwings = require("carwingsjs");
 
+//
+// NOTE: this won't work until the Carwings maintainer merges this PR:
+// https://github.com/crtr0/carwingsjs/pull/2
+//
+// You can also just drop in the raw fixed version straight into node_modules/carwings/index.js:
+// https://raw.githubusercontent.com/nfarina/carwingsjs/patch-1/index.js
+//
+
 function CarwingsAccessory(log, config) {
   this.log = log;
   this.name = config["name"];
@@ -124,42 +132,3 @@ CarwingsAccessory.prototype = {
 };
 
 module.exports.accessory = CarwingsAccessory;
-
-//
-// Monkey-patch carwings to support climate control - remove if this PR is merged:
-// https://github.com/crtr0/carwingsjs/pull/2
-//
-
-carwings.startClimateControl = function(vin, date, callback) {
-
-  var payload = ['ns4:SmartphoneRemoteACTimerRequest', {
-    _attr: {
-      'xmlns:ns4' : 'urn:com:airbiquity:smartphone.vehicleservice:v1',
-      'xmlns:ns3' : 'urn:com:hitachi:gdc:type:vehicle:v1',
-      'xmlns:ns2' : 'urn:com:hitachi:gdc:type:portalcommon:v1' },
-    'ns3:ACRemoteRequest' : {
-      'ns3:VehicleServiceRequestHeader': {
-        'ns2:VIN': vin },
-      'ns3:NewACRemoteRequest': {
-        'ns3:ExecuteTime': (date || new Date()).toISOString() }
-    }
-  }];
-
-  _post('vehicleService', payload, callback);
-};
-
-carwings.stopClimateControl = function(vin, callback) {
-
-  var payload = ['ns4:SmartphoneRemoteACOffRequest', {
-    _attr: {
-      'xmlns:ns4' : 'urn:com:airbiquity:smartphone.vehicleservice:v1',
-      'xmlns:ns3' : 'urn:com:hitachi:gdc:type:vehicle:v1',
-      'xmlns:ns2' : 'urn:com:hitachi:gdc:type:portalcommon:v1' },
-    'ns3:ACRemoteOffRequest' : {
-      'ns3:VehicleServiceRequestHeader': {
-        'ns2:VIN': vin }
-    }
-  }];
-
-  _post('vehicleService', payload, callback);
-};
