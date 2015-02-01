@@ -1,6 +1,9 @@
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
 var wemo = require('wemo');
 
+// extend our search timeout from 5 seconds to 60
+wemo.SearchTimeout = 60000;
+
 function WeMoAccessory(log, config) {
   this.log = log;
   this.name = config["name"];
