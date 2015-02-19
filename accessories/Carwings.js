@@ -1,14 +1,6 @@
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
 var carwings = require("carwingsjs");
 
-//
-// NOTE: this won't work until the Carwings maintainer merges this PR:
-// https://github.com/crtr0/carwingsjs/pull/2
-//
-// You can also just drop in the raw fixed version straight into node_modules/carwings/index.js:
-// https://raw.githubusercontent.com/nfarina/carwingsjs/patch-1/index.js
-//
-
 function CarwingsAccessory(log, config) {
   this.log = log;
   this.name = config["name"];
