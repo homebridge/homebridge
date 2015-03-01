@@ -45,7 +45,7 @@
             "pin": "your-security-system-pin-code"
         },
          {
-            "accessory": "HomeMaticCCU",
+            "accessory": "HomeMatic",
             "name": "Light",
             "description": "HomeMatic Variable as PowerPlug",
             "ccu_id": "3158",
