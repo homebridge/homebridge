@@ -48,7 +48,7 @@
             "accessory": "HomeMaticCCU",
             "name": "Light",
             "description": "HomeMatic Variable as PowerPlug",
-            "ccu_id": "3158"
+            "ccu_id": "3158",
             "ccu_ip": "10.0.1.18"
         }
     ]
