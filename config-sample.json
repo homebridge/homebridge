@@ -43,6 +43,13 @@
             "password": "your-comcast-password",
             "dsig": "your-digital-signature",
             "pin": "your-security-system-pin-code"
+        },
+         {
+            "accessory": "HomeMaticCCU",
+            "name": "Light",
+            "description": "HomeMatic Variable as PowerPlug",
+            "ccu_id": "3158"
+            "ccu_ip": "10.0.1.18"
         }
     ]
 }
