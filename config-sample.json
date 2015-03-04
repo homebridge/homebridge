@@ -47,9 +47,9 @@
          {
             "accessory": "HomeMatic",
             "name": "Light",
-            "description": "HomeMatic Variable as PowerPlug",
-            "ccu_id": "3158",
-            "ccu_ip": "10.0.1.18"
+            "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
+            "ccu_id": "The XMP-API id of your HomeMatic device",
+            "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
         }
     ]
 }
