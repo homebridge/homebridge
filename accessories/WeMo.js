@@ -25,6 +25,8 @@ WeMoAccessory.prototype = {
       }
       else {
         that.log("Error finding device '" + that.wemoName + "': " + err);
+        that.log("Continuing search for WeMo device with exact name '" + that.wemoName + "'...");
+        that.search();
       }
     });
   },
@@ -38,7 +40,7 @@ WeMoAccessory.prototype = {
 
     var binaryState = powerOn ? 1 : 0;
     var that = this;
-    
+
     this.log("Setting power state on the '"+this.wemoName+"' to " + binaryState);
 
     this.device.setBinaryState(binaryState, function(err, result) {
