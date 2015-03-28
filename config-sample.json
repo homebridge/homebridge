@@ -43,6 +43,13 @@
             "password": "your-comcast-password",
             "dsig": "your-digital-signature",
             "pin": "your-security-system-pin-code"
+        },
+         {
+            "accessory": "HomeMatic",
+            "name": "Light",
+            "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
+            "ccu_id": "The XMP-API id of your HomeMatic device",
+            "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
         }
     ]
 }

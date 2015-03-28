@@ -1,42 +1,32 @@
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
-var carwings = require("carwingsjs");
+var request = require("request");
 
-function CarwingsAccessory(log, config) {
+function HomeMatic(log, config) {
   this.log = log;
   this.name = config["name"];
-  this.username = config["username"];
-  this.password = config["password"];
+  this.ccuID = config["ccu_id"];
+  this.ccuIP = config["ccu_ip"];
 }
 
-CarwingsAccessory.prototype = {
+HomeMatic.prototype = {
 
   setPowerState: function(powerOn) {
+
+    var binaryState = powerOn ? 1 : 0;
     var that = this;
+    
+    this.log("Setting power state of CCU to " + powerOn);
+    this.log(this.ccuID+ powerOn);
+    
+    	request.put({
+      url: "http://"+this.ccuIP+"/config/xmlapi/statechange.cgi?ise_id="+this.ccuID+"&new_value="+ powerOn,
+    }, function(err, response, body) {
 
-    carwings.login(this.username, this.password, function(err, result) {
-      if (!err) {
-        that.vin = result.vin;
-        that.log("Got VIN: " + that.vin);
-
-        if (powerOn) {
-          carwings.startClimateControl(that.vin, null, function(err, result) {
-            if (!err)
-              that.log("Started climate control.");
-            else
-              that.log("Error starting climate control: " + err);
-          });
-        }
-        else {
-          carwings.stopClimateControl(that.vin, function(err, result) {
-            if (!err)
-              that.log("Stopped climate control.");
-            else
-              that.log("Error stopping climate control: " + err);
-          });
-        }
+      if (!err && response.statusCode == 200) {
+        that.log("State change complete.");
       }
       else {
-        that.log("Error logging in: " + err);
+        that.log("Error '"+err+"' setting lock state: " + body);
       }
     });
   },
@@ -60,7 +50,7 @@ CarwingsAccessory.prototype = {
         onUpdate: null,
         perms: ["pr"],
         format: "string",
-        initialValue: "Nissan",
+        initialValue: "WeMo",
         supportEvents: false,
         supportBonjour: false,
         manfDescription: "Manufacturer",
@@ -116,11 +106,11 @@ CarwingsAccessory.prototype = {
         initialValue: false,
         supportEvents: false,
         supportBonjour: false,
-        manfDescription: "Change the power state of the car",
+        manfDescription: "Change the power state of a Variable",
         designedMaxLength: 1
       }]
     }];
   }
 };
 
-module.exports.accessory = CarwingsAccessory;
+module.exports.accessory = HomeMatic;
