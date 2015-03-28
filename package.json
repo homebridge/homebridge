@@ -15,7 +15,7 @@
     "xmldoc": "0.1.x",
 
     "carwingsjs": "0.0.x",
-    "sonos": "0.6.x",
+    "sonos": "0.8.x",
     "wemo": "0.2.x"
   }
 }
