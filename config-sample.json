@@ -50,6 +50,14 @@
             "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
             "ccu_id": "The XMP-API id of your HomeMatic device",
             "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
+        },
+        {
+            "accessory": "X10",
+            "name": "Lamp",
+            "ip_address": "localhost:3000",
+            "device_id": "E1",
+            "protocol": "pl",
+            "can_dim": true
         }
     ]
 }
