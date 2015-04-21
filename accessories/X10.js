@@ -130,7 +130,7 @@ X10.prototype = {
       }]
     }];
     if (that.canDim) {
-      services.characteristics.push({
+      services[0].characteristics.push({
         cType: types.BRIGHTNESS_CTYPE,
         onUpdate: function(value) { that.setBrightnessLevel(value); },
         perms: ["pw","pr","ev"],
