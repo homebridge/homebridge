@@ -11,6 +11,7 @@ Since Siri supports devices added through HomeKit, this means that with HomeBrid
  * _Siri, turn off the Speakers._ ([Sonos](http://www.sonos.com))
  * _Siri, turn on the Dehumidifier._ ([WeMo](http://www.belkin.com/us/Products/home-automation/c/wemo-home-automation/))
  * _Siri, turn on Away Mode._ ([Xfinity Home](http://www.comcast.com/home-security.html))
+ * _Siri, turn on the living room lights._ ([X10 via rest-mochad](http://github.com/edc1591/rest-mochad))
 
 If you would like to support any other devices, please write a shim and create a pull request and I'd be happy to add it to this official list.
 
