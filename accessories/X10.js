@@ -18,7 +18,6 @@ X10.prototype = {
     var that = this;
     
     this.log("Setting power state of " + this.deviceID + " to " + powerOn);
-    this.log("http://"+this.ip_address+"/x10/"+this.deviceID+"/power/"+binaryState+"?protocol="+this.protocol);
     request.put({
       url: "http://"+this.ip_address+"/x10/"+this.deviceID+"/power/"+binaryState+"?protocol="+this.protocol,
     }, function(err, response, body) {
