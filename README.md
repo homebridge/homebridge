@@ -39,7 +39,7 @@ Additionally, the shims I've created implement the bare minimum of HomeKit neede
 
 # Getting Started
 
-OK, if you're still excited enough about ordering your home to make coffee for you (which, who wouldn't be!) then here's how to set things up. First, clone this repo and also init submodules to grab the [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project which isn't in npm. You'll also need to run `npm rebuild` on HAP-NodeJS because the `node_modules` folder is already in the Git repo.
+OK, if you're still excited enough about ordering your home to make coffee for you (which, who wouldn't be!) then here's how to set things up. First, clone this repo and also init submodules to grab the [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project which isn't in npm. You'll also need to run `npm install` on HAP-NodeJS:
 
     $ git clone https://github.com/nfarina/homebridge.git
     $ cd homebridge
@@ -47,7 +47,9 @@ OK, if you're still excited enough about ordering your home to make coffee for y
     $ git submodule update
     $ npm install
     $ cd lib/HAP-NodeJS
-    $ npm rebuild
+    $ npm install
+
+**Node**: You'll need to have NodeJS version 0.12.x or better installed for `HAP-NodeJS` to load.
 
 Now you should be able to run the homebridge server:
 
