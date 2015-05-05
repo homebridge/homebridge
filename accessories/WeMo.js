@@ -3,6 +3,7 @@ var wemo = require('wemo');
 
 // extend our search timeout from 5 seconds to 60
 wemo.SearchTimeout = 60000;
+wemo.timeout = wemo.SearchTimeout // workaround for a bug in wemo.js v0.0.4
 
 function WeMoAccessory(log, config) {
   this.log = log;
