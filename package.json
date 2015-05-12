@@ -16,6 +16,7 @@
 
     "carwingsjs": "0.0.x",
     "sonos": "0.8.x",
-    "wemo": "0.2.x"
+    "wemo": "0.2.x",
+    "wink-js": "0.0.5"
   }
 }
