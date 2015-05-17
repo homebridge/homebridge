@@ -1,14 +1,14 @@
 var types  = require("../lib/HAP-NodeJS/accessories/types.js")
 var request = require("request")
 
-function HelloHomeAccessory(log, config) {
+function SmartThingsHelloHomeAccessory(log, config) {
   this.log          = log
   this.appId        = config["appId"]
   this.accessToken  = config["accessToken"]
   this.name         = config["name"]
 }
 
-HelloHomeAccessory.prototype = {
+SmartThingsHelloHomeAccessory.prototype = {
   execute: function() {
     url = "https://graph.api.smartthings.com/"+this.appId+"?access_token="+this.accessToken
     console.log(url)
@@ -105,4 +105,4 @@ HelloHomeAccessory.prototype = {
   }
 }
 
-module.exports.accessory = HelloHomeAccessory
+module.exports.accessory = SmartThingsHelloHomeAccessory
