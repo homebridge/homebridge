@@ -60,8 +60,7 @@ def renderConfig() {
         [
             accessory: "HelloHomeBridge",
             name: it.label,
-            phrase: it.label,
-            appId: app.id,
+            appId: it.id,
             accessToken: state.accessToken
         ]
     }))
