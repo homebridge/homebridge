@@ -1,47 +1,26 @@
-var types = require("../lib/HAP-NodeJS/accessories/types.js")
-var sync = require('http-sync')
+var types  = require("../lib/HAP-NodeJS/accessories/types.js")
+var request = require("request")
 
 function HelloHomeAccessory(log, config) {
-  this.log = log
-
-  // config
-  this.appId       = config["appId"]
-  this.accessToken = config["accessToken"]
-  this.phrase      = config["phrase"]
-  this.name        = config["name"]
-
-  // load up devices
-  var req = sync.request({
-    method: 'GET',
-    protocol: 'https',
-    host: 'graph.api.smartthings.com',
-    port: 443,
-    path: "/api/smartapps/installations/"+this.appId+"/phrases?access_token="+this.accessToken
-  })
-  var res = req.end()
-  this.phrases = JSON.parse(res.body.toString())
-
-  if (this.phrase == undefined) {
-    console.log(this.phrases)
-  } else {
-    this.phrasePath = this.phrases[this.phrase]
-  }
+  this.log          = log
+  this.appId        = config["appId"]
+  this.accessToken  = config["accessToken"]
+  this.name         = config["name"]
 }
 
 HelloHomeAccessory.prototype = {
   execute: function() {
-    var req = sync.request({
-      method: 'GET',
-      protocol: 'https',
-      host: 'graph.api.smartthings.com',
-      port: 443,
-      path: this.phrasePath+"?access_token="+this.accessToken
+    url = "https://graph.api.smartthings.com/"+this.appId+"?access_token="+this.accessToken
+    console.log(url)
+    request.get({
+      url: url,
+    }, function(err, response) {
+      console.log("triggered "+this.name)
+      console.log(response.body)
     })
-    var res = req.end()
-    console.log("triggered "+this.phrase)
   },
   getServices: function() {
-    if (this.phrase == undefined) {
+    if (this.name == undefined) {
       return []
     } else {
       var that = this
@@ -82,7 +61,7 @@ HelloHomeAccessory.prototype = {
           onUpdate: null,
           perms: ["pr"],
           format: "string",
-          initialValue: this.phrasePath,
+          initialValue: this.appId+"-"+this.name,
           supportEvents: false,
           supportBonjour: false,
           manfDescription: "SN",
