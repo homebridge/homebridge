@@ -10,13 +10,17 @@ function SmartThingsHelloHomeAccessory(log, config) {
 
 SmartThingsHelloHomeAccessory.prototype = {
   execute: function() {
-    url = "https://graph.api.smartthings.com/"+this.appId+"?access_token="+this.accessToken
+    var that = this
+    url = "https://graph.api.smartthings.com/api/smartapps/installations/"+this.appId+"/action/execute?access_token="+this.accessToken
     console.log(url)
     request.get({
       url: url,
     }, function(err, response) {
-      console.log("triggered "+this.name)
-      console.log(response.body)
+      if (!err && response.statusCode == 200) {
+        that.log("Triggered successfully")
+      } else {
+        that.log("Error '"+err+"': " + body)
+      }
     })
   },
   getServices: function() {
