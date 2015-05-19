@@ -34,7 +34,7 @@ function loadAccessories() {
         var platformModule = require('./platforms/' + platformName + ".js"); // like "./platforms/Wink.js"
         var platformConstructor = platformModule.platform; // like "WinkPlatform", a JavaScript constructor
 
-        // Create a custom logging function that prepends the device display name for debugging
+        // Create a custom logging function that prepends the platform display name for debugging
         var name = platformConfig["name"];
         var log = function(name) { return function(s) { console.log("[" + name + "] " + s); }; }(name);
 
