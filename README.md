@@ -76,7 +76,7 @@ Now you should be able to run the homebridge server:
 
 The server won't do anything until you've created a `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) or platforms you wish to make available to iOS.
 
-Once you've added your devices or platforms, you should be able to run the server again and see them initialize:
+Once you've added your devices and/or platforms, you should be able to run the server again and see them initialize:
 
     $ npm run start
     Starting HomeBridge server...
