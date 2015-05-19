@@ -1,6 +1,17 @@
 {
     "description": "This is an example configuration file with all supported devices. You can use this as a template for creating your own configuration file containing devices you actually own.",
 
+    "platforms": [
+        {
+            "platform": "Wink",
+            "name": "Wink",
+            "client_id": "YOUR_WINK_API_CLIENT_ID",
+            "client_secret": "YOUR_WINK_API_CLIENT_SECRET",
+            "username": "your@email.com",
+            "password": "WINK_PASSWORD"
+        }
+    ],
+
     "accessories": [
         {
             "accessory": "WeMo",
