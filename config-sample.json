@@ -69,15 +69,6 @@
             "device_id": "E1",
             "protocol": "pl",
             "can_dim": true
-        },
-        {
-            "accessory": "Wink",
-            "client_id": "YOUR_WINK_API_CLIENT_ID",
-            "client_secret": "YOUR_WINK_API_CLIENT_SECRET",
-            "username": "your@email.com",
-            "password": "WINK_PASSWORD",
-            "name": "Family Room Lamp",
-            "description": "Lamp on the left side of the room"
         }
     ]
 }
