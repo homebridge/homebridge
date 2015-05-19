@@ -21,11 +21,11 @@ storage.initSync();
 var config = JSON.parse(fs.readFileSync(configPath));
 
 function loadAccessories() {
-    console.log("Loading " + config.accessories.length + " accessories...");
 
     var accessories = [];
 
     // Instantiate all accessories in the config
+    console.log("Loading " + config.accessories.length + " accessories...");
     for (var i=0; i<config.accessories.length; i++) {
 
         var accessoryConfig = config.accessories[i];
