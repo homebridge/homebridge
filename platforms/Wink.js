@@ -1,8 +1,12 @@
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
 var wink = require('wink-js');
 
-function WinkAccessory(log, config) {
-  this.log = log;
+var model = {
+  light_bulbs: require('wink-js/lib/model/light')
+};
+
+
+function WinkPlatform(log, config){
 
   // auth info
   this.client_id = config["client_id"];
@@ -10,18 +14,15 @@ function WinkAccessory(log, config) {
   this.username = config["username"];
   this.password = config["password"];
 
-  // device info
-  this.name = config["name"];
-  this.device = null;
-
-  this.log("Searching for Wink device with exact name '" + this.name + "'...");
-  this.search();
+  this.log = log;
 }
 
-WinkAccessory.prototype = {
+WinkPlatform.prototype = {
+  accessories: function(callback) {
+    this.log("Fetching Wink devices.");
 
-  search: function() {
     var that = this;
+    var foundAccessories = [];
 
     wink.init({
         "client_id": this.client_id,
@@ -33,13 +34,28 @@ WinkAccessory.prototype = {
         that.log("There was a problem authenticating with Wink.");
       } else {
         // success
-        wink.user().device(that.name, function(device) {
-          that.device = device
+        wink.user().devices('light_bulbs', function(devices) {
+          for (var i=0; i<devices.data.length; i++){
+            device = model.light_bulbs(devices.data[i], wink)
+            accessory = new WinkAccessory(that.log, device);
+            foundAccessories.push(accessory);
+          }
+          callback(foundAccessories);
         });
       }
     });
 
-  },
+  }
+}
+
+function WinkAccessory(log, device) {
+  // device info
+  this.name = device.name;
+  this.device = device;
+  this.log = log;
+}
+
+WinkAccessory.prototype = {
 
   setPowerState: function(powerOn) {
     if (!this.device) {
@@ -79,7 +95,7 @@ WinkAccessory.prototype = {
 
     var that = this;
 
-    this.log("Setting brightness on the '"+this.name+"' to on");
+    this.log("Setting brightness on the '"+this.name+"' to " + level);
     this.device.brightness(level, function(response) {
       if (response === undefined) {
         that.log("Error setting brightness on the '"+that.name+"'")
@@ -185,3 +201,4 @@ WinkAccessory.prototype = {
 };
 
 module.exports.accessory = WinkAccessory;
+module.exports.platform = WinkPlatform;

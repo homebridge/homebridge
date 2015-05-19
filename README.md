@@ -1,7 +1,7 @@
 
 # HomeBridge
 
-HomeBridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It includes a set of "shims" (found in the [accessories](accessories/) folder) that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices.
+HomeBridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It includes a set of "shims" (found in the [accessories](accessories/) and [platforms](platforms/) folders) that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices.
 
 Since Siri supports devices added through HomeKit, this means that with HomeBridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using the included shims, you can say things like:
 
@@ -14,6 +14,24 @@ Since Siri supports devices added through HomeKit, this means that with HomeBrid
  * _Siri, turn on the living room lights._ ([X10 via rest-mochad](http://github.com/edc1591/rest-mochad) or [Wink via wink-js](https://github.com/winfinit/wink-js))
 
 If you would like to support any other devices, please write a shim and create a pull request and I'd be happy to add it to this official list.
+
+# Shim types
+There are 2 types of shims supported in HomeBridge.
+
+* Accessory - Individual device
+* Platform - A full bridge to another system
+
+## Accessories
+
+Accessories are individual devices you would like to bridge to HomeKit. You set them up by declaring them individually in your `config.json` file. Generally, you specify them by `name` or `id` and which system they use.
+
+## Platforms
+
+Platforms bridge entire systems to HomeKit. Platforms can be things like Wink or SmartThings or Vera. By adding a platform to your `config.json`, HomeBridge will automatically detect all of your devices for you.
+
+    Wink is currently the only supported platform at the moment.
+
+All you have to do is add the right config options so HomeBridge can authenticate and communicate with your other system, and voila, your devices will be available to HomeKit via HomeBridge.
 
 # Why?
 
@@ -58,15 +76,20 @@ Now you should be able to run the homebridge server:
     Starting HomeBridge server...
     Couldn't find a config.json file [snip]
 
-The server won't do anything until you've created a `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) you wish to make available to iOS.
+The server won't do anything until you've created a `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) or platforms you wish to make available to iOS.
 
-One you've added your devices, you should be able to run the server again and see them initialize:
+Once you've added your devices or platforms, you should be able to run the server again and see them initialize:
 
     $ npm run start
     Starting HomeBridge server...
     Loading 6 accessories...
     [Speakers] Initializing 'Sonos' accessory...
     [Coffee Maker] Initializing 'WeMo' accessory...
+    [Speakers] Initializing 'Sonos' accessory...
+    [Coffee Maker] Initializing 'WeMo' accessory...
+    [Wink] Initializing Wink platform...
+    [Wink] Fetching Wink devices.
+    [Wink] Initializing device with name Living Room Lamp...
 
 Your server is now ready to receive commands from iOS.
 

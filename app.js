@@ -21,11 +21,46 @@ storage.initSync();
 var config = JSON.parse(fs.readFileSync(configPath));
 
 function loadAccessories() {
-    console.log("Loading " + config.accessories.length + " accessories...");
 
     var accessories = [];
 
+    console.log("Loading " + config.platforms.length + " platforms...");
+    for (var i=0; i<config.platforms.length; i++) {
+
+        var platformConfig = config.platforms[i];
+
+        // Load up the class for this accessory
+        var platformName = platformConfig["platform"]; // like "Wink"
+        var platformModule = require('./platforms/' + platformName + ".js"); // like "./platforms/Wink.js"
+        var platformConstructor = platformModule.platform; // like "WinkPlatform", a JavaScript constructor
+
+        // Create a custom logging function that prepends the platform display name for debugging
+        var name = platformConfig["name"];
+        var log = function(name) { return function(s) { console.log("[" + name + "] " + s); }; }(name);
+
+        log("Initializing " + platformName + " platform...");
+
+        var platform = new platformConstructor(log, platformConfig);
+
+        // query for devices
+        platform.accessories(function(foundAccessories){
+          // loop through accessories adding them to the list and registering them
+          for (var i = 0; i < foundAccessories.length; i++) {
+            accessory = foundAccessories[i]
+            accessories.push(accessory);
+            log("Initializing device with name " + accessory.name + "...")
+            // Extract the raw "services" for this accessory which is a big array of objects describing the various
+            // hooks in and out of HomeKit for the HAP-NodeJS server.
+            var services = accessory.getServices();
+            // Create the HAP server for this accessory
+            createHAPServer(accessory.name, services);
+          }
+          accessories.push.apply(accessories, foundAccessories);
+        })
+    }
+
     // Instantiate all accessories in the config
+    console.log("Loading " + config.accessories.length + " accessories...");
     for (var i=0; i<config.accessories.length; i++) {
 
         var accessoryConfig = config.accessories[i];
