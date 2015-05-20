@@ -11,7 +11,7 @@ Since Siri supports devices added through HomeKit, this means that with HomeBrid
  * _Siri, turn off the Speakers._ ([Sonos](http://www.sonos.com))
  * _Siri, turn on the Dehumidifier._ ([WeMo](http://www.belkin.com/us/Products/home-automation/c/wemo-home-automation/))
  * _Siri, turn on Away Mode._ ([Xfinity Home](http://www.comcast.com/home-security.html))
- * _Siri, turn on the living room lights._ ([X10 via rest-mochad](http://github.com/edc1591/rest-mochad) or [Wink via wink-js](https://github.com/winfinit/wink-js))
+ * _Siri, turn on the living room lights._ ([Wink](http://www.wink.com), [SmartThings](http://www.smartthings.com), [X10](http://github.com/edc1591/rest-mochad))
 
 If you would like to support any other devices, please write a shim and create a pull request and I'd be happy to add it to this official list.
 
@@ -28,8 +28,6 @@ Accessories are individual devices you would like to bridge to HomeKit. You set 
 ## Platforms
 
 Platforms bridge entire systems to HomeKit. Platforms can be things like Wink or SmartThings or Vera. By adding a platform to your `config.json`, HomeBridge will automatically detect all of your devices for you.
-
-    Wink is currently the only supported platform at the moment.
 
 All you have to do is add the right config options so HomeBridge can authenticate and communicate with your other system, and voila, your devices will be available to HomeKit via HomeBridge.
 
