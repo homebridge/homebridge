@@ -9,7 +9,14 @@
             "client_secret": "YOUR_WINK_API_CLIENT_SECRET",
             "username": "your@email.com",
             "password": "WINK_PASSWORD"
+        },
+        {
+            "platform": "SmartThings",
+            "name": "SmartThings",
+            "app_id": "Homebridge SmartApp Id",
+            "access_token": "Homebridge SmartApp AccessToken",
         }
+
     ],
 
     "accessories": [
