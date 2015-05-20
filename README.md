@@ -91,7 +91,7 @@ Your server is now ready to receive commands from iOS.
 
 # Adding your devices to iOS
 
-HomeKit is actually not an app; it's a "database" similar to HealthKit and PassKit. But where HealthKit has the companion _Health_ app and PassKit has _Passbook_, Apple has supplied no app for managing your HomeKit database (yet). However, the HomeKit API is open for developers to write their own apps for adding devices to HomeKit.
+HomeKit is actually not an app; it's a "database" similar to HealthKit and PassKit. But where HealthKit has the companion _Health_ app and PassKit has _Passbook_, Apple has supplied no app for managing your HomeKit database (at least [not yet](http://9to5mac.com/2015/05/20/apples-planned-ios-9-home-app-uses-virtual-rooms-to-manage-homekit-accessories/)). However, the HomeKit API is open for developers to write their own apps for adding devices to HomeKit.
 
 ## The Easy Way - MyTouchHome
 
