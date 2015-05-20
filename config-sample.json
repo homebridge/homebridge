@@ -16,7 +16,6 @@
             "app_id": "Homebridge SmartApp Id",
             "access_token": "Homebridge SmartApp AccessToken",
         }
-
     ],
 
     "accessories": [
