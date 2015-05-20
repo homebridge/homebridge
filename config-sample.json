@@ -13,8 +13,8 @@
         {
             "platform": "SmartThings",
             "name": "SmartThings",
-            "app_id": "Homebridge SmartApp Id",
-            "access_token": "Homebridge SmartApp AccessToken",
+            "app_id": "JSON SmartApp Id",
+            "access_token": "JSON SmartApp AccessToken",
         }
     ],
 
