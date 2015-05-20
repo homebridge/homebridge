@@ -50,11 +50,9 @@ function SmartThingsAccessory(log, name, commands) {
 SmartThingsAccessory.prototype = {
 
   command: function(c,value) {
-    this.log("Received command " + c);
-    var url;
-    if (value == undefined) {
-      url = this.commands[c];
-    } else {
+    this.log(this.name + " sending command " + c);
+    var url = this.commands[c];
+    if (value != undefined) {
       url = this.commands[c] + "&value="+value
     }
 
@@ -63,10 +61,10 @@ SmartThingsAccessory.prototype = {
       url: url
     }, function(err, response) {
       if (err) {
-        that.log("There was a problem sending command " + c + " to SmartThings");
+        that.log("There was a problem sending command " + c + " to" + that.name);
         that.log(url);
       } else {
-        that.log("Sent command " + c);
+        that.log(that.name + " sent command " + c);
       }
     })
   },
