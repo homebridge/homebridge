@@ -93,21 +93,9 @@ Your server is now ready to receive commands from iOS.
 
 HomeKit is actually not an app; it's a "database" similar to HealthKit and PassKit. But where HealthKit has the companion _Health_ app and PassKit has _Passbook_, Apple has supplied no app for managing your HomeKit database (at least [not yet](http://9to5mac.com/2015/05/20/apples-planned-ios-9-home-app-uses-virtual-rooms-to-manage-homekit-accessories/)). However, the HomeKit API is open for developers to write their own apps for adding devices to HomeKit.
 
-## The Easy Way - MyTouchHome
+Fortunately, there are now a few apps in the App Store that can manage your HomeKit devices. Try [Insteon+](https://itunes.apple.com/US/app/id919270334?mt=8) or [Lutron](https://itunes.apple.com/us/app/lutron-app-for-caseta-wireless/id886753021?mt=8) or a number of others.
 
-Fortunately, there is at least one app that has slipped into the App Store that can manage your HomeKit devices. It's called [MyTouchHome](http://mytouchhome.webs.com) and it costs $2. This is by far the easiest way to get up and running.
-
-You might also want to do a quick search in the App Store for "HomeKit" and see if any better/free options have popped up since the time of this writing.
-
-## The Hard Way - Building your own HomeKit iOS app
-
-Alternatively, if you have an Apple Developer account, you can build and run your own HomeKit iOS app. This is a lot of work but it's also free (if you happen to have a $99 Apple Developer account already).
-
-There are a few open-source apps out there that let you manage your HomeKit database, but the best one I've found is [BetterHomeKit](https://github.com/KhaosT/HomeKit-Demo), also made by [KhaosT](http://twitter.com/khaost).
-
-The tricky part is that, in order to run an app that uses HomeKit on your phone, you'll need to register your own unique App ID in the Apple Developer Portal, as if you were planning to submit this app to the App Store, and you'll need to enable the HomeKit "service" for that App ID in the Apple Developer Portal (similar to Game Center). You'll need to pick your own unique Bundle ID as well (like `com.yourdomain.HomeKitApp`), and actually _change_ the BetterHomeKit `Info.plist` to use that bundle ID instead of the default `org.oltica.BetterHomeKit`.
-
-## Adding Devices
+## Adding HomeKit Accessories
 
 Once you've gotten a HomeKit app running on your iOS device, you can begin adding accessories. The app should "discover" the accessories defined in your `config.json` file, assuming that you're still running the HomeBridge server and you're on the same Wifi network.
 
