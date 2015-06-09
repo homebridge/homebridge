@@ -72,7 +72,7 @@ Now you should be able to run the homebridge server:
     Starting HomeBridge server...
     Couldn't find a config.json file [snip]
 
-The server won't do anything until you've created a `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) or platforms you wish to make available to iOS.
+The server won't do anything until you've created a `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) or platforms you wish to make available to iOS. You can start by copying and modifying the included `config-sample.json` file which includes declarations for all supported accessories and platforms.
 
 Once you've added your devices and/or platforms, you should be able to run the server again and see them initialize:
 
