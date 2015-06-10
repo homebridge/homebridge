@@ -14,7 +14,13 @@
             "platform": "SmartThings",
             "name": "SmartThings",
             "app_id": "JSON SmartApp Id",
-            "access_token": "JSON SmartApp AccessToken",
+            "access_token": "JSON SmartApp AccessToken"
+        },
+        {
+            "platform": "Domoticz",
+            "name": "Domoticz",
+            "server": "127.0.0.1",
+            "port": "8005"
         }
     ],
 
