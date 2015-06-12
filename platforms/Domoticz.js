@@ -1,6 +1,13 @@
 // Domoticz Platform Shim for HomeBridge
 // Written by Joep Verhaeg (http://www.joepverhaeg.nl)
 //
+// Revisions:
+//
+// 12 June 2015 [GizMoCuz]
+// - Added support for RGB lights
+// - Added support for Scenes
+// - Sorting device names
+//
 // Domoticz JSON API required
 // https://www.domoticz.com/wiki/Domoticz_API/JSON_URL's#Lights_and_switches
 //
@@ -26,20 +33,47 @@ function DomoticzPlatform(log, config){
 	this.port    = config["port"];
 }
 
+function sortByKey(array, key) {
+    return array.sort(function(a, b) {
+        var x = a[key]; var y = b[key];
+        return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+    });
+}
+
 DomoticzPlatform.prototype = {
 	accessories: function(callback) {
 	    this.log("Fetching Domoticz lights and switches...");
 
 	    var that = this;
 	    var foundAccessories = [];
+	    //Get Lights
 		request.get({
-			url: "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=getlightswitches",
+			url: "http://" + this.server + ":" + this.port + "/json.htm?type=devices&filter=light&used=true&order=Name",
 	      	json: true
 	    }, function(err, response, json) {
 			if (!err && response.statusCode == 200) {
 				if (json['result'] != undefined) {
-					json['result'].map(function(s) {
-						accessory = new DomoticzAccessory(that.log, that.server, that.port, s.idx, s.Name, s.IsDimmer);
+					var sArray=sortByKey(json['result'],"Name");
+					sArray.map(function(s) {
+						accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+						foundAccessories.push(accessory);
+	          		})
+				}
+				callback(foundAccessories);
+			} else {
+				that.log("There was a problem connecting to Domoticz.");
+	      	}
+		});
+		//Get Scenes
+		request.get({
+			url: "http://" + this.server + ":" + this.port + "/json.htm?type=scenes",
+	      	json: true
+	    }, function(err, response, json) {
+			if (!err && response.statusCode == 200) {
+				if (json['result'] != undefined) {
+					var sArray=sortByKey(json['result'],"Name");
+					sArray.map(function(s) {
+						accessory = new DomoticzAccessory(that.log, that.server, that.port, true, s.idx, s.Name, false, 0, false);
 						foundAccessories.push(accessory);
 	          		})
 				}
@@ -51,25 +85,45 @@ DomoticzPlatform.prototype = {
 	}
 }
 
-function DomoticzAccessory(log, server, port, idx, name, isDimmer) {
+function DomoticzAccessory(log, server, port, IsScene, idx, name, HaveDimmer, MaxDimLevel, HaveRGB) {
   // device info
-  this.idx		  = idx;
-  this.name     = name;
-  this.isDimmer = isDimmer;
-  this.log      = log;
-  this.server   = server;
-  this.port     = port;
+  this.IsScene		= IsScene;
+  this.idx			= idx;
+  this.name			= name;
+  this.HaveDimmer	= HaveDimmer;
+  this.MaxDimLevel	= MaxDimLevel;
+  this.HaveRGB		= HaveRGB;
+  this.log 			= log;
+  this.server		= server;
+  this.port			= port;
 }
 
 DomoticzAccessory.prototype = {
 	command: function(c,value) {
 		this.log(this.name + " sending command " + c + " with value " + value);
-
-		if (c == "On" || c == "Off") {
-			url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchlight&idx=" + this.idx + "&switchcmd=" + c + "&level=0";
+		if (this.IsScene == false) {
+			//Lights
+			if (c == "On" || c == "Off") {
+				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchlight&idx=" + this.idx + "&switchcmd=" + c + "&level=0";
+			}
+			else if (c == "setHue") {
+				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=setcolbrightnessvalue&idx=" + this.idx + "&hue=" + value + "&brightness=100" + "&iswhite=false";
+			}
+			else if (c == "setLevel") {
+				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value;
+			}
+			else if (value != undefined) {
+				this.log(this.name + " Unhandled Light command! cmd=" + c + ", value=" + value);
+			}
 		}
-		else if (value != undefined) {
-			url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value;
+		else {
+			//Scenes
+			if (c == "On" || c == "Off") {
+				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchscene&idx=" + this.idx + "&switchcmd=" + c;
+			}
+			else if (value != undefined) {
+				this.log(this.name + " Unhandled Scene command! cmd=" + c + ", value=" + value);
+			}
 		}
 
     var that = this;
@@ -172,7 +226,7 @@ DomoticzAccessory.prototype = {
       })
     }
 
-    if (this.isDimmer == true) {
+    if (this.HaveDimmer == true) {
       cTypes.push({
         cType: types.BRIGHTNESS_CTYPE,
         onUpdate: function(value) { that.command("setLevel", value); },
@@ -183,9 +237,25 @@ DomoticzAccessory.prototype = {
         supportBonjour: false,
         manfDescription: "Adjust Brightness of Light",
         designedMinValue: 0,
-        designedMaxValue: 16, //100% for KAKU devices.
+        designedMaxValue: this.MaxDimLevel,
         designedMinStep: 1,
         unit: "%"
+      })
+    }
+    if (this.HaveRGB == true) {
+      cTypes.push({
+        cType: types.HUE_CTYPE,
+        onUpdate: function(value) { that.command("setHue", value); },
+        perms: ["pw","pr","ev"],
+        format: "int",
+        initialValue:  0,
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Adjust Hue of Light",
+        designedMinValue: 0,
+        designedMaxValue: 360,
+        designedMinStep: 1,
+        unit: "arcdegrees"
       })
     }
 
@@ -193,7 +263,7 @@ DomoticzAccessory.prototype = {
   },
 
   sType: function() {
-    if (this.isDimmer == true) {
+    if (this.HaveDimmer == true) {
       return types.LIGHTBULB_STYPE
     } else {
       return types.SWITCH_STYPE
