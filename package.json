@@ -13,7 +13,7 @@
     "request": "2.49.x",
     "node-persist": "0.0.x",
     "xmldoc": "0.1.x",
-
+    "node-hue-api": "^1.0.5",
     "carwingsjs": "0.0.x",
     "sonos": "0.8.x",
     "wemo": "0.2.x",

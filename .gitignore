@@ -5,6 +5,7 @@
 # Node
 node_modules/
 npm-debug.log
+.node-version
 
 # Intellij
 .idea/
