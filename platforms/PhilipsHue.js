@@ -20,6 +20,10 @@
 
 "use strict";
 
+var hue = require("node-hue-api"),
+    HueApi = hue.HueApi,
+    lightState = hue.lightState;
+
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
 
 function PhilipsHuePlatform(log, config) {
@@ -28,120 +32,16 @@ function PhilipsHuePlatform(log, config) {
   this.username    = config["username"];
 }
 
-function PhilipsHueAccessory(log, accessoryName, philipsHueLightID, model, philipsHueLightNumber) {
-  return {
-    displayName: accessoryName,
-    username: philipsHueLightID,
-    pincode: '031-45-154',
-    services: [{
-      sType: types.ACCESSORY_INFORMATION_STYPE,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-      format: "string",
-      initialValue: accessoryName,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Name of the accessory",
-      designedMaxLength: 255
-      },{
-        cType: types.MANUFACTURER_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-      format: "string",
-      initialValue: "Philips",
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Manufacturer",
-      designedMaxLength: 255
-      },{
-        cType: types.MODEL_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-      format: "string",
-      initialValue: model,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Model",
-      designedMaxLength: 255
-      },{
-        cType: types.IDENTIFY_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(accessoryName, philipsHueLightNumber, "identify", value); },
-        perms: ["pw"],
-      format: "bool",
-      initialValue: false,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Identify Accessory",
-      designedMaxLength: 1
-      }]
-    },{
-      sType: types.LIGHTBULB_STYPE,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-      format: "string",
-      initialValue: accessoryName,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Name of service",
-      designedMaxLength: 255
-      },{
-        cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(accessoryName, philipsHueLightNumber, "on", value); },
-        perms: ["pw","pr","ev"],
-      format: "bool",
-      initialValue: false,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Turn On the Light",
-      designedMaxLength: 1
-      },{
-        cType: types.HUE_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(accessoryName, philipsHueLightNumber, "hue", value); },
-        perms: ["pw","pr","ev"],
-      format: "int",
-      initialValue: 0,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Adjust Hue of Light",
-      designedMinValue: 0,
-      designedMaxValue: 65535,
-      designedMinStep: 1,
-      unit: "arcdegrees"
-      },{
-        cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(accessoryName, philipsHueLightNumber, "brightness", value); },
-        perms: ["pw","pr","ev"],
-      format: "int",
-      initialValue: 0,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Adjust Brightness of Light",
-      designedMinValue: 0,
-      designedMaxValue: 100,
-      designedMinStep: 1,
-      unit: "%"
-      },{
-        cType: types.SATURATION_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(accessoryName, philipsHueLightNumber, "saturation", value); },
-        perms: ["pw","pr","ev"],
-      format: "int",
-      initialValue: 0,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Adjust Saturation of Light",
-      designedMinValue: 0,
-      designedMaxValue: 100,
-      designedMinStep: 1,
-      unit: "%"
-      }]
-    }]
-  };
+function PhilipsHueAccessory(log, device, api) {
+  // device info
+  this.name = device.name;
+  this.model = device.modelid;
+  this.device = device;
+  this.api = api;
+  this.log = log;
 }
 
+// @todo Use the node module for all of this
 var execute = function(accessory, lightID, characteristic, value) {
   var http = require('http');
   var body = {};
@@ -192,17 +92,180 @@ PhilipsHuePlatform.prototype = {
     var that = this;
     var foundAccessories = [];
 
-    var HueApi = require("node-hue-api").HueApi;
     var api = new HueApi(this.ip_address, this.username);
 
     // Connect to the API and loop through lights
     api.lights(function(err, response) {
-      response.lights.map(function(s) {
-        var accessory = new PhilipsHueAccessory(that.log, s.name, s.uniqueid, s.modelid, s.id);
+      if (err) throw err;
+      response.lights.map(function(device) {
+        var accessory = new PhilipsHueAccessory(that.log, device, api);
         foundAccessories.push(accessory);
       });
       callback(foundAccessories);
     });
+  }
+};
+
+PhilipsHueAccessory.prototype = {
+
+  setPowerState: function(powerOn) {
+    if (!this.device) {
+      this.log("No '"+this.name+"' device found (yet?)");
+      return;
+    }
+
+    var that = this;
+    var state;
+
+    if (powerOn) {
+      this.log("Setting power state on the '"+this.name+"' to off");
+      state = lightState.create().on();
+      that.api.setLightState(that.id, state, function(err, result) {
+        if (err) {
+          that.log("Error setting power state on for '"+that.name+"'");
+        } else {
+          that.log("Successfully set power state on for '"+that.name+"'");
+        }
+      });
+    }else{
+      this.log("Setting power state on the '"+this.name+"' to off");
+      state = lightState.create().off();
+      that.api.setLightState(that.id, state, function(err, result) {
+        if (err) {
+          that.log("Error setting power state off for '"+that.name+"'");
+        } else {
+          that.log("Successfully set power state off for '"+that.name+"'");
+        }
+      });
+    }
+  },
+
+  setBrightness: function(level) {
+    if (!this.device) {
+      this.log("No '"+this.name+"' device found (yet?)");
+      return;
+    }
+
+    var that = this;
+
+    this.log("Setting brightness on the '"+this.name+"' to " + level);
+    this.device.brightness(level, function(response) {
+      if (response === undefined) {
+        that.log("Error setting brightness on the '"+that.name+"'");
+      } else {
+        that.log("Successfully set brightness on the '"+that.name+"' to " + level);
+      }
+    });
+  },
+
+  getServices: function() {
+    var that = this;
+    return [{
+      sType: types.ACCESSORY_INFORMATION_STYPE,
+      characteristics: [{
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+      format: "string",
+      initialValue: this.name,
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Name of the accessory",
+      designedMaxLength: 255
+      },{
+        cType: types.MANUFACTURER_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+      format: "string",
+      initialValue: "Philips",
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Manufacturer",
+      designedMaxLength: 255
+      },{
+        cType: types.MODEL_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+      format: "string",
+      initialValue: this.model,
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Model",
+      designedMaxLength: 255
+      },{
+        cType: types.IDENTIFY_CTYPE,
+        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "identify", value); },
+        perms: ["pw"],
+      format: "bool",
+      initialValue: false,
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Identify Accessory",
+      designedMaxLength: 1
+      }]
+    },{
+      sType: types.LIGHTBULB_STYPE,
+      characteristics: [{
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+      format: "string",
+      initialValue: this.name,
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Name of service",
+      designedMaxLength: 255
+      },{
+        cType: types.POWER_STATE_CTYPE,
+        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "on", value); },
+        perms: ["pw","pr","ev"],
+      format: "bool",
+      initialValue: false,
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Turn On the Light",
+      designedMaxLength: 1
+      },{
+        cType: types.HUE_CTYPE,
+        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "hue", value); },
+        perms: ["pw","pr","ev"],
+      format: "int",
+      initialValue: 0,
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Adjust Hue of Light",
+      designedMinValue: 0,
+      designedMaxValue: 65535,
+      designedMinStep: 1,
+      unit: "arcdegrees"
+      },{
+        cType: types.BRIGHTNESS_CTYPE,
+        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "brightness", value); },
+        perms: ["pw","pr","ev"],
+      format: "int",
+      initialValue: 0,
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Adjust Brightness of Light",
+      designedMinValue: 0,
+      designedMaxValue: 100,
+      designedMinStep: 1,
+      unit: "%"
+      },{
+        cType: types.SATURATION_CTYPE,
+        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "saturation", value); },
+        perms: ["pw","pr","ev"],
+      format: "int",
+      initialValue: 0,
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Adjust Saturation of Light",
+      designedMinValue: 0,
+      designedMaxValue: 100,
+      designedMinStep: 1,
+      unit: "%"
+      }]
+    }];
   }
 };
 
