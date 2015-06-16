@@ -33,7 +33,6 @@ function PhilipsHuePlatform(log, config) {
 }
 
 function PhilipsHueAccessory(log, device, api) {
-  // device info
   this.name = device.name;
   this.model = device.modelid;
   this.device = device;
@@ -46,18 +45,22 @@ var execute = function(accessory, lightID, characteristic, value) {
   var http = require('http');
   var body = {};
   characteristic = characteristic.toLowerCase();
-  if(characteristic === "identify") {
+  if (characteristic === "identify") {
     body = {alert:"select"};
-  } else if(characteristic === "on") {
+  }
+  else if (characteristic === "on") {
     body = {on:value};
-  } else if(characteristic === "hue") {
+  }
+  else if (characteristic === "hue") {
     body = {hue:value};
-  } else  if(characteristic === "brightness") {
+  }
+  else if (characteristic === "brightness") {
     value = value/100;
     value = value*255;
     value = Math.round(value);
     body = {bri:value};
-  } else if(characteristic === "saturation") {
+  }
+  else if (characteristic === "saturation") {
     value = value/100;
     value = value*255;
     value = Math.round(value);
@@ -107,7 +110,7 @@ PhilipsHuePlatform.prototype = {
 };
 
 PhilipsHueAccessory.prototype = {
-
+  // Set Power State
   setPowerState: function(powerOn) {
     if (!this.device) {
       this.log("No '"+this.name+"' device found (yet?)");
@@ -123,23 +126,26 @@ PhilipsHueAccessory.prototype = {
       that.api.setLightState(that.id, state, function(err, result) {
         if (err) {
           that.log("Error setting power state on for '"+that.name+"'");
-        } else {
+        }
+        else {
           that.log("Successfully set power state on for '"+that.name+"'");
         }
       });
-    }else{
+    }
+    else {
       this.log("Setting power state on the '"+this.name+"' to off");
       state = lightState.create().off();
       that.api.setLightState(that.id, state, function(err, result) {
         if (err) {
           that.log("Error setting power state off for '"+that.name+"'");
-        } else {
+        }
+        else {
           that.log("Successfully set power state off for '"+that.name+"'");
         }
       });
     }
   },
-
+  // Set Brightness
   setBrightness: function(level) {
     if (!this.device) {
       this.log("No '"+this.name+"' device found (yet?)");
@@ -147,17 +153,20 @@ PhilipsHueAccessory.prototype = {
     }
 
     var that = this;
+    var state;
 
     this.log("Setting brightness on the '"+this.name+"' to " + level);
-    this.device.brightness(level, function(response) {
-      if (response === undefined) {
-        that.log("Error setting brightness on the '"+that.name+"'");
-      } else {
-        that.log("Successfully set brightness on the '"+that.name+"' to " + level);
+    state = lightState.create().brightness(level);
+    that.api.setLightState(that.id, state, function(err, result) {
+      if (err) {
+        that.log("Error setting brightness for '"+that.name+"'");
+      }
+      else {
+        that.log("Successfully set brightness for '"+that.name+"'");
       }
     });
   },
-
+  // Get Services
   getServices: function() {
     var that = this;
     return [{
