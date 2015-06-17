@@ -41,52 +41,41 @@ function PhilipsHueAccessory(log, device, api) {
   this.log = log;
 }
 
-// @todo Use the node module for all of this
-var execute = function(accessory, lightID, characteristic, value) {
-  var http = require('http');
-  var body = {};
+// Execute changes for various characteristics
+var execute = function(api, device, characteristic, value) {
+
+  var state = lightState.create();
+
   characteristic = characteristic.toLowerCase();
   if (characteristic === "identify") {
-    body = {alert:"select"};
+    state.alert('select');
   }
   else if (characteristic === "on") {
-    body = {on:value};
+    state.on();
   }
   else if (characteristic === "hue") {
-    body = {hue:value};
+    state.hue(value);
   }
   else if (characteristic === "brightness") {
     value = value/100;
     value = value*255;
     value = Math.round(value);
-    body = {bri:value};
+    state.bri(value);
   }
   else if (characteristic === "saturation") {
     value = value/100;
     value = value*255;
     value = Math.round(value);
-    body = {sat:value};
+    state.sat(value);
   }
-  var post_data = JSON.stringify(body);
-  var post_options = {
-    host: config["ip_address"],
-    port: '80',
-    path: '/api/' + config["username"] + '/lights/' + lightID + '/state/',
-    method: 'PUT',
-    headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': post_data.length
+  api.setLightState(device.id, state, function(err, lights) {
+    if (!err) {
+      console.log("executed accessory: " + device.name + ", and characteristic: " + characteristic + ", with value: " +  value + ".");
     }
-  };
-  var post_req = http.request(post_options, function(res) {
-    res.setEncoding('utf8');
-    res.on('data', function (chunk) {
-        console.log('Response: ' + chunk);
-    });
+    else {
+      console.log(err);
+    }
   });
-  post_req.write(post_data);
-  post_req.end();
-  console.log("executed accessory: " + accessory + ", and characteristic: " + characteristic + ", with value: " +  value + ".");
 };
 
 PhilipsHuePlatform.prototype = {
@@ -204,7 +193,7 @@ PhilipsHueAccessory.prototype = {
       designedMaxLength: 255
       },{
         cType: types.IDENTIFY_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "identify", value); },
+        onUpdate: function(value) { console.log("Change:",value); execute(this.device, this.id, "identify", value); },
         perms: ["pw"],
       format: "bool",
       initialValue: false,
@@ -227,7 +216,7 @@ PhilipsHueAccessory.prototype = {
       designedMaxLength: 255
       },{
         cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "on", value); },
+        onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "on", value); },
         perms: ["pw","pr","ev"],
       format: "bool",
       initialValue: false,
@@ -237,7 +226,7 @@ PhilipsHueAccessory.prototype = {
       designedMaxLength: 1
       },{
         cType: types.HUE_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "hue", value); },
+        onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "hue", value); },
         perms: ["pw","pr","ev"],
       format: "int",
       initialValue: 0,
@@ -250,7 +239,7 @@ PhilipsHueAccessory.prototype = {
       unit: "arcdegrees"
       },{
         cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "brightness", value); },
+        onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "brightness", value); },
         perms: ["pw","pr","ev"],
       format: "int",
       initialValue: 0,
@@ -263,7 +252,7 @@ PhilipsHueAccessory.prototype = {
       unit: "%"
       },{
         cType: types.SATURATION_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.name, this.id, "saturation", value); },
+        onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "saturation", value); },
         perms: ["pw","pr","ev"],
       format: "int",
       initialValue: 0,
