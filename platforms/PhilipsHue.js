@@ -33,6 +33,7 @@ function PhilipsHuePlatform(log, config) {
 }
 
 function PhilipsHueAccessory(log, device, api) {
+  this.id = device.id;
   this.name = device.name;
   this.model = device.modelid;
   this.device = device;
