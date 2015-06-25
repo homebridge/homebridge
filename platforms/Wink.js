@@ -208,7 +208,9 @@ WinkAccessory.prototype = {
         designedMaxLength: 255
       },{
         cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { that.setPowerState(value); },
+        onUpdate: function(value) {
+          that.setPowerState(value);
+        },
         onRead: function(callback) {
           that.getPowerState(function(powerState){
             callback(powerState);
@@ -223,7 +225,9 @@ WinkAccessory.prototype = {
         designedMaxLength: 1
       },{
         cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { that.setBrightness(value); },
+        onUpdate: function(value) {
+          that.setBrightness(value);
+        },
         onRead: function(callback) {
           that.getBrightness(function(level){
             callback(level);
