@@ -209,6 +209,11 @@ WinkAccessory.prototype = {
       },{
         cType: types.POWER_STATE_CTYPE,
         onUpdate: function(value) { that.setPowerState(value); },
+        onRead: function(callback) {
+          that.getPowerState(function(powerState){
+            callback(powerState);
+          });
+        },
         perms: ["pw","pr","ev"],
         format: "bool",
         initialValue: 0,
@@ -219,6 +224,11 @@ WinkAccessory.prototype = {
       },{
         cType: types.BRIGHTNESS_CTYPE,
         onUpdate: function(value) { that.setBrightness(value); },
+        onRead: function(callback) {
+          that.getBrightness(function(level){
+            callback(level);
+          });
+        },
         perms: ["pw","pr","ev"],
         format: "int",
         initialValue:  0,
