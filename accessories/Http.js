@@ -37,26 +37,28 @@ HttpAccessory.prototype = {
       this.log("Setting power state on the '"+this.name+"' to off");
     }
 
+    that = this
+
     this.httpRequest(url, this.http_method, function(error, response, body){
       if (error) {
-        return console.error('http power function failed:', error);
+        that.log('http power function failed:', error);
       }else{
-        return console.log('http power function succeeded!');
+        that.log('http power function succeeded!');
       }
     });
-
   },
 
   setBrightness: function(level) {
     var url = this.brightness_url.replace("%b", level)
 
     this.log("Setting brightness on the '"+this.name+"' to " + level);
+    that = this
 
     this.httpRequest(url, this.http_method, function(error, response, body){
       if (error) {
-        return console.error('http brightness function failed:', error);
+        that.log('http brightness function failed:', error);
       }else{
-        return console.log('http brightness function succeeded!');
+        that.log('http brightness function succeeded!');
       }
     });
 
