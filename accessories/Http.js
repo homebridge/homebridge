@@ -131,7 +131,9 @@ HttpAccessory.prototype = {
         designedMaxLength: 255
       },{
         cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { that.setPowerState(value); },
+        onUpdate: function(value) {
+          that.setPowerState(value);
+        },
         perms: ["pw","pr","ev"],
         format: "bool",
         initialValue: 0,
@@ -141,7 +143,9 @@ HttpAccessory.prototype = {
         designedMaxLength: 1
       },{
         cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { that.setBrightness(value); },
+        onUpdate: function(value) {
+          that.setBrightness(value);
+        },
         perms: ["pw","pr","ev"],
         format: "int",
         initialValue:  0,
