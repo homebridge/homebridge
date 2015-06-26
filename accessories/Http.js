@@ -27,6 +27,9 @@ HttpAccessory.prototype = {
   },
 
   setPowerState: function(powerOn) {
+    if (!this.on_url) { return; }
+    if (!this.off_url) { return; }
+
     var url;
 
     if (powerOn) {
@@ -49,6 +52,8 @@ HttpAccessory.prototype = {
   },
 
   setBrightness: function(level) {
+    if (!this.brightness_url) { return; }
+
     var url = this.brightness_url.replace("%b", level)
 
     this.log("Setting brightness on the '"+this.name+"' to " + level);
