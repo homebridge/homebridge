@@ -42,6 +42,24 @@ HttpAccessory.prototype = {
       }
     });
   },
+
+  getBrightness: function(callback){
+    if (!this.read_brightness_url) { callback(null); }
+
+    var that = this;
+    this.log("checking brightness level for: " + this.name);
+
+    this.httpRequest(this.read_powered_url, 'GET', function(error, response, body){
+      if (error) {
+        that.log('http get brightness level failed:', error);
+        callback(null)
+      }else{
+        that.log('http get brightness level succeeded!');
+        callback(body)
+      }
+    });
+  },
+
   setPowerState: function(powerOn) {
     if (!this.on_url) { return; }
     if (!this.off_url) { return; }
@@ -173,6 +191,11 @@ HttpAccessory.prototype = {
         cType: types.BRIGHTNESS_CTYPE,
         onUpdate: function(value) {
           that.setBrightness(value);
+        },
+        onRead: function(callback) {
+          that.getBrightness(function(level){
+            callback(level);
+          });
         },
         perms: ["pw","pr","ev"],
         format: "int",
