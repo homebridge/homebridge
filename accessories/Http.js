@@ -26,6 +26,22 @@ HttpAccessory.prototype = {
     })
   },
 
+  getPowerState: function(callback){
+    if (!this.read_powered_url) { callback(null); }
+
+    var that = this;
+    this.log("checking power state for: " + this.name);
+
+    this.httpRequest(this.read_powered_url, 'GET', function(error, response, body){
+      if (error) {
+        that.log('http get powerState failed:', error);
+        callback(null)
+      }else{
+        that.log('http getPowerState function succeeded!');
+        callback(body)
+      }
+    });
+  },
   setPowerState: function(powerOn) {
     if (!this.on_url) { return; }
     if (!this.off_url) { return; }
@@ -140,6 +156,11 @@ HttpAccessory.prototype = {
         cType: types.POWER_STATE_CTYPE,
         onUpdate: function(value) {
           that.setPowerState(value);
+        },
+        onRead: function(callback) {
+          that.getPowerState(function(powerState){
+            callback(powerState);
+          });
         },
         perms: ["pw","pr","ev"],
         format: "bool",
