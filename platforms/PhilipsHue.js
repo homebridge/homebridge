@@ -60,22 +60,15 @@ var execute = function(api, device, characteristic, value) {
     }
   }
   else if (characteristic === "hue") {
-    value = value/360;
-    value = value*65535;
+    value = value*182.5487;
     value = Math.round(value);
     state.hue(value);
   }
   else if (characteristic === "brightness") {
-    value = value/100;
-    value = value*255;
-    value = Math.round(value);
-    state.bri(value);
+    state.brightness(value);
   }
   else if (characteristic === "saturation") {
-    value = value/100;
-    value = value*255;
-    value = Math.round(value);
-    state.sat(value);
+    state.saturation(value);
   }
   api.setLightState(device.id, state, function(err, lights) {
     if (!err) {
@@ -227,7 +220,7 @@ PhilipsHueAccessory.prototype = {
             supportBonjour: false,
             manfDescription: "Adjust Saturation of Light",
             designedMinValue: 0,
-            designedMaxValue: 255,
+            designedMaxValue: 100,
             designedMinStep: 1,
             unit: "%"
           }
