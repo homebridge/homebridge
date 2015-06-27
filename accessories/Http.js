@@ -26,7 +26,44 @@ HttpAccessory.prototype = {
     })
   },
 
+  getPowerState: function(callback){
+    if (!this.read_powered_url) { callback(null); }
+
+    var that = this;
+    this.log("checking power state for: " + this.name);
+
+    this.httpRequest(this.read_powered_url, 'GET', function(error, response, body){
+      if (error) {
+        that.log('http get powerState failed:', error);
+        callback(null)
+      }else{
+        that.log('http getPowerState function succeeded!');
+        callback(body)
+      }
+    });
+  },
+
+  getBrightness: function(callback){
+    if (!this.read_brightness_url) { callback(null); }
+
+    var that = this;
+    this.log("checking brightness level for: " + this.name);
+
+    this.httpRequest(this.read_powered_url, 'GET', function(error, response, body){
+      if (error) {
+        that.log('http get brightness level failed:', error);
+        callback(null)
+      }else{
+        that.log('http get brightness level succeeded!');
+        callback(body)
+      }
+    });
+  },
+
   setPowerState: function(powerOn) {
+    if (!this.on_url) { return; }
+    if (!this.off_url) { return; }
+
     var url;
 
     if (powerOn) {
@@ -37,26 +74,30 @@ HttpAccessory.prototype = {
       this.log("Setting power state on the '"+this.name+"' to off");
     }
 
+    that = this
+
     this.httpRequest(url, this.http_method, function(error, response, body){
       if (error) {
-        return console.error('http power function failed:', error);
+        that.log('http power function failed:', error);
       }else{
-        return console.log('http power function succeeded!');
+        that.log('http power function succeeded!');
       }
     });
-
   },
 
   setBrightness: function(level) {
+    if (!this.brightness_url) { return; }
+
     var url = this.brightness_url.replace("%b", level)
 
     this.log("Setting brightness on the '"+this.name+"' to " + level);
+    that = this
 
     this.httpRequest(url, this.http_method, function(error, response, body){
       if (error) {
-        return console.error('http brightness function failed:', error);
+        that.log('http brightness function failed:', error);
       }else{
-        return console.log('http brightness function succeeded!');
+        that.log('http brightness function succeeded!');
       }
     });
 
@@ -131,7 +172,14 @@ HttpAccessory.prototype = {
         designedMaxLength: 255
       },{
         cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { that.setPowerState(value); },
+        onUpdate: function(value) {
+          that.setPowerState(value);
+        },
+        onRead: function(callback) {
+          that.getPowerState(function(powerState){
+            callback(powerState);
+          });
+        },
         perms: ["pw","pr","ev"],
         format: "bool",
         initialValue: 0,
@@ -141,7 +189,14 @@ HttpAccessory.prototype = {
         designedMaxLength: 1
       },{
         cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { that.setBrightness(value); },
+        onUpdate: function(value) {
+          that.setBrightness(value);
+        },
+        onRead: function(callback) {
+          that.getBrightness(function(level){
+            callback(level);
+          });
+        },
         perms: ["pw","pr","ev"],
         format: "int",
         initialValue:  0,
