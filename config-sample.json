@@ -21,6 +21,14 @@
             "name": "Domoticz",
             "server": "127.0.0.1",
             "port": "8005"
+        },
+        {
+            "platform": "ISY",
+            "name": "ISY",
+            "host": "192.168.1.20",
+            "port": "8000",
+            "username": "username",
+            "password": "password"
         }
     ],
 
