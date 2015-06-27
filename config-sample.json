@@ -21,7 +21,7 @@
             "name": "Domoticz",
             "server": "127.0.0.1",
             "port": "8005"
-        }
+        },
         {
             "platform": "PhilipsHue",
             "name": "Phillips Hue",
