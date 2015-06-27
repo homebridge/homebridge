@@ -159,112 +159,128 @@ PhilipsHueAccessory.prototype = {
   // Get Services
   getServices: function() {
     var that = this;
-    return [{
-      sType: types.ACCESSORY_INFORMATION_STYPE,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-      format: "string",
-      initialValue: this.name,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Name of the accessory",
-      designedMaxLength: 255
+    return [
+      {
+        sType: types.ACCESSORY_INFORMATION_STYPE,
+        characteristics: [
+          {
+            cType: types.NAME_CTYPE,
+            onUpdate: null,
+            perms: ["pr"],
+            format: "string",
+            initialValue: this.name,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Name of the accessory",
+            designedMaxLength: 255
+          },{
+            cType: types.MANUFACTURER_CTYPE,
+            onUpdate: null,
+            perms: ["pr"],
+            format: "string",
+            initialValue: "Philips",
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Manufacturer",
+            designedMaxLength: 255
+          },{
+            cType: types.MODEL_CTYPE,
+            onUpdate: null,
+            perms: ["pr"],
+            format: "string",
+            initialValue: this.model,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Model",
+            designedMaxLength: 255
+          },{
+            cType: types.SERIAL_NUMBER_CTYPE,
+            onUpdate: null,
+            perms: ["pr"],
+            format: "string",
+            initialValue: this.model + this.id,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "SN",
+            designedMaxLength: 255
+          },{
+            cType: types.IDENTIFY_CTYPE,
+            onUpdate: function(value) { console.log("Change:",value); execute(this.device, this.id, "identify", value); },
+            perms: ["pw"],
+            format: "bool",
+            initialValue: false,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Identify Accessory",
+            designedMaxLength: 1
+          }
+        ]
       },{
-        cType: types.MANUFACTURER_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-      format: "string",
-      initialValue: "Philips",
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Manufacturer",
-      designedMaxLength: 255
-      },{
-        cType: types.MODEL_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-      format: "string",
-      initialValue: this.model,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Model",
-      designedMaxLength: 255
-      },{
-        cType: types.IDENTIFY_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.device, this.id, "identify", value); },
-        perms: ["pw"],
-      format: "bool",
-      initialValue: false,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Identify Accessory",
-      designedMaxLength: 1
-      }]
-    },{
-      sType: types.LIGHTBULB_STYPE,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-      format: "string",
-      initialValue: this.name,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Name of service",
-      designedMaxLength: 255
-      },{
-        cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "on", value); },
-        perms: ["pw","pr","ev"],
-      format: "bool",
-      initialValue: false,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Turn On the Light",
-      designedMaxLength: 1
-      },{
-        cType: types.HUE_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "hue", value); },
-        perms: ["pw","pr","ev"],
-      format: "int",
-      initialValue: 0,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Adjust Hue of Light",
-      designedMinValue: 0,
-      designedMaxValue: 65535,
-      designedMinStep: 1,
-      unit: "arcdegrees"
-      },{
-        cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "brightness", value); },
-        perms: ["pw","pr","ev"],
-      format: "int",
-      initialValue: 0,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Adjust Brightness of Light",
-      designedMinValue: 0,
-      designedMaxValue: 100,
-      designedMinStep: 1,
-      unit: "%"
-      },{
-        cType: types.SATURATION_CTYPE,
-        onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "saturation", value); },
-        perms: ["pw","pr","ev"],
-      format: "int",
-      initialValue: 0,
-      supportEvents: false,
-      supportBonjour: false,
-      manfDescription: "Adjust Saturation of Light",
-      designedMinValue: 0,
-      designedMaxValue: 100,
-      designedMinStep: 1,
-      unit: "%"
-      }]
-    }];
+        sType: types.LIGHTBULB_STYPE,
+        characteristics: [
+          {
+            cType: types.NAME_CTYPE,
+            onUpdate: null,
+            perms: ["pr"],
+            format: "string",
+            initialValue: this.name,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Name of service",
+            designedMaxLength: 255
+          },{
+            cType: types.POWER_STATE_CTYPE,
+            onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "on", value); },
+            perms: ["pw","pr","ev"],
+            format: "bool",
+            initialValue: false,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Turn On the Light",
+            designedMaxLength: 1
+          },{
+            cType: types.HUE_CTYPE,
+            onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "hue", value); },
+            perms: ["pw","pr","ev"],
+            format: "int",
+            initialValue: 0,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Adjust Hue of Light",
+            designedMinValue: 0,
+            designedMaxValue: 65535,
+            designedMinStep: 1,
+            unit: "arcdegrees"
+          },{
+            cType: types.BRIGHTNESS_CTYPE,
+            onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "brightness", value); },
+            perms: ["pw","pr","ev"],
+            format: "int",
+            initialValue: 0,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Adjust Brightness of Light",
+            designedMinValue: 0,
+            designedMaxValue: 100,
+            designedMinStep: 1,
+            unit: "%"
+          },{
+            cType: types.SATURATION_CTYPE,
+            onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "saturation", value); },
+            perms: ["pw","pr","ev"],
+            format: "int",
+            initialValue: 0,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Adjust Saturation of Light",
+            designedMinValue: 0,
+            designedMaxValue: 100,
+            designedMinStep: 1,
+            unit: "%"
+          }
+        ]
+      }
+    ];
   }
 };
 
