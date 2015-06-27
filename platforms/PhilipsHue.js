@@ -224,7 +224,6 @@ PhilipsHueAccessory.prototype = {
             supportBonjour: false,
             manfDescription: "Adjust Saturation of Light",
             designedMinValue: 0,
-            designedMaxValue: 100,
             designedMaxValue: 255,
             designedMinStep: 1,
             unit: "%"
