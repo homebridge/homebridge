@@ -60,6 +60,9 @@ var execute = function(api, device, characteristic, value) {
     }
   }
   else if (characteristic === "hue") {
+    value = value/360;
+    value = value*65535;
+    value = Math.round(value);
     state.hue(value);
   }
   else if (characteristic === "brightness") {
@@ -198,7 +201,7 @@ PhilipsHueAccessory.prototype = {
             supportBonjour: false,
             manfDescription: "Adjust Hue of Light",
             designedMinValue: 0,
-            designedMaxValue: 65535,
+            designedMaxValue: 360,
             designedMinStep: 1,
             unit: "arcdegrees"
           },{
