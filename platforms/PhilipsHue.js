@@ -205,7 +205,7 @@ PhilipsHueAccessory.prototype = {
             designedMaxLength: 255
           },{
             cType: types.IDENTIFY_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(this.device, this.id, "identify", value); },
+            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "identify", value); },
             perms: ["pw"],
             format: "bool",
             initialValue: false,
@@ -230,7 +230,7 @@ PhilipsHueAccessory.prototype = {
             designedMaxLength: 255
           },{
             cType: types.POWER_STATE_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "on", value); },
+            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "on", value); },
             perms: ["pw","pr","ev"],
             format: "bool",
             initialValue: false,
@@ -240,7 +240,7 @@ PhilipsHueAccessory.prototype = {
             designedMaxLength: 1
           },{
             cType: types.HUE_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "hue", value); },
+            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "hue", value); },
             perms: ["pw","pr","ev"],
             format: "int",
             initialValue: 0,
@@ -253,7 +253,7 @@ PhilipsHueAccessory.prototype = {
             unit: "arcdegrees"
           },{
             cType: types.BRIGHTNESS_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "brightness", value); },
+            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "brightness", value); },
             perms: ["pw","pr","ev"],
             format: "int",
             initialValue: 0,
@@ -266,7 +266,7 @@ PhilipsHueAccessory.prototype = {
             unit: "%"
           },{
             cType: types.SATURATION_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(this.api, this.device, "saturation", value); },
+            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "saturation", value); },
             perms: ["pw","pr","ev"],
             format: "int",
             initialValue: 0,
