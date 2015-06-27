@@ -42,6 +42,7 @@ function PhilipsHueAccessory(log, device, api) {
 }
 
 // Execute changes for various characteristics
+// @todo Move this into accessory methods
 var execute = function(api, device, characteristic, value) {
 
   var state = lightState.create();
@@ -50,8 +51,13 @@ var execute = function(api, device, characteristic, value) {
   if (characteristic === "identify") {
     state.alert('select');
   }
-  else if (characteristic === "on") {
-    state.on();
+  else if (characteristic === "power") {
+    if (value) {
+      state.on();
+    }
+    else {
+      state.off();
+    }
   }
   else if (characteristic === "hue") {
     state.hue(value);
@@ -100,62 +106,6 @@ PhilipsHuePlatform.prototype = {
 };
 
 PhilipsHueAccessory.prototype = {
-  // Set Power State
-  setPowerState: function(powerOn) {
-    if (!this.device) {
-      this.log("No '"+this.name+"' device found (yet?)");
-      return;
-    }
-
-    var that = this;
-    var state;
-
-    if (powerOn) {
-      this.log("Setting power state on the '"+this.name+"' to off");
-      state = lightState.create().on();
-      that.api.setLightState(that.id, state, function(err, result) {
-        if (err) {
-          that.log("Error setting power state on for '"+that.name+"'");
-        }
-        else {
-          that.log("Successfully set power state on for '"+that.name+"'");
-        }
-      });
-    }
-    else {
-      this.log("Setting power state on the '"+this.name+"' to off");
-      state = lightState.create().off();
-      that.api.setLightState(that.id, state, function(err, result) {
-        if (err) {
-          that.log("Error setting power state off for '"+that.name+"'");
-        }
-        else {
-          that.log("Successfully set power state off for '"+that.name+"'");
-        }
-      });
-    }
-  },
-  // Set Brightness
-  setBrightness: function(level) {
-    if (!this.device) {
-      this.log("No '"+this.name+"' device found (yet?)");
-      return;
-    }
-
-    var that = this;
-    var state;
-
-    this.log("Setting brightness on the '"+this.name+"' to " + level);
-    state = lightState.create().brightness(level);
-    that.api.setLightState(that.id, state, function(err, result) {
-      if (err) {
-        that.log("Error setting brightness for '"+that.name+"'");
-      }
-      else {
-        that.log("Successfully set brightness for '"+that.name+"'");
-      }
-    });
-  },
   // Get Services
   getServices: function() {
     var that = this;
@@ -230,7 +180,7 @@ PhilipsHueAccessory.prototype = {
             designedMaxLength: 255
           },{
             cType: types.POWER_STATE_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "on", value); },
+            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "power", value); },
             perms: ["pw","pr","ev"],
             format: "bool",
             initialValue: false,
