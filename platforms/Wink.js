@@ -56,6 +56,40 @@ function WinkAccessory(log, device) {
 }
 
 WinkAccessory.prototype = {
+  getPowerState: function(callback){
+    if (!this.device) {
+      this.log("No '"+this.name+"' device found (yet?)");
+      return;
+    }
+
+    var that = this;
+
+    this.log("checking power state for: " + this.name);
+    wink.user().device(this.name, function(light_obj){
+      powerState = light_obj.desired_state.powered
+      that.log("power state for " + that.name + " is: " + powerState)
+      callback(powerState);
+    });
+
+
+  },
+
+  getBrightness: function(callback){
+    if (!this.device) {
+      this.log("No '"+this.name+"' device found (yet?)");
+      return;
+    }
+
+    var that = this;
+
+    this.log("checking brightness level for: " + this.name);
+    wink.user().device(this.name, function(light_obj){
+      level = light_obj.desired_state.brightness * 100
+      that.log("brightness level for " + that.name + " is: " + level)
+      callback(level);
+    });
+
+  },
 
   setPowerState: function(powerOn) {
     if (!this.device) {
@@ -174,7 +208,14 @@ WinkAccessory.prototype = {
         designedMaxLength: 255
       },{
         cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { that.setPowerState(value); },
+        onUpdate: function(value) {
+          that.setPowerState(value);
+        },
+        onRead: function(callback) {
+          that.getPowerState(function(powerState){
+            callback(powerState);
+          });
+        },
         perms: ["pw","pr","ev"],
         format: "bool",
         initialValue: 0,
@@ -184,7 +225,14 @@ WinkAccessory.prototype = {
         designedMaxLength: 1
       },{
         cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { that.setBrightness(value); },
+        onUpdate: function(value) {
+          that.setBrightness(value);
+        },
+        onRead: function(callback) {
+          that.getBrightness(function(level){
+            callback(level);
+          });
+        },
         perms: ["pw","pr","ev"],
         format: "int",
         initialValue:  0,

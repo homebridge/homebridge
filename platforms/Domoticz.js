@@ -17,7 +17,8 @@
 //         "platform": "Domoticz",
 //         "name": "Domoticz",
 //         "server": "127.0.0.1",
-//         "port": "8080"
+//         "port": "8080",
+//         "roomid": 123 (0=no roomplan)
 //     }
 // ],
 //
@@ -31,6 +32,10 @@ function DomoticzPlatform(log, config){
 	this.log     = log;
 	this.server  = config["server"];
 	this.port    = config["port"];
+	this.roomid  = 0;
+	if (typeof config["roomid"] != 'undefined') {
+		this.roomid = config["roomid"];
+	}
 }
 
 function sortByKey(array, key) {
@@ -46,25 +51,51 @@ DomoticzPlatform.prototype = {
 
 	    var that = this;
 	    var foundAccessories = [];
-	    //Get Lights
-		request.get({
-			url: "http://" + this.server + ":" + this.port + "/json.htm?type=devices&filter=light&used=true&order=Name",
-	      	json: true
-	    }, function(err, response, json) {
-			if (!err && response.statusCode == 200) {
-				if (json['result'] != undefined) {
-					var sArray=sortByKey(json['result'],"Name");
-					sArray.map(function(s) {
-						accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
-						foundAccessories.push(accessory);
-	          		})
+	    if (this.roomid == 0) {
+			//Get Lights
+			request.get({
+				url: "http://" + this.server + ":" + this.port + "/json.htm?type=devices&filter=light&used=true&order=Name",
+				json: true
+			}, function(err, response, json) {
+				if (!err && response.statusCode == 200) {
+					if (json['result'] != undefined) {
+						var sArray=sortByKey(json['result'],"Name");
+						sArray.map(function(s) {
+							accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+							foundAccessories.push(accessory);
+						})
+					}
+					callback(foundAccessories);
+				} else {
+					that.log("There was a problem connecting to Domoticz.");
 				}
-				callback(foundAccessories);
-			} else {
-				that.log("There was a problem connecting to Domoticz.");
-	      	}
-		});
+			});
+	    }
+	    else {
+			//Get all devices specified in the room
+			request.get({
+				url: "http://" + this.server + ":" + this.port + "/json.htm?type=devices&plan=" + this.roomid,
+				json: true
+			}, function(err, response, json) {
+				if (!err && response.statusCode == 200) {
+					if (json['result'] != undefined) {
+						var sArray=sortByKey(json['result'],"Name");
+						sArray.map(function(s) {
+							//only accept switches for now
+							if (typeof s.SwitchType != 'undefined') {
+								accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+								foundAccessories.push(accessory);
+							}
+						})
+					}
+					callback(foundAccessories);
+				} else {
+					that.log("There was a problem connecting to Domoticz.");
+				}
+			});
+	    }
 		//Get Scenes
+		foundAccessories = [];
 		request.get({
 			url: "http://" + this.server + ":" + this.port + "/json.htm?type=scenes",
 	      	json: true

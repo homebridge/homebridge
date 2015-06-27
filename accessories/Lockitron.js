@@ -9,11 +9,38 @@ function LockitronAccessory(log, config) {
 }
 
 LockitronAccessory.prototype = {
+  getState: function(callback) {
+    this.log("Getting current state...");
+    
+    var that = this;
+
+    var query = {
+      access_token: this.accessToken
+    };
+    
+    request.get({
+      url: "https://api.lockitron.com/v2/locks/"+this.lockID,
+      qs: query
+    }, function(err, response, body) {
+      
+      if (!err && response.statusCode == 200) {
+        var json = JSON.parse(body);
+        var state = json.state; // "lock" or "unlock"
+        var locked = state == "lock"
+        callback(locked);
+      }
+      else {
+        that.log("Error getting state (status code "+response.statusCode+"): " + err)
+        callback(undefined);
+      }
+    });
+  },
+  
   setState: function(state) {
     this.log("Set state to " + state);
 
     var lockitronState = (state == 1) ? "lock" : "unlock";
-	var that = this;
+	  var that = this;
 
     var query = {
       access_token: this.accessToken,
@@ -103,6 +130,7 @@ LockitronAccessory.prototype = {
         designedMaxLength: 255
       },{
         cType: types.CURRENT_LOCK_MECHANISM_STATE_CTYPE,
+        onRead: function(callback) { that.getState(callback); },
         onUpdate: function(value) { that.log("Update current state to " + value); },
         perms: ["pr","ev"],
         format: "int",
