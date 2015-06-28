@@ -27,9 +27,9 @@ var hue = require("node-hue-api"),
 var types = require("../lib/HAP-NodeJS/accessories/types.js");
 
 function PhilipsHuePlatform(log, config) {
-  this.log     = log;
-  this.ip_address  = config["ip_address"];
-  this.username    = config["username"];
+  this.log = log;
+  this.ip_address = config["ip_address"];
+  this.username = config["username"];
 }
 
 function PhilipsHueAccessory(log, device, api) {
@@ -40,46 +40,6 @@ function PhilipsHueAccessory(log, device, api) {
   this.api = api;
   this.log = log;
 }
-
-// Execute changes for various characteristics
-// @todo Move this into accessory methods
-var execute = function(api, device, characteristic, value) {
-
-  var state = lightState.create();
-
-  characteristic = characteristic.toLowerCase();
-  if (characteristic === "identify") {
-    state.alert('select');
-  }
-  else if (characteristic === "power") {
-    if (value) {
-      state.on();
-    }
-    else {
-      state.off();
-    }
-  }
-  else if (characteristic === "hue") {
-    value = value * 182.5487; // Convert degrees to 0-65535 range
-    value = Math.round(value);
-    state.hue(value);
-  }
-  else if (characteristic === "brightness") {
-    state.brightness(value);
-  }
-  else if (characteristic === "saturation") {
-    state.saturation(value);
-  }
-  api.setLightState(device.id, state, function(err, lights) {
-    if (!err) {
-      console.log("executed accessory: " + device.name + ", and characteristic: " + characteristic + ", with value: " +  value + ".");
-    }
-    else {
-      console.log(err);
-    }
-  });
-};
-
 
 // Get the ip address of the first available bridge with meethue.com or a network scan.
 var locateBridge = function (callback) {
@@ -119,13 +79,11 @@ var locateBridge = function (callback) {
       // Timeout after one minute
       hue.upnpSearch(60000)
         .then(function (bridges) {
-          that.log("Scan complete")
-
+          that.log("Scan complete");
           getIp(null, bridges);
         })
         .fail(function (scanError) {
           that.log("Philips Hue bridge discovery with network scan failed. Check your network connection or set ip_address manually in configuration.");
-
           getIp(new Error("Scan failed: " + scanError.message));
         }).done();
     } else {
@@ -134,25 +92,26 @@ var locateBridge = function (callback) {
   });
 };
 
-
 PhilipsHuePlatform.prototype = {
   accessories: function(callback) {
-    this.log("Fetching Philips Hue lights...");
-
     var that = this;
-    var foundAccessories = [];
-
     var getLights = function () {
+      that.log("Fetching Philips Hue lights...");
       var api = new HueApi(that.ip_address, that.username);
-
       // Connect to the API and loop through lights
       api.lights(function(err, response) {
         if (err) throw err;
-        response.lights.map(function(device) {
-          var accessory = new PhilipsHueAccessory(that.log, device, api);
-          foundAccessories.push(accessory);
+        response.lights.map(function(light) {
+          var foundAccessories = [];
+          // Get the state of each individual light and add to platform
+          api.lightStatus(light.id, function(err, device) {
+            if (err) throw err;
+            device.id = light.id;
+            var accessory = new PhilipsHueAccessory(that.log, device, api);
+            foundAccessories.push(accessory);
+            callback(foundAccessories);
+          });
         });
-        callback(foundAccessories);
       });
     };
 
@@ -173,10 +132,141 @@ PhilipsHuePlatform.prototype = {
 };
 
 PhilipsHueAccessory.prototype = {
+  // Convert 0-65535 to 0-360
+  hueToArcDegrees: function(value) {
+    value = value/65535;
+    value = value*100;
+    value = Math.round(value);
+    return value;
+  },
+  // Convert 0-360 to 0-65535
+  arcDegreesToHue: function(value) {
+    value = value/360;
+    value = value*65535;
+    value = Math.round(value);
+    return value;
+  },
+  // Convert 0-255 to 0-100
+  bitsToPercentage: function(value) {
+    value = value/255;
+    value = value*100;
+    value = Math.round(value);
+    return value;
+  },
+  // Create and set a light state
+  executeChange: function(api, device, characteristic, value) {
+    var that = this;
+    var state = lightState.create();
+    switch(characteristic.toLowerCase()) {
+      case 'identify':
+        state.alert('select');
+        break;
+      case 'power':
+        if (value) {
+          state.on();
+        }
+        else {
+          state.off();
+        }
+        break;
+      case 'hue':
+        state.hue(this.arcDegreesToHue(value));
+        break;
+      case 'brightness':
+        state.brightness(value);
+        break;
+      case 'saturation':
+        state.saturation(value);
+        break;
+    }
+    api.setLightState(device.id, state, function(err, lights) {
+      if (!err) {
+        that.log(device.name + ", characteristic: " + characteristic + ", value: " + value + ".");
+      }
+      else {
+        that.log(err);
+      }
+    });
+  },
   // Get Services
   getServices: function() {
     var that = this;
-    return [
+    var bulb_characteristics = [
+      {
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: this.name,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Name of service",
+        designedMaxLength: 255
+      },{
+        cType: types.POWER_STATE_CTYPE,
+        onUpdate: function(value) {
+          that.executeChange(that.api, that.device, "power", value);
+        },
+        perms: ["pw","pr","ev"],
+        format: "bool",
+        initialValue: that.device.state.on,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Turn On the Light",
+        designedMaxLength: 1
+      },{
+        cType: types.BRIGHTNESS_CTYPE,
+        onUpdate: function(value) {
+          that.executeChange(that.api, that.device, "brightness", value);
+        },
+        perms: ["pw","pr","ev"],
+        format: "int",
+        initialValue: that.bitsToPercentage(that.device.state.bri),
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Adjust Brightness of Light",
+        designedMinValue: 0,
+        designedMaxValue: 100,
+        designedMinStep: 1,
+        unit: "%"
+      }
+    ];
+    // Handle the Hue/Hue Lux divergence
+    if (that.device.state.hasOwnProperty('hue') && that.device.state.hasOwnProperty('sat')) {
+      bulb_characteristics.push({
+        cType: types.HUE_CTYPE,
+        onUpdate: function(value) {
+          that.executeChange(that.api, that.device, "hue", value);
+        },
+        perms: ["pw","pr","ev"],
+        format: "int",
+        initialValue: that.hueToArcDegrees(that.device.state.hue),
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Adjust Hue of Light",
+        designedMinValue: 0,
+        designedMaxValue: 360,
+        designedMinStep: 1,
+        unit: "arcdegrees"
+      });
+      bulb_characteristics.push({
+        cType: types.SATURATION_CTYPE,
+        onUpdate: function(value) {
+          that.executeChange(that.api, that.device, "saturation", value);
+        },
+        perms: ["pw","pr","ev"],
+        format: "int",
+        initialValue: that.bitsToPercentage(that.device.state.sat),
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Adjust Saturation of Light",
+        designedMinValue: 0,
+        designedMaxValue: 100,
+        designedMinStep: 1,
+        unit: "%"
+      });
+    }
+    var accessory_data = [
       {
         sType: types.ACCESSORY_INFORMATION_STYPE,
         characteristics: [
@@ -205,7 +295,7 @@ PhilipsHueAccessory.prototype = {
             onUpdate: null,
             perms: ["pr"],
             format: "string",
-            initialValue: this.model,
+            initialValue: that.model,
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "Model",
@@ -215,14 +305,16 @@ PhilipsHueAccessory.prototype = {
             onUpdate: null,
             perms: ["pr"],
             format: "string",
-            initialValue: this.model + this.id,
+            initialValue: that.device.uniqueid,
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "SN",
             designedMaxLength: 255
           },{
             cType: types.IDENTIFY_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "identify", value); },
+            onUpdate: function(value) {
+              that.executeChange(that.api, that.device, "identify", value);
+            },
             perms: ["pw"],
             format: "bool",
             initialValue: false,
@@ -234,70 +326,11 @@ PhilipsHueAccessory.prototype = {
         ]
       },{
         sType: types.LIGHTBULB_STYPE,
-        characteristics: [
-          {
-            cType: types.NAME_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: this.name,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Name of service",
-            designedMaxLength: 255
-          },{
-            cType: types.POWER_STATE_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "power", value); },
-            perms: ["pw","pr","ev"],
-            format: "bool",
-            initialValue: false,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Turn On the Light",
-            designedMaxLength: 1
-          },{
-            cType: types.HUE_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "hue", value); },
-            perms: ["pw","pr","ev"],
-            format: "int",
-            initialValue: 0,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Adjust Hue of Light",
-            designedMinValue: 0,
-            designedMaxValue: 360,
-            designedMinStep: 1,
-            unit: "arcdegrees"
-          },{
-            cType: types.BRIGHTNESS_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "brightness", value); },
-            perms: ["pw","pr","ev"],
-            format: "int",
-            initialValue: 0,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Adjust Brightness of Light",
-            designedMinValue: 0,
-            designedMaxValue: 100,
-            designedMinStep: 1,
-            unit: "%"
-          },{
-            cType: types.SATURATION_CTYPE,
-            onUpdate: function(value) { console.log("Change:",value); execute(that.api, that.device, "saturation", value); },
-            perms: ["pw","pr","ev"],
-            format: "int",
-            initialValue: 0,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Adjust Saturation of Light",
-            designedMinValue: 0,
-            designedMaxValue: 100,
-            designedMinStep: 1,
-            unit: "%"
-          }
-        ]
+        // `bulb_characteristics` defined based on bulb type
+        characteristics: bulb_characteristics
       }
     ];
+    return accessory_data;
   }
 };
 
