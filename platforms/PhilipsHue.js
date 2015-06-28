@@ -10,6 +10,15 @@
 //     }
 // ],
 //
+// If you do not know the IP address of your Hue Bridge, simply leave it blank and your Bridge
+// will be discovered automatically.
+//
+// If you do not have a "username" for your Hue API already, simply leave the field blank and
+// you will be prompted to press the link button on your Hue Bridge before running HomeBridge.
+// A username will be created for you and printed out, then the server will exit so you may
+// enter it in your config.json.
+//
+//
 // When you attempt to add a device, it will ask for a "PIN code".
 // The default code for all HomeBridge accessories is 031-45-154.
 //
@@ -115,6 +124,26 @@ PhilipsHuePlatform.prototype = {
       });
     };
 
+    // Create a new user if needed
+    function checkUsername() {
+      if (!that.username) {
+        var api = new HueApi(that.ip_address);
+        api.createUser(that.ip_address, null, null, function(err, user) {
+          
+          // try and help explain this particular error
+          if (err && err.message == "link button not pressed")
+            throw "Please press the link button on your Philips Hue bridge, then start the HomeBridge server within 30 seconds.";
+          
+          if (err) throw err;
+            
+          throw "Created a new username " + JSON.stringify(user) + " for your Philips Hue. Please add it to your config.json then start the HomeBridge server again: ";
+        });
+      }
+      else {
+        getLights();
+      }
+    }
+
     // Discover the bridge if needed
     if (!this.ip_address) {
       locateBridge.call(this, function (err, ip_address) {
@@ -123,10 +152,10 @@ PhilipsHuePlatform.prototype = {
         // TODO: Find a way to persist this
         that.ip_address = ip_address;
         that.log("Save the Philips Hue bridge ip address "+ ip_address +" to your config to skip discovery.");
-        getLights();
+        checkUsername();
       });
     } else {
-      getLights();
+      checkUsername();
     }
   }
 };
