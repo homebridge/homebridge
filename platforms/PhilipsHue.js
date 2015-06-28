@@ -98,32 +98,36 @@ var locateBridge = function (callback) {
     }
 
     that.log(
-      "Philips Hue bridges found:",
-      bridges.map(function (bridge) {
+      "Philips Hue bridges found:\n" +
+      (bridges.map(function (bridge) {
         // Bridge name is only returned from meethue.com so use id instead if it isn't there
-        return '\t' + (bridge.name || bridge.id) + bridge.ipaddress + '\n';
-      })
+        return "\t" + bridge.ipaddress + ' - ' + (bridge.name || bridge.id);
+      })).join("\n")
     );
 
     callback(null, bridges[0].ipaddress);
   };
 
   // Try to discover the bridge ip using meethue.com
-  that.log("Attempting to discover Philips Hue bridge with network scan.");
+  that.log("Attempting to discover Philips Hue bridge with meethue.com...");
   hue.nupnpSearch(function (locateError, bridges) {
     if (locateError) {
       that.log("Philips Hue bridge discovery with meethue.com failed. Register your bridge with the meethue.com for more reiable discovery.");
 
-      that.log("Attempting to discover Philips Hue bridge with network scan.");
+      that.log("Attempting to discover Philips Hue bridge with network scan...");
 
-      hue.upnpSearch(function (searchError, bridges) {
-        if (err) {
-          that.log("Philips Hue bridge discovery with network scan failed. Check your network connection or set ip_address manually in configuration.");
-          getIp(new Error("Scan failed"));
-        } else {
+      // Timeout after one minute
+      hue.upnpSearch(60000)
+        .then(function (bridges) {
+          that.log("Scan complete")
+
           getIp(null, bridges);
-        }
-      });
+        })
+        .fail(function (scanError) {
+          that.log("Philips Hue bridge discovery with network scan failed. Check your network connection or set ip_address manually in configuration.");
+
+          getIp(new Error("Scan failed: " + scanError.message));
+        }).done();
     } else {
       getIp(null, bridges);
     }
@@ -155,6 +159,8 @@ PhilipsHuePlatform.prototype = {
     // Discover the bridge if needed
     if (!this.ip_address) {
       locateBridge.call(this, function (err, ip_address) {
+        if (err) throw err;
+
         // TODO: Find a way to persist this
         that.ip_address = ip_address;
         that.log("Save the Philips Hue bridge ip address "+ ip_address +" to your config to skip discovery.");
