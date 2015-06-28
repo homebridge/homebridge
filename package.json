@@ -10,13 +10,14 @@
     "url": "git://github.com/nfarina/homebridge.git"
   },
   "dependencies": {
-    "request": "2.49.x",
-    "node-persist": "0.0.x",
-    "xmldoc": "0.1.x",
-
     "carwingsjs": "0.0.x",
+    "harmonyhubjs-client": "^1.1.4",
+    "harmonyhubjs-discover": "git+https://github.com/madmod/harmonyhubjs-discover.git",
+    "node-persist": "0.0.x",
+    "request": "2.49.x",
     "sonos": "0.8.x",
     "wemo": "0.2.x",
-    "wink-js": "0.0.5"
+    "wink-js": "0.0.5",
+    "xmldoc": "0.1.x"
   }
 }
