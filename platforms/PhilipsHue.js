@@ -60,22 +60,15 @@ var execute = function(api, device, characteristic, value) {
     }
   }
   else if (characteristic === "hue") {
-    value = value/360;
-    value = value*65535;
+    value = value * 182.5487; // Convert degrees to 0-65535 range
     value = Math.round(value);
     state.hue(value);
   }
   else if (characteristic === "brightness") {
-    value = value/100;
-    value = value*255;
-    value = Math.round(value);
-    state.bri(value);
+    state.brightness(value);
   }
   else if (characteristic === "saturation") {
-    value = value/100;
-    value = value*255;
-    value = Math.round(value);
-    state.sat(value);
+    state.saturation(value);
   }
   api.setLightState(device.id, state, function(err, lights) {
     if (!err) {
@@ -87,6 +80,61 @@ var execute = function(api, device, characteristic, value) {
   });
 };
 
+
+// Get the ip address of the first available bridge with meethue.com or a network scan.
+var locateBridge = function (callback) {
+  var that = this;
+
+  // Report the results of the scan to the user
+  var getIp = function (err, bridges) {
+    if (!bridges || bridges.length === 0) {
+      that.log("No Philips Hue bridges found.");
+      callback(err || new Error("No bridges found"));
+      return;
+    }
+
+    if (bridges.length > 1) {
+      that.log("Warning: Multiple Philips Hue bridges detected. The first bridge will be used automatically. To use a different bridge set ip_address manually in configuration.");
+    }
+
+    that.log(
+      "Philips Hue bridges found:\n" +
+      (bridges.map(function (bridge) {
+        // Bridge name is only returned from meethue.com so use id instead if it isn't there
+        return "\t" + bridge.ipaddress + ' - ' + (bridge.name || bridge.id);
+      })).join("\n")
+    );
+
+    callback(null, bridges[0].ipaddress);
+  };
+
+  // Try to discover the bridge ip using meethue.com
+  that.log("Attempting to discover Philips Hue bridge with meethue.com...");
+  hue.nupnpSearch(function (locateError, bridges) {
+    if (locateError) {
+      that.log("Philips Hue bridge discovery with meethue.com failed. Register your bridge with the meethue.com for more reiable discovery.");
+
+      that.log("Attempting to discover Philips Hue bridge with network scan...");
+
+      // Timeout after one minute
+      hue.upnpSearch(60000)
+        .then(function (bridges) {
+          that.log("Scan complete")
+
+          getIp(null, bridges);
+        })
+        .fail(function (scanError) {
+          that.log("Philips Hue bridge discovery with network scan failed. Check your network connection or set ip_address manually in configuration.");
+
+          getIp(new Error("Scan failed: " + scanError.message));
+        }).done();
+    } else {
+      getIp(null, bridges);
+    }
+  });
+};
+
+
 PhilipsHuePlatform.prototype = {
   accessories: function(callback) {
     this.log("Fetching Philips Hue lights...");
@@ -94,17 +142,33 @@ PhilipsHuePlatform.prototype = {
     var that = this;
     var foundAccessories = [];
 
-    var api = new HueApi(this.ip_address, this.username);
+    var getLights = function () {
+      var api = new HueApi(that.ip_address, that.username);
 
-    // Connect to the API and loop through lights
-    api.lights(function(err, response) {
-      if (err) throw err;
-      response.lights.map(function(device) {
-        var accessory = new PhilipsHueAccessory(that.log, device, api);
-        foundAccessories.push(accessory);
+      // Connect to the API and loop through lights
+      api.lights(function(err, response) {
+        if (err) throw err;
+        response.lights.map(function(device) {
+          var accessory = new PhilipsHueAccessory(that.log, device, api);
+          foundAccessories.push(accessory);
+        });
+        callback(foundAccessories);
       });
-      callback(foundAccessories);
-    });
+    };
+
+    // Discover the bridge if needed
+    if (!this.ip_address) {
+      locateBridge.call(this, function (err, ip_address) {
+        if (err) throw err;
+
+        // TODO: Find a way to persist this
+        that.ip_address = ip_address;
+        that.log("Save the Philips Hue bridge ip address "+ ip_address +" to your config to skip discovery.");
+        getLights();
+      });
+    } else {
+      getLights();
+    }
   }
 };
 
@@ -227,7 +291,7 @@ PhilipsHueAccessory.prototype = {
             supportBonjour: false,
             manfDescription: "Adjust Saturation of Light",
             designedMinValue: 0,
-            designedMaxValue: 255,
+            designedMaxValue: 100,
             designedMinStep: 1,
             unit: "%"
           }
