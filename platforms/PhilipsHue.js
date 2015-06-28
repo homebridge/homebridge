@@ -54,7 +54,7 @@ var locateBridge = function (callback) {
     }
 
     if (bridges.length > 1) {
-      that.log("Warning: Multiple Philips Hue bridges detected. The first bridge will be used automatically. To use a different bridge set ip_address manually in configuration.");
+      that.log("Warning: Multiple Philips Hue bridges detected. The first bridge will be used automatically. To use a different bridge, set the `ip_address` manually in the configuration.");
     }
 
     that.log(
@@ -72,7 +72,7 @@ var locateBridge = function (callback) {
   that.log("Attempting to discover Philips Hue bridge with meethue.com...");
   hue.nupnpSearch(function (locateError, bridges) {
     if (locateError) {
-      that.log("Philips Hue bridge discovery with meethue.com failed. Register your bridge with the meethue.com for more reiable discovery.");
+      that.log("Philips Hue bridge discovery with meethue.com failed. Register your bridge with the meethue.com for more reliable discovery.");
 
       that.log("Attempting to discover Philips Hue bridge with network scan...");
 
@@ -94,9 +94,9 @@ var locateBridge = function (callback) {
 
 PhilipsHuePlatform.prototype = {
   accessories: function(callback) {
+    this.log("Fetching Philips Hue lights...");
     var that = this;
     var getLights = function () {
-      that.log("Fetching Philips Hue lights...");
       var api = new HueApi(that.ip_address, that.username);
       // Connect to the API and loop through lights
       api.lights(function(err, response) {
