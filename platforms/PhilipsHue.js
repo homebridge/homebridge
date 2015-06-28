@@ -83,19 +83,21 @@ var execute = function(api, device, characteristic, value) {
 
 // Get the ip address of the first available bridge with meethue.com or a network scan.
 var locateBridge = function (callback) {
+  var that = this;
+
   // Report the results of the scan to the user
   var getIp = function (err, bridges) {
     if (!bridges || bridges.length === 0) {
-      this.log("No Philips Hue bridges found.");
+      that.log("No Philips Hue bridges found.");
       callback(err || new Error("No bridges found"));
       return;
     }
 
     if (bridges.length > 1) {
-      this.log("Warning: Multiple Philips Hue bridges detected. The first bridge will be used automatically. To use a different bridge set ip_address manually in configuration.");
+      that.log("Warning: Multiple Philips Hue bridges detected. The first bridge will be used automatically. To use a different bridge set ip_address manually in configuration.");
     }
 
-    this.log(
+    that.log(
       "Philips Hue bridges found:",
       bridges.map(function (bridge) {
         // Bridge name is only returned from meethue.com so use id instead if it isn't there
@@ -107,16 +109,16 @@ var locateBridge = function (callback) {
   };
 
   // Try to discover the bridge ip using meethue.com
-  this.log("Attempting to discover Philips Hue bridge with network scan.");
-  api.locateBridges(function (locateError, bridges) {
+  that.log("Attempting to discover Philips Hue bridge with network scan.");
+  hue.nupnpSearch(function (locateError, bridges) {
     if (locateError) {
-      this.log("Philips Hue bridge discovery with meethue.com failed. Register your bridge with the meethue.com for more reiable discovery.");
+      that.log("Philips Hue bridge discovery with meethue.com failed. Register your bridge with the meethue.com for more reiable discovery.");
 
-      this.log("Attempting to discover Philips Hue bridge with network scan.");
+      that.log("Attempting to discover Philips Hue bridge with network scan.");
 
-      api.searchForBridges(function (searchError, bridges) {
+      hue.upnpSearch(function (searchError, bridges) {
         if (err) {
-          this.log("Philips Hue bridge discovery with network scan failed. Check your network connection or set ip_address manually in configuration.");
+          that.log("Philips Hue bridge discovery with network scan failed. Check your network connection or set ip_address manually in configuration.");
           getIp(new Error("Scan failed"));
         } else {
           getIp(null, bridges);
