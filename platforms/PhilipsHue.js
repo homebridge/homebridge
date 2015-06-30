@@ -102,25 +102,28 @@ var locateBridge = function (callback) {
 };
 
 PhilipsHuePlatform.prototype = {
+
   accessories: function(callback) {
     this.log("Fetching Philips Hue lights...");
     var that = this;
     var getLights = function () {
       var api = new HueApi(that.ip_address, that.username);
-      // Connect to the API and loop through lights
-      api.lights(function(err, response) {
+
+      // Connect to the API
+      // Get a dump of all lights, so as not to hit rate limiting for installations with larger amounts of bulbs
+
+      api.fullState(function(err, response) {
         if (err) throw err;
-        response.lights.map(function(light) {
-          var foundAccessories = [];
-          // Get the state of each individual light and add to platform
-          api.lightStatus(light.id, function(err, device) {
-            if (err) throw err;
-            device.id = light.id;
-            var accessory = new PhilipsHueAccessory(that.log, device, api);
-            foundAccessories.push(accessory);
-            callback(foundAccessories);
-          });
-        });
+
+        var foundAccessories = [];
+        for (var deviceId in response.lights) {
+          var device = response.lights[deviceId];
+          device.id = deviceId;
+          var accessory = new PhilipsHueAccessory(that.log, device, api);
+          foundAccessories.push(accessory);
+        }
+        callback(foundAccessories);
+
       });
     };
 
