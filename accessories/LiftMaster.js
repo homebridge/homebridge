@@ -87,7 +87,7 @@ LiftMasterAccessory.prototype = {
         // look through the array of devices for an opener
         for (var i=0; i<devices.length; i++) {
           var device = devices[i];
-          if ((device["MyQDeviceTypeName"] == "GarageDoorOpener") && (that.requiredDeviceId == device.MyQDeviceId)) {
+          if ((device["MyQDeviceTypeName"] == "GarageDoorOpener") && ((that.requiredDeviceId == undefined) || (that.requiredDeviceId == device.MyQDeviceId))) {
             that.deviceId = device.MyQDeviceId;
             break;
           }
