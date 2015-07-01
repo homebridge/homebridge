@@ -9,6 +9,7 @@ function LiftMasterAccessory(log, config) {
   this.name = config["name"];
   this.username = config["username"];
   this.password = config["password"];
+  this.requiredDeviceId = config["requiredDeviceId"];
 }
 
 LiftMasterAccessory.prototype = {
@@ -86,14 +87,14 @@ LiftMasterAccessory.prototype = {
         // look through the array of devices for an opener
         for (var i=0; i<devices.length; i++) {
           var device = devices[i];
-          if (device["MyQDeviceTypeName"] == "GarageDoorOpener") {
+          if ((device["MyQDeviceTypeName"] == "GarageDoorOpener") && (that.requiredDeviceId == device.MyQDeviceId)) {
             that.deviceId = device.MyQDeviceId;
             break;
           }
         }
 
         if (that.deviceId) {
-          that.log("Found an opener with ID " + that.deviceId +". Ready to open.");
+          that.log("Found an opener with ID " + that.deviceId +". Ready to send command...");
           that.setTargetState();
         }
       }
@@ -145,6 +146,7 @@ LiftMasterAccessory.prototype = {
           that.log("State was successfully set.");
         else
           that.log("Bad return code: " + json["ReturnCode"]);
+          that.log("Raw response " + JSON.stringify(json));
       }
       else {
         that.log("Error '"+err+"' setting door state: " + JSON.stringify(json));
