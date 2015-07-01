@@ -48,6 +48,7 @@
             "accessory": "LiftMaster",
             "name": "Garage Door",
             "description": "This shim supports LiftMaster garage door openers that are already internet-connected to the 'MyQ' service.",
+            // "requiredDeviceId", "<ID of door if you have multiple doors, prompted by shim during startup if needed>",
             "username": "your-liftmaster-username",
             "password" : "your-liftmaster-password"
         },

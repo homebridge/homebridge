@@ -9,6 +9,7 @@ function LiftMasterAccessory(log, config) {
   this.name = config["name"];
   this.username = config["username"];
   this.password = config["password"];
+  this.requiredDeviceId = config["requiredDeviceId"];
 }
 
 LiftMasterAccessory.prototype = {
@@ -82,19 +83,60 @@ LiftMasterAccessory.prototype = {
         // parse and interpret the response
         var json = JSON.parse(body);
         var devices = json["Devices"];
+        var foundDoors = [];
 
         // look through the array of devices for an opener
         for (var i=0; i<devices.length; i++) {
           var device = devices[i];
+
           if (device["MyQDeviceTypeName"] == "GarageDoorOpener") {
-            that.deviceId = device.MyQDeviceId;
-            break;
+
+            // If we haven't explicity specified a door ID, we'll loop to make sure we don't have multiple openers, which is confusing
+            if (that.requiredDeviceId == undefined) {
+              var thisDeviceId = device.MyQDeviceId;
+              var thisDoorName = "Unknown";
+              for (var j = 0; j < device.Attributes.length; j ++) {
+                var thisAttributeSet = device.Attributes[j];
+                if (thisAttributeSet.AttributeDisplayName == "desc") {
+                  thisDoorName = thisAttributeSet.Value;
+                  break;
+                }
+              }
+              foundDoors.push(thisDeviceId + " - " + thisDoorName);
+            }
+
+            // We specified a door ID, sanity check to make sure it's the one we expected
+            else if (that.requiredDeviceId == device.MyQDeviceId) {
+              that.deviceId = device.MyQDeviceId;
+              break;
+            }
+
           }
+
         }
 
+        // If we have multiple found doors, refuse to proceed
+        if (foundDoors.length > 1) {
+          that.log("WARNING: You have multiple doors on your MyQ account.");
+          that.log("WARNING: Specify the ID of the door you want to control using the 'requiredDeviceId' property in your config.json file.");
+          that.log("WARNING: You can have multiple liftmaster accessories to cover your multiple doors");
+
+          for (var j = 0; j < foundDoors.length; j++) {
+            that.log("Found Door: " + foundDoors[j]);
+          }
+
+          throw "FATAL: Please specify which specific door this Liftmaster accessory should control - you have multiples on your account";
+
+        }
+
+        // Did we get a device ID?
         if (that.deviceId) {
-          that.log("Found an opener with ID " + that.deviceId +". Ready to open.");
+          that.log("Found an opener with ID " + that.deviceId +". Ready to send command...");
           that.setTargetState();
+        }
+        else
+        {
+          that.log("Error: Couldn't find a door device, or the ID you specified isn't associated with your account");
         }
       }
       else {
@@ -145,6 +187,7 @@ LiftMasterAccessory.prototype = {
           that.log("State was successfully set.");
         else
           that.log("Bad return code: " + json["ReturnCode"]);
+          that.log("Raw response " + JSON.stringify(json));
       }
       else {
         that.log("Error '"+err+"' setting door state: " + JSON.stringify(json));
