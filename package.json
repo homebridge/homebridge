@@ -10,6 +10,7 @@
     "url": "git://github.com/nfarina/homebridge.git"
   },
   "dependencies": {
+    "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "request": "2.49.x",
     "node-persist": "0.0.x",
     "xmldoc": "0.1.x",
@@ -18,6 +19,7 @@
     "carwingsjs": "0.0.x",
     "sonos": "0.8.x",
     "wemo": "0.2.x",
-    "wink-js": "0.0.5"
+    "wink-js": "0.0.5",
+    "elkington": "kevinohara80/elkington"
   }
 }

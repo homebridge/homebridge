@@ -124,6 +124,7 @@ function createHAPServer(name, services) {
         for (var k = 0; k < services[j].characteristics.length; k++) {
             var options = {
                 onRead: services[j].characteristics[k].onRead,
+                onRegister: services[j].characteristics[k].onRegister,
                 type: services[j].characteristics[k].cType,
                 perms: services[j].characteristics[k].perms,
                 format: services[j].characteristics[k].format,
