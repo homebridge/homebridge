@@ -112,6 +112,14 @@
             "port": "2101",
             "pin": "1234",
             "arm": "Away"
+        },
+        {
+            "accessory": "AD2USB",
+            "name": "Alarm",
+            "description": "Arm, disarm, and status monitoring of the default partition for Honeywell/Ademco alarm systems. Requires network configured AD2USB interface",
+            "host": "192.168.1.200", // IP address of the SER2SOCK service
+            "port" : 4999, // Port the SER2SOCK process is running on
+            "pin": "1234" // PIN used for arming / disarming
         }
     ]
 }
