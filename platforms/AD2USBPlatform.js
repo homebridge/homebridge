@@ -4,6 +4,7 @@
 var types = require("HAP-NodeJS/accessories/types.js");
 var AD2USB = require('ad2usb');
 var CUSTOM_PANEL_LCD_TEXT_CTYPE = "A3E7B8F9-216E-42C1-A21C-97D4E3BE52C8";
+var CUSTOM_OCCUPANCY_EXPIRY_TIME_CTYPE = "C995BEF8-F6FE-495D-9D39-75E04A23275E";
 
 function AD2USBPlatform(log, config) {
 
@@ -20,9 +21,8 @@ function AD2USBPlatform(log, config) {
   this.currentStateCharacteristic = undefined;
   this.targetStateCharacteristic = undefined;
   this.lcdCharacteristic = undefined;
-  this.occupancyZones = [];
+  this.occupancyZones = {};
   this.rfZones = {};
-  this.wiredZones = {};
 
   // Configure the alarm
   var alarm = AD2USB.connect(this.host, this.port, function() {
@@ -100,12 +100,39 @@ function AD2USBPlatform(log, config) {
         that.updateRFZoneState(serial + ":3", loop3, battery, supervision);
         that.updateRFZoneState(serial + ":4", loop4, battery, supervision);
 
+        // Reset any occupancy zones
+        if ((!loop1) && (that.occupancyZones[serial + ":1"])) {
+            for (var j = 0; j < that.occupancyZones[serial + ":1"].length; j++) {
+              that.resetOccupancyZone(that.occupancyZones[serial + ":1"][j]);
+            }
+        }
+        if ((!loop2) && (that.occupancyZones[serial + ":2"])) {
+            for (var j = 0; j < that.occupancyZones[serial + ":2"].length; j++) {
+              that.resetOccupancyZone(that.occupancyZones[serial + ":2"][j]);
+            }
+        }
+        if ((!loop3) && (that.occupancyZones[serial + ":3"])) {
+            for (var j = 0; j < that.occupancyZones[serial + ":3"].length; j++) {
+              that.resetOccupancyZone(that.occupancyZones[serial + ":3"][j]);
+            }
+        }
+        if ((!loop4) && (that.occupancyZones[serial + ":4"])) {
+            for (var j = 0; j < that.occupancyZones[serial + ":4"].length; j++) {
+              that.resetOccupancyZone(that.occupancyZones[serial + ":4"][j]);
+            }
+        }
 
     });
 
     
   });
   this.alarm = alarm;
+
+  this.resetOccupancyZone = function(occupancyZoneAccessory) {
+
+      this.log("Resetting occupancy zone " + occupancyZoneAccessory.name + "...");
+
+  }
 
   this.updateRFZoneState = function(serialKey, state, battery, supervision) {
 
@@ -137,6 +164,9 @@ function AD2USBPlatform(log, config) {
       this.log("Not tracking " + serialKey);
     }
 
+
+    // Are we tracking any occupancy zones that are triggered 
+
   }
 
 }
@@ -156,7 +186,23 @@ AD2USBPlatform.prototype = {
       for (var i = 0; i < this.config.occupancyZones.length; i++) {
         var thisZoneConfig = this.config.occupancyZones[i];
         var thisOccupancyZone = new AD2USBOccupancyAccessory(this.log, thisZoneConfig, this);
-        this.occupancyZones.push(thisOccupancyZone);
+
+        // Iterate over the tracking zones, and record them accordingly
+        for (var j = 0; j < thisZoneConfig.triggerRF.length; j++) {
+
+          // Get the array associated with this RF serial
+          var triggerSerial = thisZoneConfig.triggerRF[j];
+          var thisTrackingZoneArray = this.occupancyZones[triggerSerial];
+          if (!thisTrackingZoneArray) {
+            thisTrackingZoneArray = [];
+          }
+
+          // Include this occupancy zone for potential future trigger
+          thisTrackingZoneArray.push(thisOccupancyZone);
+          this.occupancyZones[triggerSerial] = thisTrackingZoneArray;
+
+        }
+
         returnAccessories.push(thisOccupancyZone);
       }
     }
@@ -442,7 +488,7 @@ AD2USBOccupancyAccessory.prototype = {
     },{
       sType: types.OCCUPANCY_SENSOR_STYPE,
       characteristics: [{
-        cType: "00000071-0000-1000-8000-0026BB765291",
+        cType: types.OCCUPANCY_DETECTED_CTYPE,
         onUpdate: null,
         onRegister: function(characteristic) { 
 
@@ -456,6 +502,22 @@ AD2USBOccupancyAccessory.prototype = {
         supportEvents: true,
         supportBonjour: false,
         manfDescription: "Occupancy Detected",
+        designedMaxLength: 255
+      },{
+        cType: CUSTOM_OCCUPANCY_EXPIRY_TIME_CTYPE,
+        onUpdate: null,
+        onRegister: function(characteristic) { 
+
+            that.occupancyCharacteristic = characteristic;
+            characteristic.eventEnabled = true;
+
+             },
+        perms: ["pr"],
+        format: "int",
+        initialValue: 0,
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Occupancy Expiry",
         designedMaxLength: 255
       }]
     }];
