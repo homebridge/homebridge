@@ -5,6 +5,7 @@ var types = require("HAP-NodeJS/accessories/types.js");
 var AD2USB = require('ad2usb');
 var CUSTOM_PANEL_LCD_TEXT_CTYPE = "A3E7B8F9-216E-42C1-A21C-97D4E3BE52C8";
 var CUSTOM_OCCUPANCY_EXPIRY_TIME_CTYPE = "C995BEF8-F6FE-495D-9D39-75E04A23275E";
+var CUSTOM_OCCUPANCY_TIMEOUT_CTYPE = "D2FD4D4F-8678-43F5-9E2C-03585E76D4D7";
 
 function AD2USBPlatform(log, config) {
 
@@ -130,7 +131,24 @@ function AD2USBPlatform(log, config) {
 
   this.resetOccupancyZone = function(occupancyZoneAccessory) {
 
-      this.log("Resetting occupancy zone " + occupancyZoneAccessory.name + "...");
+      // Get the timeout
+      var timeout = occupancyZoneAccessory.timeout;
+
+      // Update the future timeout value
+      occupancyZoneAccessory.timeoutCharacteristic.updateValue(Math.floor(new Date() / 1000) + timeout);
+
+      // Update the occupancy flag
+      occupancyZoneAccessory.occupancyCharacteristic.updateValue(true);
+
+      // Set the expiry timer
+      occupancyZoneAccessory.setTimeoutTimer();
+
+      // Calculate a friendly string
+      var localDate = new Date(0);
+      localDate.setUTCSeconds(occupancyZoneAccessory.timeoutCharacteristic.value);
+
+      // Log
+      this.log("Occupancy zone " + occupancyZoneAccessory.name + " reset. Now expires " + localDate.toString());
 
   }
 
@@ -163,9 +181,6 @@ function AD2USBPlatform(log, config) {
     {
       this.log("Not tracking " + serialKey);
     }
-
-
-    // Are we tracking any occupancy zones that are triggered 
 
   }
 
@@ -423,8 +438,33 @@ function AD2USBOccupancyAccessory(log, config, platform) {
   var that = this;
 
   this.name = config.name;
+  this.timeout = config.timeout;
   this.occupancyCharacteristic = undefined;
+  this.timeoutCharacteristic = undefined;
   this.transportCategory = types.SENSOR_TCTYPE;
+  this.timeoutObject = undefined;
+
+  this.setTimeoutTimer = function() {
+
+    // Debug
+    this.log("Resetting occupancy timer for " + this.name);
+
+    // Do we have an existing timeout timer?
+    if (this.timeoutObject) {
+      this.log("   Cancelling existing timer");
+      clearTimeout(this.timeoutObject);
+    }
+
+    // Set a new timeout timer
+    that = this;
+    this.timeoutObject = setTimeout(function() {
+
+      that.log("Occupancy timeout fired! Zone " + that.name + " is no longer occupied.");
+      that.occupancyCharacteristic.updateValue(false);
+
+    }, this.timeout * 1000);
+
+  }
 
 }
 
@@ -496,25 +536,35 @@ AD2USBOccupancyAccessory.prototype = {
             characteristic.eventEnabled = true;
 
              },
-        perms: ["pr"],
+        perms: ["pr", "ev"],
         format: "bool",
-        initialValue: true,
+        initialValue: false,
         supportEvents: true,
         supportBonjour: false,
         manfDescription: "Occupancy Detected",
+        designedMaxLength: 255
+      },{
+        cType: CUSTOM_OCCUPANCY_TIMEOUT_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "int",
+        initialValue: that.timeout,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Occupancy Expiry",
         designedMaxLength: 255
       },{
         cType: CUSTOM_OCCUPANCY_EXPIRY_TIME_CTYPE,
         onUpdate: null,
         onRegister: function(characteristic) { 
 
-            that.occupancyCharacteristic = characteristic;
+            that.timeoutCharacteristic = characteristic;
             characteristic.eventEnabled = true;
 
              },
-        perms: ["pr"],
+        perms: ["pr", "ev"],
         format: "int",
-        initialValue: 0,
+        initialValue: Math.floor(new Date() / 1000),
         supportEvents: true,
         supportBonjour: false,
         manfDescription: "Occupancy Expiry",
