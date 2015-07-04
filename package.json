@@ -10,6 +10,7 @@
     "url": "git://github.com/nfarina/homebridge.git"
   },
   "dependencies": {
+    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS",
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "request": "2.49.x",
     "node-persist": "0.0.x",

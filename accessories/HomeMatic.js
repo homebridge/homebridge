@@ -1,4 +1,4 @@
-var types = require("../lib/HAP-NodeJS/accessories/types.js");
+var types = require("HAP-NodeJS/accessories/types.js");
 var request = require("request");
 
 function HomeMatic(log, config) {
