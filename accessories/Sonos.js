@@ -1,4 +1,4 @@
-var types = require("../lib/HAP-NodeJS/accessories/types.js");
+var types = require("HAP-NodeJS/accessories/types.js");
 var sonos = require('sonos');
 
 function SonosAccessory(log, config) {

@@ -101,10 +101,10 @@ function loadPlatforms() {
 //
 
 // Pull in required HAP-NodeJS stuff
-var accessory_Factor = new require("./lib/HAP-NodeJS/Accessory.js");
-var accessoryController_Factor = new require("./lib/HAP-NodeJS/AccessoryController.js");
-var service_Factor = new require("./lib/HAP-NodeJS/Service.js");
-var characteristic_Factor = new require("./lib/HAP-NodeJS/Characteristic.js");
+var accessory_Factor = new require("HAP-NodeJS/Accessory.js");
+var accessoryController_Factor = new require("HAP-NodeJS/AccessoryController.js");
+var service_Factor = new require("HAP-NodeJS/Service.js");
+var characteristic_Factor = new require("HAP-NodeJS/Characteristic.js");
 
 // Each accessory has its own little server. We'll need to allocate some ports for these servers
 var nextPort = 51826;
