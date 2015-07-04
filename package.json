@@ -11,7 +11,7 @@
   },
   "license": "ISC",
   "dependencies": {
-    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#ff5d9f11deae7daf599723d8e2f350553a10645c",
+    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "request": "2.49.x",
     "node-persist": "0.0.x",
