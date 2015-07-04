@@ -95,6 +95,10 @@ function AD2USBPlatform(log, config) {
         that.log("RF: " + serial + ": Supervision - " + supervision + ", Battery - " + battery + ", L1 - " + loop1 + ", L2 - " + loop2 + ", L3 - " + loop3 + ", L4 - " + loop4);
 
         // Update zones. The flags that come from the alarm a 'false with fault', so we'll basically invert them here
+        that.updateRFZoneState(serial + ":1", loop1, battery, supervision);
+        that.updateRFZoneState(serial + ":2", loop2, battery, supervision);
+        that.updateRFZoneState(serial + ":3", loop3, battery, supervision);
+        that.updateRFZoneState(serial + ":4", loop4, battery, supervision);
 
 
     });
@@ -103,12 +107,34 @@ function AD2USBPlatform(log, config) {
   });
   this.alarm = alarm;
 
-  function updateRFZoneState(serialKey, state) {
+  this.updateRFZoneState = function(serialKey, state, battery, supervision) {
 
     // Are we tracking a zone with this serial/key?
     var thisZoneAccessory = this.rfZones[serialKey];
     if (thisZoneAccessory) {
 
+      // State. Note we invert this, as iOS expects a "true", and Ademco expects a "false"
+      if (thisZoneAccessory.sensorCharacteristic.value == state) {
+        this.log("Updating detection state for " + serialKey + " - " + !state);
+        thisZoneAccessory.sensorCharacteristic.updateValue(!state);
+      }
+
+      // Battery. Note we invert this, as iOS expects a "true", and Ademco expects a "false"
+      if (thisZoneAccessory.lowBatteryCharacteristic.value == battery) {
+        this.log("Updating battery state for " + serialKey + " - " + !battery);
+        thisZoneAccessory.lowBatteryCharacteristic.updateValue(!battery);
+      }
+
+      // Supervision. Note we invert this, as iOS expects a "true", and Ademco expects a "false"
+      if (thisZoneAccessory.sensorFaultCharacteristic.value == supervision) {
+        this.log("Updating supervision state for " + serialKey + " - " + !supervision);
+        thisZoneAccessory.sensorFaultCharacteristic.updateValue(!supervision);
+      }
+
+    }
+    else
+    {
+      this.log("Not tracking " + serialKey);
     }
 
   }
@@ -449,6 +475,7 @@ function AD2USBRFZoneAccessory(log, config, platform, serviceType) {
   var that = this;
 
   this.name = config.name;
+  this.serial = config.serial;
   this.sensorType = config.type || "contact";
   this.transportCategory = types.SENSOR_TCTYPE;
 
@@ -465,13 +492,9 @@ function AD2USBRFZoneAccessory(log, config, platform, serviceType) {
       throw("Unsupported AD2USB RF zone type " + this.sensorType);
   }
 
-  
-  this.supervisionCharacteristic = undefined;
+  this.sensorCharacteristic = undefined;
   this.lowBatteryCharacteristic = undefined;
-  this.loop1Characteristic = undefined;
-  this.loop2Characteristic = undefined;
-  this.loop3Characteristic = undefined;
-  this.loop4Characteristic = undefined;
+  this.sensorFaultCharacteristic = undefined;
 
 }
 
@@ -496,7 +519,7 @@ AD2USBRFZoneAccessory.prototype = {
         onUpdate: null,
         perms: ["pr"],
         format: "string",
-        initialValue: "LiftMaster",
+        initialValue: "Ademco",
         supportEvents: false,
         supportBonjour: false,
         manfDescription: "Manufacturer",
@@ -516,7 +539,7 @@ AD2USBRFZoneAccessory.prototype = {
         onUpdate: null,
         perms: ["pr"],
         format: "string",
-        initialValue: "A1S2NASF88EW",
+        initialValue: this.serial,
         supportEvents: false,
         supportBonjour: false,
         manfDescription: "SN",
@@ -535,21 +558,11 @@ AD2USBRFZoneAccessory.prototype = {
     },{
       sType: that.sensorServiceType,
       characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "Loop 1",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Name of the accessory",
-        designedMaxLength: 255
-      },{
         cType: that.sensorCharacteristicType,
         onUpdate: null,
         onRegister: function(characteristic) { 
 
-            that.occupancyCharacteristic = characteristic;
+            that.sensorCharacteristic = characteristic;
             characteristic.eventEnabled = true;
 
              },
@@ -558,27 +571,14 @@ AD2USBRFZoneAccessory.prototype = {
         initialValue: false,
         supportEvents: true,
         supportBonjour: false,
-        manfDescription: "Contact Sensor",
-        designedMaxLength: 255
-      }]
-    },{
-      sType: that.sensorServiceType,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "Loop 2",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Name of the accessory",
+        manfDescription: "Sensor",
         designedMaxLength: 255
       },{
-        cType: that.sensorCharacteristicType,
+        cType: types.STATUS_LOW_BATTERY_CTYPE,
         onUpdate: null,
         onRegister: function(characteristic) { 
 
-            that.occupancyCharacteristic = characteristic;
+            that.lowBatteryCharacteristic = characteristic;
             characteristic.eventEnabled = true;
 
              },
@@ -587,7 +587,23 @@ AD2USBRFZoneAccessory.prototype = {
         initialValue: false,
         supportEvents: true,
         supportBonjour: false,
-        manfDescription: "Contact Sensor",
+        manfDescription: "Low Battery",
+        designedMaxLength: 255
+      },{
+        cType: types.STATUS_FAULT_CTYPE,
+        onUpdate: null,
+        onRegister: function(characteristic) { 
+
+            that.sensorFaultCharacteristic = characteristic;
+            characteristic.eventEnabled = true;
+
+             },
+        perms: ["pr"],
+        format: "bool",
+        initialValue: false,
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Supervision Fault",
         designedMaxLength: 255
       }]
     }];
