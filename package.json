@@ -9,8 +9,9 @@
     "type": "git",
     "url": "git://github.com/nfarina/homebridge.git"
   },
+  "license": "ISC",
   "dependencies": {
-    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS",
+    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#ff5d9f11deae7daf599723d8e2f350553a10645c",
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "request": "2.49.x",
     "node-persist": "0.0.x",
