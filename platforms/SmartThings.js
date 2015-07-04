@@ -1,7 +1,7 @@
 // SmartThings JSON API SmartApp required
 // https://github.com/jnewland/SmartThings/blob/master/JSON.groovy
 //
-var types = require("../lib/HAP-NodeJS/accessories/types.js");
+var types = require("HAP-NodeJS/accessories/types.js");
 var request = require("request");
 
 function SmartThingsPlatform(log, config){

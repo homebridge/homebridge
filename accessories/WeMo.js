@@ -1,4 +1,4 @@
-var types = require("../lib/HAP-NodeJS/accessories/types.js");
+var types = require("HAP-NodeJS/accessories/types.js");
 var wemo = require('wemo');
 
 // extend our search timeout from 5 seconds to 60
