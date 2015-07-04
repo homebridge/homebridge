@@ -1,7 +1,7 @@
 
 "use strict";
 
-var types = require("../lib/HAP-NodeJS/accessories/types.js");
+var types = require("HAP-NodeJS/accessories/types.js");
 var AD2USB = require('ad2usb');
 var CUSTOM_PANEL_LCD_TEXT_CTYPE = "A3E7B8F9-216E-42C1-A21C-97D4E3BE52C8";
 
@@ -94,12 +94,24 @@ function AD2USBPlatform(log, config) {
 
         that.log("RF: " + serial + ": Supervision - " + supervision + ", Battery - " + battery + ", L1 - " + loop1 + ", L2 - " + loop2 + ", L3 - " + loop3 + ", L4 - " + loop4);
 
+        // Update zones. The flags that come from the alarm a 'false with fault', so we'll basically invert them here
+
+
     });
 
     
   });
   this.alarm = alarm;
 
+  function updateRFZoneState(serialKey, state) {
+
+    // Are we tracking a zone with this serial/key?
+    var thisZoneAccessory = this.rfZones[serialKey];
+    if (thisZoneAccessory) {
+
+    }
+
+  }
 
 }
 
@@ -128,12 +140,21 @@ AD2USBPlatform.prototype = {
       for (var i = 0; i < this.config.rfZones.length; i++) {
         var thisZoneConfig = this.config.rfZones[i];
         var thisRFZone = new AD2USBRFZoneAccessory(this.log, thisZoneConfig, this);
-        this.occupancyZones.push(thisRFZone);
+        var existingAccessory = this.rfZones[thisZoneConfig["serial"]];
+        if (existingAccessory != undefined) {
+          throw("Duplicate RF zone with serial " + thisZoneConfig["serial"]);
+        }
+        this.rfZones[thisZoneConfig["serial"]] = thisRFZone;
         returnAccessories.push(thisRFZone);
       }
     }
 
-    // Return the accessory
+    // Output
+    this.log("Returning:");
+    this.log("  " + Object.keys(this.rfZones).length + " RF zone(s)");
+    this.log("  " + this.occupancyZones.length + " occupancy zone(s)");
+
+    // Return the accessories
     callback(returnAccessories);
     
   }
@@ -158,6 +179,7 @@ function AD2USBKeypadAccessory(log, platform) {
   this.currentStateCharacteristic = undefined;
   this.targetStateCharacteristic = undefined;
   this.lcdCharacteristic = undefined;
+  this.transportCategory = types.ALARM_SYSTEM_TCTYPE;
 
 }
 
@@ -330,6 +352,7 @@ function AD2USBOccupancyAccessory(log, config, platform) {
 
   this.name = config.name;
   this.occupancyCharacteristic = undefined;
+  this.transportCategory = types.SENSOR_TCTYPE;
 
 }
 
@@ -426,8 +449,23 @@ function AD2USBRFZoneAccessory(log, config, platform, serviceType) {
   var that = this;
 
   this.name = config.name;
-  this.sensorCharacteristicType = types.CONTACT_SENSOR_STATE_CTYPE;
-  this.sensorServiceType = types.CONTACT_SENSOR_STYPE;
+  this.sensorType = config.type || "contact";
+  this.transportCategory = types.SENSOR_TCTYPE;
+
+  switch(this.sensorType) {
+    case "contact":
+      this.sensorCharacteristicType = types.CONTACT_SENSOR_STATE_CTYPE;
+      this.sensorServiceType = types.CONTACT_SENSOR_STYPE;
+      break;
+    case "motion":
+      this.sensorCharacteristicType = types.MOTION_DETECTED_CTYPE;
+      this.sensorServiceType = types.MOTION_SENSOR_STYPE;
+      break;
+    default:
+      throw("Unsupported AD2USB RF zone type " + this.sensorType);
+  }
+
+  
   this.supervisionCharacteristic = undefined;
   this.lowBatteryCharacteristic = undefined;
   this.loop1Characteristic = undefined;
@@ -497,6 +535,45 @@ AD2USBRFZoneAccessory.prototype = {
     },{
       sType: that.sensorServiceType,
       characteristics: [{
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: "Loop 1",
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Name of the accessory",
+        designedMaxLength: 255
+      },{
+        cType: that.sensorCharacteristicType,
+        onUpdate: null,
+        onRegister: function(characteristic) { 
+
+            that.occupancyCharacteristic = characteristic;
+            characteristic.eventEnabled = true;
+
+             },
+        perms: ["pr"],
+        format: "bool",
+        initialValue: false,
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Contact Sensor",
+        designedMaxLength: 255
+      }]
+    },{
+      sType: that.sensorServiceType,
+      characteristics: [{
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: "Loop 2",
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Name of the accessory",
+        designedMaxLength: 255
+      },{
         cType: that.sensorCharacteristicType,
         onUpdate: null,
         onRegister: function(characteristic) { 
