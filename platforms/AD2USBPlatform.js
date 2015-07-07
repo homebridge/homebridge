@@ -6,6 +6,17 @@ var AD2USB = require('ad2usb');
 var CUSTOM_PANEL_LCD_TEXT_CTYPE = "A3E7B8F9-216E-42C1-A21C-97D4E3BE52C8";
 var CUSTOM_OCCUPANCY_EXPIRY_TIME_CTYPE = "C995BEF8-F6FE-495D-9D39-75E04A23275E";
 var CUSTOM_OCCUPANCY_TIMEOUT_CTYPE = "D2FD4D4F-8678-43F5-9E2C-03585E76D4D7";
+var CUSTOM_OCCUPANCY_TARGET_MODE = "A840C41F-757F-4EBA-84F9-EDE60E2B037B";
+var CUSTOM_OCCUPANCY_CURRENT_MODE = "FEFD31F3-ED85-4E79-8F27-0C4395B4F303";
+var CUSTOM_OCCUPANCY_TARGET_MORNING = 0;
+var CUSTOM_OCCUPANCY_TARGET_DAY = 1;
+var CUSTOM_OCCUPANCY_TARGET_EVENING = 2;
+var CUSTOM_OCCUPANCY_TARGET_NIGHT = 3;
+var CUSTOM_OCCUPANCY_CURRENT_UNOCCUPIED = 0;
+var CUSTOM_OCCUPANCY_CURRENT_MORNING = 1;
+var CUSTOM_OCCUPANCY_CURRENT_DAY = 2;
+var CUSTOM_OCCUPANCY_CURRENT_EVENING = 3;
+var CUSTOM_OCCUPANCY_CURRENT_NIGHT = 4;
 
 function AD2USBPlatform(log, config) {
 
@@ -442,6 +453,8 @@ function AD2USBOccupancyAccessory(log, config, platform) {
   this.occupancyCharacteristic = undefined;
   this.timeoutCharacteristic = undefined;
   this.transportCategory = types.SENSOR_TCTYPE;
+  this.targetModeCharacteristic = undefined;
+  this.currentModeCharacteristic = undefined;
   this.timeoutObject = undefined;
 
   this.setTimeoutTimer = function() {
@@ -568,6 +581,38 @@ AD2USBOccupancyAccessory.prototype = {
         supportEvents: true,
         supportBonjour: false,
         manfDescription: "Occupancy Expiry",
+        designedMaxLength: 255
+      },{
+        cType: CUSTOM_OCCUPANCY_TARGET_MODE,
+        onUpdate: null,
+        onRegister: function(characteristic) { 
+
+            that.targetStateCharacteristic = characteristic;
+            characteristic.eventEnabled = true;
+
+             },
+        perms: ["pw", "pr", "ev"],
+        format: "int",
+        initialValue: CUSTOM_OCCUPANCY_TARGET_DAY,
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Target Occupancy Mode",
+        designedMaxLength: 255
+      },{
+        cType: CUSTOM_OCCUPANCY_CURRENT_MODE,
+        onUpdate: null,
+        onRegister: function(characteristic) { 
+
+            that.currentStateCharacteristic = characteristic;
+            characteristic.eventEnabled = true;
+
+             },
+        perms: ["pr", "ev"],
+        format: "int",
+        initialValue: CUSTOM_OCCUPANCY_CURRENT_UNOCCUPIED,
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Current Occupancy Mode",
         designedMaxLength: 255
       }]
     }];
