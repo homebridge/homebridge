@@ -22,6 +22,7 @@
     "sonos": "0.8.x",
     "wemo": "0.2.x",
     "wink-js": "0.0.5",
-    "elkington": "kevinohara80/elkington"
+    "elkington": "kevinohara80/elkington",
+    "node-milight-promise": "0.0.2"
   }
 }
