@@ -1,0 +1,12 @@
+{
+  "name": "homebridge-liftmaster",
+  "version": "0.0.0",
+  "description": "LiftMaster Support for HomeBridge",
+  "license": "ISC",
+  "engines": {
+    "homebridge": ">=0.0.0"
+  },
+  "keywords": [
+    "homebridge-provider"
+  ]
+}
