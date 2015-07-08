@@ -12,5 +12,8 @@ var path = require('path');
 var fs = require('fs');
 var lib = path.join(path.dirname(fs.realpathSync(__filename)), '../lib');
 
+// Export HomeBridge as a global for providers
+global.homebridge = require(lib + '/homebridge');
+
 // Run the HomeBridge CLI
-require(lib + '/homebridge').cli();
+homebridge.cli();
