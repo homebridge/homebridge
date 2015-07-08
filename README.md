@@ -32,10 +32,10 @@ Providers must be published to npm and tagged with `homebridge-provider`. The pa
 Providers are automatically discovered and loaded from your home directory inside the `.homebridge` folder. For instance, the Lockitron provider would be placed here:
 
 ```sh
-~/.homebridge/providers/node_modules/homebridge-lockitron
+~/.homebridge/providers/homebridge-lockitron
 ```
 
-Right now you must copy providers manually (or symlink them from another location). The HomeBridge server will load and validate your Provider on startup. You can find an example Provider stub in [example-providers/homebridge-lockitron]().
+Right now you must copy providers manually (or symlink them from another location). The HomeBridge server will load and validate your Provider on startup. You can find an example Provider in [example-providers/homebridge-lockitron]().
 
 ## Running from Source
 
