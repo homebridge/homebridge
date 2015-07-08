@@ -1,7 +1,7 @@
 {
-  "name": "homebridge-liftmaster",
+  "name": "homebridge-lockitron",
   "version": "0.0.0",
-  "description": "LiftMaster Support for HomeBridge",
+  "description": "Lockitron Support for HomeBridge",
   "license": "ISC",
   "engines": {
     "homebridge": ">=0.0.0"

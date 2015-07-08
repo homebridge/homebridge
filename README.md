@@ -27,15 +27,15 @@ It will look for any locally-installed providers and load them up automatically.
 
 HomeBridge does nothing by itself; in order to expose your home to HomeKit, you'll need to install one or more HomeBridge "Providers." A Provider is an npm module that connects with HomeBridge and registers accessories for devices in your home.
 
-Providers must be published to npm and tagged with `homebridge-provider`. The package name must contain the prefix `homebridge-`. For example, a valid package might be `homebridge-philips-hue`.
+Providers must be published to npm and tagged with `homebridge-provider`. The package name must contain the prefix `homebridge-`. For example, a valid package might be `homebridge-lockitron`.
 
-Providers are automatically discovered and loaded from your home directory inside the `.homebridge` folder. For instance, the Philips Hue Provider would be placed here:
+Providers are automatically discovered and loaded from your home directory inside the `.homebridge` folder. For instance, the Lockitron provider would be placed here:
 
 ```sh
-~/.homebridge/providers/node_modules/homebridge-philips-hue
+~/.homebridge/providers/node_modules/homebridge-lockitron
 ```
 
-Right now you must copy providers manually (or symlink them from another location). The HomeBridge server will load and validate your Provider on startup. You can find an example Provider stub in [example-providers/homebridge-liftmaster]().
+Right now you must copy providers manually (or symlink them from another location). The HomeBridge server will load and validate your Provider on startup. You can find an example Provider stub in [example-providers/homebridge-lockitron]().
 
 ## Running from Source
 
