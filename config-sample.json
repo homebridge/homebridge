@@ -1,6 +1,13 @@
 {
     "description": "This is an example configuration file with all supported devices. You can use this as a template for creating your own configuration file containing devices you actually own.",
 
+    "bridges": [
+        {
+            "platform": "PhilipsHue",
+            "name": "Phillips Hue",
+            "username": ""
+        }
+    ],
     "platforms": [
         {
             "platform": "Wink",

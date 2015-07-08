@@ -1,7 +1,22 @@
+// General Requires
 var fs = require('fs');
 var path = require('path');
 var storage = require('node-persist');
 var crypto = require('crypto');
+
+// Pull in required HAP-NodeJS stuff
+var bridge_Factor = new require("HAP-NodeJS/BridgedAccessoryController.js");
+var accessory_Factor = new require("HAP-NodeJS/Accessory.js");
+var accessoryController_Factor = new require("HAP-NodeJS/AccessoryController.js");
+var service_Factor = new require("HAP-NodeJS/Service.js");
+var characteristic_Factor = new require("HAP-NodeJS/Characteristic.js");
+
+// Each accessory has its own little server. We'll need to allocate some ports for these servers
+var nextPort = 51826;
+var nextServer = 0;
+var accessoryServers = [];
+var accessoryControllers = [];
+var usernames = {};
 
 console.log("Starting HomeBridge server...");
 
@@ -26,6 +41,7 @@ var accessories = [];
 function startup() {
     if (config.platforms) loadPlatforms();
     if (config.accessories) loadAccessories();
+    if (config.bridges) loadBridges();
 }
 
 function loadAccessories() {
@@ -96,22 +112,79 @@ function loadPlatforms() {
     }
 }
 
+function loadBridges() {
+
+    console.log("Loading " + config.bridges.length + " bridges...");
+    for (var i=0; i<config.bridges.length; i++) {
+
+        var bridgeConfig = config.bridges[i];
+
+        // Load up the class for this accessory
+        var bridgeName = bridgeConfig["bridge"]; // like "Wink"
+        var bridgeModule = require('./bridges/' + bridgeName + ".js"); // like "./platforms/Wink.js"
+        var bridgeConstructor = bridgeModule.bridge; // like "WinkPlatform", a JavaScript constructor
+
+        // Create a custom logging function that prepends the platform display name for debugging
+        var name = bridgeConfig["name"];
+        var log = function(name) { return function(s) { console.log("[" + name + "] " + s); }; }(name);
+
+        log("Initializing " + bridgeName + " bridge...");
+
+        var bridge = new bridgeConstructor(log, bridgeConfig);
+
+        // Create a bridge controller
+        var bridgeController = new bridge_Factor.BridgedAccessoryController();
+
+        // query for devices
+        bridge.accessories(function(foundAccessories){
+            // loop through accessories adding them to the list and registering them
+            for (var i = 0; i < foundAccessories.length; i++) {
+                accessory = foundAccessories[i]
+                accessories.push(accessory);
+                log("Initializing bridged device with name " + accessory.name + "...")
+                // Extract the raw "services" for this accessory which is a big array of objects describing the various
+                // hooks in and out of HomeKit for the HAP-NodeJS server.
+                var services = accessory.getServices();
+                // Create this accessory
+                var bridgedAccessory = createBridgedAccessory(accessory.name, services, accessory.transportCategory);
+                bridgeController.addAccessory(bridgedAccessory);
+            }
+            accessories.push.apply(accessories, foundAccessories);
+        })
+
+        // Create the accessory controller that wraps the bridge
+        // create a unique "username" for this accessory based on the default display name
+    var username = createUsername(name);
+
+    if (usernames[username]) {
+        console.log("Cannot create another accessory with the same name '" + name + "'. The 'name' property must be unique for each accessory.");
+        return;
+    }
+
+    // remember that we used this name already
+    usernames[username] = name;
+
+    // increment ports for each accessory
+    nextPort = nextPort + (nextServer*2);
+
+    // hardcode the PIN to something random (same PIN as HAP-NodeJS sample accessories)
+    var pincode = "031-45-154";
+
+    var bridgeAccessory = new accessory_Factor.Accessory(name, username, storage, parseInt(nextPort), pincode, bridgeController);
+    accessoryServers[nextServer] = bridgeAccessory;
+    accessoryControllers[nextServer] = bridgeController;
+    bridgeAccessory.publishAccessory();
+
+    nextServer++;
+
+    }
+}
+
 //
 // Creates the actual HAP servers which listen on different sockets
 //
 
-// Pull in required HAP-NodeJS stuff
-var accessory_Factor = new require("HAP-NodeJS/Accessory.js");
-var accessoryController_Factor = new require("HAP-NodeJS/AccessoryController.js");
-var service_Factor = new require("HAP-NodeJS/Service.js");
-var characteristic_Factor = new require("HAP-NodeJS/Characteristic.js");
 
-// Each accessory has its own little server. We'll need to allocate some ports for these servers
-var nextPort = 51826;
-var nextServer = 0;
-var accessoryServers = [];
-var accessoryControllers = [];
-var usernames = {};
 
 function createHAPServer(name, services, transportCategory) {
     var accessoryController = new accessoryController_Factor.AccessoryController();
@@ -169,6 +242,43 @@ function createHAPServer(name, services, transportCategory) {
     accessory.publishAccessory();
 
     nextServer++;
+}
+
+function createBridgedAccessory(name, services, transportCategory) {
+    var accessoryController = new accessoryController_Factor.AccessoryController();
+
+    //loop through services
+    for (var j = 0; j < services.length; j++) {
+        var service = new service_Factor.Service(services[j].sType);
+
+        //loop through characteristics
+        for (var k = 0; k < services[j].characteristics.length; k++) {
+            var options = {
+                onRead: services[j].characteristics[k].onRead,
+                onRegister: services[j].characteristics[k].onRegister,
+                type: services[j].characteristics[k].cType,
+                perms: services[j].characteristics[k].perms,
+                format: services[j].characteristics[k].format,
+                initialValue: services[j].characteristics[k].initialValue,
+                supportEvents: services[j].characteristics[k].supportEvents,
+                supportBonjour: services[j].characteristics[k].supportBonjour,
+                manfDescription: services[j].characteristics[k].manfDescription,
+                designedMaxLength: services[j].characteristics[k].designedMaxLength,
+                designedMinValue: services[j].characteristics[k].designedMinValue,
+                designedMaxValue: services[j].characteristics[k].designedMaxValue,
+                designedMinStep: services[j].characteristics[k].designedMinStep,
+                unit: services[j].characteristics[k].unit
+            };
+
+            var characteristic = new characteristic_Factor.Characteristic(options, services[j].characteristics[k].onUpdate);
+
+            service.addCharacteristic(characteristic);
+        }
+        accessoryController.addService(service);
+    }
+
+    return accessoryController;
+
 }
 
 // Creates a unique "username" for HomeKit from a hash of the given string
