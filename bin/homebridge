@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+
+'use strict';
+
+process.title = 'homebridge';
+
+// Use babel to transparently enable ES6 features
+require("babel/register");
+
+// Find the HomeBridge lib
+var path = require('path');
+var fs = require('fs');
+var lib = path.join(path.dirname(fs.realpathSync(__filename)), '../lib');
+
+// Run the HomeBridge CLI
+require(lib + '/homebridge').cli();

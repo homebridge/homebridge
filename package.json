@@ -1,27 +1,34 @@
 {
   "name": "homebridge",
-  "description": "HomeKit support for the impatient",
+  "description": "HomeKit support for existing home devices, today.",
   "version": "0.0.0",
-  "scripts": {
-    "start": "node app.js"
+  "author": {
+    "name": "Nick Farina"
   },
   "repository": {
     "type": "git",
     "url": "git://github.com/nfarina/homebridge.git"
   },
-  "license": "ISC",
+  "bugs": {
+    "url": "http://github.com/nfarina/homebridge/issues"
+  },
+  "licenses": [
+    {
+      "type": "ISC",
+      "url": "http://github.com/nfarina/homebridge/blob/master/LICENSE"
+    }
+  ],
+  "bin": {
+    "homebridge": "bin/homebridge"
+  },
+  "engines": {
+    "node": ">= 0.12.0"
+  },
+  "preferGlobal": true,
   "dependencies": {
+    "babel": "^5.6.14",
+    "commander": "^2.8.1",
     "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
-    "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
-    "request": "2.49.x",
-    "node-persist": "0.0.x",
-    "xmldoc": "0.1.x",
-    "node-hue-api": "^1.0.5",
-    "xml2js": "0.4.x",
-    "carwingsjs": "0.0.x",
-    "sonos": "0.8.x",
-    "wemo": "0.2.x",
-    "wink-js": "0.0.5",
-    "elkington": "kevinohara80/elkington"
+    "semver": "^4.3.6"
   }
 }
