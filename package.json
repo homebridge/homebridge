@@ -23,6 +23,7 @@
     "wemo": "0.2.x",
     "wink-js": "0.0.5",
     "elkington": "kevinohara80/elkington",
-    "node-milight-promise": "0.0.2"
+    "node-milight-promise": "0.0.2",
+    "telldus-live" : "0.2.x"
   }
 }
