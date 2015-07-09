@@ -3,6 +3,14 @@
 
     "platforms": [
         {
+            "platform" : "TelldusLive",
+            "name" : "Telldus Live!",
+            "public_key" : "telldus public key",
+            "private_key" : "telldus private key",
+            "token" : "telldus token",
+            "token_secret" : "telldus token secret"
+        },
+        {
             "platform": "Wink",
             "name": "Wink",
             "client_id": "YOUR_WINK_API_CLIENT_ID",
