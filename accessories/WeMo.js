@@ -54,6 +54,28 @@ WeMoAccessory.prototype = {
     });
   },
 
+  getPowerState: function(callback) {
+
+    if (!this.device) {
+      this.log("No '"+this.wemoName+"' device found (yet?)");
+      return;
+    }
+
+    var that = this;
+
+    this.log("checking power state for: " + this.wemoName);
+    this.device.getBinaryState(function(err, result) {
+        if (!err) {
+            var binaryState = parseInt(result)
+            that.log("power state for " + that.wemoName + " is: " + binaryState)
+            callback(binaryState)
+        }
+        else {
+            that.log(err)
+        }
+    });
+  },
+
   getServices: function() {
     var that = this;
     return [{
@@ -124,6 +146,11 @@ WeMoAccessory.prototype = {
       },{
         cType: types.POWER_STATE_CTYPE,
         onUpdate: function(value) { that.setPowerState(value); },
+        onRead: function(callback) {
+          that.getPowerState(function(powerState){
+            callback(powerState);
+          });
+        },
         perms: ["pw","pr","ev"],
         format: "bool",
         initialValue: false,
