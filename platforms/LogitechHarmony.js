@@ -17,7 +17,7 @@
 //
 
 
-var types = require("../lib/HAP-NodeJS/accessories/types.js");
+var types = require('HAP-NodeJS/accessories/types.js');
 
 var harmonyDiscover = require('harmonyhubjs-discover');
 var harmony = require('harmonyhubjs-client');
@@ -41,18 +41,17 @@ function LogitechHarmonyPlatform (log, config) {
 
 LogitechHarmonyPlatform.prototype = {
 
-  // Find one harmony remote hub (only support one for now)
+  // Find one Harmony remote hub (only support one for now)
   locateHub: function (callback) {
-
-    var that = this;
+    var self = this;
 
     // Connect to a Harmony hub
     var createClient = function (ipAddress) {
-      that.log("Connecting to Logitech Harmony remote hub...");
+      self.log("Connecting to Logitech Harmony remote hub...");
 
       harmony(ipAddress)
         .then(function (client) {
-          that.log("Connected to Logitech Harmony remote hub");
+          self.log("Connected to Logitech Harmony remote hub");
 
           callback(null, client);
         });
@@ -73,7 +72,7 @@ LogitechHarmonyPlatform.prototype = {
     // TODO: Support update event with some way to add accessories
     // TODO: Have some kind of timeout with an error message. Right now this searches forever until it finds one hub.
     discover.on('online', function (hubInfo) {
-      that.log("Found Logitech Harmony remote hub: " + hubInfo.ip);
+      self.log("Found Logitech Harmony remote hub: " + hubInfo.ip);
 
       // Stop looking for hubs once we find the first one
       // TODO: Support multiple hubs
@@ -87,50 +86,53 @@ LogitechHarmonyPlatform.prototype = {
   },
 
   accessories: function (callback) {
-    var that = this;
+    var self = this;
     var foundAccessories = [];
 
     // Get the first hub
     this.locateHub(function (err, hub) {
       if (err) throw err;
 
-      that.log("Fetching Logitech Harmony devices and activites...");
+      self.log("Fetching Logitech Harmony devices and activites...");
 
       //getDevices(hub);
       getActivities(hub);
     });
 
     // Get Harmony Devices
+    /*
     var getDevices = function(hub) {
-      that.log("Fetching Logitech Harmony devices...");
+      self.log("Fetching Logitech Harmony devices...");
 
       hub.getDevices()
         .then(function (devices) {
-          that.log("Found devices: ", devices);
+          self.log("Found devices: ", devices);
 
           var sArray = sortByKey(json['result'],"Name");
 
           sArray.map(function(s) {
-            accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+            accessory = new LogitechHarmonyAccessory(self.log, self.server, self.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
             foundAccessories.push(accessory);
           });
 
           callback(foundAccessories);
         });
     };
+    */
 
     // Get Harmony Activities
     var getActivities = function(hub) {
-      that.log("Fetching Logitech Harmony activities...");
+      self.log("Fetching Logitech Harmony activities...");
 
       hub.getActivities()
         .then(function (activities) {
-          that.log("Found activities: \n" + activities.map(function (a) { return "\t" + a.label; }).join("\n"));
+          self.log("Found activities: \n" + activities.map(function (a) { return "\t" + a.label; }).join("\n"));
 
           var sArray = sortByKey(activities, "label");
 
           sArray.map(function(s) {
-            var accessory = new LogitechHarmonyAccessory(that.log, hub, s, true);
+            var accessory = new LogitechHarmonyAccessory(self.log, hub, s, true);
+            // TODO: Update the initial power state
             foundAccessories.push(accessory);
           });
 
@@ -150,26 +152,56 @@ function LogitechHarmonyAccessory (log, hub, details, isActivity) {
   this.id = details.id;
   this.name = details.label;
   this.isActivity = isActivity;
+  this.isActivityActive = false;
 };
 
 
 LogitechHarmonyAccessory.prototype = {
 
-  command: function (command, value) {
-    this.log(this.name + " sending command " + command + " with value " + value);
+  // TODO: Somehow make this event driven so that it tells the user what activity is on
+  getPowerState: function (callback) {
+    var self = this;
+
     if (this.isActivity) {
-      if (command === "On") {
-        this.hub.startActivity(this.id)
-      } else {
-        this.hub.turnOff();
-      }
+      hub.getCurrentActivity().then(function (currentActivity) {
+        callback(currentActivity.id === self.id);
+      }).except(function (err) {
+        self.log('Unable to get current activity with error', err);
+        callback(false);
+      });
     } else {
-      // TODO: Support device specific commands
+      // TODO: Support onRead for devices
+      this.log('TODO: Support onRead for devices');
+    }
+  },
+
+  setPowerState: function (state, callback) {
+    var self = this;
+
+    if (this.isActivity) {
+      this.log('Set activity ' + this.name + ' power state to ' + state);
+
+      // Activity id -1 is turn off all devices
+      var id = state ? this.id : -1;
+
+      this.hub.startActivity(id)
+        .then(function () {
+          self.log('Finished setting activity ' + self.name + ' power state to ' + state);
+          callback();
+        })
+        .catch(function (err) {
+          self.log('Failed setting activity ' + self.name + ' power state to ' + state + ' with error ' + err);
+          callback(err);
+        });
+    } else {
+      // TODO: Support setting device power
+      this.log('TODO: Support setting device power');
+      callback();
     }
   },
 
   getServices: function () {
-    var that = this;
+    var self = this;
 
     return [
       {
@@ -180,12 +212,13 @@ LogitechHarmonyAccessory.prototype = {
             onUpdate: null,
             perms: ["pr"],
             format: "string",
-            initialValue: this.name,
+            initialValue: self.name,
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "Name of the accessory",
             designedMaxLength: 255
-          },{
+          },
+          {
             cType: types.MANUFACTURER_CTYPE,
             onUpdate: null,
             perms: ["pr"],
@@ -195,7 +228,8 @@ LogitechHarmonyAccessory.prototype = {
             supportBonjour: false,
             manfDescription: "Manufacturer",
             designedMaxLength: 255
-          },{
+          },
+          {
             cType: types.MODEL_CTYPE,
             onUpdate: null,
             perms: ["pr"],
@@ -205,17 +239,20 @@ LogitechHarmonyAccessory.prototype = {
             supportBonjour: false,
             manfDescription: "Model",
             designedMaxLength: 255
-          },{
+          },
+          {
             cType: types.SERIAL_NUMBER_CTYPE,
             onUpdate: null,
             perms: ["pr"],
             format: "string",
-            initialValue: "A1S2NASF88EW",
+            // TODO: Add hub unique id to this for people with multiple hubs so that it is really a guid.
+            initialValue: self.id,
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "SN",
             designedMaxLength: 255
-          },{
+          },
+          {
             cType: types.IDENTIFY_CTYPE,
             onUpdate: null,
             perms: ["pw"],
@@ -236,7 +273,7 @@ LogitechHarmonyAccessory.prototype = {
             onUpdate: null,
             perms: ["pr"],
             format: "string",
-            initialValue: this.name,
+            initialValue: self.name,
             supportEvents: true,
             supportBonjour: false,
             manfDescription: "Name of service",
@@ -245,12 +282,9 @@ LogitechHarmonyAccessory.prototype = {
           {
             cType: types.POWER_STATE_CTYPE,
             onUpdate: function (value) {
-              if (value == 0) {
-                that.command("Off")
-              } else {
-                that.command("On")
-              }
+              self.setPowerState(value)
             },
+            onRead: self.getPowerState,
             perms: ["pw","pr","ev"],
             format: "bool",
             initialValue: 0,
@@ -263,6 +297,7 @@ LogitechHarmonyAccessory.prototype = {
       }
     ];
   }
+
 };
 
 module.exports.accessory = LogitechHarmonyAccessory;
