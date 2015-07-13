@@ -2,6 +2,7 @@ var types = require("HAP-NodeJS/accessories/types.js");
 var nest = require('unofficial-nest-api');
 
 function NestPlatform(log, config){
+
   // auth info
   this.username = config["username"];
   this.password = config["password"];
@@ -58,23 +59,59 @@ NestThermostatAccessory.prototype = {
         this.log("Checking current heating cooling for: " + this.name);
         nest.fetchStatus(function (data) {
             device = data.device[that.deviceId];
-            that.log("Current healing cooling for " + that.name + " is: " + device.current_schedule_mode)
+            
             currentHeatingCooling = 0;
             switch(device.current_schedule_mode) {
+                case "OFF":
+                    targetHeatingCooling = 0;
+                    break;
                 case "HEAT":
                     currentHeatingCooling = 1;
                     break;
-                // this is a guess, I don't have AC to test out the response
                 case "COOL":
                     currentHeatingCooling = 2;
+                    break;
+                case "RANGE":
+                    currentHeatingCooling = 3;
                     break;
                 default:
                     currentHeatingCooling = 0;
             }
+            that.log("Current heating for " + this.name + "is: " + currentHeatingCooling);
             callback(currentHeatingCooling);
         });
 
 
+    },
+
+    getTargetHeatingCoooling: function(callback){
+
+        var that = this;
+
+        this.log("Checking target heating cooling for: " + this.name);
+        nest.fetchStatus(function (data) {
+            device = data.device[that.deviceId];
+            
+            targetHeatingCooling = 0;
+            switch(device.target_temperature_type) {
+                case "off":
+                    targetHeatingCooling = 0;
+                    break;
+                case "heat":
+                    targetHeatingCooling = 1;
+                    break;
+                case "cool":
+                    targetHeatingCooling = 2;
+                    break;
+                case "range":
+                    targetHeatingCooling = 3;
+                    break;
+                default:
+                    targetHeatingCooling = 0;
+            }
+            that.log("Current target heating for " + this.name + " is: " + targetHeatingCooling);
+            callback(targetHeatingCooling);
+        });
     },
 
     getCurrentTemperature: function(callback){
@@ -138,6 +175,35 @@ NestThermostatAccessory.prototype = {
             that.log("Humidity for " + this.name + " is: " + device.current_humidity);
             callback(device.current_humidity);
         })
+
+
+    },
+
+    setTargetHeatingCooling: function(targetHeatingCooling){
+
+        var that = this;
+
+        targetTemperatureType = 'off';
+        switch(targetHeatingCooling) {
+            case 0:
+                // this will crash unnofficial-node-api, it needs to be forked to accept the input
+                targetTemperatureType = 'off';
+                break;
+            case 1:
+                targetTemperatureType = 'heat';
+                break;
+            case 2:
+                targetTemperatureType = 'cool';
+                break;
+            case 3:
+                targetTemperatureType = 'range';
+                break;
+            default:
+                targetTemperatureType = 'off';
+        }
+
+        this.log("Setting target heating cooling for " + this.name + " to: " + targetTemperatureType);
+        nest.setTargetTemperatureType(this.deviceId, targetTemperatureType);
 
 
     },
@@ -223,8 +289,8 @@ NestThermostatAccessory.prototype = {
                 cType: types.CURRENTHEATINGCOOLING_CTYPE,
                 onUpdate: null,
                 onRead: function(callback) {
-                    that.getCurrentHeatingCooling(function(coolingType){
-                        callback(coolingType);
+                    that.getCurrentHeatingCooling(function(currentHeatingCooling){
+                        callback(currentHeatingCooling);
                     });
                 },
                 perms: ["pr","ev"],
@@ -239,7 +305,14 @@ NestThermostatAccessory.prototype = {
                 designedMinStep: 1,    
             },{
                 cType: types.TARGETHEATINGCOOLING_CTYPE,
-                onUpdate: null,
+                onUpdate: function(value) {
+                    that.setTargetHeatingCooling(value);
+                },
+                onRead: function(callback) {
+                    that.getTargetHeatingCoooling(function(targetHeatingCooling){
+                        callback(targetHeatingCooling);
+                    });
+                },
                 perms: ["pw","pr","ev"],
                 format: "int",
                 initialValue: 0,
