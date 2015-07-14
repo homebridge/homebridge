@@ -44,7 +44,7 @@
             "password": "password"
         },
         {
-            "accessory": "LogitechHarmony",
+            "platform": "LogitechHarmony",
             "name": "Living Room Harmony Hub"
         }
     ],
