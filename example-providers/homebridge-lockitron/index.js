@@ -1,7 +1,10 @@
 import request from 'request';
 
+// Create a logger for our provider
+let log = homebridge.logger('homebridge-lockitron');
+
 // Demonstrate that we were loaded
-console.log("Lockitron provider loaded!");
+log.info("Lockitron provider loaded!");
 
 module.exports = {
   
@@ -19,6 +22,9 @@ module.exports = {
     let accessToken = homebridge.config.get('homebridge-lockitron.accessToken');
     
     // prove that we got a value
-    console.log(`Access Token: ${accessToken}`);
+    log.info(`Access Token: ${accessToken}`);
+    
+    // all is well.
+    callback();
   }
 }
