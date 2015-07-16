@@ -27,9 +27,9 @@
   "preferGlobal": true,
   "dependencies": {
     "babel": "^5.6.14",
+    "chalk": "^1.1.0",
     "commander": "^2.8.1",
     "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
-    "npmlog": "^1.2.1",
     "prompt": "^0.2.14",
     "semver": "^4.3.6"
   }

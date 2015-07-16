@@ -3,8 +3,8 @@ import request from 'request';
 // Create a logger for our provider
 let log = homebridge.logger('homebridge-lockitron');
 
-// Demonstrate that we were loaded
-log.info("Lockitron provider loaded!");
+// Demonstrate that we were loaded - run homebridge with the "-D" option to see this message
+log.debug("Lockitron provider loaded!");
 
 module.exports = {
   
