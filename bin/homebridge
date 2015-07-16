@@ -20,4 +20,4 @@ var lib = path.join(path.dirname(fs.realpathSync(__filename)), '../lib');
 global.homebridge = require(lib + '/homebridge');
 
 // Run the HomeBridge CLI
-homebridge.cli();
+require(lib + '/cli')();

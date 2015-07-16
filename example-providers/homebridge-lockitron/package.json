@@ -8,5 +8,8 @@
   },
   "keywords": [
     "homebridge-provider"
-  ]
+  ],
+  "dependencies": {
+    "request": "^2.58.0"
+  }
 }
