@@ -25,12 +25,12 @@ NestPlatform.prototype = {
                 nest.fetchStatus(function (data) {
                     for (var deviceId in data.device) {
                         if (data.device.hasOwnProperty(deviceId)) {
-                            device = data.device[deviceId];
+                            var device = data.device[deviceId];
                             // it's a thermostat, adjust this to detect other accessories
                             if (data.shared[deviceId].hasOwnProperty('current_temperature'))
                             {
-                                name = data.shared[deviceId].name
-                                accessory = new NestThermostatAccessory(that.log, name, device, deviceId);
+                                var name = data.shared[deviceId].name
+                                var accessory = new NestThermostatAccessory(that.log, name, device, deviceId);
                                 foundAccessories.push(accessory);
                             }
                         }
@@ -58,9 +58,9 @@ NestThermostatAccessory.prototype = {
 
         this.log("Checking current heating cooling for: " + this.name);
         nest.fetchStatus(function (data) {
-            device = data.device[that.deviceId];
+            var device = data.device[that.deviceId];
             
-            currentHeatingCooling = 0;
+            var currentHeatingCooling = 0;
             switch(device.current_schedule_mode) {
                 case "OFF":
                     targetHeatingCooling = 0;
@@ -90,9 +90,9 @@ NestThermostatAccessory.prototype = {
 
         this.log("Checking target heating cooling for: " + this.name);
         nest.fetchStatus(function (data) {
-            device = data.device[that.deviceId];
+            var device = data.device[that.deviceId];
             
-            targetHeatingCooling = 0;
+            var targetHeatingCooling = 0;
             switch(device.target_temperature_type) {
                 case "off":
                     targetHeatingCooling = 0;
@@ -119,7 +119,7 @@ NestThermostatAccessory.prototype = {
         var that = this;
 
         nest.fetchStatus(function (data) {
-            device = data.shared[that.deviceId];
+            var device = data.shared[that.deviceId];
             that.log("Current temperature for " + this.name + " is: " + device.current_temperature);
             callback(device.current_temperature);
         });
@@ -132,7 +132,7 @@ NestThermostatAccessory.prototype = {
         var that = this;
 
         nest.fetchStatus(function (data) {
-            device = data.shared[that.deviceId];
+            var device = data.shared[that.deviceId];
             that.log("Target temperature for " + this.name + " is: " + device.target_temperature);
             callback(device.target_temperature);
         });
@@ -145,8 +145,8 @@ NestThermostatAccessory.prototype = {
         var that = this;
 
         nest.fetchStatus(function (data) {
-            device = data.device[that.deviceId];
-            temperatureUnits = 0;
+            var device = data.device[that.deviceId];
+            var temperatureUnits = 0;
             switch(device.temperature_scale) {
                 case "F":
                     that.log("Tempature unit for " + this.name + " is: " + "Fahrenheit");
@@ -171,7 +171,7 @@ NestThermostatAccessory.prototype = {
         var that = this;
 
         nest.fetchStatus(function (data) {
-            device = data.device[that.deviceId];
+            var device = data.device[that.deviceId];
             that.log("Humidity for " + this.name + " is: " + device.current_humidity);
             callback(device.current_humidity);
         })
@@ -183,7 +183,7 @@ NestThermostatAccessory.prototype = {
 
         var that = this;
 
-        targetTemperatureType = 'off';
+        var targetTemperatureType = 'off';
         switch(targetHeatingCooling) {
             case 0:
                 // this will crash unnofficial-node-api, it needs to be forked to accept the input
