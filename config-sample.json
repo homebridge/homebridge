@@ -3,6 +3,12 @@
 
     "platforms": [
         {
+            "platform" : "Nest",
+            "name" : "Nest",
+            "username" : "username",
+            "password" : "password"
+        },
+        {
             "platform" : "TelldusLive",
             "name" : "Telldus Live!",
             "public_key" : "telldus public key",

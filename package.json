@@ -23,6 +23,7 @@
     "request": "2.49.x",
     "sonos": "0.8.x",
     "telldus-live": "0.2.x",
+    "unofficial-nest-api": "git+https://github.com/hachidorii/unofficial_nodejs_nest.git#d8d48edc952b049ff6320ef99afa7b2f04cdee98",
     "wemo": "0.2.x",
     "wink-js": "0.0.5",
     "xml2js": "0.4.x",
