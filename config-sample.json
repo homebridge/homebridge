@@ -48,6 +48,10 @@
             "port": "8000",
             "username": "username",
             "password": "password"
+        },
+        {
+            "platform": "LogitechHarmony",
+            "name": "Living Room Harmony Hub"
         }
     ],
 

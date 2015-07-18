@@ -11,20 +11,22 @@
   },
   "license": "ISC",
   "dependencies": {
-    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
-    "request": "2.49.x",
-    "node-persist": "0.0.x",
-    "xmldoc": "0.1.x",
-    "node-hue-api": "^1.0.5",
-    "xml2js": "0.4.x",
     "carwingsjs": "0.0.x",
+    "elkington": "kevinohara80/elkington",
+    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
+    "harmonyhubjs-client": "^1.1.4",
+    "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
+    "node-hue-api": "^1.0.5",
+    "node-milight-promise": "0.0.2",
+    "node-persist": "0.0.x",
+    "request": "2.49.x",
     "sonos": "0.8.x",
+    "telldus-live": "0.2.x",
+    "unofficial-nest-api": "0.1.x",
     "wemo": "0.2.x",
     "wink-js": "0.0.5",
-    "elkington": "kevinohara80/elkington",
-    "node-milight-promise": "0.0.2",
-    "telldus-live" : "0.2.x",
-    "unofficial-nest-api": "0.1.x"
+    "xml2js": "0.4.x",
+    "xmldoc": "0.1.x"
   }
 }
