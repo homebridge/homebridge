@@ -186,7 +186,6 @@ NestThermostatAccessory.prototype = {
         var targetTemperatureType = 'off';
         switch(targetHeatingCooling) {
             case 0:
-                // this will crash unnofficial-node-api, it needs to be forked to accept the input
                 targetTemperatureType = 'off';
                 break;
             case 1:
