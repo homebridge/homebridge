@@ -79,7 +79,7 @@ DomoticzPlatform.prototype = {
 					if (json['result'] != undefined) {
 						var sArray=sortByKey(json['result'],"Name");
 						sArray.map(function(s) {
-							accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+							accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
 							foundAccessories.push(accessory);
 						})
 					}
@@ -101,7 +101,7 @@ DomoticzPlatform.prototype = {
 						sArray.map(function(s) {
 							//only accept switches for now
 							if (typeof s.SwitchType != 'undefined') {
-								accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+								accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
 								foundAccessories.push(accessory);
 							}
 						})
@@ -122,7 +122,7 @@ DomoticzPlatform.prototype = {
 				if (json['result'] != undefined) {
 					var sArray=sortByKey(json['result'],"Name");
 					sArray.map(function(s) {
-						accessory = new DomoticzAccessory(that.log, that.server, that.port, true, s.idx, s.Name, false, 0, false);
+						accessory = new DomoticzAccessory(that.log, that, true, s.idx, s.Name, false, 0, false);
 						foundAccessories.push(accessory);
 	          		})
 				}
@@ -134,7 +134,7 @@ DomoticzPlatform.prototype = {
 	}
 }
 
-function DomoticzAccessory(log, server, port, IsScene, idx, name, HaveDimmer, MaxDimLevel, HaveRGB) {
+function DomoticzAccessory(log, platform, IsScene, idx, name, HaveDimmer, MaxDimLevel, HaveRGB) {
   // device info
   this.IsScene		= IsScene;
   this.idx			= idx;
@@ -143,8 +143,7 @@ function DomoticzAccessory(log, server, port, IsScene, idx, name, HaveDimmer, Ma
   this.MaxDimLevel	= MaxDimLevel;
   this.HaveRGB		= HaveRGB;
   this.log 			= log;
-  this.server		= server;
-  this.port			= port;
+  this.platform = platform;
 }
 
 DomoticzAccessory.prototype = {
@@ -153,13 +152,13 @@ DomoticzAccessory.prototype = {
 		if (this.IsScene == false) {
 			//Lights
 			if (c == "On" || c == "Off") {
-				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchlight&idx=" + this.idx + "&switchcmd=" + c + "&level=0";
+				url = this.platform.urlForQuery("type=command&param=switchlight&idx=" + this.idx + "&switchcmd=" + c + "&level=0");
 			}
 			else if (c == "setHue") {
-				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=setcolbrightnessvalue&idx=" + this.idx + "&hue=" + value + "&brightness=100" + "&iswhite=false";
+				url = this.platform.urlForQuery("type=command&param=setcolbrightnessvalue&idx=" + this.idx + "&hue=" + value + "&brightness=100" + "&iswhite=false");
 			}
 			else if (c == "setLevel") {
-				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value;
+				url = this.platform.urlForQuery("type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value);
 			}
 			else if (value != undefined) {
 				this.log(this.name + " Unhandled Light command! cmd=" + c + ", value=" + value);
@@ -168,7 +167,7 @@ DomoticzAccessory.prototype = {
 		else {
 			//Scenes
 			if (c == "On" || c == "Off") {
-				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchscene&idx=" + this.idx + "&switchcmd=" + c;
+				url = this.platform.urlForQuery("type=command&param=switchscene&idx=" + this.idx + "&switchcmd=" + c);
 			}
 			else if (value != undefined) {
 				this.log(this.name + " Unhandled Scene command! cmd=" + c + ", value=" + value);
