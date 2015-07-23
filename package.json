@@ -27,6 +27,7 @@
     "wemo": "0.2.x",
     "wink-js": "0.0.5",
     "xml2js": "0.4.x",
-    "xmldoc": "0.1.x"
+    "xmldoc": "0.1.x",
+    "teslams": "1.0.1"
   }
 }
