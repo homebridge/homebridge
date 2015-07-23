@@ -22,6 +22,14 @@
 //     }
 // ],
 //
+// If your server uses HTTPS, you can specify "ssl": true in your config. If
+// your server uses a self-signed certificate, you'll need to run the following
+// before starting the server or you will get an error:
+//
+//    export NODE_TLS_REJECT_UNAUTHORIZED=0
+//
+// For basic auth support, specify the "user" and "password" in your config.
+//
 // When you attempt to add a device, it will ask for a "PIN code".
 // The default code for all HomeBridge accessories is 031-45-154.
 //
@@ -30,8 +38,11 @@ var request = require("request");
 
 function DomoticzPlatform(log, config){
 	this.log     = log;
+	this.user = config["user"];
+	this.password = config["password"];
 	this.server  = config["server"];
 	this.port    = config["port"];
+	this.protocol = config["ssl"] ? "https" : "http";
 	this.roomid  = 0;
 	if (typeof config["roomid"] != 'undefined') {
 		this.roomid = config["roomid"];
@@ -46,35 +57,42 @@ function sortByKey(array, key) {
 }
 
 DomoticzPlatform.prototype = {
+  urlForQuery: function(query) {
+    var serverString = this.server;
+    if (this.user && this.password) {
+      serverString = this.user + ":" + this.password + "@" + serverString;
+    }
+    return this.protocol + "://" + serverString + ":" + this.port + "/json.htm?" + query;
+  },
+  
 	accessories: function(callback) {
 	    this.log("Fetching Domoticz lights and switches...");
-
 	    var that = this;
 	    var foundAccessories = [];
 	    if (this.roomid == 0) {
 			//Get Lights
 			request.get({
-				url: "http://" + this.server + ":" + this.port + "/json.htm?type=devices&filter=light&used=true&order=Name",
+				url: this.urlForQuery("type=devices&filter=light&used=true&order=Name"),
 				json: true
 			}, function(err, response, json) {
 				if (!err && response.statusCode == 200) {
 					if (json['result'] != undefined) {
 						var sArray=sortByKey(json['result'],"Name");
 						sArray.map(function(s) {
-							accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+							accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
 							foundAccessories.push(accessory);
 						})
 					}
 					callback(foundAccessories);
 				} else {
-					that.log("There was a problem connecting to Domoticz.");
+					that.log("There was a problem connecting to Domoticz. (" + err + ")");
 				}
 			});
 	    }
 	    else {
 			//Get all devices specified in the room
 			request.get({
-				url: "http://" + this.server + ":" + this.port + "/json.htm?type=devices&plan=" + this.roomid,
+				url: this.urlForQuery("type=devices&plan=" + this.roomid),
 				json: true
 			}, function(err, response, json) {
 				if (!err && response.statusCode == 200) {
@@ -83,7 +101,7 @@ DomoticzPlatform.prototype = {
 						sArray.map(function(s) {
 							//only accept switches for now
 							if (typeof s.SwitchType != 'undefined') {
-								accessory = new DomoticzAccessory(that.log, that.server, that.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+								accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
 								foundAccessories.push(accessory);
 							}
 						})
@@ -97,14 +115,14 @@ DomoticzPlatform.prototype = {
 		//Get Scenes
 		foundAccessories = [];
 		request.get({
-			url: "http://" + this.server + ":" + this.port + "/json.htm?type=scenes",
+			url: this.urlForQuery("type=scenes"),
 	      	json: true
 	    }, function(err, response, json) {
 			if (!err && response.statusCode == 200) {
 				if (json['result'] != undefined) {
 					var sArray=sortByKey(json['result'],"Name");
 					sArray.map(function(s) {
-						accessory = new DomoticzAccessory(that.log, that.server, that.port, true, s.idx, s.Name, false, 0, false);
+						accessory = new DomoticzAccessory(that.log, that, true, s.idx, s.Name, false, 0, false);
 						foundAccessories.push(accessory);
 	          		})
 				}
@@ -116,7 +134,7 @@ DomoticzPlatform.prototype = {
 	}
 }
 
-function DomoticzAccessory(log, server, port, IsScene, idx, name, HaveDimmer, MaxDimLevel, HaveRGB) {
+function DomoticzAccessory(log, platform, IsScene, idx, name, HaveDimmer, MaxDimLevel, HaveRGB) {
   // device info
   this.IsScene		= IsScene;
   this.idx			= idx;
@@ -125,8 +143,7 @@ function DomoticzAccessory(log, server, port, IsScene, idx, name, HaveDimmer, Ma
   this.MaxDimLevel	= MaxDimLevel;
   this.HaveRGB		= HaveRGB;
   this.log 			= log;
-  this.server		= server;
-  this.port			= port;
+  this.platform = platform;
 }
 
 DomoticzAccessory.prototype = {
@@ -135,13 +152,13 @@ DomoticzAccessory.prototype = {
 		if (this.IsScene == false) {
 			//Lights
 			if (c == "On" || c == "Off") {
-				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchlight&idx=" + this.idx + "&switchcmd=" + c + "&level=0";
+				url = this.platform.urlForQuery("type=command&param=switchlight&idx=" + this.idx + "&switchcmd=" + c + "&level=0");
 			}
 			else if (c == "setHue") {
-				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=setcolbrightnessvalue&idx=" + this.idx + "&hue=" + value + "&brightness=100" + "&iswhite=false";
+				url = this.platform.urlForQuery("type=command&param=setcolbrightnessvalue&idx=" + this.idx + "&hue=" + value + "&brightness=100" + "&iswhite=false");
 			}
 			else if (c == "setLevel") {
-				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value;
+				url = this.platform.urlForQuery("type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value);
 			}
 			else if (value != undefined) {
 				this.log(this.name + " Unhandled Light command! cmd=" + c + ", value=" + value);
@@ -150,7 +167,7 @@ DomoticzAccessory.prototype = {
 		else {
 			//Scenes
 			if (c == "On" || c == "Off") {
-				url = "http://" + this.server + ":" + this.port + "/json.htm?type=command&param=switchscene&idx=" + this.idx + "&switchcmd=" + c;
+				url = this.platform.urlForQuery("type=command&param=switchscene&idx=" + this.idx + "&switchcmd=" + c);
 			}
 			else if (value != undefined) {
 				this.log(this.name + " Unhandled Scene command! cmd=" + c + ", value=" + value);
