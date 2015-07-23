@@ -148,6 +148,13 @@
             "type": "rgbw", // Bulb type (rgbw, rgb, white)                                                                                                                                                                                                                                                        |
             "delay": 35, // Delay between commands sent to the WiFi bridge (default 35)                                                                                                                                                                                                                            |
             "repeat": 3 // Number of times each command is repeated for reliability (default 3)                                                                                                                                                                                                                    |
+        },
+        {
+            "accessory": "Tesla",
+            "name": "Tesla",
+            "description": "This shim supports controlling climate control on the Tesla Model S.",
+            "username": "tesla_email",
+            "password" : "tesla_password"
         }
     ]
 }
