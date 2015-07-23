@@ -15,15 +15,22 @@ SonosAccessory.prototype = {
     var that = this;
 
     sonos.search(function(device) {
-      that.log("Found device at " + device.host);
+//	that.log("Found device at " + device.host);
 
       device.deviceDescription(function (err, description) {
-
-        if (description["zoneType"] == '3') {
-          that.log("Found playable device");
-          // device is an instance of sonos.Sonos
-          that.device = device;
-        }
+	  //  1 = Connect
+	  //  3 = Play:3
+	  //  5 = Play:5
+	  //  9 = Play:1
+	  // 11 = Bridge2/Boost
+	  var speakerZoneTypes= ['1', '3', '5', '9']
+	  if (speakerZoneTypes.indexOf(description["zoneType"]) > -1) {
+              that.log("Found playable device at " + device.host);
+              // device is an instance of sonos.Sonos
+              that.device = device;
+          } else {
+	      that.log(device.host + " of type " + description["zoneType"] + " is not playable")
+	  }
 
       });
     });
