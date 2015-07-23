@@ -52,6 +52,11 @@
         {
             "platform": "LogitechHarmony",
             "name": "Living Room Harmony Hub"
+        },
+        {
+            "platform": "Sonos",
+            "name": "Sonos",
+            "play_volume": 25
         }
     ],
 
@@ -69,12 +74,6 @@
             // "requiredDeviceId", "<ID of door if you have multiple doors, prompted by shim during startup if needed>",
             "username": "your-liftmaster-username",
             "password" : "your-liftmaster-password"
-        },
-        {
-            "accessory": "Sonos",
-            "name": "Speakers",
-            "description": "This shim supports Sonos devices on the same network as this server. It acts as a simple switch that calls play() or pause() on the Sonos, so it's only useful for pausing and resuming tracks or radio stations that are already in the queue. When 'play_volume' is nonzero, the volume will be reset to that value when it turns the Sonos on.",
-            "play_volume": 25
         },
         {
             "accessory": "Lockitron",
