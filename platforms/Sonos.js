@@ -19,7 +19,7 @@ SonosPlatform.prototype = {
                 if (description["zoneType"] != '11') {
                     that.log("Found playable device - " + description["roomName"]);
                     // device is an instance of sonos.Sonos
-                    var accessory = new SonosAccessory(that.log, device, description);
+                    var accessory = new SonosAccessory(that.log, that.config, device, description);
                     callback([accessory]);
                 }
             });
@@ -27,11 +27,15 @@ SonosPlatform.prototype = {
     }
 };
 
-function SonosAccessory(log, device, description) {
+function SonosAccessory(log, config, device, description) {
     this.log = log;
+    this.config = config;
+    this.device = device;
     this.description = description;
-    this.name = description["roomName"] + " Sonos";
-    this.playVolume = 25;
+    
+    this.name = this.description["roomName"] + " " + this.config["name"];
+    this.serviceName = this.description["roomName"] + " Speakers";
+    this.playVolume = this.config["play_volume"];
 }
 
 SonosAccessory.prototype = {
@@ -130,7 +134,7 @@ SonosAccessory.prototype = {
                 onUpdate: null,
                 perms: ["pr"],
                 format: "string",
-                initialValue: this.description["roomName"] + " Speakers",
+                initialValue: this.serviceName,
                 supportEvents: false,
                 supportBonjour: false,
                 manfDescription: "Name of service",
