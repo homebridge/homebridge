@@ -17,7 +17,7 @@ TeslaAccessory.prototype = {
 
             if (powerOn) {
                 tesla.auto_conditioning({id:vehicle, climate: 'start'}, function(response) {
-                    if (!response.result)
+                    if (response.result)
                         that.log("Started climate control.");
                     else
                         that.log("Error starting climate control: " + response.reason);
@@ -25,10 +25,10 @@ TeslaAccessory.prototype = {
             }
             else {
                 tesla.auto_conditioning({id:vehicle, climate: 'stop'}, function(response) {
-                    if (!response.result)
+                    if (response.result)
                         that.log("Stopped climate control.");
                     else
-                        that.log("Error starting climate control: " + response.reason);
+                        that.log("Error stopping climate control: " + response.reason);
                 });
             }
         })
