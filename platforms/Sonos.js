@@ -3,6 +3,7 @@ var sonos = require('sonos');
 
 function SonosPlatform(log, config){
     this.log = log;
+    this.config = config;
     this.name = config["name"];
     this.playVolume = config["play_volume"];
 }
