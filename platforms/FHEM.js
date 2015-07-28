@@ -3,13 +3,13 @@
 // Remember to add platform to config.json. Example:
 // "platforms": [
 //     {
-//         "platform": "FHEM",
-//         "name": "FHEM",
-//         "server": "127.0.0.1",
-//         "port": "8083",
-//         "ssl": "true",
-//         "auth": {"user": "fhem", "pass": "fhempassword"},
-//         "filter": "room=xyz"
+//         'platform': "FHEM",
+//         'name': "FHEM",
+//         'server': "127.0.0.1",
+//         'port': 8083,
+//         'ssl': true,
+//         'auth': {'user': "fhem", 'pass': "fhempassword"},
+//         'filter': "room=xyz"
 //     }
 // ],
 //
@@ -35,6 +35,10 @@ function
 FHEM_update(inform_id, value, no_update) {
   var subscription = FHEM_subscriptions[inform_id];
   if( subscription != undefined ) {
+    if( value == undefined
+        || FHEM_cached[inform_id] === value )
+      return;
+
     FHEM_cached[inform_id] = value;
     console.log("  caching: " + inform_id + ": " + value + " as " + typeof(value) );
 
@@ -45,7 +49,7 @@ FHEM_update(inform_id, value, no_update) {
 
 
 var FHEM_longpoll_running = false;
-//FIXME: add reconnect, force reconnect on xxx bytes received, add filter, add since
+//FIXME: force reconnect on xxx bytes received ?, add filter, add since
 function FHEM_startLongpoll(connection) {
   if( FHEM_longpoll_running )
     return;
@@ -58,7 +62,7 @@ function FHEM_startLongpoll(connection) {
               "&timestamp="+new Date().getTime();
 
   var url = encodeURI( connection.base_url + query );
-console.log( 'starting longpoll: ' + url );
+  console.log( 'starting longpoll: ' + url );
 
   var FHEM_longpollOffset = 0;
   var input = "";
@@ -93,89 +97,44 @@ console.log( 'starting longpoll: ' + url );
 
 //console.log( "Rcvd: "+(l.length>132 ? l.substring(0,132)+"...("+l.length+")":l) );
 
-                   //FIXME: create reading2value
-                   //FIXME: redirect device reading to homekit reading: rgb->hue,...
                    var subscription = FHEM_subscriptions[d[0]];
                    if( subscription != undefined ) {
 //console.log( "Rcvd: "+(l.length>132 ? l.substring(0,132)+"...("+l.length+")":l) );
                      var accessory = subscription.accessory;
-                     var value = d[1];
 
-                     if(d[0].match(/-state$/)) {
-                       if( match = d[1].match(/dim(\d*)%/ ) ) {
+                     var value = d[1];
+                     if( value.match( /^set-/ ) )
+                       continue;
+
+                     var match = d[0].match(/([^-]*)-(.*)/);
+                     var device = match[1];
+                     var reading = match[2];
+                     if( reading == undefined )
+                       continue;
+
+                     if( reading == 'state') {
+                       if( match = value.match(/dim(\d*)%/ ) ) {
                          var pct = parseInt( match[1] );
 
-                         FHEM_update( d[0].replace( '-state', '-pct' ), pct );
+                         FHEM_update( device+'-pct', pct );
                        }
 
-                       value = 1;
-                       if( d[1] == 'off' )
-                         value = 0;
-                       else if( d[1] == '000000' )
-                         value = 0;
-                       else if( d[1] == 'absent' )
-                         value = 0;
-                       else if( d[1] == 'A0' )
-                         value = 0;
+                     } else if(reading == accessory.hasRGB) {
+                       var hsv = FHEM_rgb2hsv(value);
+                       var hue = parseInt( hsv[0] * 360 );
+                       var sat = parseInt( hsv[1] * 100 );
+                       var bri = parseInt( hsv[2] * 100 );
 
-                       value = parseInt(value);
-
-                     } else if(d[0].match(/-motor$/)) {
-                       value = 2;
-                       if( d[1].match(/^opening/))
-                         value = 1;
-                       else if( d[1].match(/^up/))
-                         value = 1;
-                       else if( d[1].match(/^closing/))
-                         value = 0;
-                       else if( d[1].match(/^down/))
-                         value = 0;
-
-                       value = parseInt(value);
-
-                     } else if(d[0].match(/-transportState$/)) {
-                       value = 0;
-                       if( d[1] == 'PLAYING' )
-                         value = 1;
-
-                       value = parseInt(value);
-
-                     } else if(d[0].match(/-Volume$/)) {
-                       value = parseInt( d[1] );
-
-                     } else if(d[0].match(/-contact$/)) {
-                       value = 0;
-                       if( d[1].match( /^closed/ ) )
-                         value = 1;
-
-                       value = parseInt(value);
-
-                     } else if(d[0].match(/-pct$/)) {
-                       value = parseInt( d[1] );
-
-                     } else if(d[0].match(/-hue$/)) {
-                       value = Math.round(d[1] * 360 / accessory.hueMax);
-
-                     } else if(d[0].match(/-sat$/)) {
-                       result = Math.round(d[1] * 100 / accessory.satMax);
-
-                     } else if(d[0].match(/-rgb$/)) {
-                       var hue = parseInt( FHEM_rgb2h(d[1]) * 360 );
-
-                       FHEM_update( d[0].replace( '-rgb', '-hue' ), hue );
-
-                     } else if(d[0].match(/-temperature$/)
-                                || d[0].match(/-measured-temp$/)
-                                || d[0].match(/-desired-temp$/)
-                                || d[0].match(/-desiredTemperature$/) ) {
-                       value = parseFloat( d[1] );
-
-                     } else if(d[0].match(/-humidity$/)) {
-                       value = parseInt( d[1] );
-
+                       //FHEM_update( device+'-'+reading, value, false );
+                       FHEM_update( device+'-hue', hue );
+                       FHEM_update( device+'-sat', sat );
+                       FHEM_update( device+'-bri', bri );
+                       continue;
                      }
 
-                     FHEM_update( d[0], value );
+                     value = accessory.reading2homekit(reading, value);
+                     FHEM_update( device+'-'+reading, value );
+
                    }
 
                  }
@@ -210,7 +169,6 @@ function FHEMPlatform(log, config) {
   if( auth ) {
     if( auth.sendImmediately == undefined )
       auth.sendImmediately = false;
-console.log( "auth: "+ auth );
 
     request = request.defaults( { 'auth': auth, 'rejectUnauthorized': false } );
   }
@@ -286,7 +244,7 @@ FHEM_hsv2rgb(h,s,v) {
 }
 
 function
-FHEM_rgb2h(r,g,b){
+FHEM_rgb2hsv(r,g,b){
   if( r == undefined )
     return;
 
@@ -312,17 +270,15 @@ FHEM_rgb2h(r,g,b){
     h = ( 60 * ( ( r - g ) / c ) + 240 ) / 360;
   }
 
-  return  h;
-
   if( M == 0 ) {
     s = 0;
   } else {
     s = c / M;
   }
 
-  v = M;
+  v = M/255;
 
-  return  h;
+  return  [h,s,v];
 }
 
 
@@ -437,7 +393,12 @@ FHEMAccessory(log, connection, s) {
   }
   if( s.PossibleSets.match(/\brgb\b/) ) {
     s.isLight = true;
-    s.hasRGB = true;
+    s.hasRGB = 'rgb';
+    if( s.Internals.TYPE == 'SWAP_0000002200000003' )
+      s.hasRGB = '0B-RGBlevel';
+  } else if( s.PossibleSets.match(/\bRGB\b/) ) {
+    s.isLight = true;
+    s.hasRGB = 'RGB';
   }
 
   if( s.Readings['measured-temp'] )
@@ -446,7 +407,7 @@ FHEMAccessory(log, connection, s) {
     s.hasTemperature = "temperature";
 
   if( s.Readings.humidity )
-    s.hasHumidity = true;
+    s.hasHumidity = 'humidity';
 
   if( s.Readings.motor )
     s.hasMotor = 'motor';
@@ -456,17 +417,17 @@ FHEMAccessory(log, connection, s) {
   if( !genericType )
     genericType = s.Attributes.genericDisplayType;
 
-  if( genericType == 'light' )
+  if( genericType == 'switch' )
+    s.isSwitch = true;
+  else if( genericType == 'light' )
     s.isLight = true;
   else if( genericType == 'blind' ) {
-    s.hasPct = false;
     s.isBlind = 'pct';
   } else if( genericType == 'thermostat' )
     s.isThermostat = true;
   else if( s.Attributes.subType == 'thermostat' )
     s.isThermostat = true;
   else if( s.Attributes.subType == 'blindActuator' ) {
-    s.hasPct = false;
     s.isBlind = 'pct';
   } else if( s.Attributes.subType == 'threeStateSensor' ) {
     s.isContactSensor = true;
@@ -474,6 +435,9 @@ FHEMAccessory(log, connection, s) {
       s.isWindow = true;
   } else if( s.Internals.TYPE == 'PRESENCE' )
     s.isOccupancySensor = true;
+  else if( s.Attributes.model == 'fs20di' )
+    s.isLight = true;
+  //FIXME: set isSwitch to reading: state/transportState/... (on/off / play/pause)
   //else if( s.PossibleSets.match(/\bon\b/)
   //  && s.PossibleSets.match(/\boff\b/) )
   //  s.isSwitch = true;
@@ -482,11 +446,15 @@ FHEMAccessory(log, connection, s) {
     s.isThermostat = 'desired-temp';
   else if( s.PossibleSets.match(/\bdesiredTemperature\b/) )
     s.isThermostat = 'desiredTemperature';
+  else if( s.isThermostat ) {
+    s.isThermostat = false;
+    log( s.Internals.NAME + ' is NOT a thermostat. set for target temperature missing' );
+  }
 
   if( s.hasHue )
     log( s.Internals.NAME + ' has hue [0-' + s.hueMax +']' );
   else if( s.hasRGB )
-    log( s.Internals.NAME + ' has RGB');
+    log( s.Internals.NAME + ' has RGB [0-' + s.hasRGB +']');
   else if( s.hasPct )
     log( s.Internals.NAME + ' is dimable [0-'+ s.pctMax +']' );
   else if( s.hasDim )
@@ -507,11 +475,9 @@ FHEMAccessory(log, connection, s) {
   if( s.hasTemperature )
     log( s.Internals.NAME + ' has temperature ['+ s.hasTemperature +']' );
   if( s.hasHumidity )
-    log( s.Internals.NAME + ' has humidity' );
+    log( s.Internals.NAME + ' has humidity ['+ s.hasHumidity +']' );
   if( s.hasMotor )
     log( s.Internals.NAME + ' has motor' );
-
-  //FIXME: create redirectReading() / redirectSet(): on/off -> play/pause
 
   // device info
   this.name		= s.Internals.NAME;
@@ -565,6 +531,80 @@ FHEMAccessory(log, connection, s) {
 FHEM_dim_values = [ 'dim06%', 'dim12%', 'dim18%', 'dim25%', 'dim31%', 'dim37%', 'dim43%', 'dim50%', 'dim56%', 'dim62%', 'dim68%', 'dim75%', 'dim81%', 'dim87%', 'dim93%' ];
 
 FHEMAccessory.prototype = {
+  reading2homekit: function(reading,value) {
+    if( reading == 'hue' ) {
+      value = Math.round(value * 360 / this.hueMax);
+
+    } else if( reading == 'sat' ) {
+      value = Math.round(value * 100 / this.satMax);
+
+    } else if( reading == 'pct' ) {
+      value = parseInt( value );
+
+    } else if(reading.match(/motor$/)) {
+      if( value.match(/^opening/))
+        value = 1;
+      else if( value.match(/^up/))
+        value = 1;
+      else if( value.match(/^closing/))
+        value = 0;
+      else if( value.match(/^down/))
+        value = 0;
+      else
+      value = 2;
+
+      value = parseInt(value);
+
+    } else if( reading == 'transportState' ) {
+      if( value == 'PLAYING' )
+        value = 1;
+      else
+        value = 0;
+
+      value = parseInt(value);
+
+    } else if( reading == 'Volume' ) {
+      value = parseInt( value );
+
+    } else if( reading == 'contact' ) {
+        if( value.match( /^closed/ ) )
+          value = 1;
+        else
+          value = 0;
+
+      value = parseInt(value);
+
+    } else if( reading == 'temperature'
+               || reading == 'measured-temp'
+               || reading == 'desired-temp'
+               || reading == 'desiredTemperature' ) {
+      value = parseFloat( value );
+
+    } else if( reading == 'humidity' ) {
+      value = parseInt( value );
+
+    } else if( reading == 'state' ) {
+      if( value.match(/^set-/ ) )
+        return undefined;
+
+      if( value == 'off' )
+        value = 0;
+      else if( value == 'absent' )
+        value = 0;
+      else if( value == '000000' )
+        value = 0;
+      else if( value == 'A0' )
+        value = 0;
+      else
+        value = 1;
+
+      value = parseInt( value );
+
+    }
+
+    return(value);
+  },
+
   delayed: function(c,value,delay) {
     var timer = this.delayed[c];
     if( timer ) {
@@ -610,15 +650,38 @@ FHEMAccessory.prototype = {
       else
         url = this.connection.base_url + "/fhem?cmd=set " + this.device + " " + FHEM_dim_values[Math.round(value/6.25)] + "&XHR=1";
 
-    } else if( c == 'hue' ) {
-      if( !this.hasHue ) {
-        value = FHEM_hsv2rgb( value/360.0, this.sat?this.sat/100.0:1.0, this.pct?this.pct/100.0:1.0 );
-        url = this.connection.base_url + "/fhem?cmd=set " + this.device + " rgb " + value + "&XHR=1";
+    } else if( c == 'H-rgb' || c == 'S-rgb' || c == 'B-rgb' ) {
+        var h = FHEM_cached[this.device + '-hue' ] / 360;
+        var s = FHEM_cached[this.device + '-sat' ] / 100;
+        var v = FHEM_cached[this.device + '-bri' ] / 100;
+        //this.log( this.name + ' cached : [' + h + ',' + s + ',' + v + ']' );
+        if( h == undefined ) h = 0.0;
+        if( s == undefined ) s = 1.0;
+        if( v == undefined ) v = 1.0;
+        //this.log( this.name + ' old : [' + h + ',' + s + ',' + v + ']' );
 
-      } else {
+        if( c == 'H-rgb' ) {
+          FHEM_cached[this.device + '-hue' ] = value;
+          h = value / 360;
+        } else if( c == 'S-rgb' ) {
+          FHEM_cached[this.device + '-sat' ] = value;
+          s = value / 100;
+        } else if( c == 'B-rgb' ) {
+          FHEM_cached[this.device + '-bri' ] = value;
+          v = value / 100;
+        }
+        //this.log( this.name + ' new : [' + h + ',' + s + ',' + v + ']' );
+
+        value = FHEM_hsv2rgb( h, s, v );
+        //this.log( this.name + ' rgb : [' + value + ']' );
+        if( this.PossibleSets.match(/\bRGB\b/) )
+          url = this.connection.base_url + "/fhem?cmd=set " + this.device + " RGB " + value + "&XHR=1";
+        else
+          url = this.connection.base_url + "/fhem?cmd=set " + this.device + " rgb " + value + "&XHR=1";
+
+    } else if( c == 'hue' ) {
         value = Math.round(value * this.hueMax / 360);
         url = this.connection.base_url + "/fhem?cmd=set " + this.device + " hue " + value + "&XHR=1";
-      }
 
     } else if( c == 'sat' ) {
       value = value / 100 * this.satMax;
@@ -630,7 +693,7 @@ FHEMAccessory.prototype = {
     } else if( c == 'targetPosition' ) {
       url = this.connection.base_url + "/fhem?cmd=set " + this.device + " " + this.isBlind + " " + value + "&XHR=1";
 
-    } else if( value != undefined ) {
+    } else {
       this.log(this.name + " Unhandled command! cmd=" + c + ", value=" + value);
       return;
 
@@ -655,29 +718,10 @@ FHEMAccessory.prototype = {
   },
 
   query: function(reading, callback) {
-    this.log("query: " + reading);
+    this.log("query: " + this.name + ": " + reading);
 
-    var orig_reading = reading;
-
-    //FIXME: create redirectReading()
-    var rgb_to_hue = false;
-    if( reading == 'hue' && !this.hasHue && this.hasRGB ) {
-      reading = 'rgb';
-      rgb_to_hue = true;
-
-    } else if( reading == 'pct' && !this.hasPct ) {
-      reading = 'state';
-
-    }
-
-    if( reading == 'rgb'
-               && this.type == 'SWAP_0000002200000003' ) {
-      reading = '0B-RGBlevel';
-
-    }
-
-    var result = FHEM_cached[this.device + '-' + orig_reading];
-    if( result != undefined  ) {
+    var result = FHEM_cached[this.device + '-' + reading];
+    if( result != undefined ) {
       this.log("  cached: " + result);
       if( callback != undefined )
         callback(result);
@@ -685,7 +729,22 @@ FHEMAccessory.prototype = {
     } else
       this.log("  not cached" );
 
-    var cmd = '{ReadingsVal("'+this.device+'","'+reading+'","")}';
+    if( reading == 'hue' && !this.hasHue && this.hasRGB ) {
+      query_reading = this.hasRGB;
+
+    } else if( reading == 'sat' && !this.hasSat && this.hasRGB ) {
+      query_reading = this.hasRGB;
+
+    } else if( reading == 'bri' && !this.hasPct && this.hasRGB ) {
+      query_reading = this.hasRGB;
+
+    } else if( reading == 'pct' && !this.hasPct && this.hasDim ) {
+      query_reading = 'state';
+
+    } else
+      query_reading = reading;
+
+    var cmd = '{ReadingsVal("'+this.device+'","'+query_reading+'","")}';
     var url = encodeURI( this.connection.base_url + "/fhem?cmd=" + cmd + "&XHR=1");
     this.log( '  querying: ' + url );
 
@@ -693,95 +752,51 @@ FHEMAccessory.prototype = {
     that.connection.request.get( { url: url, gzip: true },
                  function(err, response, result) {
                    if( !err && response.statusCode == 200 ) {
-                     result = result.replace(/[\r\n]/g, "");
-                     that.log("  result: " + result);
+                     value = result.replace(/[\r\n]/g, "");
+                     that.log("  value: " + value);
 
-                     //FIXME: create reading2value
-                     if( rgb_to_hue ) {
-                       result = parseInt( FHEM_rgb2h(result) * 360 );
+                     if( value == undefined )
+                       return value;
 
-                     } else if( reading == 'hue' ) {
-                       result = Math.round(result * 360 / that.hueMax);
+                     if( reading != query_reading ) {
+                       if( reading == 'pct'
+                           && query_reading == 'state') {
+                         FHEM_update( that.device+'-'+query_reading, value );
 
-                     } else if( reading == 'sat' ) {
-                       result = Math.round(result * 100 / that.satMax);
-
-                     } else if( reading == 'pct' ) {
-                       result = parseInt( result );
-
-                     } else if(reading.match(/-motor$/)) {
-                       if( result.match(/^opening/))
-                         result = 1;
-                       else if( result.match(/^up/))
-                         result = 1;
-                       else if( result.match(/^closing/))
-                         result = 0;
-                       else if( result.match(/^down/))
-                         result = 0;
-                       else
-                       result = 2;
-
-                       result = parseInt(result);
-
-                     } else if( reading == 'transportState' ) {
-                         if( result == 'PLAYING' )
-                           result = 1;
+                         if( match = value.match(/dim(\d*)%/ ) )
+                           value = parseInt( match[1] );
+                         else if( value == 'off' )
+                           value = 0;
                          else
-                           result = 0;
+                           value = 100;
 
-                       result = parseInt(result);
+                       } else if(reading == 'hue' && query_reading == that.hasRGB) {
+                         //FHEM_update( that.device+'-'+query_reading, value );
 
-                     } else if( reading == 'Volume' ) {
-                       result = parseInt( result );
+                         value = parseInt( FHEM_rgb2hsv(value)[0] * 360 );
 
-                     } else if( reading == 'contact' ) {
-                         if( result.match( /^closed/ ) )
-                           result = 1;
-                         else
-                           result = 0;
+                       } else if(reading == 'sat' && query_reading == that.hasRGB) {
+                         //FHEM_update( that.device+'-'+query_reading, value );
 
-                       result = parseInt(result);
+                         value = parseInt( FHEM_rgb2hsv(value)[1] * 100 );
 
-                     } else if( reading == 'temperature'
-                                || reading == 'measured-temp'
-                                || reading == 'desired-temp'
-                                || reading == 'desiredTemperature' ) {
-                       result = parseFloat( result );
+                       } else if(reading == 'bri' && query_reading == that.hasRGB) {
+                         //FHEM_update( that.device+'-'+query_reading, value );
 
-                     } else if( reading == 'humidity' ) {
-                       result = parseInt( result );
+                         value = parseInt( FHEM_rgb2hsv(value)[2] * 100 );
 
-                     } else if( reading == 'state' ) {
-                         if( orig_reading == 'pct' ) {
-                           if( match = result.match(/dim(\d*)%/ ) ) {
-                             result = match[1];
-                           } else if( result == 'off' )
-                             result = 0;
-                           else
-                             result = 100;
+                       }
+                     } else
+                       value = that.reading2homekit(reading, value);
 
-                         } else if( result == 'off' )
-                           result = 0;
-                         else if( result == 'absent' )
-                           result = 0;
-                         else if( result == '000000' )
-                           result = 0;
-                         else if( result == 'A0' )
-                           result = 0;
-                         else
-                           result = 1;
+                     that.log("  mapped: " + value);
+                     FHEM_update( that.device + '-' + reading, value, true );
 
-                         result = parseInt( result );
-
-                     }
-                     that.log("  mapped: " + result);
-
-                     if( !rgb_to_hue && reading != 'transportState' && reading != '0B-RGBlevel' )
-                       FHEM_update( that.device + '-' + orig_reading, result, true );
-
+                     if( value == undefined )
+                       return;
                      if( callback != undefined )
-                       callback(result);
-                     return(result);
+                       callback(value);
+                     return(value);
 
                    } else {
                      that.log("There was a problem connecting to FHEM (2).");
@@ -895,7 +910,7 @@ FHEMAccessory.prototype = {
       });
     }
 
-    if( this.hasPct ) {
+    if( this.hasPct && !this.isBlind ) {
       cTypes.push({
         cType: types.BRIGHTNESS_CTYPE,
         onRegister: function(characteristic) {
@@ -947,7 +962,7 @@ FHEMAccessory.prototype = {
       });
     }
 
-    if( this.hasHue == true || this.hasRGB == true ) {
+    if( this.hasHue ) {
       cTypes.push({
         cType: types.HUE_CTYPE,
         onRegister: function(characteristic) {
@@ -970,6 +985,84 @@ FHEMAccessory.prototype = {
         designedMaxValue: 360,
         designedMinStep: 1,
         unit: "arcdegrees"
+      });
+    } else if( this.hasRGB ) {
+      cTypes.push({
+        cType: types.HUE_CTYPE,
+        onRegister: function(characteristic) {
+          characteristic.eventEnabled = true;
+          FHEM_subscribe(characteristic, that.name+'-hue', that);
+          FHEM_subscribe(characteristic, that.name+'-'+that.hasRGB, that);
+        },
+        onUpdate: function(value) { that.command('H-rgb', value); },
+        onRead: function(callback) {
+          that.query('hue', function(hue){
+            callback(hue);
+          });
+        },
+        perms: ["pw","pr","ev"],
+        format: "int",
+        initialValue:  0,
+        //initialValue: that.query( 'hue' ),
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Adjust the Hue of the Light",
+        designedMinValue: 0,
+        designedMaxValue: 360,
+        designedMinStep: 1,
+        unit: "arcdegrees"
+      });
+
+      if( !this.hasSat )
+      cTypes.push({
+        cType: types.SATURATION_CTYPE,
+        onRegister: function(characteristic) {
+          characteristic.eventEnabled = true;
+          FHEM_subscribe(characteristic, that.name+'-sat', that);
+        },
+        onUpdate: function(value) { that.command('S-rgb', value); },
+        onRead: function(callback) {
+          that.query('sat', function(sat){
+            callback(sat);
+          });
+        },
+        perms: ["pw","pr","ev"],
+        format: "int",
+        initialValue:  100,
+        //initialValue: that.query( 'sat' ),
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Adjust the Saturation of the Light",
+        designedMinValue: 0,
+        designedMaxValue: 100,
+        designedMinStep: 1,
+        unit: "%"
+      });
+
+      if( !this.hasPct )
+      cTypes.push({
+        cType: types.BRIGHTNESS_CTYPE,
+        onRegister: function(characteristic) {
+          characteristic.eventEnabled = true;
+          FHEM_subscribe(characteristic, that.name+'-bri', that);
+        },
+        onUpdate: function(value) { that.command('B-rgb', value); },
+        onRead: function(callback) {
+          that.query('bri', function(bri){
+            callback(bri);
+          });
+        },
+        perms: ["pw","pr","ev"],
+        format: "int",
+        initialValue:  0,
+        //initialValue: that.query( 'bri' ),
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Adjust Brightness of the Light",
+        designedMinValue: 0,
+        designedMaxValue: this.pctMax,
+        designedMinStep: 1,
+        unit: "%"
       });
     }
 
@@ -1243,6 +1336,7 @@ FHEMAccessory.prototype = {
         perms: ["pr","ev"],
                 format: "float",
                 initialValue: 20,
+                //initialValue: that.query(that.hasTemperature),
                 supportEvents: true,
                 supportBonjour: false,
                 manfDescription: "Current Temperature",
@@ -1255,16 +1349,17 @@ FHEMAccessory.prototype = {
         cType: types.CURRENT_RELATIVE_HUMIDITY_CTYPE,
         onRegister: function(characteristic) {
           characteristic.eventEnabled = true;
-          FHEM_subscribe(characteristic, that.name+'-humidity', that);
+          FHEM_subscribe(characteristic, that.name+'-'+that.hasHumidity, that);
         },
         onRead: function(callback) {
-          that.query('humidity', function(humidity){
+          that.query(that.hasHumidity, function(humidity){
             callback(humidity);
           });
         },
         perms: ["pr","ev"],
                 format: "int",
                 initialValue: 50,
+                //initialValue: that.query(that.hasHumidity),
                 designedMinValue: 0,
                 designedMaxValue: 100,
                 supportEvents: true,
@@ -1281,6 +1376,8 @@ FHEMAccessory.prototype = {
   sType: function() {
     if( match = this.PossibleSets.match(/\bvolume\b/) ) {
       return types.SPEAKER_STYPE;
+    } else if( this.isSwitch ) {
+      return types.SWITCH_STYPE;
     } else if( this.isBlind ) {
       return types.WINDOW_COVERING_STYPE;
     } else if( this.isThermostat ) {
@@ -1319,3 +1416,26 @@ FHEMAccessory.prototype = {
 
 //module.exports.accessory = FHEMAccessory;
 module.exports.platform = FHEMPlatform;
+
+
+
+//http server for debugging
+var http = require('http');
+
+const FHEMdebug_PORT=8080;
+
+function FHEMdebug_handleRequest(request, response){
+    //response.write( "subscriptions: " + util.inspect(FHEM_subscriptions) + "\n\n" );
+
+    response.end( "cached: " + util.inspect(FHEM_cached) );
+}
+
+//Create a server
+var FHEMdebug_server = http.createServer( FHEMdebug_handleRequest );
+
+//Lets start our server
+FHEMdebug_server.listen(FHEMdebug_PORT, function(){
+    //Callback triggered when server is successfully listening. Hurray!
+    console.log("Server listening on: http://<ip>:%s", FHEMdebug_PORT);
+});
+
