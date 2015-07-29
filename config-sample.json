@@ -57,6 +57,11 @@
             "platform": "Sonos",
             "name": "Sonos",
             "play_volume": 25
+        },
+        {
+            "platform": "YamahaAVR",
+            "play_volume": -35,
+            "setMainInputTo": "AirPlay" 
         }
     ],
 

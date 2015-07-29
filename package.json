@@ -17,6 +17,7 @@
     "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
+    "mdns": "^2.2.4",
     "node-hue-api": "^1.0.5",
     "node-milight-promise": "0.0.2",
     "node-persist": "0.0.x",
@@ -28,6 +29,7 @@
     "wink-js": "0.0.5",
     "xml2js": "0.4.x",
     "xmldoc": "0.1.x",
+    "yamaha-nodejs": "0.4.x",
     "teslams": "1.0.1"
   }
 }
