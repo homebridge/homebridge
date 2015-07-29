@@ -6,6 +6,7 @@ function YamahaAVRPlatform(log, config){
     this.log = log;
     this.config = config;
     this.playVolume = config["play_volume"];
+    this.setMainInputTo = config["setMainInputTo"];
     this.browser = mdns.createBrowser(mdns.tcp('http'));
 }
 
@@ -28,7 +29,7 @@ YamahaAVRPlatform.prototype = {
                 var sysModel = sysConfig.YAMAHA_AV.System[0].Config[0].Model_Name[0];
                 var sysId = sysConfig.YAMAHA_AV.System[0].Config[0].System_ID[0];
                 that.log("Found Yamaha " + sysModel + " - " + sysId + ", \"" + name + "\"");
-                var accessory = new YamahaAVRAccessory(that.log, that.config, service, sysConfig);
+                var accessory = new YamahaAVRAccessory(that.log, that.config, service, yamaha, sysConfig);
                 callback([accessory]);
             }, function(err){
                 return;
@@ -38,57 +39,47 @@ YamahaAVRPlatform.prototype = {
     }
 };
 
-function YamahaAVRAccessory(log, config, mdnsService, sysConfig) {
+function YamahaAVRAccessory(log, config, mdnsService, yamaha, sysConfig) {
     this.log = log;
     this.config = config;
     this.mdnsService = mdnsService;
+    this.yamaha = yamaha;
     this.sysConfig = sysConfig;
     
-    this.name = service.name;
-    this.serviceName = service.name + " Speakers";
+    this.name = mdnsService.name;
+    this.serviceName = mdnsService.name + " Speakers";
+    this.setMainInputTo = config["setMainInputTo"];
     this.playVolume = this.config["play_volume"];
 }
 
 YamahaAVRAccessory.prototype = {
 
     setPlaying: function(playing) {
-
-        if (!this.device) {
-            this.log("No device found (yet?)");
-            return;
-        }
-
         var that = this;
+        var yamaha = this.yamaha;
 
         if (playing) {
-            /*
-            this.device.play(function(err, success) {
-                that.log("Playback attempt with success: " + success);
+            
+            yamaha.powerOn().then(function(){
+                if (that.playVolume) return yamaha.setVolumeTo(that.playVolume*10);
+                else return { then: function(f, r){ f(); } }; 
+            }).then(function(){
+                if (that.setMainInputTo) return yamaha.setMainInputTo(that.setMainInputTo);
+                else return { then: function(f, r){ f(); } }; 
+            }).then(function(){
+                if (that.setMainInputTo == "AirPlay") return yamaha.SendXMLToReceiver(
+                    '<YAMAHA_AV cmd="PUT"><AirPlay><Play_Control><Playback>Play</Playback></Play_Control></AirPlay></YAMAHA_AV>'
+                );
+                else return { then: function(f, r){ f(); } }; 
+                //else return Promise.fulfilled(undefined);
             });
-
-            if (this.playVolume) {
-                this.device.setVolume(this.playVolume, function(err, success) {
-                    if (!err) {
-                        that.log("Set volume to " + that.playVolume);
-                    }
-                    else {
-                        that.log("Problem setting volume: " + err);
-                    }
-                });
-            }
-            */
         }
         else {
-            /*
-            this.device.stop(function(err, success) {
-                that.log("Stop attempt with success: " + success);
-            });
-            */
+            yamaha.powerOff();
         }
     },
 
     getServices: function() {
-console.log('getServices called on "' + this.name + '"...');
         var that = this;
         return [{
             sType: types.ACCESSORY_INFORMATION_STYPE,
@@ -127,7 +118,7 @@ console.log('getServices called on "' + this.name + '"...');
                 onUpdate: null,
                 perms: ["pr"],
                 format: "string",
-                initialValue: this.sysConfig.YAMAHA_AV.System[0].Config[0].System_Id[0],
+                initialValue: this.sysConfig.YAMAHA_AV.System[0].Config[0].System_ID[0],
                 supportEvents: false,
                 supportBonjour: false,
                 manfDescription: "SN",
