@@ -593,7 +593,7 @@ FHEMAccessory.prototype = {
         value = 0;
       else if( value == '000000' )
         value = 0;
-      else if( value == 'A0' )
+      else if( value.match( /^[A-D]0$/ ) )
         value = 0;
       else
         value = 1;
@@ -1432,6 +1432,11 @@ function FHEMdebug_handleRequest(request, response){
 
 //Create a server
 var FHEMdebug_server = http.createServer( FHEMdebug_handleRequest );
+
+FHEMdebug_server.on('error', function (e) {
+  // Handle your error here
+  console.log("Server error: " + e);
+});
 
 //Lets start our server
 FHEMdebug_server.listen(FHEMdebug_PORT, function(){
