@@ -541,7 +541,7 @@ FHEMAccessory.prototype = {
     } else if( reading == 'pct' ) {
       value = parseInt( value );
 
-    } else if(reading.match(/motor$/)) {
+    } else if(reading == 'motor') {
       if( value.match(/^opening/))
         value = 1;
       else if( value.match(/^up/))
@@ -551,7 +551,7 @@ FHEMAccessory.prototype = {
       else if( value.match(/^down/))
         value = 0;
       else
-      value = 2;
+        value = 2;
 
       value = parseInt(value);
 
@@ -718,7 +718,7 @@ FHEMAccessory.prototype = {
   },
 
   query: function(reading, callback) {
-    this.log("query: " + this.name + ": " + reading);
+    this.log("query: " + this.name + "-" + reading);
 
     var result = FHEM_cached[this.device + '-' + reading];
     if( result != undefined ) {
@@ -729,6 +729,7 @@ FHEMAccessory.prototype = {
     } else
       this.log("  not cached" );
 
+    var query_reading = reading;
     if( reading == 'hue' && !this.hasHue && this.hasRGB ) {
       query_reading = this.hasRGB;
 
@@ -740,9 +741,7 @@ FHEMAccessory.prototype = {
 
     } else if( reading == 'pct' && !this.hasPct && this.hasDim ) {
       query_reading = 'state';
-
-    } else
-      query_reading = reading;
+    }
 
     var cmd = '{ReadingsVal("'+this.device+'","'+query_reading+'","")}';
     var url = encodeURI( this.connection.base_url + "/fhem?cmd=" + cmd + "&XHR=1");
@@ -761,7 +760,7 @@ FHEMAccessory.prototype = {
                      if( reading != query_reading ) {
                        if( reading == 'pct'
                            && query_reading == 'state') {
-                         FHEM_update( that.device+'-'+query_reading, value );
+                         //FHEM_update( that.device+'-'+query_reading,  that.reading2homekit(query_reading, value) );
 
                          if( match = value.match(/dim(\d*)%/ ) )
                            value = parseInt( match[1] );
@@ -786,8 +785,9 @@ FHEMAccessory.prototype = {
                          value = parseInt( FHEM_rgb2hsv(value)[2] * 100 );
 
                        }
-                     } else
+                     } else {
                        value = that.reading2homekit(reading, value);
+                     }
 
                      that.log("  mapped: " + value);
                      FHEM_update( that.device + '-' + reading, value, true );
