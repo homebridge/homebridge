@@ -694,10 +694,10 @@ FHEMAccessory.prototype = {
 
         value = FHEM_hsv2rgb( h, s, v );
         //this.log( this.name + ' rgb : [' + value + ']' );
-        if( this.PossibleSets.match(/\bRGB\b/) )
-          url = this.connection.base_url + "/fhem?cmd=set " + this.device + " RGB " + value + "&XHR=1";
-        else
+        if( this.PossibleSets.match(/\brgb\b/) )
           url = this.connection.base_url + "/fhem?cmd=set " + this.device + " rgb " + value + "&XHR=1";
+        else
+          url = this.connection.base_url + "/fhem?cmd=set " + this.device + " RGB " + value + "&XHR=1";
 
     } else if( c == 'hue' ) {
         value = Math.round(value * this.hueMax / 360);
