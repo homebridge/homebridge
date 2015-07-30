@@ -451,6 +451,20 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' is NOT a thermostat. set for target temperature missing' );
   }
 
+  var event_map = s.Attributes.eventMap;
+  if( event_map ) {
+    var parts = event_map.split( ' ' );
+    for( var p = 0; p < parts.length; p++ ) {
+      var map = parts[p].split( ':' );
+      if( map[1] == 'on'
+          || map[1] == 'off' ) {
+        if( !this.event_map )
+          this.event_map = {}
+        this.event_map[map[0]] = map[1];
+      }
+    }
+  }
+
   if( s.hasHue )
     log( s.Internals.NAME + ' has hue [0-' + s.hueMax +']' );
   else if( s.hasRGB )
@@ -586,6 +600,12 @@ FHEMAccessory.prototype = {
     } else if( reading == 'state' ) {
       if( value.match(/^set-/ ) )
         return undefined;
+
+      if( this.event_map != undefined ) {
+        var mapped = this.event_map[value];
+        if( mapped != undefined )
+          value = mapped;
+      }
 
       if( value == 'off' )
         value = 0;
@@ -1425,9 +1445,14 @@ var http = require('http');
 const FHEMdebug_PORT=8080;
 
 function FHEMdebug_handleRequest(request, response){
-    //response.write( "subscriptions: " + util.inspect(FHEM_subscriptions) + "\n\n" );
+  //console.log( request );
 
+  if( request.url == "/cached" )
     response.end( "cached: " + util.inspect(FHEM_cached) );
+  else if( request.url == "/subscriptions" )
+    response.end( "subscriptions: " + util.inspect(FHEM_subscriptions, {depth: 3}) );
+  else
+    response.end( "<a href='/cached'>cached</a><br><a href='/subscriptions'>subscriptions</a>" );
 }
 
 //Create a server
