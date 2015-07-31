@@ -451,6 +451,12 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' is NOT a thermostat. set for target temperature missing' );
   }
 
+  if( s.Internals.TYPE == 'SONOSPLAYER' )
+    this.hasOnOff = { reading: 'transportState', cmdOn: 'play', cmdOff: 'pause' };
+  else if( s.PossibleSets.match(/\bon\b/)
+           && s.PossibleSets.match(/\boff\b/) )
+    this.hasOnOff = { reading: 'state', cmdOn: 'on', cmdOff: 'off' };
+
   var event_map = s.Attributes.eventMap;
   if( event_map ) {
     var parts = event_map.split( ' ' );
@@ -486,6 +492,9 @@ FHEMAccessory(log, connection, s) {
   else
     log( s.Internals.NAME + ' is switchable' );
 
+  if(  this.hasOnOff )
+    log( s.Internals.NAME + ' has OnOff [' +  this.hasOnOff + ']' );
+
   if( s.hasTemperature )
     log( s.Internals.NAME + ' has temperature ['+ s.hasTemperature +']' );
   if( s.hasHumidity )
@@ -505,6 +514,8 @@ FHEMAccessory(log, connection, s) {
     this.serial = s.Internals.DEF;
     if( s.Attributes.serialNr )
       this.serial = s.Attributes.serialNr;
+    else if( s.Readings['D-serialNr'] && s.Readings['D-serialNr'].Value )
+      this.serial = s.Readings['D-serialNr'].Value;
   } else if( this.type == 'CUL_WS' )
     this.serial = s.Internals.DEF;
   else if( this.type == 'FS20' )
@@ -1447,25 +1458,45 @@ const FHEMdebug_PORT=8080;
 function FHEMdebug_handleRequest(request, response){
   //console.log( request );
 
-  if( request.url == "/cached" )
-    response.end( "cached: " + util.inspect(FHEM_cached) );
-  else if( request.url == "/subscriptions" )
-    response.end( "subscriptions: " + util.inspect(FHEM_subscriptions, {depth: 3}) );
-  else
-    response.end( "<a href='/cached'>cached</a><br><a href='/subscriptions'>subscriptions</a>" );
+  if( request.url == "/cached" ) {
+    response.write( "<a href='/'>home</a><br>" );
+    response.end( "cached: " + util.inspect(FHEM_cached).replace(/\n/g, '<br>') );
+
+  } else if( request.url == "/subscriptions" ) {
+    response.write( "<a href='/'>home</a><br>" );
+    response.end( "subscriptions: " + util.inspect(FHEM_subscriptions, {depth: 3}).replace(/\n/g, '<br>') );
+
+  } else if( request.url == "/persist" ) {
+    response.write( "<a href='/'>home</a><br>" );
+    var unique = {};
+    Object.keys(FHEM_subscriptions).forEach(function(key) { 
+      var characteristic = FHEM_subscriptions[key].characteristic;
+      var info = characteristic.accessoryController.tcpServer.accessoryInfo;
+      if( unique[info.displayName] )
+        return;
+      unique[info.displayName] = info.username;
+    } );
+
+    var keys = Object.keys(unique);
+    keys.sort();
+    for( i = 0; i < keys.length; i++ ) {
+      var k = keys[i];
+      response.write( k +': '+ unique[k] +'<br>' );
+    }
+    response.end( "" );
+
+  } else
+    response.end( "<a href='/cached'>cached</a><br><a href='/persist'>persist</a><br><a href='/subscriptions'>subscriptions</a>" );
 }
 
-//Create a server
 var FHEMdebug_server = http.createServer( FHEMdebug_handleRequest );
 
 FHEMdebug_server.on('error', function (e) {
-  // Handle your error here
   console.log("Server error: " + e);
 });
 
 //Lets start our server
 FHEMdebug_server.listen(FHEMdebug_PORT, function(){
-    //Callback triggered when server is successfully listening. Hurray!
     console.log("Server listening on: http://<ip>:%s", FHEMdebug_PORT);
 });
 
