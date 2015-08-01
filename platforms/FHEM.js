@@ -40,6 +40,7 @@ FHEM_update(inform_id, value, no_update) {
       return;
 
     FHEM_cached[inform_id] = value;
+    //FHEM_cached[inform_id] = { 'value': value, 'timestamp': Date.now() };
     console.log("  caching: " + inform_id + ": " + value + " as " + typeof(value) );
 
     if( !no_update )
@@ -48,6 +49,7 @@ FHEM_update(inform_id, value, no_update) {
 }
 
 
+var FHEM_lastEventTimestamp;
 var FHEM_longpoll_running = false;
 //FIXME: force reconnect on xxx bytes received ?, add filter, add since
 function FHEM_startLongpoll(connection) {
@@ -59,7 +61,7 @@ function FHEM_startLongpoll(connection) {
   var since = "null";
   var query = "/fhem.pl?XHR=1"+
               "&inform=type=status;filter="+filter+";since="+since+";fmt=JSON"+
-              "&timestamp="+new Date().getTime();
+              "&timestamp="+Date.now()
 
   var url = encodeURI( connection.base_url + query );
   console.log( 'starting longpoll: ' + url );
@@ -100,6 +102,7 @@ function FHEM_startLongpoll(connection) {
                    var subscription = FHEM_subscriptions[d[0]];
                    if( subscription != undefined ) {
 //console.log( "Rcvd: "+(l.length>132 ? l.substring(0,132)+"...("+l.length+")":l) );
+                     FHEM_lastEventTimestamp = Date.now();
                      var accessory = subscription.accessory;
 
                      var value = d[1];
@@ -135,6 +138,7 @@ function FHEM_startLongpoll(connection) {
                      value = accessory.reading2homekit(reading, value);
                      FHEM_update( device+'-'+reading, value );
 
+                   } else {
                    }
 
                  }
@@ -142,6 +146,23 @@ function FHEM_startLongpoll(connection) {
                  input = input.substr(FHEM_longpollOffset);
                  FHEM_longpollOffset = 0;
 
+               } ).on( 'end', function() {
+                 console.log( "longpoll ended" );
+
+                 FHEM_longpoll_running = false;
+                 setTimeout( function(){FHEM_startLongpoll(connection)}, 5000 );
+
+               } ).on( 'close', function() {
+                 console.log( "longpoll closed" );
+
+                 FHEM_longpoll_running = false;
+                 setTimeout( function(){FHEM_startLongpoll(connection)}, 5000 );
+
+               } ).on( 'finish', function() {
+                 console.log( "longpoll finished" );
+
+                 FHEM_longpoll_running = false;
+                 setTimeout( function(){FHEM_startLongpoll(connection)}, 5000 );
                } ).on( 'error', function(err) {
                  console.log( "longpoll error: " + err );
 
@@ -437,10 +458,6 @@ FHEMAccessory(log, connection, s) {
     s.isOccupancySensor = true;
   else if( s.Attributes.model == 'fs20di' )
     s.isLight = true;
-  //FIXME: set isSwitch to reading: state/transportState/... (on/off / play/pause)
-  //else if( s.PossibleSets.match(/\bon\b/)
-  //  && s.PossibleSets.match(/\boff\b/) )
-  //  s.isSwitch = true;
 
   if( s.PossibleSets.match(/\bdesired-temp\b/) )
     s.isThermostat = 'desired-temp';
@@ -451,11 +468,12 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' is NOT a thermostat. set for target temperature missing' );
   }
 
+  this.endpoints = {};
   if( s.Internals.TYPE == 'SONOSPLAYER' )
-    this.hasOnOff = { reading: 'transportState', cmdOn: 'play', cmdOff: 'pause' };
+    this.endpoints.onOff = { reading: 'transportState', cmdOn: 'play', cmdOff: 'pause' };
   else if( s.PossibleSets.match(/\bon\b/)
            && s.PossibleSets.match(/\boff\b/) )
-    this.hasOnOff = { reading: 'state', cmdOn: 'on', cmdOff: 'off' };
+    this.endpoints.onOff = { reading: 'state', cmdOn: 'on', cmdOff: 'off' };
 
   var event_map = s.Attributes.eventMap;
   if( event_map ) {
@@ -692,13 +710,13 @@ FHEMAccessory.prototype = {
         //this.log( this.name + ' old : [' + h + ',' + s + ',' + v + ']' );
 
         if( c == 'H-rgb' ) {
-          FHEM_cached[this.device + '-hue' ] = value;
+          FHEM_update(this.device + '-hue',  value, false );
           h = value / 360;
         } else if( c == 'S-rgb' ) {
-          FHEM_cached[this.device + '-sat' ] = value;
+          FHEM_update(this.device + '-sat',  value, false );
           s = value / 100;
         } else if( c == 'B-rgb' ) {
-          FHEM_cached[this.device + '-bri' ] = value;
+          FHEM_update(this.device + '-bri',  value, false );
           v = value / 100;
         }
         //this.log( this.name + ' new : [' + h + ',' + s + ',' + v + ']' );
@@ -908,32 +926,30 @@ FHEMAccessory.prototype = {
       designedMaxLength: 255
     }]
 
-    if( this.name != undefined
-        && !this.hasTemperature
-        && !this.hasHumidity
-        && !this.isBlind
-        && !this.isThermostat
-        && !this.isContactSensor
-        && !this.isOccupancySensor ) {
+    //if( this.name != undefined
+    //    && !this.hasTemperature
+    //    && !this.hasHumidity
+    //    && !this.isBlind
+    //    && !this.isThermostat
+    //    && !this.isContactSensor
+    //    && !this.isOccupancySensor ) {
+    if( this.endpoints.onOff ) {
       cTypes.push({
         cType: types.POWER_STATE_CTYPE,
         onRegister: function(characteristic) {
           characteristic.eventEnabled = true;
-          if( that.type == 'SONOSPLAYER' )
-            FHEM_subscribe(characteristic, that.name+'-transportState', that);
-          else
-            FHEM_subscribe(characteristic, that.name+'-state', that);
+          FHEM_subscribe(characteristic, that.name+'-'+that.endpoints.onOff.reading, that);
         },
         onUpdate: function(value) {
           that.command( value == 0 ? 'off' : 'on' );
         },
         onRead: function(callback) {
-          that.query( that.type == 'SONOSPLAYER' ? 'transportState' : 'state', function(state){ callback(state) } );
+          that.query( that.endpoints.onOff.reading, function(state){ callback(state) } );
         },
         perms: ["pw","pr","ev"],
         format: "bool",
         initialValue: 0,
-        //initialValue: that.query( that.type == 'SONOSPLAYER' ? 'transportState' : 'state' ),
+        //initialValue: that.query( that.endpoints.onOff.reading );
         supportEvents: true,
         supportBonjour: false,
         manfDescription: "Change the power state",
@@ -1460,6 +1476,8 @@ function FHEMdebug_handleRequest(request, response){
 
   if( request.url == "/cached" ) {
     response.write( "<a href='/'>home</a><br>" );
+    if( FHEM_lastEventTimestamp )
+      response.write( "FHEM_lastEventTime: "+ new Date(FHEM_lastEventTimestamp) +"<br>" );
     response.end( "cached: " + util.inspect(FHEM_cached).replace(/\n/g, '<br>') );
 
   } else if( request.url == "/subscriptions" ) {
@@ -1469,7 +1487,7 @@ function FHEMdebug_handleRequest(request, response){
   } else if( request.url == "/persist" ) {
     response.write( "<a href='/'>home</a><br>" );
     var unique = {};
-    Object.keys(FHEM_subscriptions).forEach(function(key) { 
+    Object.keys(FHEM_subscriptions).forEach(function(key) {
       var characteristic = FHEM_subscriptions[key].characteristic;
       var info = characteristic.accessoryController.tcpServer.accessoryInfo;
       if( unique[info.displayName] )
