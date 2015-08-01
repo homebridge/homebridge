@@ -614,6 +614,7 @@ FHEMAccessory.prototype = {
           value = 1;
         else
           value = 0;
+      //value = 2;
 
       value = parseInt(value);
 
@@ -926,14 +927,13 @@ FHEMAccessory.prototype = {
       designedMaxLength: 255
     }]
 
-    //if( this.name != undefined
-    //    && !this.hasTemperature
-    //    && !this.hasHumidity
-    //    && !this.isBlind
-    //    && !this.isThermostat
-    //    && !this.isContactSensor
-    //    && !this.isOccupancySensor ) {
-    if( this.endpoints.onOff ) {
+    if( this.endpoints.onOff 
+        && !this.hasTemperature
+        && !this.hasHumidity
+        && !this.isBlind
+        && !this.isThermostat
+        && !this.isContactSensor
+        && !this.isOccupancySensor ) {
       cTypes.push({
         cType: types.POWER_STATE_CTYPE,
         onRegister: function(characteristic) {
