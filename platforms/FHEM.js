@@ -108,6 +108,8 @@ function FHEM_startLongpoll(connection) {
                      var value = d[1];
                      if( value.match( /^set-/ ) )
                        continue;
+                     if( value.match( /^set_/ ) )
+                       continue;
 
                      var match = d[0].match(/([^-]*)-(.*)/);
                      var device = match[1];
@@ -677,6 +679,8 @@ FHEMAccessory.prototype = {
 
     } else if( reading == 'state' ) {
       if( value.match(/^set-/ ) )
+        return undefined;
+      if( value.match(/^set_/ ) )
         return undefined;
 
       if( this.event_map != undefined ) {
