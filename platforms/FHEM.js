@@ -121,7 +121,7 @@ function FHEM_startLongpoll(connection) {
                          if( match = value.match(/^(\d+)/ ) )
                            level = parseInt( match[1] );
                          else if( value == 'locked' )
-                           value = 0;
+                           level = 0;
 
                          FHEM_update( device+'-level', level );
                          continue;
@@ -340,7 +340,7 @@ FHEMPlatform.prototype = {
                                     && s.PossibleSets.match(/[\^ ]off\b/) ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
-                         } else if( s.PossibleSets.match(/[\^ ]Volume\b/) ) {
+                         } else if( s.PossibleSets.match(/[\^ ]Volume\b/) ) { //FIXME: use sets [Pp]lay/[Pp]ause/[Ss]top
                            that.log( s.Internals.NAME + ' has volume');
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
@@ -354,7 +354,6 @@ FHEMPlatform.prototype = {
 
                          } else if( s.Internals.TYPE == 'PRESENCE' ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
-
 
                          } else if( s.Readings.temperature ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
@@ -430,6 +429,11 @@ FHEMAccessory(log, connection, s) {
   else if( s.Readings.temperature )
     this.mappings.temperature = { reading: 'temperature' };
 
+  if( s.Readings.volume )
+    this.mappings.volume = { reading: 'volume', cmd: 'volume' };
+  else if( s.Readings.Volume )
+    this.mappings.volume = { reading: 'Volume', cmd: 'Volume' };
+
   if( s.Readings.humidity )
     this.mappings.humidity = { reading: 'humidity' };
 
@@ -462,8 +466,11 @@ FHEMAccessory(log, connection, s) {
              || s.Attributes.subType == 'thermostat' ) {
     s.isThermostat = true;
 
+  } else if( s.Internals.TYPE == 'CUL_FHTTK' ) {
+    s.isContactSensor = 'Window';
+
   } else if( s.Attributes.subType == 'threeStateSensor' ) {
-    s.isContactSensor = true;
+    s.isContactSensor = 'contact';
 
   } else if( s.Internals.TYPE == 'PRESENCE' )
     s.isOccupancySensor = true;
@@ -480,7 +487,7 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' is NOT a thermostat. set for target temperature missing' );
   }
 
-  if( s.Internals.TYPE == 'SONOSPLAYER' )
+  if( s.Internals.TYPE == 'SONOSPLAYER' ) //FIXME: use sets [Pp]lay/[Pp]ause/[Ss]top
     this.mappings.onOff = { reading: 'transportState', cmdOn: 'play', cmdOff: 'pause' };
   else if( s.PossibleSets.match(/[\^ ]on\b/)
            && s.PossibleSets.match(/[\^ ]off\b/) )
@@ -507,7 +514,7 @@ FHEMAccessory(log, connection, s) {
   else if( s.isThermostat )
     log( s.Internals.NAME + ' is thermostat ['+ s.isThermostat +']' );
   else if( s.isContactSensor )
-    log( s.Internals.NAME + ' is contactsensor' );
+    log( s.Internals.NAME + ' is contactsensor [' + s.isContactSensor +']' );
   else if( s.isOccupancySensor )
     log( s.Internals.NAME + ' is occupancysensor' );
   else if( s.hasRGB )
@@ -639,7 +646,8 @@ FHEMAccessory.prototype = {
 
       value = parseInt(value);
 
-    } else if( reading == 'Volume' ) {
+    } else if( reading == 'volume'
+               || reading == 'Volume' ) {
       value = parseInt( value );
 
     } else if( reading == 'contact' ) {
@@ -647,7 +655,14 @@ FHEMAccessory.prototype = {
           value = 1;
         else
           value = 0;
-      //value = 2;
+
+      value = parseInt(value);
+
+    } else if( reading == 'Window' ) {
+        if( value.match( /^Closed/ ) )
+          value = 1;
+        else
+          value = 0;
 
       value = parseInt(value);
 
@@ -1183,23 +1198,24 @@ FHEMAccessory.prototype = {
       });
     }
 
-    //FIXME: parse range and set designedMinValue & designedMaxValue & designedMinStep
-    if( match = this.PossibleSets.match(/[\^ ]Volume\b/) ) {
+    //FIXME: use mapping.volume
+    if( this.mappings.volume ) {
       cTypes.push({
         cType: types.OUTPUTVOLUME_CTYPE,
         onUpdate: function(value) { that.delayed('volume', value); },
         onRegister: function(characteristic) {
           //characteristic.eventEnabled = true;
-          //FHEM_subscribe(characteristic, that.name+'-Volume', that);
+          //FHEM_subscribe(characteristic, that.mappings.volume.informId, that);
         },
         onRead: function(callback) {
-          that.query('Volume', function(vol){
-            callback(vol);
+          that.query(that.mappings.volume.reading, function(volume){
+            callback(volume);
           });
         },
         perms: ["pw","pr","ev"],
         format: "int",
         initialValue:  10,
+        //initialValue: FHEM_cached[that.mappings.volume.informId],
         supportEvents: true,
         supportBonjour: false,
         manfDescription: "Adjust the Volume of this device",
@@ -1323,6 +1339,7 @@ FHEMAccessory.prototype = {
         perms: ["pr","ev"],
         format: "int",
         initialValue: 50,
+        //initialValue: FHEM_cached[that.name+'-'+that.isWindow],
         supportEvents: true,
         supportBonjour: false,
         manfDescription: "Current Window Position",
@@ -1426,10 +1443,10 @@ FHEMAccessory.prototype = {
         cType: types.CONTACT_SENSOR_STATE_CTYPE,
         onRegister: function(characteristic) {
           characteristic.eventEnabled = true;
-          FHEM_subscribe(characteristic, that.name+'-contact', that);
+          FHEM_subscribe(characteristic, that.name+'-'+that.isContactSensor, that);
         },
         onRead: function(callback) {
-          that.query('contact', function(state){
+          that.query(that.isContactSensor, function(state){
             callback(state);
           });
         },
