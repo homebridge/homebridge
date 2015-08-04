@@ -1,6 +1,7 @@
 var fs = require('fs');
 var path = require('path');
 var storage = require('node-persist');
+var hap = require('HAP-NodeJS');
 var uuid = require('HAP-NodeJS').uuid;
 var Bridge = require('HAP-NodeJS').Bridge;
 var Accessory = require('HAP-NodeJS').Accessory;
@@ -17,8 +18,8 @@ if (!fs.existsSync(configPath)) {
     process.exit(1);
 }
 
-// Initialize persistent storage
-storage.initSync();
+// Initialize HAP-NodeJS
+hap.init();
 
 // Start by creating our Bridge which will host all loaded Accessories
 var bridge = new Bridge('HomeBridge', uuid.generate("HomeBridge"));
