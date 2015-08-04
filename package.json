@@ -14,7 +14,7 @@
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "carwingsjs": "0.0.x",
     "elkington": "kevinohara80/elkington",
-    "hap-nodejs": "git+https://github.com/nfarina/HAP-NodeJS#aaa5770488d698d777e7d7706909c3afa888b031",
+    "hap-nodejs": "git+https://github.com/nfarina/HAP-NodeJS#4bf650d",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "mdns": "^2.2.4",
