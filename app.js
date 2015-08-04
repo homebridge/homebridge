@@ -18,7 +18,7 @@ if (!fs.existsSync(configPath)) {
 }
 
 // Initialize persistent storage
-//storage.initSync();
+storage.initSync();
 
 // Start by creating our Bridge which will host all loaded Accessories
 var bridge = new Bridge('HomeBridge', uuid.generate("HomeBridge"));
@@ -27,18 +27,19 @@ var bridge = new Bridge('HomeBridge', uuid.generate("HomeBridge"));
 var config = JSON.parse(fs.readFileSync(configPath));
 
 // keep track of async calls we're waiting for callbacks on before we can start up
+// this is hacky but this is all going away once we build proper plugin support
 var asyncCalls = 0;
+var asyncWait = false;
 
 function startup() {
-//    if (config.platforms) loadPlatforms();
+    asyncWait = true;
+    if (config.platforms) loadPlatforms();
     if (config.accessories) loadAccessories();
+    asyncWait = false;
     
-    bridge.publish({
-      username: "CC:22:3D:E3:CE:27",
-      port: 51826,
-      pincode: "031-45-154",
-      category: Accessory.Categories.OTHER
-    });
+    // publish now unless we're waiting on anyone
+    if (asyncCalls == 0)
+      publish();
 }
 
 function loadAccessories() {
@@ -81,6 +82,7 @@ function loadAccessories() {
 function loadPlatforms() {
 
     console.log("Loading " + config.platforms.length + " platforms...");
+    
     for (var i=0; i<config.platforms.length; i++) {
 
         var platformConfig = config.platforms[i];
@@ -96,24 +98,46 @@ function loadPlatforms() {
 
         log("Initializing " + platformName + " platform...");
 
-        var platform = new platformConstructor(log, platformConfig);
+        var platformInstance = new platformConstructor(log, platformConfig);
 
         // query for devices
-        platform.accessories(function(foundAccessories){
+        asyncCalls++;
+        platformInstance.accessories(function(foundAccessories){
+            asyncCalls--;
             // loop through accessories adding them to the list and registering them
             for (var i = 0; i < foundAccessories.length; i++) {
-                accessory = foundAccessories[i]
-                accessories.push(accessory);
-                log("Initializing device with name " + accessory.name + "...")
+                var accessoryInstance = foundAccessories[i];
+                
+                log("Initializing device with name " + accessoryInstance.name + "...")
+                
                 // Extract the raw "services" for this accessory which is a big array of objects describing the various
                 // hooks in and out of HomeKit for the HAP-NodeJS server.
-                var services = accessory.getServices();
-                // Create the HAP server for this accessory
-                createHAPServer(accessory.name, services, accessory.transportCategory);
+                var services = accessoryInstance.getServices();
+                
+                // Create the actual HAP-NodeJS "Accessory" instance
+                var accessory = accessoryLoader.parseAccessoryJSON({
+                  displayName: name,
+                  services: services
+                });
+
+                // add it to the bridge
+                bridge.addBridgedAccessory(accessory);
             }
-            accessories.push.apply(accessories, foundAccessories);
+            
+            // were we the last callback?
+            if (asyncCalls === 0 && !asyncWait)
+              publish();
         })
     }
+}
+
+function publish() {
+  bridge.publish({
+    username: "CC:22:3D:E3:CE:27",
+    port: 51826,
+    pincode: "031-45-154",
+    category: Accessory.Categories.OTHER
+  });
 }
 
 startup();
