@@ -100,34 +100,39 @@ function loadPlatforms() {
 
         var platformInstance = new platformConstructor(log, platformConfig);
 
-        // query for devices
-        asyncCalls++;
-        platformInstance.accessories(function(foundAccessories){
-            asyncCalls--;
-            // loop through accessories adding them to the list and registering them
-            for (var i = 0; i < foundAccessories.length; i++) {
-                var accessoryInstance = foundAccessories[i];
-                
-                log("Initializing device with name " + accessoryInstance.name + "...")
-                
-                // Extract the raw "services" for this accessory which is a big array of objects describing the various
-                // hooks in and out of HomeKit for the HAP-NodeJS server.
-                var services = accessoryInstance.getServices();
-                
-                // Create the actual HAP-NodeJS "Accessory" instance
-                var accessory = accessoryLoader.parseAccessoryJSON({
-                  displayName: name,
-                  services: services
-                });
+        // wrap name and log in a closure so they don't change in the callback
+        function getAccessories(name, log) {
+          asyncCalls++;
+          platformInstance.accessories(function(foundAccessories){
+              asyncCalls--;
+              // loop through accessories adding them to the list and registering them
+              for (var i = 0; i < foundAccessories.length; i++) {
+                  var accessoryInstance = foundAccessories[i];
+                  
+                  log("Initializing device with name " + accessoryInstance.name + "...")
+                  
+                  // Extract the raw "services" for this accessory which is a big array of objects describing the various
+                  // hooks in and out of HomeKit for the HAP-NodeJS server.
+                  var services = accessoryInstance.getServices();
+                  
+                  // Create the actual HAP-NodeJS "Accessory" instance
+                  var accessory = accessoryLoader.parseAccessoryJSON({
+                    displayName: name,
+                    services: services
+                  });
 
-                // add it to the bridge
-                bridge.addBridgedAccessory(accessory);
-            }
-            
-            // were we the last callback?
-            if (asyncCalls === 0 && !asyncWait)
-              publish();
-        })
+                  // add it to the bridge
+                  bridge.addBridgedAccessory(accessory);
+              }
+              
+              // were we the last callback?
+              if (asyncCalls === 0 && !asyncWait)
+                publish();
+          })
+        }
+
+        // query for devices
+        getAccessories(name, log);
     }
 }
 
