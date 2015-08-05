@@ -17,7 +17,7 @@ SonosPlatform.prototype = {
             that.log("Found device at " + device.host);
 
             device.deviceDescription(function (err, description) {
-                if (description["zoneType"] != '11') {
+                if (description["zoneType"] != '11' && description["zoneType"] != '8') { // 8 is the Sonos SUB
                     that.log("Found playable device - " + description["roomName"]);
                     // device is an instance of sonos.Sonos
                     var accessory = new SonosAccessory(that.log, that.config, device, description);
