@@ -13,15 +13,26 @@ SonosPlatform.prototype = {
         this.log("Fetching Sonos devices.");
         var that = this;
         
+        // track found devices so we don't add duplicates
+        var roomNamesFound = {};
+        
         sonos.search(function (device) {
             that.log("Found device at " + device.host);
 
             device.deviceDescription(function (err, description) {
                 if (description["zoneType"] != '11' && description["zoneType"] != '8') { // 8 is the Sonos SUB
-                    that.log("Found playable device - " + description["roomName"]);
-                    // device is an instance of sonos.Sonos
-                    var accessory = new SonosAccessory(that.log, that.config, device, description);
-                    callback([accessory]);
+                    var roomName = description["roomName"];
+                    
+                    if (!roomNamesFound[roomName]) {
+                        roomNamesFound[roomName] = true;
+                        that.log("Found playable device - " + roomName);
+                        // device is an instance of sonos.Sonos
+                        var accessory = new SonosAccessory(that.log, that.config, device, description);
+                        callback([accessory]);
+                    }
+                    else {
+                        that.log("Ignoring playable device with duplicate room name - " + roomName);
+                    }
                 }
             });
         });
