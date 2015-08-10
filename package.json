@@ -1,6 +1,6 @@
 {
   "name": "homebridge",
-  "description": "HomeKit support for existing home devices, today.",
+  "description": "HomeKit support for the impatient",
   "version": "0.0.0",
   "author": {
     "name": "Nick Farina"
@@ -26,11 +26,14 @@
   },
   "preferGlobal": true,
   "dependencies": {
-    "babel": "^5.6.14",
-    "chalk": "^1.1.0",
     "commander": "^2.8.1",
-    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
-    "prompt": "^0.2.14",
-    "semver": "^4.3.6"
+    "diffsync": "^2.1.2",
+    "express": "^4.13.3",
+    "express-interceptor": "^1.1.1",
+    "express-jsxtransform": "^3.0.3",
+    "hap-nodejs": "git+https://github.com/nfarina/HAP-NodeJS#3b1eaa8",
+    "react-tools": "^0.13.3",
+    "semver": "^4.3.6",
+    "socket.io": "^1.3.6"
   }
 }

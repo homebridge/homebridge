@@ -1,15 +1,15 @@
 {
-  "name": "homebridge-lockitron",
+  "name": "plugin-lockitron",
   "version": "0.0.0",
   "description": "Lockitron Support for HomeBridge",
   "license": "ISC",
-  "engines": {
+  "keywords": [
+    "homebridge-plugin"
+  ],
+  "peerDepdendencies": {
     "homebridge": ">=0.0.0"
   },
-  "keywords": [
-    "homebridge-provider"
-  ],
   "dependencies": {
-    "request": "^2.58.0"
+    "basic-request": "^0.1.1"
   }
 }

@@ -21,21 +21,21 @@ You can run HomeBridge easily from the command line:
 > homebridge server
 ```
 
-It will look for any locally-installed providers and load them up automatically.
+It will look for any locally-installed plugins and load them up automatically.
 
-## Providers
+## Plugins
 
-HomeBridge does nothing by itself; in order to expose your home to HomeKit, you'll need to install one or more HomeBridge "Providers." A Provider is an npm module that connects with HomeBridge and registers accessories for devices in your home.
+HomeBridge does nothing by itself; in order to expose your home to HomeKit, you'll need to install one or more HomeBridge "Plugins." A Plugin is an npm module that connects with HomeBridge and registers accessories for devices in your home.
 
-Providers must be published to npm and tagged with `homebridge-provider`. The package name must contain the prefix `homebridge-`. For example, a valid package might be `homebridge-lockitron`.
+Plugins must be published to npm and tagged with `homebridge-plugin`. The package name must contain the prefix `homebridge-`. For example, a valid package might be `homebridge-lockitron`.
 
-Providers are automatically discovered and loaded from your home directory inside the `.homebridge` folder. For instance, the Lockitron provider would be placed here:
+Plugins are automatically discovered and loaded from your home directory inside the `.homebridge` folder. For instance, the Lockitron plugin would be placed here:
 
 ```sh
-~/.homebridge/providers/homebridge-lockitron
+~/.homebridge/plugins/homebridge-lockitron
 ```
 
-Right now you must copy providers manually (or symlink them from another location). The HomeBridge server will load and validate your Provider on startup. You can find an example Provider in [example-providers/homebridge-lockitron]().
+Right now you must copy plugins manually (or symlink them from another location). The HomeBridge server will load and validate your Plugin on startup. You can find an example Plugin in [example-plugins/homebridge-lockitron]().
 
 ## Running from Source
 
