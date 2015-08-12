@@ -33,6 +33,13 @@ To run Homebridge from source, simply execute the `homebridge` script in the `bi
 
 Remember to `npm install` dependencies first!
 
+Homebridge also supports the excellent [browser-refresh](https://github.com/patrick-steele-idem/browser-refresh) module for assisting with development. Simply install it globally and use it in place of `node` when running homebridge:
+
+```sh
+> sudo npm install -g browser-refresh
+> browser-refresh ./bin/homebridge
+```
+
 ## Plugins
 
 Homebridge does nothing by itself; in order to expose your home to HomeKit, you'll need to install one or more Homebridge Plugins. A Plugin is an npm module that connects with Homebridge and registers "Providers" for devices in your home.
