@@ -13,6 +13,7 @@
   "dependencies": {
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "carwingsjs": "0.0.x",
+    "color": "0.10.x",
     "elkington": "kevinohara80/elkington",
     "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
     "harmonyhubjs-client": "^1.1.4",
