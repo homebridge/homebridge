@@ -143,15 +143,15 @@
             "port" : 4999, // Port the SER2SOCK process is running on
             "pin": "1234" // PIN used for arming / disarming
         },
-        {                                                                                                                                                                                                                                                                                                          |
-            "accessory": "MiLight",                                                                                                                                                                                                                                                                                |
-            "name": "Lamp",                                                                                                                                                                                                                                                                                        |
-            "ip_address": "255.255.255.255", // IP Address of the WiFi Bridge, or 255.255.255.255 to broadcast to all                                                                                                                                                                                              |
-            "port": 8899, // Default port 8899 (50000 for v1 or v2 bridge)                                                                                                                                                                                                                                         |
-            "zone": 1, // Zone to address commands to (not used for rgb only bulbs)                                                                                                                                                                                                                                |
-            "type": "rgbw", // Bulb type (rgbw, rgb, white)                                                                                                                                                                                                                                                        |
-            "delay": 35, // Delay between commands sent to the WiFi bridge (default 35)                                                                                                                                                                                                                            |
-            "repeat": 3 // Number of times each command is repeated for reliability (default 3)                                                                                                                                                                                                                    |
+        {
+            "accessory":"MiLight",
+            "name": "Lamp",
+            "ip_address": "255.255.255.255", // IP Address of the WiFi Bridge, or 255.255.255.255 to broadcast to all
+            "port": 8899, // Default port 8899 (50000 for v1 or v2 bridge)
+            "zone": 1, // Zone to address commands to (not used for rgb only bulbs)
+            "type": "rgbw", // Bulb type (rgbw, rgb, white)
+            "delay": 35, // Delay between commands sent to the WiFi bridge (default 35)
+            "repeat": 3 // Number of times each command is repeated for reliability (default 3)
         },
         {
             "accessory": "Tesla",
@@ -159,6 +159,13 @@
             "description": "This shim supports controlling climate control on the Tesla Model S.",
             "username": "tesla_email",
             "password" : "tesla_password"
+        },
+        {
+            "accessory": "Hyperion",
+            "name": "TV Backlight",
+            "description": "Control the Hyperion TV backlight server. https://github.com/tvdzwan/hyperion"
+            "host": "localhost", 
+            "port": "19444"
         }
     ]
 }
