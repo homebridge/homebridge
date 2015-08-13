@@ -159,6 +159,13 @@
             "description": "This shim supports controlling climate control on the Tesla Model S.",
             "username": "tesla_email",
             "password" : "tesla_password"
+        },
+        {
+            "accessory": "Hyperion",
+            "name": "TV Backlight",
+            "description": "Control the Hyperion TV backlight server. https://github.com/tvdzwan/hyperion"
+            "host": "localhost", 
+            "port": "19444"
         }
     ]
 }
