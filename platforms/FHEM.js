@@ -38,17 +38,17 @@ FHEM_update(inform_id, value, no_update) {
         || FHEM_cached[inform_id] === value )
       return;
 
-      //if( FHEM_internal['.'+subscription.accessory.device+'-homekitID'] == undefined ) {
-      //  var info = subscription.characteristic.accessoryController.tcpServer.accessoryInfo;
+    //if( FHEM_internal['.'+subscription.accessory.device+'-homekitID'] == undefined ) {
+    //  var info = subscription.characteristic.accessoryController.tcpServer.accessoryInfo;
 
-      //  if( info.username ) {
-      //    var accessory = subscription.accessory;
-      //    var cmd = '{$defs{'+ accessory.device +'}->{homekitID} = "'+info.username+'" if(defined($defs{'+ accessory.device +'}));;}';
-      //    //accessory.execute( cmd );
+    //  if( info.username ) {
+    //    var accessory = subscription.accessory;
+    //    var cmd = '{$defs{'+ accessory.device +'}->{homekitID} = "'+info.username+'" if(defined($defs{'+ accessory.device +'}));;}';
+    //    //accessory.execute( cmd );
 
-      //    FHEM_internal['.'+accessory.device+'-homekitID'] = info.username;
-      //  }
-      //}
+    //    FHEM_internal['.'+accessory.device+'-homekitID'] = info.username;
+    //  }
+    //}
 
     FHEM_cached[inform_id] = value;
     //FHEM_cached[inform_id] = { 'value': value, 'timestamp': Date.now() };
@@ -60,9 +60,9 @@ FHEM_update(inform_id, value, no_update) {
 }
 
 
-var FHEM_lastEventTimestamp;
+var FHEM_lastEventTime;
 var FHEM_longpoll_running = false;
-//FIXME: force reconnect on xxx bytes received ?, add filter, add since
+//FIXME: add filter
 function FHEM_startLongpoll(connection) {
   if( FHEM_longpoll_running )
     return;
@@ -70,6 +70,8 @@ function FHEM_startLongpoll(connection) {
 
   var filter = ".*";
   var since = "null";
+  if( FHEM_lastEventTime )
+    since = FHEM_lastEventTime/1000;
   var query = "/fhem.pl?XHR=1"+
               "&inform=type=status;filter="+filter+";since="+since+";fmt=JSON"+
               "&timestamp="+Date.now()
@@ -85,8 +87,9 @@ function FHEM_startLongpoll(connection) {
                    return;
 
                  input += data;
+                 var lastEventTime = Date.now();
                  for(;;) {
-                   var nOff = input.indexOf("\n", FHEM_longpollOffset);
+                   var nOff = input.indexOf('\n', FHEM_longpollOffset);
                    if(nOff < 0)
                      break;
                    var l = input.substr(FHEM_longpollOffset, nOff-FHEM_longpollOffset);
@@ -113,7 +116,7 @@ function FHEM_startLongpoll(connection) {
                    var subscription = FHEM_subscriptions[d[0]];
                    if( subscription != undefined ) {
 //console.log( "Rcvd: "+(l.length>132 ? l.substring(0,132)+"...("+l.length+")":l) );
-                     FHEM_lastEventTimestamp = Date.now();
+                     FHEM_lastEventTime = lastEventTime;
                      var accessory = subscription.accessory;
 
                      var value = d[1];
@@ -393,11 +396,12 @@ FHEMPlatform.prototype = {
 
                          }
 
-                         if( accessory )
+                         if( accessory && Object.getOwnPropertyNames(accessory).length )
                            foundAccessories.push(accessory);
 
                        });
                      }
+
                      callback(foundAccessories);
 
                    } else {
@@ -416,6 +420,20 @@ FHEMAccessory(log, connection, s) {
 //log( 'sets: ' + s.PossibleSets );
 //log("got json: " + util.inspect(s) );
 //log("got json: " + util.inspect(s.Internals) );
+
+  if( !(this instanceof FHEMAccessory) )
+    return new FHEMAccessory(log, connection, s);
+
+  if( s.Attributes.disable == 1 ) {
+    that.log( s.Internals.NAME + ' is disabled');
+    return null;
+
+  } else if( s.Internals.TYPE == 'structure' ) {
+    that.log( s.Internals.NAME + ' is a structure');
+    return null;
+
+  }
+
 
   this.mappings = {};
 
@@ -570,12 +588,14 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' is dimable [0-'+ s.pctMax +']' );
   else if( s.isLight )
     log( s.Internals.NAME + ' is light' );
-  else
+  else if( this.mappings.onOff || s.isSwitch )
     log( s.Internals.NAME + ' is switchable' );
+  else
+    return {};
 
-  if( this.hasOnOff )
-    log( s.Internals.NAME + ' has OnOff [' +  this.hasOnOff + ']' );
 
+  if( this.mappings.onOff )
+    log( s.Internals.NAME + ' has onOff [' +  this.mappings.onOff + ']' );
   if( this.mappings.hue )
     log( s.Internals.NAME + ' has hue [0-' + this.mappings.hue.max +']' );
   if( this.mappings.sat )
@@ -594,7 +614,7 @@ FHEMAccessory(log, connection, s) {
   this.alias		= s.Attributes.alias ? s.Attributes.alias : s.Internals.NAME;
   this.device		= s.Internals.NAME;
   this.type             = s.Internals.TYPE;
-  this.model            = s.Attributes.model ? s.Attributes.model : s.Internals.model;
+  this.model            = s.Attributes.model ? s.Attributes.model : (s.Internals.model ? s.Internals.model : s.Readings.model.Value);
   this.PossibleSets     = s.PossibleSets;
 
   if( this.type == 'CUL_HM' ) {
@@ -635,6 +655,7 @@ FHEMAccessory(log, connection, s) {
       if( value != undefined ) {
         var inform_id = that.device +'-'+ reading;
         that.mappings[key].informId = inform_id;
+
         if( !that.mappings[key].nocache )
           FHEM_cached[inform_id] = value;
       }
@@ -643,6 +664,10 @@ FHEMAccessory(log, connection, s) {
 
   this.log        = log;
   this.connection = connection;
+
+  this.onRegister = function(accessory) {
+console.log( ">>>>>>>>>>>>:" + util.inspect(accessory) );
+        };
 }
 
 FHEM_dim_values = [ 'dim06%', 'dim12%', 'dim18%', 'dim25%', 'dim31%', 'dim37%', 'dim43%', 'dim50%', 'dim56%', 'dim62%', 'dim68%', 'dim75%', 'dim81%', 'dim87%', 'dim93%' ];
@@ -732,7 +757,7 @@ FHEMAccessory.prototype = {
         value = 0;
       else if( value == '000000' )
         value = 0;
-      else if( value.match( /^[A-D]0$/ ) ) // FIXME: should be handled by event_map now
+      else if( value.match( /^[A-D]0$/ ) ) //FIXME: is handled by event_map now
         value = 0;
       else
         value = 1;
@@ -760,7 +785,7 @@ FHEMAccessory.prototype = {
       if( this.type == 'HUEDevice' )
         cmd = "set " + this.device + "alert select";
       else
-        cmd = "set " + this.device + " toggle;; sleep 1;; set "+ this.device + " toggle";
+        cmd = "set " + this.device + " toggle; sleep 1; set "+ this.device + " toggle";
 
     } else if( c == 'set' ) {
       cmd = "set " + this.device + " " + value;
@@ -971,7 +996,7 @@ FHEMAccessory.prototype = {
                 } );
   },
 
-  informationCharacteristics: function() {
+  informationCharacteristics: function(that) {
     return [
       {
         cType: types.NAME_CTYPE,
@@ -1016,7 +1041,7 @@ FHEMAccessory.prototype = {
       },{
         cType: types.IDENTIFY_CTYPE,
         onUpdate: function(value) {
-          if( this.mappings.onOff )
+          if( that.mappings.onOff )
             that.command( 'identify' );
           },
         perms: ["pw"],
@@ -1244,7 +1269,6 @@ FHEMAccessory.prototype = {
       });
     }
 
-    //FIXME: use mapping.volume
     if( this.mappings.volume ) {
       cTypes.push({
         cType: types.OUTPUTVOLUME_CTYPE,
@@ -1658,7 +1682,7 @@ FHEMAccessory.prototype = {
     var that = this;
     var services = [{
       sType: types.ACCESSORY_INFORMATION_STYPE,
-      characteristics: this.informationCharacteristics(),
+      characteristics: this.informationCharacteristics(that),
     },
     {
       sType: this.sType(),
@@ -1684,8 +1708,8 @@ function FHEMdebug_handleRequest(request, response){
 
   if( request.url == "/cached" ) {
     response.write( "<a href='/'>home</a><br><br>" );
-    if( FHEM_lastEventTimestamp )
-      response.write( "FHEM_lastEventTime: "+ new Date(FHEM_lastEventTimestamp) +"<br><br>" );
+    if( FHEM_lastEventTime )
+      response.write( "FHEM_lastEventTime: "+ new Date(FHEM_lastEventTime) +"<br><br>" );
     response.end( "cached: " + util.inspect(FHEM_cached).replace(/\n/g, '<br>') );
 
   } else if( request.url == "/subscriptions" ) {
