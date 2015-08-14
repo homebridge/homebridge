@@ -2,6 +2,9 @@
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
   "version": "0.0.0",
+  "scripts": {
+    "dev": "browser-refresh ./bin/homebridge -P example-plugins/"
+  },
   "author": {
     "name": "Nick Farina"
   },

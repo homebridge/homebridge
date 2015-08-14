@@ -4,3 +4,7 @@
 
 # Node
 node_modules/
+
+# Legacy - Remove these someday
+config.json
+persist/
