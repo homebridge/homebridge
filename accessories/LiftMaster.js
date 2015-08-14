@@ -92,7 +92,7 @@ LiftMasterAccessory.prototype = {
           if (device["MyQDeviceTypeName"] == "GarageDoorOpener") {
 
             // If we haven't explicity specified a door ID, we'll loop to make sure we don't have multiple openers, which is confusing
-            if (that.requiredDeviceId == undefined) {
+            if (!that.requiredDeviceId) {
               var thisDeviceId = device.MyQDeviceId;
               var thisDoorName = "Unknown";
               for (var j = 0; j < device.Attributes.length; j ++) {
@@ -103,6 +103,7 @@ LiftMasterAccessory.prototype = {
                 }
               }
               foundDoors.push(thisDeviceId + " - " + thisDoorName);
+              that.deviceId = thisDeviceId;
             }
 
             // We specified a door ID, sanity check to make sure it's the one we expected
