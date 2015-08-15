@@ -90,7 +90,7 @@ ZWayServerPlatform.getVDevCharacteristicsTypes = function(vdev){
         case "sensorMultilevel.Temperature":
             return [types.CURRENT_TEMPERATURE_CTYPE, types.TEMPERATURE_UNITS_CTYPE];
         case "sensorBinary.Door/Window":
-            return [types.CURRENT_DOOR_STATE_CTYPE];
+            return [types.CURRENT_DOOR_STATE_CTYPE, types.TARGET_DOORSTATE_CTYPE, types.OBSTRUCTION_DETECTED_CTYPE];
         case "battery.Battery":
             return [types.BATTERY_LEVEL_CTYPE, types.STATUS_LOW_BATTERY_CTYPE];
     }
@@ -203,7 +203,7 @@ proxy: 'http://localhost:8888',
                 //var accessory = new ZWayServerAccessory();
                 foundAccessories.push(accessory);
             }
-foundAccessories = [foundAccessories[0], foundAccessories[1], foundAccessories[2], foundAccessories[3]]; // Limit to a few devices for testing...
+foundAccessories = [foundAccessories[0], foundAccessories[1], foundAccessories[2], foundAccessories[3], foundAccessories[4]]; // Limit to a few devices for testing...
             callback(foundAccessories);
         });
 
@@ -455,12 +455,12 @@ ZWayServerAccessory.prototype = {
                         method: "GET",
                         url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
                     }).then(function(result){
-                        callback(result.data.metrics.level == "off" ? 0 : 1);
+                        callback(result.data.metrics.level == "off" ? 1 : 0);
                     });
                 },
                 perms: ["pr","ev"],
                 format: "bool",
-                initialValue: 0,
+                initialValue: 1,
                 supportEvents: false,
                 supportBonjour: false,
                 manfDescription: "Contact State",
@@ -476,12 +476,12 @@ ZWayServerAccessory.prototype = {
                         method: "GET",
                         url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
                     }).then(function(result){
-                        callback(result.data.metrics.level == "off" ? 0 : 1);
+                        callback(result.data.metrics.level == "off" ? 1 : 0);
                     });
                 },
                 perms: ["pr","ev"],
                 format: "int",
-                initialValue: 0,
+                initialValue: 1,
                 supportEvents: false,
                 supportBonjour: false,
                 manfDescription: "Current Door State",
@@ -489,6 +489,42 @@ ZWayServerAccessory.prototype = {
                 designedMaxValue: 4,
                 designedMinStep: 1,
                 designedMaxLength: 1    
+            });
+        }
+
+        if (cxs.indexOf(types.TARGET_DOORSTATE_CTYPE) >= 0) {
+            cTypes.push({
+                cType: types.TARGET_DOORSTATE_CTYPE,
+                onRead: function(callback) {
+                    that.platform.zwayRequest({
+                        method: "GET",
+                        url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                    }).then(function(result){
+                        callback(result.data.metrics.level == "off" ? 0 : 1);
+                    });
+                },
+                perms: ["pr","ev"], //TODO: If we support some non-sensor device that can actually open, add "pw"!
+                format: "int",
+                initialValue: 0,
+                supportEvents: false,
+                supportBonjour: false,
+                manfDescription: "Target Door State",
+                designedMinValue: 0,
+                designedMaxValue: 1,
+                designedMinStep: 1,
+                designedMaxLength: 1    
+            });
+        }
+            
+        if (cxs.indexOf(types.OBSTRUCTION_DETECTED_CTYPE) >= 0) {
+            cTypes.push({
+                cType: types.OBSTRUCTION_DETECTED_CTYPE,
+                perms: ["pr","ev"],
+                format: "bool",
+                initialValue: false,
+                supportEvents: false,
+                supportBonjour: false,
+                manfDescription: "Obstruction Detected"
             });
         }
 
