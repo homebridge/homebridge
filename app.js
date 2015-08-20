@@ -9,6 +9,12 @@ var accessoryLoader = require('HAP-NodeJS').AccessoryLoader;
 
 console.log("Starting HomeBridge server...");
 
+console.log("=====================================================================");
+console.log("IMPORTANT: Homebridge is in the middle of some big changes.");
+console.log("           Read more about it here:");
+console.log("           https://github.com/nfarina/homebridge/wiki/Migration-Guide");
+console.log("=====================================================================");
+
 // Look for the configuration file
 var configPath = path.join(__dirname, "config.json");
 
