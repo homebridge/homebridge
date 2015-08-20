@@ -148,7 +148,7 @@ function loadPlatforms() {
 
 function publish() {
   bridge.publish({
-    username: bridgeConfig.username || "CC:22:3D:E3:CE:27",
+    username: bridgeConfig.username || "CC:22:3D:E3:CE:30",
     port: bridgeConfig.port || 51826,
     pincode: bridgeConfig.pin || "031-45-154",
     category: Accessory.Categories.OTHER
