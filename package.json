@@ -3,7 +3,7 @@
   "description": "HomeKit support for the impatient",
   "version": "0.0.0",
   "scripts": {
-    "start": "node app.js"
+    "start": "DEBUG=* node app.js"
   },
   "repository": {
     "type": "git",
