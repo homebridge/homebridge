@@ -15,7 +15,7 @@
     "carwingsjs": "0.0.x",
     "color": "0.10.x",
     "elkington": "kevinohara80/elkington",
-    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
+    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#b237a56de3299fba82b1c5d988a1ac665bc44a6a",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "mdns": "^2.2.4",
