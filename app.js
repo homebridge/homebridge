@@ -21,11 +21,14 @@ if (!fs.existsSync(configPath)) {
 // Initialize HAP-NodeJS
 hap.init();
 
-// Start by creating our Bridge which will host all loaded Accessories
-var bridge = new Bridge('HomeBridge', uuid.generate("HomeBridge"));
-
 // Load up the configuration file
 var config = JSON.parse(fs.readFileSync(configPath));
+
+// pull out our custom Bridge settings from config.json, if any
+var bridgeConfig = config.bridge || {};
+
+// Start by creating our Bridge which will host all loaded Accessories
+var bridge = new Bridge(bridgeConfig.name || 'Homebridge', uuid.generate("HomeBridge"));
 
 // keep track of async calls we're waiting for callbacks on before we can start up
 // this is hacky but this is all going away once we build proper plugin support
@@ -139,9 +142,9 @@ function loadPlatforms() {
 
 function publish() {
   bridge.publish({
-    username: "CC:22:3D:E3:CE:27",
-    port: 51826,
-    pincode: "031-45-154",
+    username: bridgeConfig.username || "CC:22:3D:E3:CE:27",
+    port: bridgeConfig.port || 51826,
+    pincode: bridgeConfig.pin || "031-45-154",
     category: Accessory.Categories.OTHER
   });
 }

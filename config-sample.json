@@ -1,4 +1,11 @@
 {
+    "bridge": {
+        "name": "Homebridge",
+        "username": "CC:22:3D:E3:CE:27",
+        "port": 51826,
+        "pin": "031-45-154"
+    },
+    
     "description": "This is an example configuration file with all supported devices. You can use this as a template for creating your own configuration file containing devices you actually own.",
 
     "platforms": [
