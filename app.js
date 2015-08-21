@@ -9,11 +9,12 @@ var accessoryLoader = require('HAP-NodeJS').AccessoryLoader;
 
 console.log("Starting HomeBridge server...");
 
-console.log("=====================================================================");
+console.log("_____________________________________________________________________");
 console.log("IMPORTANT: Homebridge is in the middle of some big changes.");
 console.log("           Read more about it here:");
 console.log("           https://github.com/nfarina/homebridge/wiki/Migration-Guide");
-console.log("=====================================================================");
+console.log("_____________________________________________________________________");
+console.log("");
 
 // Look for the configuration file
 var configPath = path.join(__dirname, "config.json");
@@ -28,7 +29,14 @@ if (!fs.existsSync(configPath)) {
 hap.init();
 
 // Load up the configuration file
-var config = JSON.parse(fs.readFileSync(configPath));
+var config;
+try {
+  config = JSON.parse(fs.readFileSync(configPath));
+}
+catch (err) {
+  console.log("There was a problem reading your config.json file:\n\n" + err.stack);
+  process.exit(0);
+}
 
 // pull out our custom Bridge settings from config.json, if any
 var bridgeConfig = config.bridge || {};
