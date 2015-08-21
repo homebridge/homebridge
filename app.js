@@ -34,8 +34,10 @@ try {
   config = JSON.parse(fs.readFileSync(configPath));
 }
 catch (err) {
-  console.log("There was a problem reading your config.json file:\n\n" + err.stack);
-  process.exit(0);
+  console.log("There was a problem reading your config.json file.");
+  console.log("Please try pasting your config.json file here to validate it: http://jsonlint.com");
+  console.log("");
+  throw err;
 }
 
 // pull out our custom Bridge settings from config.json, if any
