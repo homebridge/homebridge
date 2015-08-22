@@ -1,7 +1,7 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "scripts": {
     "start": "DEBUG=* node app.js || true"
   },
