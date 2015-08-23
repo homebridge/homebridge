@@ -5,6 +5,7 @@ var hap = require('HAP-NodeJS');
 var uuid = require('HAP-NodeJS').uuid;
 var Bridge = require('HAP-NodeJS').Bridge;
 var Accessory = require('HAP-NodeJS').Accessory;
+var Service = require('HAP-NodeJS').Service;
 var accessoryLoader = require('HAP-NodeJS').AccessoryLoader;
 
 console.log("Starting HomeBridge server...");
@@ -72,28 +73,19 @@ function loadAccessories() {
         var accessoryConfig = config.accessories[i];
 
         // Load up the class for this accessory
-        var accessoryName = accessoryConfig["accessory"]; // like "WeMo"
-        var accessoryModule = require('./accessories/' + accessoryName + ".js"); // like "./accessories/WeMo.js"
+        var accessoryType = accessoryConfig["accessory"]; // like "WeMo"
+        var accessoryModule = require('./accessories/' + accessoryType + ".js"); // like "./accessories/WeMo.js"
         var accessoryConstructor = accessoryModule.accessory; // like "WeMoAccessory", a JavaScript constructor
 
         // Create a custom logging function that prepends the device display name for debugging
-        var name = accessoryConfig["name"];
-        var log = function(name) { return function(s) { console.log("[" + name + "] " + s); }; }(name);
+        var accessoryName = accessoryConfig["name"];
+        var log = createLog(accessoryName);
 
-        log("Initializing " + accessoryName + " accessory...");
+        log("Initializing %s accessory...", accessoryType);
         
         var accessoryInstance = new accessoryConstructor(log, accessoryConfig);
-
-        // Extract the raw "services" for this accessory which is a big array of objects describing the various
-        // hooks in and out of HomeKit for the HAP-NodeJS server.
-        var services = accessoryInstance.getServices();
+        var accessory = createAccessory(accessoryInstance, accessoryName);
         
-        // Create the actual HAP-NodeJS "Accessory" instance
-        var accessory = accessoryLoader.parseAccessoryJSON({
-          displayName: name,
-          services: services
-        });
-
         // add it to the bridge
         bridge.addBridgedAccessory(accessory);
     }
@@ -108,52 +100,78 @@ function loadPlatforms() {
         var platformConfig = config.platforms[i];
 
         // Load up the class for this accessory
-        var platformName = platformConfig["platform"]; // like "Wink"
-        var platformModule = require('./platforms/' + platformName + ".js"); // like "./platforms/Wink.js"
+        var platformType = platformConfig["platform"]; // like "Wink"
+        var platformName = platformConfig["name"];
+        var platformModule = require('./platforms/' + platformType + ".js"); // like "./platforms/Wink.js"
         var platformConstructor = platformModule.platform; // like "WinkPlatform", a JavaScript constructor
 
-        // Create a custom logging function that prepends the platform display name for debugging
-        var name = platformConfig["name"];
-        var log = function(name) { return function(s) { console.log("[" + name + "] " + s); }; }(name);
+        // Create a custom logging function that prepends the platform name for debugging
+        var log = createLog(platformName);
 
-        log("Initializing " + platformName + " platform...");
+        log("Initializing %s platform...", platformType);
 
         var platformInstance = new platformConstructor(log, platformConfig);
-
-        // wrap name and log in a closure so they don't change in the callback
-        function getAccessories(name, log) {
-          asyncCalls++;
-          platformInstance.accessories(function(foundAccessories){
-              asyncCalls--;
-              // loop through accessories adding them to the list and registering them
-              for (var i = 0; i < foundAccessories.length; i++) {
-                  var accessoryInstance = foundAccessories[i];
-                  
-                  log("Initializing device with name " + accessoryInstance.name + "...")
-                  
-                  // Extract the raw "services" for this accessory which is a big array of objects describing the various
-                  // hooks in and out of HomeKit for the HAP-NodeJS server.
-                  var services = accessoryInstance.getServices();
-                  
-                  // Create the actual HAP-NodeJS "Accessory" instance
-                  var accessory = accessoryLoader.parseAccessoryJSON({
-                    displayName: name,
-                    services: services
-                  });
-
-                  // add it to the bridge
-                  bridge.addBridgedAccessory(accessory);
-              }
-              
-              // were we the last callback?
-              if (asyncCalls === 0 && !asyncWait)
-                publish();
-          })
-        }
-
-        // query for devices
-        getAccessories(name, log);
+        loadPlatformAccessories(platformInstance, log);
     }
+}
+
+function loadPlatformAccessories(platformInstance, log) {
+  asyncCalls++;
+  platformInstance.accessories(function(foundAccessories){
+      asyncCalls--;
+      
+      // loop through accessories adding them to the list and registering them
+      for (var i = 0; i < foundAccessories.length; i++) {
+          var accessoryInstance = foundAccessories[i];
+          var accessoryName = accessoryInstance.name; // assume this property was set
+          
+          log("Initializing platform accessory '%s'...", accessoryName);
+          
+          var accessory = createAccessory(accessoryInstance, accessoryName);
+
+          // add it to the bridge
+          bridge.addBridgedAccessory(accessory);
+      }
+      
+      // were we the last callback?
+      if (asyncCalls === 0 && !asyncWait)
+        publish();
+  });
+}
+
+function createAccessory(accessoryInstance, displayName) {
+  
+  var services = accessoryInstance.getServices();
+  
+  if (!(services[0] instanceof Service)) {
+    // The returned "services" for this accessory is assumed to be the old style: a big array
+    // of JSON-style objects that will need to be parsed by HAP-NodeJS's AccessoryLoader.
+
+    // Create the actual HAP-NodeJS "Accessory" instance
+    return accessoryLoader.parseAccessoryJSON({
+      displayName: displayName,
+      services: services
+    });
+  }
+  else {
+    // The returned "services" for this accessory are simply an array of new-API-style
+    // Service instances which we can add to a created HAP-NodeJS Accessory directly.
+    
+    var accessoryUUID = uuid.generate(accessoryInstance.constructor.name + ":" + displayName);
+    
+    var accessory = new Accessory(displayName, accessoryUUID);
+    services.forEach(function(service) { accessory.addService(service); });
+    return accessory;
+  }
+}
+
+// Returns a logging function that prepends messages with the given name in [brackets].
+function createLog(name) {
+  return function(message) {
+    var rest = Array.prototype.slice.call(arguments, 1 ); // any arguments after message
+    var args = ["[%s] " + message, name].concat(rest);
+    console.log.apply(console, args);
+  }
 }
 
 function publish() {
