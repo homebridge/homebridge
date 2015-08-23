@@ -6,6 +6,7 @@ var uuid = require('HAP-NodeJS').uuid;
 var Bridge = require('HAP-NodeJS').Bridge;
 var Accessory = require('HAP-NodeJS').Accessory;
 var Service = require('HAP-NodeJS').Service;
+var Characteristic = require('HAP-NodeJS').Characteristic;
 var accessoryLoader = require('HAP-NodeJS').AccessoryLoader;
 
 console.log("Starting HomeBridge server...");
@@ -160,7 +161,31 @@ function createAccessory(accessoryInstance, displayName) {
     var accessoryUUID = uuid.generate(accessoryInstance.constructor.name + ":" + displayName);
     
     var accessory = new Accessory(displayName, accessoryUUID);
-    services.forEach(function(service) { accessory.addService(service); });
+    
+    // listen for the identify event if the accessory instance has defined an identify() method
+    if (accessoryInstance.identify)
+      accessory.on('identify', function(paired, callback) { accessoryInstance.identify(callback); });
+    
+    services.forEach(function(service) {
+      
+      // if you returned an AccessoryInformation service, merge its values with ours
+      if (service instanceof Service.AccessoryInformation) {
+        var existingService = accessory.getService(Service.AccessoryInformation);
+        
+        // pull out any values you may have defined
+        var manufacturer = service.getCharacteristic(Characteristic.Manufacturer).value;
+        var model = service.getCharacteristic(Characteristic.Model).value;
+        var serialNumber = service.getCharacteristic(Characteristic.SerialNumber).value;
+        
+        if (manufacturer) existingService.setCharacteristic(Characteristic.Manufacturer, manufacturer);
+        if (model) existingService.setCharacteristic(Characteristic.Model, model);
+        if (serialNumber) existingService.setCharacteristic(Characteristic.SerialNumber, serialNumber);
+      }
+      else {
+        accessory.addService(service);
+      }
+    });
+    
     return accessory;
   }
 }

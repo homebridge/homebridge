@@ -69,7 +69,20 @@ HttpAccessory.prototype = {
     }.bind(this));
   },
   
+  identify: function() {
+    this.log("Identify requested!");
+  },
+  
   getServices: function() {
+
+    // you can OPTIONALLY create an information service if you wish to override
+    // the default values for things like serial number, model, etc.
+    var informationService = new Service.AccessoryInformation();
+    
+    informationService
+      .setCharacteristic(Characteristic.Manufacturer, "HTTP Manufacturer")
+      .setCharacteristic(Characteristic.Model, "HTTP Model")
+      .setCharacteristic(Characteristic.SerialNumber, "HTTP Serial Number");
     
     var lightbulbService = new Service.Lightbulb();
     
@@ -81,6 +94,6 @@ HttpAccessory.prototype = {
       .addCharacteristic(new Characteristic.Brightness())
       .on('set', this.setBrightness.bind(this));
     
-    return [lightbulbService];
+    return [informationService, lightbulbService];
   }
 };
