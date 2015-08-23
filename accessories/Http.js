@@ -69,8 +69,9 @@ HttpAccessory.prototype = {
     }.bind(this));
   },
   
-  identify: function() {
+  identify: function(callback) {
     this.log("Identify requested!");
+    callback(); // success
   },
   
   getServices: function() {
