@@ -8,7 +8,9 @@
 // - Added support for Scenes
 // - Sorting device names
 //
-// TEST
+// 24 August 2015 [Eduard Kuijt]
+// - Added usescenes parameter
+// - Fixed issue with dimmer levels; was 1-100, should be 1-16
 //
 // Domoticz JSON API required
 // https://www.domoticz.com/wiki/Domoticz_API/JSON_URL's#Lights_and_switches
@@ -20,7 +22,8 @@
 //         "name": "Domoticz",
 //         "server": "127.0.0.1",
 //         "port": "8080",
-//         "roomid": 123 (0=no roomplan)
+//         "roomid": 123, (0=no roomplan)
+//         "usescenes": 0 (0=no, 1=yes)
 //     }
 // ],
 //
@@ -49,6 +52,10 @@ function DomoticzPlatform(log, config){
 	if (typeof config["roomid"] != 'undefined') {
 		this.roomid = config["roomid"];
 	}
+        this.usescenes  = 1;
+        if (typeof config["usescenes"] != 'undefined') {
+                this.usescenes = config["usescenes"];
+        }
 }
 
 function sortByKey(array, key) {
@@ -114,25 +121,28 @@ DomoticzPlatform.prototype = {
 				}
 			});
 	    }
-		//Get Scenes
-		foundAccessories = [];
-		request.get({
-			url: this.urlForQuery("type=scenes"),
-	      	json: true
-	    }, function(err, response, json) {
-			if (!err && response.statusCode == 200) {
-				if (json['result'] != undefined) {
-					var sArray=sortByKey(json['result'],"Name");
-					sArray.map(function(s) {
-						accessory = new DomoticzAccessory(that.log, that, true, s.idx, s.Name, false, 0, false);
-						foundAccessories.push(accessory);
-	          		})
+                if (this.usescenes == 1) {
+			//Get Scenes
+			foundAccessories = [];
+			request.get({
+				url: this.urlForQuery("type=scenes"),
+	      			json: true
+	    			}, function(err, response, json) {
+				if (!err && response.statusCode == 200) {
+					if (json['result'] != undefined) {
+						var sArray=sortByKey(json['result'],"Name");
+						sArray.map(function(s) {
+							accessory = new DomoticzAccessory(that.log, that, true, s.idx, s.Name, false, 0, false);
+							foundAccessories.push(accessory);
+	          				})
+					}
+						callback(foundAccessories);
+					} else {
+						that.log("There was a problem connecting to Domoticz.");
+	      				}
 				}
-				callback(foundAccessories);
-			} else {
-				that.log("There was a problem connecting to Domoticz.");
-	      	}
-		});
+			);
+                }
 	}
 }
 
@@ -160,6 +170,7 @@ DomoticzAccessory.prototype = {
 				url = this.platform.urlForQuery("type=command&param=setcolbrightnessvalue&idx=" + this.idx + "&hue=" + value + "&brightness=100" + "&iswhite=false");
 			}
 			else if (c == "setLevel") {
+				value = Math.round((value / 100) * 15)
 				url = this.platform.urlForQuery("type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value);
 			}
 			else if (value != undefined) {
