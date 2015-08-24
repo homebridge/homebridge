@@ -53,6 +53,7 @@ function ZWayServerPlatform(log, config){
     this.login        = config["login"];
     this.password     = config["password"];
     this.name_overrides = config["name_overrides"];
+    this.batteryLow   = config["battery_low_level"];
     this.userAgent = "HomeBridge/-1^0.5";
     this.sessionId = "";
     this.jar = request.jar(new tough.CookieJar());
@@ -107,15 +108,15 @@ ZWayServerPlatform.prototype = {
         opts.headers = {
             "Cookie": "ZWAYSession=" + this.sessionId
         };
-opts.proxy = 'http://localhost:8888';
+//opts.proxy = 'http://localhost:8888';
 
         request(opts, function(error, response, body){
             if(response.statusCode == 401){
-that.log("Authenticating...");
+                that.log("Authenticating...");
                 request({
                     method: "POST",
                     url: that.url + 'ZAutomation/api/v1/login',
-proxy: 'http://localhost:8888',
+//proxy: 'http://localhost:8888',
                     body: { //JSON.stringify({
                         "form": true,
                         "login": that.login,
@@ -170,6 +171,7 @@ proxy: 'http://localhost:8888',
             var groupedDevices = {};
             for(var i = 0; i < devices.length; i++){
                 var vdev = devices[i];
+                if(vdev.tags.indexOf("HomeBridge:Skip") >= 0) { that.log("Tag says skip!"); continue; }
                 var gdid = vdev.id.replace(/^(.*?)_zway_(\d+-\d+)-\d.*/, '$1_$2');
                 var gd = groupedDevices[gdid] || (groupedDevices[gdid] = {devices: [], types: {}, primary: undefined});
                 gd.devices.push(vdev);
@@ -198,12 +200,14 @@ proxy: 'http://localhost:8888',
                         break;
                     }
                 }
-                if(!accessory) that.log("WARN: Didn't find suitable device class!");
-
-                //var accessory = new ZWayServerAccessory();
-                foundAccessories.push(accessory);
+                
+                if(!accessory)
+                    that.log("WARN: Didn't find suitable device class!");
+                else
+                    foundAccessories.push(accessory);
+                
             }
-foundAccessories = [foundAccessories[0], foundAccessories[1], foundAccessories[2], foundAccessories[3], foundAccessories[4]]; // Limit to a few devices for testing...
+//foundAccessories = foundAccessories.slice(0, 10); // Limit to a few devices for testing...
             callback(foundAccessories);
         });
 
@@ -224,9 +228,10 @@ function ZWayServerAccessory(name, dclass, devDesc, platform) {
 ZWayServerAccessory.prototype = {
 
     command: function(vdev, command, value) {
-        this.platform.zwayRequest({
+        return this.platform.zwayRequest({
             method: "GET",
-            url: this.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id + '/command/' + command + (value === undefined ? "" : "/" + value)
+            url: this.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id + '/command/' + command,
+            qs: (value === undefined ? undefined : value)
         });
     },
 
@@ -318,7 +323,7 @@ ZWayServerAccessory.prototype = {
             cTypes.push({
                 cType: types.BRIGHTNESS_CTYPE,
                 onUpdate: function(value) {
-                    that.command(vdev, "exact", value);
+                    that.command(vdev, "exact", {level: parseInt(value, 10)});
                 },
                 perms: ["pw","pr","ev"],
                 format: "int",
@@ -359,7 +364,12 @@ ZWayServerAccessory.prototype = {
             cTypes.push({
                 cType: types.TARGET_TEMPERATURE_CTYPE,
                 onUpdate: function(value) {
-                    that.command(vdev, "exact", value);
+                    try {
+                        that.command(vdev, "exact", {level: parseFloat(value)});
+                    }
+                    catch (e) {
+                        that.log(e);
+                    }
                 },
                 onRead: function(callback) {
                     that.platform.zwayRequest({
@@ -375,8 +385,8 @@ ZWayServerAccessory.prototype = {
                 supportEvents: false,
                 supportBonjour: false,
                 manfDescription: "Target Temperature",
-                designedMinValue: 2,
-                designedMaxValue: 38,
+                designedMinValue: vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : 5,
+                designedMaxValue: vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 40,
                 designedMinStep: 1,
                 unit: "celsius"
             });
@@ -528,6 +538,52 @@ ZWayServerAccessory.prototype = {
             });
         }
 
+        if (cxs.indexOf(types.BATTERY_LEVEL_CTYPE) >= 0) {
+            cTypes.push({
+                cType: types.BATTERY_LEVEL_CTYPE,
+                onRead: function(callback) {
+                    that.platform.zwayRequest({
+                        method: "GET",
+                        url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                    }).then(function(result){
+                        callback(result.data.metrics.level);
+                    });
+                },
+                perms: ["pr","ev"],
+                format: "int",
+                initialValue:  100,
+                supportEvents: true,
+                supportBonjour: false,
+                manfDescription: "Battery Level",
+                designedMinValue: 0,
+                designedMaxValue: 100,
+                designedMinStep: 1,
+                unit: "%"
+            });
+        }
+        
+        if (cxs.indexOf(types.STATUS_LOW_BATTERY_CTYPE) >= 0) {
+            cTypes.push({
+                cType: types.STATUS_LOW_BATTERY_CTYPE,
+                onUpdate: null,
+                onRead: function(callback) {
+                    that.platform.zwayRequest({
+                        method: "GET",
+                        url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                    }).then(function(result){
+                        callback(result.data.metrics.level <= that.platform.batteryLow ? 1 : 0);
+                    });
+                },
+                perms: ["pr","ev"],
+                format: "bool",
+                initialValue: 0,
+                supportEvents: false,
+                supportBonjour: false,
+                manfDescription: "Battery is low",
+                designedMaxLength: 1
+            });
+        }
+        
         return cTypes;
     },
 
@@ -575,9 +631,25 @@ ZWayServerAccessory.prototype = {
         var hits = {};
         for (var i = 0; i < cTypes.length; i++){
             if(hits[cTypes[i].cType]) cTypes.splice(i--, 1); // Remember postfix means post-evaluate!
-            hits[cTypes[i].cType] = true;
+            else hits[cTypes[i].cType] = cTypes[i];
         }
         
+        // Thermostats MUST include current temperature...so, for the Danfoss/Devolo radiator
+        // thermostats, we have to fake one...
+        if (hits[types.TARGET_TEMPERATURE_CTYPE] && !hits[types.CURRENT_TEMPERATURE_CTYPE]) {
+            // Copy the "target" device to the "current" one, with necessary tweaks...
+            var tcx = hits[types.TARGET_TEMPERATURE_CTYPE];
+            var ccx = {};
+            for(var p in tcx){
+                if(tcx.hasOwnProperty(p)) ccx[p] = tcx[p];
+            }
+            ccx.cType = types.CURRENT_TEMPERATURE_CTYPE;
+            ccx.onUpdate = null;
+            ccx.perms = ["pr"];
+            //ccx.onRead = null; // Override this??
+            cTypes.push(ccx);
+        }         
+
         services.push({
             sType: sTypes[0],
             characteristics: cTypes
