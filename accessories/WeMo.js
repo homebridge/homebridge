@@ -68,7 +68,7 @@ WeMoAccessory.prototype = {
         if (!err) {
             var binaryState = parseInt(result)
             that.log("power state for " + that.wemoName + " is: " + binaryState)
-            callback(binaryState)
+            callback(binaryState > 0 ? 1 : 0);
         }
         else {
             that.log(err)

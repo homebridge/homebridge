@@ -1,9 +1,9 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "0.0.0",
+  "version": "0.1.1",
   "scripts": {
-    "start": "node app.js"
+    "start": "DEBUG=* node app.js || true"
   },
   "repository": {
     "type": "git",
@@ -15,7 +15,7 @@
     "carwingsjs": "0.0.x",
     "color": "0.10.x",
     "elkington": "kevinohara80/elkington",
-    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
+    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#187174846dc4b8970efba74b9eb2968b35f15d87",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "mdns": "^2.2.4",
