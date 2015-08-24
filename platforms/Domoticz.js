@@ -8,6 +8,8 @@
 // - Added support for Scenes
 // - Sorting device names
 //
+// TEST
+//
 // Domoticz JSON API required
 // https://www.domoticz.com/wiki/Domoticz_API/JSON_URL's#Lights_and_switches
 //
