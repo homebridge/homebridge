@@ -104,11 +104,9 @@ MiLight.prototype = {
       .addCharacteristic(new Characteristic.Brightness())
       .on('set', this.setBrightness.bind(this));
 
-    if (this.type == "rgbw" || this.type == "rgb") {
-      lightbulbService
-        .addCharacteristic(new Characteristic.Hue())
-        .on('set', this.setHue.bind(this));
-    }
+    lightbulbService
+      .addCharacteristic(new Characteristic.Hue())
+      .on('set', this.setHue.bind(this));
     
     return [informationService, lightbulbService];
   }
