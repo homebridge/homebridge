@@ -66,11 +66,17 @@ DomoticzPlatform.prototype = {
   },
   
 	accessories: function(callback) {
-	    this.log("Fetching Domoticz lights and switches...");
-	    var that = this;
-	    var foundAccessories = [];
-	    if (this.roomid == 0) {
+		this.log("Fetching Domoticz lights and switches...");
+		var that = this;
+		var foundAccessories = [];
+		
+		// mechanism to ensure callback is only executed once all requests complete
+		var asyncCalls = 0;
+		function callbackLater() { if (--asyncCalls == 0) callback(foundAccessories); }
+		
+		if (this.roomid == 0) {
 			//Get Lights
+			asyncCalls++;
 			request.get({
 				url: this.urlForQuery("type=devices&filter=light&used=true&order=Name"),
 				json: true
@@ -83,14 +89,15 @@ DomoticzPlatform.prototype = {
 							foundAccessories.push(accessory);
 						})
 					}
-					callback(foundAccessories);
+					callbackLater();
 				} else {
 					that.log("There was a problem connecting to Domoticz. (" + err + ")");
 				}
 			});
-	    }
-	    else {
+		}
+		else {
 			//Get all devices specified in the room
+			asyncCalls++;
 			request.get({
 				url: this.urlForQuery("type=devices&plan=" + this.roomid),
 				json: true
@@ -106,30 +113,30 @@ DomoticzPlatform.prototype = {
 							}
 						})
 					}
-					callback(foundAccessories);
+					callbackLater();
 				} else {
 					that.log("There was a problem connecting to Domoticz.");
 				}
 			});
-	    }
+		}
 		//Get Scenes
-		foundAccessories = [];
+		asyncCalls++;
 		request.get({
 			url: this.urlForQuery("type=scenes"),
-	      	json: true
-	    }, function(err, response, json) {
+			json: true
+		}, function(err, response, json) {
 			if (!err && response.statusCode == 200) {
 				if (json['result'] != undefined) {
 					var sArray=sortByKey(json['result'],"Name");
 					sArray.map(function(s) {
 						accessory = new DomoticzAccessory(that.log, that, true, s.idx, s.Name, false, 0, false);
 						foundAccessories.push(accessory);
-	          		})
+					})
 				}
-				callback(foundAccessories);
+				callbackLater();
 			} else {
 				that.log("There was a problem connecting to Domoticz.");
-	      	}
+			}
 		});
 	}
 }
