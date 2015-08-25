@@ -1,5 +1,10 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var Service = require("HAP-NodeJS").Service;
+var Characteristic = require("HAP-NodeJS").Characteristic;
 var request = require("request");
+
+module.exports = {
+  accessory: HttpAccessory
+}
 
 function HttpAccessory(log, config) {
   this.log = log;
@@ -9,9 +14,6 @@ function HttpAccessory(log, config) {
   this.off_url = config["off_url"];
   this.brightness_url = config["brightness_url"];
   this.http_method = config["http_method"];
-
-  // device info
-  this.name = config["name"];
 }
 
 HttpAccessory.prototype = {
@@ -26,135 +28,73 @@ HttpAccessory.prototype = {
     })
   },
 
-  setPowerState: function(powerOn) {
+  setPowerState: function(powerOn, callback) {
     var url;
 
     if (powerOn) {
-      url = this.on_url
-      this.log("Setting power state on the '"+this.name+"' to on");
-    }else{
-      url = this.off_url
-      this.log("Setting power state on the '"+this.name+"' to off");
+      url = this.on_url;
+      this.log("Setting power state to on");
+    }
+    else {
+      url = this.off_url;
+      this.log("Setting power state to off");
     }
 
-    this.httpRequest(url, this.http_method, function(error, response, body){
+    this.httpRequest(url, this.http_method, function(error, response, body) {
       if (error) {
-        return console.error('http power function failed:', error);
-      }else{
-        return console.log('http power function succeeded!');
+        this.log('HTTP power function failed: %s', error.message);
+        callback(error);
       }
-    });
-
+      else {
+        this.log('HTTP power function succeeded!');
+        callback();
+      }
+    }.bind(this));
   },
 
-  setBrightness: function(level) {
+  setBrightness: function(level, callback) {
     var url = this.brightness_url.replace("%b", level)
 
-    this.log("Setting brightness on the '"+this.name+"' to " + level);
+    this.log("Setting brightness to %s", level);
 
-    this.httpRequest(url, this.http_method, function(error, response, body){
+    this.httpRequest(url, this.http_method, function(error, response, body) {
       if (error) {
-        return console.error('http brightness function failed:', error);
-      }else{
-        return console.log('http brightness function succeeded!');
+        this.log('HTTP brightness function failed: %s', error);
+        callback(error);
       }
-    });
-
+      else {
+        this.log('HTTP brightness function succeeded!');
+        callback();
+      }
+    }.bind(this));
   },
-
+  
+  identify: function(callback) {
+    this.log("Identify requested!");
+    callback(); // success
+  },
+  
   getServices: function() {
-    var that = this;
-    return [{
-      sType: types.ACCESSORY_INFORMATION_STYPE,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: this.name,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Name of the accessory",
-        designedMaxLength: 255
-      },{
-        cType: types.MANUFACTURER_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "Http",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Manufacturer",
-        designedMaxLength: 255
-      },{
-        cType: types.MODEL_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "Rev-1",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Model",
-        designedMaxLength: 255
-      },{
-        cType: types.SERIAL_NUMBER_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "A1S2NASF88EW",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "SN",
-        designedMaxLength: 255
-      },{
-        cType: types.IDENTIFY_CTYPE,
-        onUpdate: null,
-        perms: ["pw"],
-        format: "bool",
-        initialValue: false,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Identify Accessory",
-        designedMaxLength: 1
-      }]
-    },{
-      sType: types.LIGHTBULB_STYPE,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: this.name,
-        supportEvents: true,
-        supportBonjour: false,
-        manfDescription: "Name of service",
-        designedMaxLength: 255
-      },{
-        cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { that.setPowerState(value); },
-        perms: ["pw","pr","ev"],
-        format: "bool",
-        initialValue: 0,
-        supportEvents: true,
-        supportBonjour: false,
-        manfDescription: "Change the power state",
-        designedMaxLength: 1
-      },{
-        cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { that.setBrightness(value); },
-        perms: ["pw","pr","ev"],
-        format: "int",
-        initialValue:  0,
-        supportEvents: true,
-        supportBonjour: false,
-        manfDescription: "Adjust Brightness",
-        designedMinValue: 0,
-        designedMaxValue: 100,
-        designedMinStep: 1,
-        unit: "%"
-      }]
-    }];
+
+    // you can OPTIONALLY create an information service if you wish to override
+    // the default values for things like serial number, model, etc.
+    var informationService = new Service.AccessoryInformation();
+    
+    informationService
+      .setCharacteristic(Characteristic.Manufacturer, "HTTP Manufacturer")
+      .setCharacteristic(Characteristic.Model, "HTTP Model")
+      .setCharacteristic(Characteristic.SerialNumber, "HTTP Serial Number");
+    
+    var lightbulbService = new Service.Lightbulb();
+    
+    lightbulbService
+      .getCharacteristic(Characteristic.On)
+      .on('set', this.setPowerState.bind(this));
+    
+    lightbulbService
+      .addCharacteristic(new Characteristic.Brightness())
+      .on('set', this.setBrightness.bind(this));
+    
+    return [informationService, lightbulbService];
   }
 };
-
-module.exports.accessory = HttpAccessory;
