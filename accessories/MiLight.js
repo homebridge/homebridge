@@ -93,7 +93,6 @@ MiLight.prototype = {
       .setCharacteristic(Characteristic.Manufacturer, "MiLight")
       .setCharacteristic(Characteristic.Model, this.type)
       .setCharacteristic(Characteristic.SerialNumber, "MILIGHT12345");
-      .setCharacteristic(Characteristic.Name, this.name);
     
     var lightbulbService = new Service.Lightbulb();
     
