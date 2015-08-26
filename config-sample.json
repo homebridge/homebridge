@@ -41,7 +41,9 @@
             "platform": "Domoticz",
             "name": "Domoticz",
             "server": "127.0.0.1",
-            "port": "8005"
+            "port": "8080",
+            "roomid": 0,
+            "loadscenes": 1
         },
         {
             "platform": "PhilipsHue",
