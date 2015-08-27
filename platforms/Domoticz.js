@@ -12,6 +12,10 @@
 // - Added parameter in config.json: 'loadscenes' for enabling/disabling loading scenes
 // - Fixed issue with dimmer-range; was 0-100, should be 0-16
 //
+// 27 August 2015 [EddyK69]
+// - Fixed issue that 'on/off'-type lights showed as dimmers in HomeKit. Checking now on SwitchType instead of HaveDimmer
+// - Fixed issue that 'on-off'-type lights would not react on Siri 'Switch on/off light'; On/Off types are now handled as Lights instead of Switches
+//   (Cannot determine if 'on/off'-type device is a Light or a Switch :( )
 //
 // Domoticz JSON API required
 // https://www.domoticz.com/wiki/Domoticz_API/JSON_URL's#Lights_and_switches
@@ -95,7 +99,8 @@ DomoticzPlatform.prototype = {
 					if (json['result'] != undefined) {
 						var sArray=sortByKey(json['result'],"Name");
 						sArray.map(function(s) {
-							accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+							var havedimmer = (s.SwitchType == 'Dimmer')
+							accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, havedimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
 							foundAccessories.push(accessory);
 						})
 					}
@@ -118,7 +123,8 @@ DomoticzPlatform.prototype = {
 						sArray.map(function(s) {
 							//only accept switches for now
 							if (typeof s.SwitchType != 'undefined') {
-								accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+								var havedimmer = (s.SwitchType == 'Dimmer')
+								accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, havedimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
 								foundAccessories.push(accessory);
 							}
 						})
@@ -333,11 +339,11 @@ DomoticzAccessory.prototype = {
   },
 
   sType: function() {
-    if (this.HaveDimmer == true) {
+    //if (this.HaveDimmer == true) {
       return types.LIGHTBULB_STYPE
-    } else {
-      return types.SWITCH_STYPE
-    }
+    //} else {
+    //  return types.SWITCH_STYPE
+    //}
   },
 
   getServices: function() {
