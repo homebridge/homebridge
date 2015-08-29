@@ -216,7 +216,13 @@ PhilipsHueAccessory.prototype = {
         that.log(device.name + ", characteristic: " + characteristic + ", value: " + value + ".");
       }
       else {
-        that.log(err);
+        if (err.code == "ECONNRESET") {
+          setTimeout(function() {
+            that.executeChange(api, device, characteristic, value);
+          }, 300);
+        } else {
+          that.log(err);
+        }
       }
     });
   },
