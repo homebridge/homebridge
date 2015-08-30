@@ -1,3 +1,5 @@
+var Service = require("HAP-NodeJS").Service;
+var Characteristic = require("HAP-NodeJS").Characteristic;
 var types = require("HAP-NodeJS/accessories/types.js");
 var request = require("request");
 var tough = require('tough-cookie');
@@ -79,6 +81,7 @@ ZWayServerPlatform.getVDevServiceTypes = function(vdev){
     }
 }
 
+/*
 ZWayServerPlatform.getVDevCharacteristicsTypes = function(vdev){
     var typeKey = ZWayServerPlatform.getVDevTypeKey(vdev);
     switch (typeKey) {
@@ -96,6 +99,7 @@ ZWayServerPlatform.getVDevCharacteristicsTypes = function(vdev){
             return [types.BATTERY_LEVEL_CTYPE, types.STATUS_LOW_BATTERY_CTYPE];
     }
 }
+*/
 
 ZWayServerPlatform.prototype = {
 
@@ -108,7 +112,7 @@ ZWayServerPlatform.prototype = {
         opts.headers = {
             "Cookie": "ZWAYSession=" + this.sessionId
         };
-//opts.proxy = 'http://localhost:8888';
+opts.proxy = 'http://localhost:8888';
 
         request(opts, function(error, response, body){
             if(response.statusCode == 401){
@@ -116,7 +120,7 @@ ZWayServerPlatform.prototype = {
                 request({
                     method: "POST",
                     url: that.url + 'ZAutomation/api/v1/login',
-//proxy: 'http://localhost:8888',
+proxy: 'http://localhost:8888',
                     body: { //JSON.stringify({
                         "form": true,
                         "login": that.login,
@@ -235,6 +239,7 @@ ZWayServerAccessory.prototype = {
         });
     },
 
+    /*
     informationCharacteristics: function() {
         return [
             {
@@ -272,7 +277,7 @@ ZWayServerAccessory.prototype = {
                 onUpdate: null,
                 perms: ["pr"],
                 format: "string",
-                initialValue: "VDev-" + this.devDesc.devices[this.devDesc.primary].h, //TODO: Is this valid?
+                initialValue: "",
                 supportEvents: false,
                 supportBonjour: false,
                 manfDescription: "SN",
@@ -409,14 +414,14 @@ ZWayServerAccessory.prototype = {
             cTypes.push({
                 cType: types.CURRENTHEATINGCOOLING_CTYPE,
                 //TODO: Support multifunction thermostats...only heating supported now.
-                /*
+                / *
                 onUpdate: null,
                 onRead: function(callback) {
                     that.getCurrentHeatingCooling(function(currentHeatingCooling){
                         callback(currentHeatingCooling);
                     });
                 },
-                */
+                * /
                 perms: ["pr"],
                 format: "int",
                 initialValue: 1,
@@ -434,7 +439,7 @@ ZWayServerAccessory.prototype = {
             cTypes.push({
                 cType: types.TARGETHEATINGCOOLING_CTYPE,
                 //TODO: Support multifunction thermostats...only heating supported now.
-                /*
+                / *
                 onUpdate: function(value) {
                     that.setTargetHeatingCooling(value);
                 },
@@ -443,7 +448,7 @@ ZWayServerAccessory.prototype = {
                         callback(targetHeatingCooling);
                     });
                 },
-                */
+                * /
                 perms: ["pr"],
                 format: "int",
                 initialValue: 0,
@@ -550,7 +555,7 @@ ZWayServerAccessory.prototype = {
                     });
                 },
                 perms: ["pr","ev"],
-                format: "int",
+                format: "uint8",
                 initialValue:  100,
                 supportEvents: true,
                 supportBonjour: false,
@@ -575,7 +580,7 @@ ZWayServerAccessory.prototype = {
                     });
                 },
                 perms: ["pr","ev"],
-                format: "bool",
+                format: "uint8",
                 initialValue: 0,
                 supportEvents: false,
                 supportBonjour: false,
@@ -586,75 +591,317 @@ ZWayServerAccessory.prototype = {
         
         return cTypes;
     },
+    */
+    
+    getVDevServices: function(vdev){
+        var typeKey = ZWayServerPlatform.getVDevTypeKey(vdev);
+        var services = [], service;
+        switch (typeKey) {
+            case "switchBinary":
+                services.push(new Service.Switch(vdev.metrics.title));
+                break;
+            case "switchMultilevel":
+                services.push(new Service.Lightbulb(vdev.metrics.title));
+                break;
+            case "thermostat":
+                services.push(new Service.Thermostat(vdev.metrics.title));
+                break;
+            case "sensorMultilevel.Temperature":
+                services.push(new Service.TemperatureSensor(vdev.metrics.title));
+                break;
+            case "sensorBinary.Door/Window":
+                services.push(new Service.Door(vdev.metrics.title));
+                break;
+            case "battery.Battery":
+                services.push(new Service.BatteryService(vdev.metrics.title));
+                break;
+        }
+        
+        var validServices =[];
+        for(var i = 0; i < services.length; i++){
+            if(this.configureService(services[i], vdev))
+                validServices.push(services[i]);
+        }
+        
+        return validServices;
+    }
+    ,
+    uuidToTypeKeyMap: null
+    ,
+    getVDevForCharacteristic: function(cx, vdevPreferred){
+        var map = this.uuidToTypeKeyMap;
+        if(!map){
+            this.uuidToTypeKeyMap = map = {};
+            map[(new Characteristic.On).UUID] = ["switchBinary","switchMultilevel"];
+            map[(new Characteristic.Brightness).UUID] = ["switchMultilevel"];
+            map[(new Characteristic.CurrentTemperature).UUID] = ["sensorMultilevel.Temperature","thermostat"];
+            map[(new Characteristic.TargetTemperature).UUID] = ["thermostat"];
+            map[(new Characteristic.TemperatureDisplayUnits).UUID] = ["sensorMultilevel.Temperature","thermostat"]; //TODO: Always a fixed result
+            map[(new Characteristic.CurrentHeatingCoolingState).UUID] = ["thermostat"]; //TODO: Always a fixed result
+            map[(new Characteristic.TargetHeatingCoolingState).UUID] = ["thermostat"]; //TODO: Always a fixed result
+            map[(new Characteristic.CurrentDoorState).UUID] = ["sensorBinary.Door/Window","sensorBinary"];
+            map[(new Characteristic.TargetDoorState).UUID] = ["sensorBinary.Door/Window","sensorBinary"]; //TODO: Always a fixed result
+            map[(new Characteristic.ObstructionDetected).UUID] = ["sensorBinary.Door/Window","sensorBinary"]; //TODO: Always a fixed result
+            map[(new Characteristic.BatteryLevel).UUID] = ["battery.Battery"];
+            map[(new Characteristic.StatusLowBattery).UUID] = ["battery.Battery"];
+            map[(new Characteristic.ChargingState).UUID] = ["battery.Battery"]; //TODO: Always a fixed result
+        }
+        
+        var typekeys = map[cx.UUID];
+        if(typekeys === undefined) return null;
+        
+        if(vdevPreferred && typekeys.indexOf(ZWayServerPlatform.getVDevTypeKey(vdevPreferred)) >= 0){
+            return vdevPreferred;
+        }
+        
+        var candidates = this.devDesc.devices;
+        for(var i = 0; i < typekeys.length; i++){
+            for(var j = 0; j < candidates.length; j++){
+                if(ZWayServerPlatform.getVDevTypeKey(candidates[j]) === typekeys[i]) return candidates[j];
+            }
+        }
+        
+        return null;
+    }
+    ,
+    configureCharacteristic: function(cx, vdev){
+        var that = this;
 
+        var gdv = function(){
+            that.log("Default value for " + vdev.metrics.title + " is " + vdev.metrics.level);
+            return vdev.metrics.level;
+        };
+        
+        if(cx instanceof Characteristic.On){
+            cx.getDefaultValue = gdv;
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                that.platform.zwayRequest({
+                    method: "GET",
+                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                }).then(function(result){
+                    that.log("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
+                    var val;
+                    if(result.data.metrics.level === "off"){
+                        val = false;
+                    } else if(val <= 5) {
+                        val = false;
+                    } else if (val > 5) {
+                        val = true;
+                    }
+                    callback(false, val);
+                });
+            }.bind(this));
+            cx.on('set', function(powerOn, callback){
+                this.command(vdev, powerOn ? "on" : "off").then(function(result){
+                    callback();
+                });
+            }.bind(this));
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.Brightness){
+            cx.getDefaultValue = gdv;
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                that.platform.zwayRequest({
+                    method: "GET",
+                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                }).then(function(result){
+                    that.log("Got value " + result.data.metrics.level + " for " + vdev.metrics.title + ".");
+                    callback(false, result.data.metrics.level);
+                });
+            }.bind(this));
+            cx.on('set', function(level, callback){
+                this.command(vdev, "exact", {level: parseInt(level, 10)}).then(function(result){
+                    callback();
+                });
+            }.bind(this));
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.CurrentTemperature){
+            cx.getDefaultValue = gdv;
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                that.platform.zwayRequest({
+                    method: "GET",
+                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                }).then(function(result){
+                    callback(false, result.data.metrics.level);
+                });
+            }.bind(this));
+            cx.minimumValue = vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : -40;
+            cx.maximumValue = vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 999;
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.TargetTemperature){
+            cx.getDefaultValue = gdv;
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.platform.zwayRequest({
+                    method: "GET",
+                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                }).then(function(result){
+                    callback(false, result.data.metrics.level);
+                });
+            }.bind(this));
+            cx.on('set', function(level, callback){
+                this.command(vdev, "exact", {level: parseInt(level, 10)}).then(function(result){
+                    callback();
+                });
+            }.bind(this));
+            cx.minimumValue = vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : 5;
+            cx.maximumValue = vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 40;
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.TemperatureDisplayUnits){
+            //TODO: Always in °C for now.
+            cx.getDefaultValue = function(){ return Characteristic.TemperatureDisplayUnits.CELCIUS; };
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                callback(false, Characteristic.TemperatureDisplayUnits.CELCIUS);
+            });
+            cx.writable = false;
+            return cx;
+        }
+        
+        if(cx instanceof Characteristic.CurrentHeatingCoolingState){
+            //TODO: Always HEAT for now, we don't have an example to work with that supports another function.
+            cx.getDefaultValue = function(){ return Characteristic.CurrentHeatingCoolingState.HEAT; };
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                callback(false, Characteristic.CurrentHeatingCoolingState.HEAT);
+            });
+            return cx;
+        }
+        
+        if(cx instanceof Characteristic.TargetHeatingCoolingState){
+            //TODO: Always HEAT for now, we don't have an example to work with that supports another function.
+            cx.getDefaultValue = function(){ return Characteristic.TargetHeatingCoolingState.HEAT; };
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                callback(false, Characteristic.TargetHeatingCoolingState.HEAT);
+            });
+            cx.writable = false;
+            return cx;
+        }
+        
+        if(cx instanceof Characteristic.CurrentDoorState){
+            cx.getDefaultValue = function(){
+                return vdev.metrics.level == "off" ? Characteristic.CurrentDoorState.CLOSED : Characteristic.CurrentDoorState.OPEN;
+            };
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.platform.zwayRequest({
+                    method: "GET",
+                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                }).then(function(result){
+                    callback(false, result.data.metrics.level == "off" ? Characteristic.CurrentDoorState.CLOSED : Characteristic.CurrentDoorState.OPEN);
+                });
+            }.bind(this));
+        }
+        
+        if(cx instanceof Characteristic.TargetDoorState){
+            //TODO: We only support this for Door sensors now, so it's a fixed value.
+            cx.getDefaultValue = function(){ return Characteristic.TargetDoorState.CLOSED; };
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                callback(false, Characteristic.TargetDoorState.CLOSED);
+            });
+            //cx.readable = false;
+            cx.writable = false;
+        }
+        
+        if(cx instanceof Characteristic.ObstructionDetected){
+            //TODO: We only support this for Door sensors now, so it's a fixed value.
+            cx.getDefaultValue = function(){ return false; };
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                callback(false, false);
+            });
+            //cx.readable = false;
+            cx.writable = false;
+        }
+        
+        if(cx instanceof Characteristic.BatteryLevel){
+            cx.getDefaultValue = gdv;
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                that.platform.zwayRequest({
+                    method: "GET",
+                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                }).then(function(result){
+                    callback(false, result.data.metrics.level);
+                });
+            }.bind(this));
+        }
+        
+        if(cx instanceof Characteristic.StatusLowBattery){
+            cx.getDefaultValue = function(){ return Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL; };
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                that.platform.zwayRequest({
+                    method: "GET",
+                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+                }).then(function(result){
+                    callback(false, result.data.metrics.level <= that.platform.batteryLow ? Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW : Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL);
+                });
+            }.bind(this));
+        }
+        
+        if(cx instanceof Characteristic.ChargingState){
+            //TODO: No known chargeable devices(?), so always return false.
+            cx.getDefaultValue = function(){ return Characteristic.ChargingState.NOT_CHARGING; };
+            cx.on('get', function(callback, context){
+                that.log("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                callback(false, Characteristic.ChargingState.NOT_CHARGING);
+            });
+            //cx.readable = false;
+            cx.writable = false;
+        }
+        
+    }
+    ,
+    configureService: function(service, vdev){
+        var success = true;
+        for(var i = 0; i < service.characteristics.length; i++){
+            var cx = service.characteristics[i];
+            var vdev = this.getVDevForCharacteristic(cx, vdev);
+            if(!vdev){
+                success = false;
+                this.log("ERROR! Failed to configure required characteristic \"" + service.characteristics[i].displayName + "\"!");
+            }
+            cx = this.configureCharacteristic(cx, vdev);
+        }
+        for(var i = 0; i < service.optionalCharacteristics.length; i++){
+            var cx = service.optionalCharacteristics[i];
+            var vdev = this.getVDevForCharacteristic(cx);
+            if(!vdev) continue;
+            cx = this.configureCharacteristic(cx, vdev);
+        }
+        return success;
+    }
+    ,
     getServices: function() {
         var that = this;
-        var services = [{
-            sType: types.ACCESSORY_INFORMATION_STYPE,
-            characteristics: this.informationCharacteristics(),
-        }];
+        
+        var informationService = new Service.AccessoryInformation();
     
-        // rearrange the array so the primary is first
-        var vdevs = this.devDesc.devices.concat();
-        var p = vdevs.splice(this.devDesc.primary, 1)[0];
-        vdevs.unshift(p);
-        /*
-        for(var i = 0; i < vdevs.length; i++){
-            var sTypes = ZWayServerPlatform.getVDevServiceTypes(vdevs[i]);
-            if(!sTypes) continue;
-            for(var j = 0; j < sTypes.length; j++){
-                services.push({
-                    sType: sTypes[j],
-                    characteristics: this.controlCharacteristics(vdevs[i])
-                });
-            }
-        }
-        */
-       
-        var sTypes = ZWayServerPlatform.getVDevServiceTypes(vdevs[0]);
-        var cTypes = [{
-            cType: types.NAME_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: this.name,
-            supportEvents: true,
-            supportBonjour: false,
-            manfDescription: "Name of service",
-            designedMaxLength: 255
-        }];
-        if(sTypes) for(var i = 0; i < vdevs.length; i++){
-            cTypes = cTypes.concat(this.controlCharacteristics(vdevs[i]));
-        }
-        
-        // Scrub/eliminate duplicate cTypes? This is a lot of guesswork ATM...
-        var hits = {};
-        for (var i = 0; i < cTypes.length; i++){
-            if(hits[cTypes[i].cType]) cTypes.splice(i--, 1); // Remember postfix means post-evaluate!
-            else hits[cTypes[i].cType] = cTypes[i];
-        }
-        
-        // Thermostats MUST include current temperature...so, for the Danfoss/Devolo radiator
-        // thermostats, we have to fake one...
-        if (hits[types.TARGET_TEMPERATURE_CTYPE] && !hits[types.CURRENT_TEMPERATURE_CTYPE]) {
-            // Copy the "target" device to the "current" one, with necessary tweaks...
-            var tcx = hits[types.TARGET_TEMPERATURE_CTYPE];
-            var ccx = {};
-            for(var p in tcx){
-                if(tcx.hasOwnProperty(p)) ccx[p] = tcx[p];
-            }
-            ccx.cType = types.CURRENT_TEMPERATURE_CTYPE;
-            ccx.onUpdate = null;
-            ccx.perms = ["pr"];
-            //ccx.onRead = null; // Override this??
-            cTypes.push(ccx);
-        }         
+        informationService
+                .setCharacteristic(Characteristic.Name, this.name)
+                .setCharacteristic(Characteristic.Manufacturer, "Z-Wave.me")
+                .setCharacteristic(Characteristic.Model, "Virtual Device (VDev version 1)")
+                .setCharacteristic(Characteristic.SerialNumber, "VDev-" + this.devDesc.devices[this.devDesc.primary].h) //FIXME: Is this valid?);
 
-        services.push({
-            sType: sTypes[0],
-            characteristics: cTypes
-        });
-        //...
+        var services = [informationService];
+    
+        services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.primary]));
+        
+        if(this.devDesc.types["battery.Battery"])
+            services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.types["battery.Battery"]]));
         
         this.log("Loaded services for " + this.name);
         return services;
