@@ -8,6 +8,15 @@
 // - Added support for Scenes
 // - Sorting device names
 //
+// 26 August 2015 [EddyK69]
+// - Added parameter in config.json: 'loadscenes' for enabling/disabling loading scenes
+// - Fixed issue with dimmer-range; was 0-100, should be 0-16
+//
+// 27 August 2015 [EddyK69]
+// - Fixed issue that 'on/off'-type lights showed as dimmers in HomeKit. Checking now on SwitchType instead of HaveDimmer
+// - Fixed issue that 'on-off'-type lights would not react on Siri 'Switch on/off light'; On/Off types are now handled as Lights instead of Switches
+//   (Cannot determine if 'on/off'-type device is a Light or a Switch :( )
+//
 // Domoticz JSON API required
 // https://www.domoticz.com/wiki/Domoticz_API/JSON_URL's#Lights_and_switches
 //
@@ -18,7 +27,8 @@
 //         "name": "Domoticz",
 //         "server": "127.0.0.1",
 //         "port": "8080",
-//         "roomid": 123 (0=no roomplan)
+//         "roomid": 123,  (0=no roomplan)
+//         "loadscenes": 1 (0=disable scenes)
 //     }
 // ],
 //
@@ -46,6 +56,10 @@ function DomoticzPlatform(log, config){
 	this.roomid  = 0;
 	if (typeof config["roomid"] != 'undefined') {
 		this.roomid = config["roomid"];
+	}
+	this.loadscenes = 1;
+	if (typeof config["loadscenes"] != 'undefined') {
+		this.loadscenes = config["loadscenes"];
 	}
 }
 
@@ -85,7 +99,8 @@ DomoticzPlatform.prototype = {
 					if (json['result'] != undefined) {
 						var sArray=sortByKey(json['result'],"Name");
 						sArray.map(function(s) {
-							accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+							var havedimmer = (s.SwitchType == 'Dimmer')
+							accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, havedimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
 							foundAccessories.push(accessory);
 						})
 					}
@@ -108,7 +123,8 @@ DomoticzPlatform.prototype = {
 						sArray.map(function(s) {
 							//only accept switches for now
 							if (typeof s.SwitchType != 'undefined') {
-								accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+								var havedimmer = (s.SwitchType == 'Dimmer')
+								accessory = new DomoticzAccessory(that.log, that, false, s.idx, s.Name, havedimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
 								foundAccessories.push(accessory);
 							}
 						})
@@ -120,24 +136,26 @@ DomoticzPlatform.prototype = {
 			});
 		}
 		//Get Scenes
-		asyncCalls++;
-		request.get({
-			url: this.urlForQuery("type=scenes"),
-			json: true
-		}, function(err, response, json) {
-			if (!err && response.statusCode == 200) {
-				if (json['result'] != undefined) {
-					var sArray=sortByKey(json['result'],"Name");
-					sArray.map(function(s) {
-						accessory = new DomoticzAccessory(that.log, that, true, s.idx, s.Name, false, 0, false);
-						foundAccessories.push(accessory);
-					})
+		if (this.loadscenes == 1) {
+			asyncCalls++;
+			request.get({
+				url: this.urlForQuery("type=scenes"),
+				json: true
+			}, function(err, response, json) {
+				if (!err && response.statusCode == 200) {
+					if (json['result'] != undefined) {
+						var sArray=sortByKey(json['result'],"Name");
+						sArray.map(function(s) {
+							accessory = new DomoticzAccessory(that.log, that, true, s.idx, s.Name, false, 0, false);
+							foundAccessories.push(accessory);
+						})
+					}
+					callbackLater();
+				} else {
+					that.log("There was a problem connecting to Domoticz.");
 				}
-				callbackLater();
-			} else {
-				that.log("There was a problem connecting to Domoticz.");
-			}
-		});
+			});
+		}
 	}
 }
 
@@ -165,6 +183,9 @@ DomoticzAccessory.prototype = {
 				url = this.platform.urlForQuery("type=command&param=setcolbrightnessvalue&idx=" + this.idx + "&hue=" + value + "&brightness=100" + "&iswhite=false");
 			}
 			else if (c == "setLevel") {
+				//Range should be 0-16 instead of 0-100
+				//See http://www.domoticz.com/wiki/Domoticz_API/JSON_URL%27s#Set_a_dimmable_light_to_a_certain_level
+				value = Math.round((value / 100) * 16)
 				url = this.platform.urlForQuery("type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value);
 			}
 			else if (value != undefined) {
@@ -318,11 +339,11 @@ DomoticzAccessory.prototype = {
   },
 
   sType: function() {
-    if (this.HaveDimmer == true) {
+    //if (this.HaveDimmer == true) {
       return types.LIGHTBULB_STYPE
-    } else {
-      return types.SWITCH_STYPE
-    }
+    //} else {
+    //  return types.SWITCH_STYPE
+    //}
   },
 
   getServices: function() {

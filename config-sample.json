@@ -41,7 +41,9 @@
             "platform": "Domoticz",
             "name": "Domoticz",
             "server": "127.0.0.1",
-            "port": "8005"
+            "port": "8080",
+            "roomid": 0,
+            "loadscenes": 1
         },
         {
             "platform": "PhilipsHue",
@@ -153,12 +155,12 @@
         {
             "accessory":"MiLight",
             "name": "Lamp",
-            "ip_address": "255.255.255.255", // IP Address of the WiFi Bridge, or 255.255.255.255 to broadcast to all
-            "port": 8899, // Default port 8899 (50000 for v1 or v2 bridge)
-            "zone": 1, // Zone to address commands to (not used for rgb only bulbs)
-            "type": "rgbw", // Bulb type (rgbw, rgb, white)
-            "delay": 35, // Delay between commands sent to the WiFi bridge (default 35)
-            "repeat": 3 // Number of times each command is repeated for reliability (default 3)
+            "ip_address": "255.255.255.255",
+            "port": 8899,
+            "zone": 1,
+            "type": "rgbw",
+            "delay": 35,
+            "repeat": 3
         },
         {
             "accessory": "Tesla",
