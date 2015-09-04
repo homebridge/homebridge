@@ -4,7 +4,7 @@
 'use strict';
 var types = require("HAP-NodeJS/accessories/types.js");
 //var hardware = require('myHardwareSupport'); //require any additional hardware packages
-var Connection = require('eibd').connection;
+var knxd = require('eibd');
 
 function KNXPlatform(log, config){
     this.log = log;
@@ -17,9 +17,9 @@ function KNXPlatform(log, config){
     
 };
 
-MyPlatform.prototype = {
+KNXPlatform.prototype = {
     accessories: function(callback) {
-        this.log("Fetching myPlatform devices.");
+        this.log("Fetching KNX devices.");
         var that = this;
         
         
@@ -34,11 +34,16 @@ MyPlatform.prototype = {
         var myAccessories = [];
         
         for (var int = 0; int < foundAccessories.length; int++) {
-
+        	this.log("parsing acc " + int + " of " + foundAccessories.length);
         	// instantiate and push to array
-        	if (foundAccessories[i].accessory-type === "knxlamp") {
-        		
-        		myAccessories.push(new require('../accessories/knxlamp.js').accessory(this.log,foundAccessories[i]));
+        	if (foundAccessories[int].accessory_type === "knxlamp") {
+        		this.log("push new lamp with "+foundAccessories[int].name);
+        		foundAccessories[int].knxd_ip = this.config.knxd_ip;
+        		foundAccessories[int].knxd_port = this.config.knxd_port;
+        		var accConstructor = require('./../accessories/knxlamp.js');
+        		var acc = new accConstructor.accessory(this.log,foundAccessories[int]);
+        		this.log("created "+acc.name+" accessory");
+        		myAccessories.push(acc);
         	} else {
         		// do something else
         		this.log("unkown accessory type found")
@@ -46,6 +51,7 @@ MyPlatform.prototype = {
         	
         };	
         // if done, return the array to callback function
+        this.log("returning "+myAccessories.length+" accessories");
         callback(myAccessories);
     }
 };
@@ -118,7 +124,7 @@ var subscriptions = [];
 var running; 
 
 function groupsocketlisten(opts, callback) {
-	var conn = Connection();
+	var conn = knxd.Connection();
 	conn.socketRemote(opts, function() {
 		conn.openGroupSocket(0, callback);
 	});
@@ -201,6 +207,6 @@ var registerGA = function (groupAddresses, callback) {
 
 
 
-module.exports.platform = myPlatform;
+module.exports.platform = KNXPlatform;
 module.exports.registerGA = registerGA;
 module.exports.startMonitor = startMonitor;

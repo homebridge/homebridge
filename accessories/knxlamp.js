@@ -6,6 +6,8 @@
 var Service = require("HAP-NodeJS").Service;
 var Characteristic = require("HAP-NodeJS").Characteristic;
 var knxd = require("eibd");
+var knxd_registerGA = require('../platforms/KNX.js').registerGA;
+var knxd_startMonitor = require('../platforms/KNX.js').startMonitor;
 
 
 
@@ -21,6 +23,10 @@ function KNXlampAccessory(log, config) {
   this.brightness_listen_addresses = config.brightness_listen_addresses;
   this.knxd_ip = config.knxd_ip ; // eg 127.0.0.1 if running on localhost
   this.knxd_port = config.knxd_port || 6720; // eg 6720 default knxd port
+  if (config.name) {
+	  this.name = config.name;
+  }
+  log("Accessory constructor called");
   
 }
 
@@ -90,7 +96,7 @@ KNXlampAccessory.prototype = {
 	
 	knxregister: function(addresses, characteristic) {
 		console.log("knx registering " + addresses);
-		knxd.registerGA(addresses, function(value){
+		knxd_registerGA(addresses, function(value){
 			// parameters do not match
 			this.log("Getting value from bus:"+value);
 			characteristic.setValue(value, undefined, 'fromKNXBus');
@@ -174,7 +180,7 @@ KNXlampAccessory.prototype = {
         this.knxregister(this.brightness_addresses, brightnessCharacteristic);
         this.knxread(this.brightness_group_address); // issue a read request on the bus, maybe the device answers to that!
 	}
-    knxd.startMonitor({ host: this.knxd_ip, port: this.knxd_port });
+    knxd_startMonitor({ host: this.knxd_ip, port: this.knxd_port });
     return [informationService, lightbulbService];
   }
 };
