@@ -237,7 +237,7 @@ ZWayServerAccessory.prototype = {
                 services.push(new Service.TemperatureSensor(vdev.metrics.title));
                 break;
             case "sensorBinary.Door/Window":
-                services.push(new Service.Door(vdev.metrics.title));
+                services.push(new Service.GarageDoorOpener(vdev.metrics.title));
                 break;
             case "battery.Battery":
                 services.push(new Service.BatteryService(vdev.metrics.title));
@@ -388,6 +388,7 @@ ZWayServerAccessory.prototype = {
                     method: "GET",
                     url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
                 }).then(function(result){
+                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
                     callback(false, result.data.metrics.level);
                 });
             }.bind(this));
@@ -549,8 +550,9 @@ ZWayServerAccessory.prototype = {
     
         services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.primary]));
         
-        if(this.devDesc.types["battery.Battery"])
-            services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.types["battery.Battery"]]));
+        if(this.devDesc.types["battery.Battery"]){
+            //services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.types["battery.Battery"]]));
+        }
         
         debug("Loaded services for " + this.name);
         return services;
