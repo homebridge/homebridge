@@ -1,6 +1,6 @@
 /*
- * This is a demo KNX thermostat accessory shim.
- * It can 
+ * This is a demo KNX lamp accessory shim.
+ * It can switch a light on and off, and optionally set a brightness if configured to do so
  * 
  */
 var Service = require("HAP-NodeJS").Service;
@@ -11,16 +11,14 @@ var knxd_startMonitor = require('../platforms/KNX.js').startMonitor;
 
 
 
-function KNXlampAccessory(log, config) {
+function KNXthermoAccessory(log, config) {
   this.log = log;
-
+  this.config=config;
   
   // knx information on object
-  this.group_address = config.group_address;
-  this.listen_addresses = config.listen_addresses; // supposed to be undefined, an array of strings, or single string
-  this.can_dim = config.can_dim; //supposed to be true or false
-  this.brightness_group_address = config.brightness_group_address;
-  this.brightness_listen_addresses = config.brightness_listen_addresses;
+  this.curr_temp_address = config.curr_temp_address;
+  this.curr_temp_listen_addresses = config.curr_temp_listen_addresses; // supposed to be undefined, an array of strings, or single string
+  this.target_temp_address = config.target_temp_address; 
   this.knxd_ip = config.knxd_ip ; // eg 127.0.0.1 if running on localhost
   this.knxd_port = config.knxd_port || 6720; // eg 6720 default knxd port
   if (config.name) {
@@ -32,11 +30,11 @@ function KNXlampAccessory(log, config) {
 
 
 module.exports = {
-		  accessory: KNXlampAccessory
+		  accessory: KNXthermoAccessory
 		};
 
 
-KNXlampAccessory.prototype = {
+KNXthermoAccessory.prototype = {
 
 		
 	knxwrite: function(callback, groupAddress, dpt, value) {
@@ -58,7 +56,7 @@ KNXlampAccessory.prototype = {
 							this.log("[ERROR] knxwrite:sendAPDU: " + err);
 							callback(err);
 						} else {
-							// this.log("knx data sent");
+							this.log("knx data sent");
 							callback();
 						}
 					}.bind(this));
@@ -103,41 +101,7 @@ KNXlampAccessory.prototype = {
 		}.bind(this));
 	},
 	
-	setPowerState: function(value, callback, context) {
-		if (context === 'fromKNXBus') {
-			this.log("event ping pong, exit!");
-			if (callback) {
-				callback();
-			}
-		} else {
-			console.log("Setting power to %s", value);
-			var numericValue = 0;
-			if (value) {
-				numericValue = 1; // need 0 or 1, not true or something
-			}
-			this.knxwrite(callback, this.group_address,'DPT1',numericValue);			
-		}
-
-	},
-	
-
-  setBrightness: function(value, callback, context) {
-		if (context === 'fromKNXBus') {
-			this.log("event ping pong, exit!");
-			if (callback) {
-				callback();
-			}
-		} else {	  
-		  	this.log("Setting brightness to %s", value);
-			var numericValue = 0;
-			if (value) {
-				numericValue = 255*value/100;  // convert 1..100 to 1..255 for KNX bus  
-			}
-			this.knxwrite(callback, this.brightness_group_address,'DPT5',numericValue);
-		}
-	},
-
-  
+ 
   
   identify: function(callback) {
     this.log("Identify requested!");
@@ -152,35 +116,63 @@ KNXlampAccessory.prototype = {
     
     informationService
       .setCharacteristic(Characteristic.Manufacturer, "Opensource Community")
-      .setCharacteristic(Characteristic.Model, "KNX Light Switch with or without dimmer")
+      .setCharacteristic(Characteristic.Model, "KNX Thermostat")
       .setCharacteristic(Characteristic.SerialNumber, "Version 1");
     
-    var lightbulbService = new Service.Lightbulb();
+    var myService = new Service.Thermostat();
     
-    var onCharacteristic = lightbulbService
-      .getCharacteristic(Characteristic.On)
-      .on('set', this.setPowerState.bind(this));
-    onCharacteristic.supportsEventNotification=true;
+//    
+//    // Required Characteristics
+//    this.addCharacteristic(Characteristic.CurrentHeatingCoolingState);
+//    this.addCharacteristic(Characteristic.TargetHeatingCoolingState);
+//    this.addCharacteristic(Characteristic.CurrentTemperature); //check
+//    this.addCharacteristic(Characteristic.TargetTemperature);  //
+//    this.addCharacteristic(Characteristic.TemperatureDisplayUnits);
+//
+//    // Optional Characteristics
+//    this.addOptionalCharacteristic(Characteristic.CurrentRelativeHumidity);
+//    this.addOptionalCharacteristic(Characteristic.TargetRelativeHumidity);
+//    this.addOptionalCharacteristic(Characteristic.CoolingThresholdTemperature);
+//    this.addOptionalCharacteristic(Characteristic.HeatingThresholdTemperature);
+//    this.addOptionalCharacteristic(Characteristic.Name);
+    
+    
+    var CurrentTemperatureCharacteristic = myService
+      .getCharacteristic(Characteristic.CurrentTemperature)
+      // .on('set', this.setPowerState.bind(this));
+    CurrentTemperatureCharacteristic.supportsEventNotification=true;
     // register with value update service
-    this.addresses = [this.group_address];
-    this.log("DEBUG1 this.addresses = "+this.addresses);
-    this.log("DEBUG2 this.listen_addresses = "+this.listen_addresses);
-    this.addresses = this.addresses.concat(this.listen_addresses || []); // do not join anything if empty (do not add undefined)
-    this.log("DEBUG3 this.addresses = "+this.addresses);
-    this.knxregister(this.addresses, onCharacteristic);
-    this.knxread(this.group_address); // issue a read request on the bus, maybe the device answers to that!
+    this.addresses1 = [this.curr_temp_address];
+    this.addresses1 = this.addresses1.concat(this.curr_temp_listen_addresses || []); // do not join anything if empty (do not add undefined)
+    this.knxregister(this.addresses1, CurrentTemperatureCharacteristic);
+    this.knxread(this.curr_temp_address); // issue a read request on the bus, maybe the device answers to that!
     
-    if (this.can_dim) {
-    	var brightnessCharacteristic = lightbulbService
-			.addCharacteristic(new Characteristic.Brightness())
-			.on('set', this.setBrightness.bind(this));
-        // register with value update service
-        this.brightness_addresses = [this.brightness_group_address];
-        this.brightness_addresses.concat(this.brightness_listen_addresses || []); // do not join anything if empty (do not add undefined)
-        this.knxregister(this.brightness_addresses, brightnessCharacteristic);
-        this.knxread(this.brightness_group_address); // issue a read request on the bus, maybe the device answers to that!
-	}
+    var TargetTemperatureCharacteristic = myService
+    	.getCharacteristic(Characteristic.TargetTemperature)
+    	.on('set', function(value, callback, context) {
+    		if (context === 'fromKNXBus') {
+    			this.log("event ping pong, exit!");
+    			if (callback) {
+    				callback();
+    			}
+    		} else {
+    			console.log("Setting temperature to %s", value);
+    			var numericValue = 0.0;
+    			if (value) {
+    				numericValue = 0+value; // need to be numeric
+    			}
+    			this.knxwrite(callback, this.target_temp_address,'DPT9',numericValue);			
+    		}
+    	}.bind(this));
+	TargetTemperatureCharacteristic.supportsEventNotification=true;
+	// register with value update service
+	this.addresses2 = [this.target_temp_address];
+	this.addresses2 = this.addresses2.concat(this.target_temp_listen_addresses || []); // do not join anything if empty (do not add undefined)
+	this.knxregister(this.addresses2, TargetTemperatureCharacteristic);
+	this.knxread(this.target_temp_address); // issue a read request on the bus, maybe the device answers to that!
+    
+
     knxd_startMonitor({ host: this.knxd_ip, port: this.knxd_port });
-    return [informationService, lightbulbService];
+    return [informationService, myService];
   }
 };

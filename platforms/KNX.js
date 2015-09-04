@@ -36,18 +36,29 @@ KNXPlatform.prototype = {
         for (var int = 0; int < foundAccessories.length; int++) {
         	this.log("parsing acc " + int + " of " + foundAccessories.length);
         	// instantiate and push to array
-        	if (foundAccessories[int].accessory_type === "knxlamp") {
-        		this.log("push new lamp with "+foundAccessories[int].name);
-        		foundAccessories[int].knxd_ip = this.config.knxd_ip;
-        		foundAccessories[int].knxd_port = this.config.knxd_port;
-        		var accConstructor = require('./../accessories/knxlamp.js');
-        		var acc = new accConstructor.accessory(this.log,foundAccessories[int]);
-        		this.log("created "+acc.name+" accessory");
-        		myAccessories.push(acc);
-        	} else {
-        		// do something else
-        		this.log("unkown accessory type found")
-        	} //etc.
+        	switch (foundAccessories[int].accessory_type) {
+	        	case "knxlamp":
+	        		this.log("push new lamp with "+foundAccessories[int].name);
+	        		foundAccessories[int].knxd_ip = this.config.knxd_ip;
+	        		foundAccessories[int].knxd_port = this.config.knxd_port;
+	        		var accConstructor = require('./../accessories/knxlamp.js');
+	        		var acc = new accConstructor.accessory(this.log,foundAccessories[int]);
+	        		this.log("created "+acc.name+" accessory");
+	        		myAccessories.push(acc);
+	        		break;
+	        	case "knxthermostat":
+	        		this.log("push new thermostat with "+foundAccessories[int].name);
+	        		foundAccessories[int].knxd_ip = this.config.knxd_ip;
+	        		foundAccessories[int].knxd_port = this.config.knxd_port;
+	        		var accConstructor = require('./../accessories/knxthermostat.js');
+	        		var acc = new accConstructor.accessory(this.log,foundAccessories[int]);
+	        		this.log("created "+acc.name+" accessory");
+	        		myAccessories.push(acc);
+	        		break;
+	        	default:
+	        		// do something else
+	        		this.log("unkown accessory type found")
+        	} 
         	
         };	
         // if done, return the array to callback function
