@@ -1,0 +1,88 @@
+{
+	"bridge": {
+		"name": "Homebridge",
+		"username": "CC:22:3D:E3:CE:30",
+		"port": 51826,
+		"pin": "031-45-154"
+	},
+	"description": "This is an example configuration file for KNX platform shim",
+	"platforms": 
+		[
+		 {
+			 "platform": "KNX",
+			 "name": "KNX",
+			 "knxd_ip": "192.168.178.205",
+			 "knxd_port": 6720,
+			 "accessories": 
+				 [
+				  {
+					  "accessory_type": "knxdevice",
+					  "name": "Living Room North Lamp",
+					  "services": 
+						  [
+						   {
+							   "type": "Lightbulb",
+							   "name": "Living Room North Lamp",
+							   "On": {
+								   "Set": "1/1/6",
+								   "Listen": [
+								              "1/1/63"
+								              ]
+							   },
+							   "Brightness": {
+								   "Set": "1/1/62",
+								   "Listen": [
+								              "1/1/64"
+								              ]
+							   }
+						   }
+						   ]
+				  },
+				  {
+					  "accessory_type": "knxdevice",
+					  "name": "Office",
+					  "services": 
+						  [
+						   {
+							   "type": "Lightbulb",
+							   "name": "Office Lamp",
+							   "On": {
+								   "Set": "1/3/5"
+							   }
+						   },
+						   {
+							   "type": "Thermostat",
+							   "name": "Raumtemperatur",
+							   "CurrentTemperature": {
+								   "Listen": "3/3/44"
+							   },
+							   "TargetTemperature": {
+								   "Set": "3/3/94"
+							   },
+							   "CurrentHeatingCoolingState": {
+								   "Listen": "3/3/64"
+							   }
+						   },
+						   {
+							   "type": "WindowCovering",
+							   "name": "Rollo",
+							   "Target": {
+								   "Set": "address",
+								   "Listen": "adresses"
+							   },
+							   "Current": {
+								   "Set": "address",
+								   "Listen": "adresses"
+							   },
+							   "PositionState": {
+								   "Listen": "adresses"
+							   }
+						   }
+						   ]
+				  }
+				  ]
+		 }
+		 ],
+		 "accessories": [],
+		 "prototyping": {}
+}
