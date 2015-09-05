@@ -8,8 +8,9 @@ module.exports = {
 
 function WeMoAccessory(log, config) {
   this.log = log;
+  this.name = config["name"];
   this.service = config["service"] || "Switch";
-  this.wemoName = config["wemo_name"] || config["name"]; // fallback to "name" if you didn't specify an exact "wemo_name"
+  this.wemoName = config["wemo_name"] || this.name; // fallback to "name" if you didn't specify an exact "wemo_name"
   this.device = null; // instance of WeMo, for controlling the discovered device
   this.log("Searching for WeMo device with exact name '" + this.wemoName + "'...");
   this.search();
@@ -33,7 +34,7 @@ WeMoAccessory.prototype.getPowerOn = function(callback) {
 
   if (!this.device) {
     this.log("No '%s' device found (yet?)", this.wemoName);
-    callback(new Error("Device not found"));
+    callback(new Error("Device not found"), false);
     return;
   }
 
@@ -101,7 +102,7 @@ WeMoAccessory.prototype.setTargetDoorState = function(targetDoorState, callback)
 WeMoAccessory.prototype.getServices = function() {
   
   if (this.service == "Switch") {
-    var switchService = new Service.Switch("Switch");
+    var switchService = new Service.Switch(this.name);
     
     switchService
       .getCharacteristic(Characteristic.On)
@@ -115,7 +116,9 @@ WeMoAccessory.prototype.getServices = function() {
     
     garageDoorService
       .getCharacteristic(Characteristic.TargetDoorState)
-      .on('set', this.setTargetDoorState.bind(this));
+      .on('set', this.setTargetDoorState.bind(this))
+      .supportsEventNotification = false;
+    
     
     return [garageDoorService];
   }
