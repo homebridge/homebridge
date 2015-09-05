@@ -339,35 +339,6 @@ KNXDevice.prototype = {
 		 *  
 		 *  returns a configured service object to the caller (accessory/device)
 		 *  
-		 *  the config section is supposed to look like that for the complete device
-		 *  "devices": [
-            {
-                "accessory_type": "knxdevice",
-                "name": "Living Room North Lamp",
-                "services": [
-                    {
-                        "type": "Light",
-                        "name": "Living Room North Lamp",
-                        "On": {
-                            "Set": "1/1/6",
-                            "Listen": [
-                                "1/1/63"
-                            ]
-                        },
-                        "Brightness": {
-                            "Set": "1/1/62",
-                            "Listen": [
-                                "1/1/64"
-                            ]
-                        }
-                    }
-                ]
-            },
-
-		 *  for each service it is supposed to have a
-		 *  type
-		 *  name
-		 *  and service specific objects
 		 */
 
 		bindCharacteristic: function(myService, characteristicType, valueType, config) {
@@ -406,7 +377,7 @@ KNXDevice.prototype = {
 				} 
 			}
 			if ([config.Set].concat(config.Listen || []).length>0) {
-				this.log("Binding LISTEN");
+				//this.log("Binding LISTEN");
 				// can read
 				switch (valueType) {
 				case "Bool":
@@ -443,7 +414,7 @@ KNXDevice.prototype = {
 				this.log("[ERROR] Lightbulb Service without 'name' property called");
 				return undefined;
 			}
-			var myService = new Service.Lightbulb(config.name,config.name);
+			var myService = new Service.Lightbulb() //(config.name,config.name);
 			// On (and Off)
 			if (config.On) {
 				this.log("Lightbulb on/off characteristic enabled");
@@ -477,7 +448,7 @@ KNXDevice.prototype = {
 //			this.addOptionalCharacteristic(Characteristic.HeatingThresholdTemperature);
 
 
-			// some sanity checks
+			// some sanity checks 
 
 
 			if (config.type !== "Thermostat") {
@@ -488,7 +459,7 @@ KNXDevice.prototype = {
 				this.log("[ERROR] Thermostat Service without 'name' property called");
 				return undefined;
 			}
-			var myService = new Service.Thermostat(config.name,config.name);
+			var myService = new Service.Thermostat() //(config.name,config.name);
 			// CurrentTemperature)
 			if (config.CurrentTemperature) {
 				this.log("Thermostat CurrentTemperature characteristic enabled");
