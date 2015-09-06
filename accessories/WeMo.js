@@ -1,166 +1,128 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var Service = require("HAP-NodeJS").Service;
+var Characteristic = require("HAP-NodeJS").Characteristic;
 var wemo = require('wemo');
 
-// extend our search timeout from 5 seconds to 60
-wemo.SearchTimeout = 60000;
-wemo.timeout = wemo.SearchTimeout // workaround for a bug in wemo.js v0.0.4
+module.exports = {
+  accessory: WeMoAccessory
+}
 
 function WeMoAccessory(log, config) {
   this.log = log;
   this.name = config["name"];
-  this.wemoName = config["wemo_name"];
-  this.device = null;
+  this.service = config["service"] || "Switch";
+  this.wemoName = config["wemo_name"] || this.name; // fallback to "name" if you didn't specify an exact "wemo_name"
+  this.device = null; // instance of WeMo, for controlling the discovered device
   this.log("Searching for WeMo device with exact name '" + this.wemoName + "'...");
   this.search();
 }
 
-WeMoAccessory.prototype = {
-
-  search: function() {
-    var that = this;
-
-    wemo.Search(this.wemoName, function(err, device) {
-      if (!err && device) {
-        that.log("Found '"+that.wemoName+"' device at " + device.ip);
-        that.device = new wemo(device.ip, device.port);
-      }
-      else {
-        that.log("Error finding device '" + that.wemoName + "': " + err);
-        that.log("Continuing search for WeMo device with exact name '" + that.wemoName + "'...");
-        that.search();
-      }
-    });
-  },
-
-  setPowerState: function(powerOn) {
-
-    if (!this.device) {
-      this.log("No '"+this.wemoName+"' device found (yet?)");
-      return;
+WeMoAccessory.prototype.search = function() {
+  wemo.Search(this.wemoName, function(err, device) {
+    if (!err && device) {
+      this.log("Found '"+this.wemoName+"' device at " + device.ip);
+      this.device = new wemo(device.ip, device.port);
     }
-
-    var binaryState = powerOn ? 1 : 0;
-    var that = this;
-
-    this.log("Setting power state on the '"+this.wemoName+"' to " + binaryState);
-
-    this.device.setBinaryState(binaryState, function(err, result) {
-      if (!err) {
-        that.log("Successfully set power state on the '"+that.wemoName+"' to " + binaryState);
-      }
-      else {
-        that.log("Error setting power state on the '"+that.wemoName+"'")
-      }
-    });
-  },
-
-  getPowerState: function(callback) {
-
-    if (!this.device) {
-      this.log("No '"+this.wemoName+"' device found (yet?)");
-      return;
+    else {
+      this.log("Error finding device '" + this.wemoName + "': " + err);
+      this.log("Continuing search for WeMo device with exact name '" + this.wemoName + "'...");
+      this.search();
     }
+  }.bind(this));
+}
 
-    var that = this;
+WeMoAccessory.prototype.getPowerOn = function(callback) {
 
-    this.log("checking power state for: " + this.wemoName);
-    this.device.getBinaryState(function(err, result) {
-        if (!err) {
-            var binaryState = parseInt(result)
-            that.log("power state for " + that.wemoName + " is: " + binaryState)
-            callback(binaryState > 0 ? 1 : 0);
-        }
-        else {
-            that.log(err)
-        }
-    });
-  },
-
-  getServices: function() {
-    var that = this;
-    return [{
-      sType: types.ACCESSORY_INFORMATION_STYPE,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: this.name,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Name of the accessory",
-        designedMaxLength: 255
-      },{
-        cType: types.MANUFACTURER_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "WeMo",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Manufacturer",
-        designedMaxLength: 255
-      },{
-        cType: types.MODEL_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "Rev-1",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Model",
-        designedMaxLength: 255
-      },{
-        cType: types.SERIAL_NUMBER_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "A1S2NASF88EW",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "SN",
-        designedMaxLength: 255
-      },{
-        cType: types.IDENTIFY_CTYPE,
-        onUpdate: null,
-        perms: ["pw"],
-        format: "bool",
-        initialValue: false,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Identify Accessory",
-        designedMaxLength: 1
-      }]
-    },{
-      sType: types.SWITCH_STYPE,
-      characteristics: [{
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: this.name,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Name of service",
-        designedMaxLength: 255
-      },{
-        cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { that.setPowerState(value); },
-        onRead: function(callback) {
-          that.getPowerState(function(powerState){
-            callback(powerState);
-          });
-        },
-        perms: ["pw","pr","ev"],
-        format: "bool",
-        initialValue: false,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Change the power state of the WeMo",
-        designedMaxLength: 1
-      }]
-    }];
+  if (!this.device) {
+    this.log("No '%s' device found (yet?)", this.wemoName);
+    callback(new Error("Device not found"), false);
+    return;
   }
-};
 
-module.exports.accessory = WeMoAccessory;
+  this.log("Getting power state on the '%s'...", this.wemoName);
+
+  this.device.getBinaryState(function(err, result) {
+    if (!err) {
+      var binaryState = parseInt(result);
+      var powerOn = binaryState > 0;
+      this.log("Power state for the '%s' is %s", this.wemoName, binaryState);
+      callback(null, powerOn);
+    }
+    else {
+      this.log("Error getting power state on the '%s': %s", this.wemoName, err.message);
+      callback(err);
+    }
+  }.bind(this));
+}
+
+WeMoAccessory.prototype.setPowerOn = function(powerOn, callback) {
+
+  if (!this.device) {
+    this.log("No '%s' device found (yet?)", this.wemoName);
+    callback(new Error("Device not found"));
+    return;
+  }
+
+  var binaryState = powerOn ? 1 : 0; // wemo langauge
+  this.log("Setting power state on the '%s' to %s", this.wemoName, binaryState);
+
+  this.device.setBinaryState(binaryState, function(err, result) {
+    if (!err) {
+      this.log("Successfully set power state on the '%s' to %s", this.wemoName, binaryState);
+      callback(null);
+    }
+    else {
+      this.log("Error setting power state to %s on the '%s'", binaryState, this.wemoName);
+      callback(err);
+    }
+  }.bind(this));
+}
+
+WeMoAccessory.prototype.setTargetDoorState = function(targetDoorState, callback) {
+
+  if (!this.device) {
+    this.log("No '%s' device found (yet?)", this.wemoName);
+    callback(new Error("Device not found"));
+    return;
+  }
+
+  this.log("Activating WeMo switch '%s'", this.wemoName);
+
+  this.device.setBinaryState(1, function(err, result) {
+    if (!err) {
+      this.log("Successfully activated WeMo switch '%s'", this.wemoName);
+      callback(null);
+    }
+    else {
+      this.log("Error activating WeMo switch '%s'", this.wemoName);
+      callback(err);
+    }
+  }.bind(this));
+}
+
+WeMoAccessory.prototype.getServices = function() {
+  
+  if (this.service == "Switch") {
+    var switchService = new Service.Switch(this.name);
+    
+    switchService
+      .getCharacteristic(Characteristic.On)
+      .on('get', this.getPowerOn.bind(this))
+      .on('set', this.setPowerOn.bind(this));
+    
+    return [switchService];
+  }
+  else if (this.service == "GarageDoor") {
+    var garageDoorService = new Service.GarageDoorOpener("Garage Door Opener");
+    
+    garageDoorService
+      .getCharacteristic(Characteristic.TargetDoorState)
+      .on('set', this.setTargetDoorState.bind(this))
+      .supportsEventNotification = false;
+    
+    
+    return [garageDoorService];
+  }
+  else {
+    throw new Error("Unknown service type '%s'", this.service);
+  }
+}
