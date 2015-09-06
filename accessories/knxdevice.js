@@ -9,6 +9,7 @@ var knxd = require("eibd");
 var knxd_registerGA = require('../platforms/KNX.js').registerGA;
 var knxd_startMonitor = require('../platforms/KNX.js').startMonitor;
 
+var milliTimeout = 300; // used to block responses while swiping
 
 
 function KNXDevice(log, config) {
@@ -164,7 +165,14 @@ KNXDevice.prototype = {
 				characteristic.setValue(val ? 1 : 0, undefined, 'fromKNXBus');
 			}.bind(this));
 		},
-
+		knxregister_boolReverse: function(addresses, characteristic) {
+			this.log("knx registering BOOLEAN " + addresses);
+			knxd_registerGA(addresses, function(val, src, dest, type){
+				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type"+type + " for " + characteristic.displayName);
+//				iterate(characteristic);
+				characteristic.setValue(val ? 0 : 1, undefined, 'fromKNXBus');
+			}.bind(this));
+		},
 		// percentage: get 0..255 from the bus, write 0..100 to characteristic
 		knxregister_percent: function(addresses, characteristic) {
 			this.log("knx registering PERCENT " + addresses);
@@ -173,7 +181,16 @@ KNXDevice.prototype = {
 				if (type !== "DPT5") {
 					this.log("[ERROR] Received value cannot be a percentage value");
 				} else {
-					characteristic.setValue(Math.round(val/255*100), undefined, 'fromKNXBus');
+					if (!characteristic.timeout) {
+						if (characteristic.timeout < Date.now()) {
+							characteristic.setValue(Math.round(val/255*100), undefined, 'fromKNXBus');
+						} else {
+							this.log("Blackout time");
+						}
+					} else {
+						characteristic.setValue(Math.round(val/255*100), undefined, 'fromKNXBus');
+					} // todo get the boolean logic right into one OR expresssion
+
 				}
 			}.bind(this));
 		},
@@ -183,7 +200,13 @@ KNXDevice.prototype = {
 			this.log("knx registering FLOAT " + addresses);
 			knxd_registerGA(addresses, function(val, src, dest, type){
 				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type"+type+ " for " + characteristic.displayName);
-				characteristic.setValue(val, undefined, 'fromKNXBus');
+				var hk_value = Math.round(val*10)/10;
+				if (hk_value>=characteristic.minimumValue && hk_value<=characteristic.maximumValue) {
+					characteristic.setValue(hk_value, undefined, 'fromKNXBus'); // 1 decoimal for HomeKit
+				} else {
+					this.log("Value %s out of bounds %s...%s ",hk_value, characteristic.minimumValue, characteristic.maximumValue);
+				}
+					
 			}.bind(this));
 		},
 
@@ -195,16 +218,16 @@ KNXDevice.prototype = {
 				var HAPvalue = 0;
 				switch (val){
 				case 0: 
-					HAPvalue = 3;
+					HAPvalue = 1;
 					break;
 				case 1: 
-					HAPvalue = 3;
+					HAPvalue = 1;
 					break;
 				case 2: 
-					HAPvalue = 3;
+					HAPvalue = 1;
 					break;
 				case 3: 
-					HAPvalue = 3;
+					HAPvalue = 1;
 					break;
 				case 4: 
 					HAPvalue = 0;
@@ -262,7 +285,22 @@ KNXDevice.prototype = {
 			}
 
 		},
+		setBooleanReverseState: function(value, callback, context, gaddress) {
+			if (context === 'fromKNXBus') {
+				this.log(gaddress + " event ping pong, exit!");
+				if (callback) {
+					callback();
+				}
+			} else {
+				var numericValue = 0;
+				if (!value) {
+					numericValue = 1; // need 0 or 1, not true or something
+				}
+				this.log("Setting "+gaddress+" Boolean to %s", numericValue);
+				this.knxwrite(callback, gaddress,'DPT1',numericValue);			
+			}
 
+		},
 
 		setPercentage: function(value, callback, context, gaddress) {
 			if (context === 'fromKNXBus') {
@@ -289,7 +327,7 @@ KNXDevice.prototype = {
 			} else {
 				var numericValue = 0;
 				if (value) {
-					numericValue = value; // need 0 or 1, not true or something
+					numericValue = value; // homekit expects precision of 1 decimal
 				}
 				this.log("Setting "+gaddress+" Float to %s", numericValue);
 				this.knxwrite(callback, gaddress,'DPT9',numericValue);			
@@ -351,14 +389,18 @@ KNXDevice.prototype = {
 				switch (valueType) {
 				case "Bool":
 					myCharacteristic.on('set', function(value, callback, context) {
-//						this.log("ITERATE DEBUG");
-//						iterate(config);
 						this.setBooleanState(value, callback, context, config.Set);
+					}.bind(this));
+					break;
+				case "BoolReverse":
+					myCharacteristic.on('set', function(value, callback, context) {
+						this.setBooleanReverseState(value, callback, context, config.Set);
 					}.bind(this));
 					break;
 				case "Percent":
 					myCharacteristic.on('set', function(value, callback, context) {
 						this.setPercentage(value, callback, context, config.Set);
+						myCharacteristic.timeout = Date.now()+milliTimeout;
 					}.bind(this));	
 					break;
 				case "Float":
@@ -382,6 +424,9 @@ KNXDevice.prototype = {
 				switch (valueType) {
 				case "Bool":
 					this.knxregister_bool([config.Set].concat(config.Listen || []), myCharacteristic);
+					break;				
+				case "BoolReverse":
+					this.knxregister_boolReverse([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;
 				case "Percent":
 					this.knxregister_percent([config.Set].concat(config.Listen || []), myCharacteristic);
@@ -414,7 +459,7 @@ KNXDevice.prototype = {
 				this.log("[ERROR] Lightbulb Service without 'name' property called");
 				return undefined;
 			}
-			var myService = new Service.Lightbulb() //(config.name,config.name);
+			var myService = new Service.Lightbulb(config.name,config.name);
 			// On (and Off)
 			if (config.On) {
 				this.log("Lightbulb on/off characteristic enabled");
@@ -430,6 +475,45 @@ KNXDevice.prototype = {
 			//iterate(myService);
 			return myService;
 		},
+		
+		getLockMechanismService: function(config) {
+			// some sanity checks
+			//this.config = config;
+//			Characteristic.LockCurrentState.UNSECURED = 0;
+//			Characteristic.LockCurrentState.SECURED = 1;
+
+			if (config.type !== "LockMechanism") {
+				this.log("[ERROR] LockMechanism Service for non 'LockMechanism' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] LockMechanism Service without 'name' property called");
+				return undefined;
+			}
+			var myService = new Service.LockMechanism(config.name,config.name);
+			// LockCurrentState
+			if (config.LockCurrentState) {
+				// for normal contacts: Secured = 1
+				this.log("LockMechanism LockCurrentState characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.LockCurrentState, "Bool", config.LockCurrentState);
+			} else if (config.LockCurrentStateSecured0) { 
+				// for reverse contacts Secured = 0
+				this.log("LockMechanism LockCurrentState characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.LockCurrentState, "BoolReverse", config.LockCurrentStateSecured0);
+			} 
+			//  LockTargetState
+			if (config.LockTargetState) {
+				this.log("LockMechanism LockTargetState characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.LockTargetState, "Bool", config.LockTargetState);
+			} else 	if (config.LockTargetStateSecured0) {
+				this.log("LockMechanism LockTargetState characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.LockTargetState, "BoolReverse", config.LockTargetStateSecured0);
+			}
+
+			//iterate(myService);
+			return myService;
+		},
+		
 
 		getThermostatService: function(config) {
 
@@ -459,15 +543,18 @@ KNXDevice.prototype = {
 				this.log("[ERROR] Thermostat Service without 'name' property called");
 				return undefined;
 			}
-			var myService = new Service.Thermostat() //(config.name,config.name);
+			var myService = new Service.Thermostat(config.name,config.name);
 			// CurrentTemperature)
 			if (config.CurrentTemperature) {
 				this.log("Thermostat CurrentTemperature characteristic enabled");
 				this.bindCharacteristic(myService, Characteristic.CurrentTemperature, "Float", config.CurrentTemperature);
 			} 
-			// TargetTemperature if available
+			// TargetTemperature if available 
 			if (config.TargetTemperature) {
 				this.log("Thermostat TargetTemperature characteristic enabled");
+				// default boundary too narrow for thermostats
+				myService.getCharacteristic(Characteristic.TargetTemperature).minimumValue=0; // °C
+				myService.getCharacteristic(Characteristic.TargetTemperature).maximumValue=40; // °C
 				this.bindCharacteristic(myService, Characteristic.TargetTemperature, "Float", config.TargetTemperature);
 			}
 			// HVAC missing yet
@@ -477,7 +564,31 @@ KNXDevice.prototype = {
 			}
 			return myService;
 		},
+		
+		// temperature sensor type (iOS9 assumed)
+		getTemperatureSensorService: function(config) {
 
+
+
+			// some sanity checks 
+
+
+			if (config.type !== "TemperatureSensor") {
+				this.log("[ERROR] TemperatureSensor Service for non 'TemperatureSensor' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] TemperatureSensor Service without 'name' property called");
+				return undefined;
+			}
+			var myService = new Service.TemperatureSensor(config.name,config.name);
+			// CurrentTemperature)
+			if (config.CurrentTemperature) {
+				this.log("Thermostat CurrentTemperature characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.CurrentTemperature, "Float", config.CurrentTemperature);
+			} 
+			return myService;
+		},		
 
 
 		/* assemble the device ***************************************************************************************************/
@@ -517,6 +628,12 @@ KNXDevice.prototype = {
 				switch (configService.type) {
 				case "Lightbulb":
 					accessoryServices.push(this.getLightbulbService(configService));
+					break;
+				case "LockMechanism":
+					accessoryServices.push(this.getLockMechanismService(configService));
+					break;
+				case "TemperatureSensor":
+					accessoryServices.push(this.getTemperatureSensorService(configService));
 					break;
 				case "Thermostat":
 					accessoryServices.push(this.getThermostatService(configService));
