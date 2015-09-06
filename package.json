@@ -15,13 +15,17 @@
     "carwingsjs": "0.0.x",
     "color": "0.10.x",
     "elkington": "kevinohara80/elkington",
+<<<<<<< HEAD
     "eibd": "0.3.1",
     "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#fff863d7a387636fc612cf27cb859e82d9ee3294",
+=======
+    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#6bf0f9eaaa2d87db8d1768114c61f4acbb095c41",
+>>>>>>> nfarina/master
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "mdns": "^2.2.4",
     "node-hue-api": "^1.0.5",
-    "node-icontrol": "^0.1.3",
+    "node-icontrol": "^0.1.4",
     "node-milight-promise": "0.0.x",
     "node-persist": "0.0.x",
     "request": "2.49.x",
