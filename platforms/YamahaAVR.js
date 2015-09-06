@@ -1,13 +1,19 @@
 var types = require("HAP-NodeJS/accessories/types.js");
 var Yamaha = require('yamaha-nodejs');
 var mdns = require('mdns');
+//workaround for raspberry pi
+var sequence = [
+    mdns.rst.DNSServiceResolve(),
+    'DNSServiceGetAddrInfo' in mdns.dns_sd ? mdns.rst.DNSServiceGetAddrInfo() : mdns.rst.getaddrinfo({families:[4]}),
+    mdns.rst.makeAddressesUnique()
+];
 
 function YamahaAVRPlatform(log, config){
     this.log = log;
     this.config = config;
     this.playVolume = config["play_volume"];
     this.setMainInputTo = config["setMainInputTo"];
-    this.browser = mdns.createBrowser(mdns.tcp('http'));
+    this.browser = mdns.createBrowser(mdns.tcp('http'), {resolverSequence: sequence});
 }
 
 YamahaAVRPlatform.prototype = {
