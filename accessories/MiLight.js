@@ -69,60 +69,62 @@ function MiLight(log, config) {
   this.delay = config["delay"];
   this.repeat = config["repeat"];
 
-  var light = new Milight({
+  this.light = new Milight({
     ip: this.ip_address,
     port: this.port,
     delayBetweenCommands: this.delay,
     commandRepeat: this.repeat
-});
+  });
 
 }
 MiLight.prototype = {
 
   setPowerState: function(powerOn, callback) {
     if (powerOn) {
-      light.sendCommands(commands[this.type].on(this.zone));
       this.log("Setting power state to on");
+      this.light.sendCommands(commands[this.type].on(this.zone));
     } else {
-      light.sendCommands(commands[this.type].off(this.zone));
       this.log("Setting power state to off");
+      this.light.sendCommands(commands[this.type].off(this.zone));
     }
     callback();
   },
 
   setBrightness: function(level, callback) {
-    if (level <= 2 && (this.type == "rgbw" || this.type == "white")) {
-
+    if (level == 0) {
+      // If brightness is set to 0, turn off the lamp
+      this.log("Setting brightness to 0 (off)");
+      this.light.sendCommands(commands[this.type].off(this.zone));
+    } else if (level <= 2 && (this.type == "rgbw" || this.type == "white")) {
       // If setting brightness to 2 or lower, instead set night mode for lamps that support it
       this.log("Setting night mode", level);
 
-      light.sendCommands(commands[this.type].off(this.zone));
+      this.light.sendCommands(commands[this.type].off(this.zone));
       // Ensure we're pausing for 100ms between these commands as per the spec
-      light.pause(100);
-      light.sendCommands(commands[this.type].nightMode(this.zone));
+      this.light.pause(100);
+      this.light.sendCommands(commands[this.type].nightMode(this.zone));
 
     } else {
       this.log("Setting brightness to %s", level);
 
       // Send on command to ensure we're addressing the right bulb
-      light.sendCommands(commands[this.type].on(this.zone));
+      this.light.sendCommands(commands[this.type].on(this.zone));
 
       // If this is an rgbw lamp, set the absolute brightness specified
       if (this.type == "rgbw") {
-        light.sendCommands(commands.rgbw.brightness(level));
+        this.light.sendCommands(commands.rgbw.brightness(level));
       } else {
-
         // If this is an rgb or a white lamp, they only support brightness up and down.
         // Set brightness up when value is >50 and down otherwise. Not sure how well this works real-world.
         if (level >= 50) {
           if (this.type == "white" && level == 100) {
             // But the white lamps do have a "maximum brightness" command
-            light.sendCommands(commands.white.maxBright(this.zone));
+            this.light.sendCommands(commands.white.maxBright(this.zone));
           } else {
-            light.sendCommands(commands[this.type].brightUp());
+            this.light.sendCommands(commands[this.type].brightUp());
           }
         } else {
-          light.sendCommands(commands[this.type].brightDown());
+          this.light.sendCommands(commands[this.type].brightDown());
         }
       }
     }
@@ -132,23 +134,25 @@ MiLight.prototype = {
   setHue: function(value, callback) {
     this.log("Setting hue to %s", value);
 
+    var hue = Array(value, 0, 0);
+
     // Send on command to ensure we're addressing the right bulb
-    light.sendCommands(commands[this.type].on(this.zone));
+    this.light.sendCommands(commands[this.type].on(this.zone));
 
     if (this.type == "rgbw") {
       if (value == 0) {
-        light.sendCommands(commands.rgbw.whiteMode(this.zone));
+        this.light.sendCommands(commands.rgbw.whiteMode(this.zone));
       } else {
-        light.sendCommands(commands.rgbw.hue(commands.rgbw.hsvToMilightColor(Array(value, 0, 0))));
+        this.light.sendCommands(commands.rgbw.hue(commands.rgbw.hsvToMilightColor(hue)));
       }
     } else if (this.type == "rgb") {
-      light.sendCommands(commands.rgb.hue(commands.rgbw.hsvToMilightColor(Array(value, 0, 0))));
+      this.light.sendCommands(commands.rgb.hue(commands.rgbw.hsvToMilightColor(hue)));
     } else if (this.type == "white") {
       // Again, white lamps don't support setting an absolue colour temp, so trying to do warmer/cooler step at a time based on colour
       if (value >= 180) {
-        light.sendCommands(commands.white.warmer());
+        this.light.sendCommands(commands.white.warmer());
       } else {
-        light.sendCommands(commands.white.cooler());
+        this.light.sendCommands(commands.white.cooler());
       }
     }
 
