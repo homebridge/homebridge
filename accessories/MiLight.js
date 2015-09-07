@@ -1,3 +1,53 @@
+/*
+
+MiLight accessory shim for Homebridge
+Written by Sam Edwards (https://samedwards.ca/)
+
+Uses the node-milight-promise library (https://github.com/mwittig/node-milight-promise) which features some code from
+applamp.nl (http://www.applamp.nl/service/applamp-api/) and uses other details from (http://www.limitlessled.com/dev/)
+
+Configure in config.json as follows:
+
+"accessories": [
+        {
+            "accessory":"MiLight",
+            "name": "Lamp",
+            "ip_address": "255.255.255.255",
+            "port": 8899,
+            "zone": 1,
+            "type": "rgbw",
+            "delay": 30,
+            "repeat": 3
+        }
+]
+
+Where the parameters are:
+ *accessory (required): This must be "MiLight", and refers to the name of the accessory as exported from this file
+ *name (required): The name for this light/zone, as passed on to Homebridge and HomeKit
+ *ip_address (optional): The IP address of the WiFi Bridge. Default to the broadcast address of 255.255.255.255 if not specified
+ *port (optional): Port of the WiFi bridge. Defaults to 8899 if not specified
+ *zone (required): The zone to target with this accessory. "0" for all zones on the bridge, otherwise 1-4 for a specific zone
+ *type (required): One of either "rgbw", "rgb", or "white", depending on the type of bulb being controlled
+ *delay (optional): Delay between commands sent over UDP. Default 30ms
+ *repeat (optional): Number of times to repeat the UDP command for better reliability. Default 3
+
+Tips and Tricks:
+ *Setting the brightness of an rgbw or a white bulb will set it to "night mode", which is dimmer than the lowest brightness setting
+ *White and rgb bulbs don't support absolute brightness setting, so we just send a brightness up/brightness down command depending
+   if we got a percentage above/below 50% respectively
+ *The only exception to the above is that white bulbs support a "maximum brightness" command, so we send that when we get 100%
+ *Implemented warmer/cooler for white lamps in a similar way to brightnes, except this time above/below 180 degrees on the colour wheel
+ *I welcome feedback on a better way to work the brightness/hue for white and rgb bulbs
+
+Troubleshooting:
+The node-milight-promise library provides additional debugging output when the MILIGHT_DEBUG environmental variable is set
+
+TODO:
+ *Probably convert this module to a platform that can configure an entire bridge at once, just passing a name for each zone
+ *Possibly build in some sort of state logging and persistance so that we can answswer HomeKit status queries to the best of our ability
+
+*/
+
 var Service = require("HAP-NodeJS").Service;
 var Characteristic = require("HAP-NodeJS").Characteristic;
 var Milight = require('node-milight-promise').MilightController;
@@ -18,15 +68,15 @@ function MiLight(log, config) {
   this.type = config["type"];
   this.delay = config["delay"];
   this.repeat = config["repeat"];
-}
 
-var light = new Milight({
-  ip: this.ip_address,
-  port: this.port,
-  delayBetweenCommands: this.delay,
-  commandRepeat: this.repeat
+  var light = new Milight({
+    ip: this.ip_address,
+    port: this.port,
+    delayBetweenCommands: this.delay,
+    commandRepeat: this.repeat
 });
 
+}
 MiLight.prototype = {
 
   setPowerState: function(powerOn, callback) {
@@ -42,12 +92,15 @@ MiLight.prototype = {
 
   setBrightness: function(level, callback) {
     if (level <= 2 && (this.type == "rgbw" || this.type == "white")) {
+
       // If setting brightness to 2 or lower, instead set night mode for lamps that support it
       this.log("Setting night mode", level);
 
       light.sendCommands(commands[this.type].off(this.zone));
-      // Not sure if this timing is going to work or not? It's supposed to be 100ms after the off command
+      // Ensure we're pausing for 100ms between these commands as per the spec
+      light.pause(100);
       light.sendCommands(commands[this.type].nightMode(this.zone));
+
     } else {
       this.log("Setting brightness to %s", level);
 
@@ -58,6 +111,7 @@ MiLight.prototype = {
       if (this.type == "rgbw") {
         light.sendCommands(commands.rgbw.brightness(level));
       } else {
+
         // If this is an rgb or a white lamp, they only support brightness up and down.
         // Set brightness up when value is >50 and down otherwise. Not sure how well this works real-world.
         if (level >= 50) {
