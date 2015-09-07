@@ -57,6 +57,7 @@ function ZWayServerPlatform(log, config){
     this.password     = config["password"];
     this.name_overrides = config["name_overrides"];
     this.batteryLow   = config["battery_low_level"];
+    this.pollInterval = config["poll_interval"] || 2;
     this.userAgent = "HomeBridge/-1^0.5";
     this.sessionId = "";
     this.jar = request.jar(new tough.CookieJar());
@@ -64,22 +65,6 @@ function ZWayServerPlatform(log, config){
 
 ZWayServerPlatform.getVDevTypeKey = function(vdev){
     return vdev.deviceType + (vdev.metrics && vdev.metrics.probeTitle ? "." + vdev.metrics.probeTitle : "")
-}
-
-ZWayServerPlatform.getVDevServiceTypes = function(vdev){
-    var typeKey = ZWayServerPlatform.getVDevTypeKey(vdev);
-    switch (typeKey) {
-        case "switchBinary":
-            return [types.SWITCH_STYPE];
-        case "switchMultilevel":
-            return [types.LIGHTBULB_STYPE];
-        case "thermostat":
-            return [types.THERMOSTAT_STYPE];
-        case "sensorMultilevel.Temperature":
-            return [types.TEMPERATURE_SENSOR_STYPE];
-        case "sensorBinary.Door/Window":
-            return [types.GARAGE_DOOR_OPENER_STYPE];
-    }
 }
 
 ZWayServerPlatform.prototype = {
@@ -211,7 +196,14 @@ function ZWayServerAccessory(name, dclass, devDesc, platform) {
 
 
 ZWayServerAccessory.prototype = {
-
+    
+    getVDev: function(vdev){
+        return this.platform.zwayRequest({
+            method: "GET",
+            url: this.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
+        })//.then(function());
+    }
+    ,
     command: function(vdev, command, value) {
         return this.platform.zwayRequest({
             method: "GET",
@@ -237,7 +229,7 @@ ZWayServerAccessory.prototype = {
                 services.push(new Service.TemperatureSensor(vdev.metrics.title));
                 break;
             case "sensorBinary.Door/Window":
-                services.push(new Service.GarageDoorOpener(vdev.metrics.title));
+                //services.push(new Service.GarageDoorOpener(vdev.metrics.title));
                 break;
             case "battery.Battery":
                 services.push(new Service.BatteryService(vdev.metrics.title));
@@ -316,23 +308,23 @@ ZWayServerAccessory.prototype = {
         }
         
         if(cx instanceof Characteristic.On){
-            cx.getDefaultValue = gdv;
+            cx.zway_getValueFromVDev = function(vdev){
+                var val = false;
+                if(vdev.metrics.level === "off"){
+                    val = false;
+                } else if(vdev.metrics.level <= 5) {
+                    val = false;
+                } else if (vdev.metrics.level > 5) {
+                    val = true;
+                }
+                return val;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                that.platform.zwayRequest({
-                    method: "GET",
-                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
-                }).then(function(result){
-                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
-                    var val;
-                    if(result.data.metrics.level === "off"){
-                        val = false;
-                    } else if(val <= 5) {
-                        val = false;
-                    } else if (val > 5) {
-                        val = true;
-                    }
-                    callback(false, val);
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
             cx.on('set', function(powerOn, callback){
@@ -344,15 +336,15 @@ ZWayServerAccessory.prototype = {
         }
 
         if(cx instanceof Characteristic.Brightness){
-            cx.getDefaultValue = gdv;
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                that.platform.zwayRequest({
-                    method: "GET",
-                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
-                }).then(function(result){
-                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
-                    callback(false, result.data.metrics.level);
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
             cx.on('set', function(level, callback){
@@ -364,15 +356,15 @@ ZWayServerAccessory.prototype = {
         }
 
         if(cx instanceof Characteristic.CurrentTemperature){
-            cx.getDefaultValue = gdv;
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                that.platform.zwayRequest({
-                    method: "GET",
-                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
-                }).then(function(result){
-                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
-                    callback(false, result.data.metrics.level);
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
             cx.minimumValue = vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : -40;
@@ -381,15 +373,15 @@ ZWayServerAccessory.prototype = {
         }
 
         if(cx instanceof Characteristic.TargetTemperature){
-            cx.getDefaultValue = gdv;
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                this.platform.zwayRequest({
-                    method: "GET",
-                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
-                }).then(function(result){
-                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
-                    callback(false, result.data.metrics.level);
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
             cx.on('set', function(level, callback){
@@ -405,10 +397,11 @@ ZWayServerAccessory.prototype = {
 
         if(cx instanceof Characteristic.TemperatureDisplayUnits){
             //TODO: Always in °C for now.
-            cx.getDefaultValue = function(){ return Characteristic.TemperatureDisplayUnits.CELCIUS; };
+            cx.getDefaultValue = function(){ return Characteristic.TemperatureDisplayUnits.CELSIUS; };
+            cx.value = cx.getDefaultValue();
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                callback(false, Characteristic.TemperatureDisplayUnits.CELCIUS);
+                callback(false, Characteristic.TemperatureDisplayUnits.CELSIUS);
             });
             cx.writable = false;
             return cx;
@@ -417,6 +410,7 @@ ZWayServerAccessory.prototype = {
         if(cx instanceof Characteristic.CurrentHeatingCoolingState){
             //TODO: Always HEAT for now, we don't have an example to work with that supports another function.
             cx.getDefaultValue = function(){ return Characteristic.CurrentHeatingCoolingState.HEAT; };
+            cx.value = cx.getDefaultValue();
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.CurrentHeatingCoolingState.HEAT);
@@ -427,6 +421,7 @@ ZWayServerAccessory.prototype = {
         if(cx instanceof Characteristic.TargetHeatingCoolingState){
             //TODO: Always HEAT for now, we don't have an example to work with that supports another function.
             cx.getDefaultValue = function(){ return Characteristic.TargetHeatingCoolingState.HEAT; };
+            cx.value = cx.getDefaultValue();
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TargetHeatingCoolingState.HEAT);
@@ -436,17 +431,15 @@ ZWayServerAccessory.prototype = {
         }
         
         if(cx instanceof Characteristic.CurrentDoorState){
-            cx.getDefaultValue = function(){
-                return vdev.metrics.level == "off" ? Characteristic.CurrentDoorState.CLOSED : Characteristic.CurrentDoorState.OPEN;
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level === "off" ? Characteristic.CurrentDoorState.CLOSED : Characteristic.CurrentDoorState.OPEN;
             };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                this.platform.zwayRequest({
-                    method: "GET",
-                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
-                }).then(function(result){
-                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
-                    callback(false, result.data.metrics.level == "off" ? Characteristic.CurrentDoorState.CLOSED : Characteristic.CurrentDoorState.OPEN);
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
         }
@@ -454,6 +447,7 @@ ZWayServerAccessory.prototype = {
         if(cx instanceof Characteristic.TargetDoorState){
             //TODO: We only support this for Door sensors now, so it's a fixed value.
             cx.getDefaultValue = function(){ return Characteristic.TargetDoorState.CLOSED; };
+            cx.value = cx.getDefaultValue();
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TargetDoorState.CLOSED);
@@ -465,6 +459,7 @@ ZWayServerAccessory.prototype = {
         if(cx instanceof Characteristic.ObstructionDetected){
             //TODO: We only support this for Door sensors now, so it's a fixed value.
             cx.getDefaultValue = function(){ return false; };
+            cx.value = cx.getDefaultValue();
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, false);
@@ -474,29 +469,29 @@ ZWayServerAccessory.prototype = {
         }
         
         if(cx instanceof Characteristic.BatteryLevel){
-            cx.getDefaultValue = gdv;
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                that.platform.zwayRequest({
-                    method: "GET",
-                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
-                }).then(function(result){
-                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
-                    callback(false, result.data.metrics.level);
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
         }
         
         if(cx instanceof Characteristic.StatusLowBattery){
-            cx.getDefaultValue = function(){ return Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL; };
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level <= that.platform.batteryLow ? Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW : Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                that.platform.zwayRequest({
-                    method: "GET",
-                    url: that.platform.url + 'ZAutomation/api/v1/devices/' + vdev.id
-                }).then(function(result){
-                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
-                    callback(false, result.data.metrics.level <= that.platform.batteryLow ? Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW : Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL);
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
         }
@@ -504,6 +499,7 @@ ZWayServerAccessory.prototype = {
         if(cx instanceof Characteristic.ChargingState){
             //TODO: No known chargeable devices(?), so always return false.
             cx.getDefaultValue = function(){ return Characteristic.ChargingState.NOT_CHARGING; };
+            cx.value = cx.getDefaultValue();
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.ChargingState.NOT_CHARGING);
