@@ -134,10 +134,10 @@ MiLightAccessory.prototype = {
 
   setPowerState: function(powerOn, callback) {
     if (powerOn) {
-      this.log("Setting power state to on");
+      this.log("["+this.name+"] Setting power state to on");
       this.light.sendCommands(commands[this.type].on(this.zone));
     } else {
-      this.log("Setting power state to off");
+      this.log("["+this.name+"] Setting power state to off");
       this.light.sendCommands(commands[this.type].off(this.zone));
     }
     callback();
@@ -146,11 +146,11 @@ MiLightAccessory.prototype = {
   setBrightness: function(level, callback) {
     if (level == 0) {
       // If brightness is set to 0, turn off the lamp
-      this.log("Setting brightness to 0 (off)");
+      this.log("["+this.name+"] Setting brightness to 0 (off)");
       this.light.sendCommands(commands[this.type].off(this.zone));
     } else if (level <= 2 && (this.type == "rgbw" || this.type == "white")) {
       // If setting brightness to 2 or lower, instead set night mode for lamps that support it
-      this.log("Setting night mode", level);
+      this.log("["+this.name+"] Setting night mode", level);
 
       this.light.sendCommands(commands[this.type].off(this.zone));
       // Ensure we're pausing for 100ms between these commands as per the spec
@@ -158,7 +158,7 @@ MiLightAccessory.prototype = {
       this.light.sendCommands(commands[this.type].nightMode(this.zone));
 
     } else {
-      this.log("Setting brightness to %s", level);
+      this.log("["+this.name+"] Setting brightness to %s", level);
 
       // Send on command to ensure we're addressing the right bulb
       this.light.sendCommands(commands[this.type].on(this.zone));
@@ -185,7 +185,7 @@ MiLightAccessory.prototype = {
   },
 
   setHue: function(value, callback) {
-    this.log("Setting hue to %s", value);
+    this.log("["+this.name+"] Setting hue to %s", value);
 
     var hue = Array(value, 0, 0);
 
@@ -212,7 +212,7 @@ MiLightAccessory.prototype = {
   },
 
   identify: function(callback) {
-    this.log("Identify requested!");
+    this.log("["+this.name+"] Identify requested!");
     callback(); // success
   },
 
