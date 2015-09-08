@@ -65,7 +65,6 @@ function MiLightPlatform(log, config) {
 
 MiLightPlatform.prototype = {
   accessories: function(callback) {
-    var that = this;
     var zones = [];
 
     // Various error checking    
@@ -208,7 +207,7 @@ MiLightAccessory.prototype = {
         this.light.sendCommands(commands.white.cooler());
       }
     }
-
+    callback();
   },
 
   identify: function(callback) {
