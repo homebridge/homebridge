@@ -1,6 +1,6 @@
 /*
 
-MiLight accessory shim for Homebridge
+MiLight platform shim for Homebridge
 Written by Sam Edwards (https://samedwards.ca/)
 
 Uses the node-milight-promise library (https://github.com/mwittig/node-milight-promise) which features some code from
@@ -8,28 +8,28 @@ applamp.nl (http://www.applamp.nl/service/applamp-api/) and uses other details f
 
 Configure in config.json as follows:
 
-"accessories": [
+"platforms": [
         {
-            "accessory":"MiLight",
-            "name": "Lamp",
+            "platform":"MiLight",
+            "name":"MiLight",
             "ip_address": "255.255.255.255",
             "port": 8899,
-            "zone": 1,
             "type": "rgbw",
             "delay": 30,
-            "repeat": 3
+            "repeat": 3,
+            "zones":["Kitchen Lamp","Bedroom Lamp","Living Room Lamp","Hallway Lamp"]
         }
 ]
 
 Where the parameters are:
- *accessory (required): This must be "MiLight", and refers to the name of the accessory as exported from this file
- *name (required): The name for this light/zone, as passed on to Homebridge and HomeKit
+ *platform (required): This must be "MiLight", and refers to the name of the accessory as exported from this file
+ *name (optional): The display name used for logging output by Homebridge. Best to set to "MiLight"
  *ip_address (optional): The IP address of the WiFi Bridge. Default to the broadcast address of 255.255.255.255 if not specified
  *port (optional): Port of the WiFi bridge. Defaults to 8899 if not specified
- *zone (required): The zone to target with this accessory. "0" for all zones on the bridge, otherwise 1-4 for a specific zone
- *type (required): One of either "rgbw", "rgb", or "white", depending on the type of bulb being controlled
+ *type (optional): One of either "rgbw", "rgb", or "white", depending on the type of bulb being controlled. This applies to all zones. Defaults to rgbw.
  *delay (optional): Delay between commands sent over UDP. Default 30ms
  *repeat (optional): Number of times to repeat the UDP command for better reliability. Default 3
+ *zones (required): An array of the names of the zones, in order, 1-4. Use null if a zone is skipped. RGB lamps can only have a single zone.
 
 Tips and Tricks:
  *Setting the brightness of an rgbw or a white bulb will set it to "night mode", which is dimmer than the lowest brightness setting
@@ -43,7 +43,6 @@ Troubleshooting:
 The node-milight-promise library provides additional debugging output when the MILIGHT_DEBUG environmental variable is set
 
 TODO:
- *Probably convert this module to a platform that can configure an entire bridge at once, just passing a name for each zone
  *Possibly build in some sort of state logging and persistance so that we can answswer HomeKit status queries to the best of our ability
 
 */
@@ -54,10 +53,64 @@ var Milight = require('node-milight-promise').MilightController;
 var commands = require('node-milight-promise').commands;
 
 module.exports = {
-  accessory: MiLight
+  accessory: MiLightAccessory,
+  platform: MiLightPlatform
 }
 
-function MiLight(log, config) {
+function MiLightPlatform(log, config) {
+  this.log = log;
+  
+  this.config = config;
+}
+
+MiLightPlatform.prototype = {
+  accessories: function(callback) {
+    var that = this;
+    var zones = [];
+
+    // Various error checking    
+    if (this.config.zones) {
+      var zoneLength = this.config.zones.length;
+    } else {
+      this.log("ERROR: Could not read zones from configuration.");
+      return;
+    }
+
+    if (!this.config["type"]) {
+      this.log("INFO: Type not specified, defaulting to rgbw");
+      this.config["type"] = "rgbw";
+    }
+
+    if (zoneLength == 0) {
+      this.log("ERROR: No zones found in configuration.");
+      return;
+    } else if (this.config["type"] == "rgb" && zoneLength > 1) {
+      this.log("WARNING: RGB lamps only have a single zone. Only the first defined zone will be used.");
+      zoneLength = 1;
+    } else if (zoneLength > 4) {
+      this.log("WARNING: Only a maximum of 4 zones are supported per bridge. Only recognizing the first 4 zones.");
+      zoneLength = 4;
+    }
+
+    // Create lamp accessories for all of the defined zones
+    for (var i=0; i < zoneLength; i++) {
+      if (!!this.config.zones[i]) {
+        this.config["name"] = this.config.zones[i];
+        this.config["zone"] = i+1;
+        lamp = new MiLightAccessory(this.log, this.config);
+        zones.push(lamp);
+      }
+    }
+    if (zones.length > 0) {
+      callback(zones);
+    } else {
+      this.log("ERROR: Unable to find any valid zones");
+      return;
+    }
+  }
+}
+
+function MiLightAccessory(log, config) {
   this.log = log;
 
   // config info
@@ -77,7 +130,7 @@ function MiLight(log, config) {
   });
 
 }
-MiLight.prototype = {
+MiLightAccessory.prototype = {
 
   setPowerState: function(powerOn, callback) {
     if (powerOn) {
