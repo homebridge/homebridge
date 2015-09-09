@@ -80,7 +80,7 @@ ZWayServerPlatform.prototype = {
         opts.headers = {
             "Cookie": "ZWAYSession=" + this.sessionId
         };
-opts.proxy = 'http://localhost:8888';
+//opts.proxy = 'http://localhost:8888';
 
         request(opts, function(error, response, body){
             if(response.statusCode == 401){
@@ -88,7 +88,7 @@ opts.proxy = 'http://localhost:8888';
                 request({
                     method: "POST",
                     url: that.url + 'ZAutomation/api/v1/login',
-proxy: 'http://localhost:8888',
+//proxy: 'http://localhost:8888',
                     body: { //JSON.stringify({
                         "form": true,
                         "login": that.login,
@@ -275,7 +275,7 @@ ZWayServerAccessory.prototype = {
                 services.push(new Service.TemperatureSensor(vdev.metrics.title));
                 break;
             case "sensorBinary.Door/Window":
-                //services.push(new Service.GarageDoorOpener(vdev.metrics.title));
+                services.push(new Service.GarageDoorOpener(vdev.metrics.title));
                 break;
             case "battery.Battery":
                 services.push(new Service.BatteryService(vdev.metrics.title));
@@ -609,6 +609,12 @@ ZWayServerAccessory.prototype = {
         
         if(this.devDesc.types["battery.Battery"]){
             services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.types["battery.Battery"]]));
+        }
+        
+        // Odds and ends...if there are sensors that haven't been used, add services for them...
+        var tempSensor = this.devDesc.types["sensorMultilevel.Temperature"] !== undefined ? this.devDesc.devices[this.devDesc.types["sensorMultilevel.Temperature"]] : false;
+        if(tempSensor && !this.platform.cxVDevMap[tempSensor.id]){
+            services = services.concat(this.getVDevServices(tempSensor));
         }
         
         debug("Loaded services for " + this.name);
