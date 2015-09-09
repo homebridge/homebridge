@@ -27,7 +27,7 @@ Where the parameters are:
  *ip_address (optional): The IP address of the WiFi Bridge. Default to the broadcast address of 255.255.255.255 if not specified
  *port (optional): Port of the WiFi bridge. Defaults to 8899 if not specified
  *type (optional): One of either "rgbw", "rgb", or "white", depending on the type of bulb being controlled. This applies to all zones. Defaults to rgbw.
- *delay (optional): Delay between commands sent over UDP. Default 30ms
+ *delay (optional): Delay between commands sent over UDP. Default 30ms. May cause delays when sending a lot of commands. Try decreasing to improve.
  *repeat (optional): Number of times to repeat the UDP command for better reliability. Default 3
  *zones (required): An array of the names of the zones, in order, 1-4. Use null if a zone is skipped. RGB lamps can only have a single zone.
 
@@ -202,9 +202,9 @@ MiLightAccessory.prototype = {
     } else if (this.type == "white") {
       // Again, white lamps don't support setting an absolue colour temp, so trying to do warmer/cooler step at a time based on colour
       if (value >= 180) {
-        this.light.sendCommands(commands.white.warmer());
-      } else {
         this.light.sendCommands(commands.white.cooler());
+      } else {
+        this.light.sendCommands(commands.white.warmer());
       }
     }
     callback();
