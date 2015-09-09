@@ -71,7 +71,17 @@
             "platform": "YamahaAVR",
             "play_volume": -35,
             "setMainInputTo": "AirPlay" 
-        }
+        },
+        {
+            "platform": "MiLight",
+            "name": "MiLight",
+            "ip_address": "255.255.255.255",
+            "port": 8899,
+            "type": "rgbw",
+            "delay": 30,
+            "repeat": 3,
+            "zones":["Kitchen Lamp","Bedroom Lamp","Living Room Lamp","Hallway Lamp"]
+         }
     ],
 
     "accessories": [
@@ -151,16 +161,6 @@
             "host": "192.168.1.200", // IP address of the SER2SOCK service
             "port" : 4999, // Port the SER2SOCK process is running on
             "pin": "1234" // PIN used for arming / disarming
-        },
-        {
-            "accessory":"MiLight",
-            "name": "Lamp",
-            "ip_address": "255.255.255.255",
-            "port": 8899,
-            "zone": 1,
-            "type": "rgbw",
-            "delay": 35,
-            "repeat": 3
         },
         {
             "accessory": "Tesla",
