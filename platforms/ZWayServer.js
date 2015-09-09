@@ -58,7 +58,9 @@ function ZWayServerPlatform(log, config){
     this.name_overrides = config["name_overrides"];
     this.batteryLow   = config["battery_low_level"];
     this.pollInterval = config["poll_interval"] || 2;
-    this.userAgent = "HomeBridge/-1^0.5";
+    this.lastUpdate   = 0;
+    this.cxVDevMap    = {};
+    this.vDevStore    = {};
     this.sessionId = "";
     this.jar = request.jar(new tough.CookieJar());
 }
@@ -96,8 +98,7 @@ proxy: 'http://localhost:8888',
                     },
                     headers: {
                         "Accept": "application/json",
-                        "Content-Type": "application/json",
-                        "User-Agent": that.userAgent
+                        "Content-Type": "application/json"
                     },
                     json: true,
                     jar: true//that.jar
@@ -137,6 +138,8 @@ proxy: 'http://localhost:8888',
             method: "GET",
             url: this.url + 'ZAutomation/api/v1/devices'
         }).then(function(result){
+            this.lastUpdate = result.data.updateTime;
+            
             var devices = result.data.devices;
             var groupedDevices = {};
             for(var i = 0; i < devices.length; i++){
@@ -179,8 +182,51 @@ proxy: 'http://localhost:8888',
             }
 //foundAccessories = foundAccessories.slice(0, 10); // Limit to a few devices for testing...
             callback(foundAccessories);
-        });
+            
+            // Start the polling process...
+            this.pollingTimer = setTimeout(this.pollUpdate.bind(this), this.pollInterval*1000);
+            
+        }.bind(this));
 
+    }
+    ,
+    
+    pollUpdate: function(){
+        //debug("Polling for updates since " + this.lastUpdate + "...");
+        return this.zwayRequest({
+            method: "GET",
+            url: this.url + 'ZAutomation/api/v1/devices',
+            qs: {since: this.lastUpdate}
+        }).then(function(result){
+            this.lastUpdate = result.data.updateTime;
+            if(result.data && result.data.devices && result.data.devices.length){
+                var updates = result.data.devices;
+                debug("Got " + updates.length + " updates.");
+                for(var i = 0; i < updates.length; i++){
+                    var upd = updates[i];
+                    if(this.cxVDevMap[upd.id]){
+                        var vdev = this.vDevStore[upd.id];
+                        vdev.metrics.level = upd.metrics.level;
+                        vdev.updateTime = upd.updateTime;
+                        var cxs = this.cxVDevMap[upd.id];
+                        for(var j = 0; j < cxs.length; j++){
+                            var cx = cxs[j];
+                            if(typeof cx.zway_getValueFromVDev !== "function") continue;
+                            var oldValue = cx.value;
+                            var newValue = cx.zway_getValueFromVDev(vdev);
+                            if(oldValue !== newValue){
+                                cx.value = newValue;
+                                cx.emit('change', { oldValue:oldValue, newValue:cx.value, context:null });
+                                debug("Updated characteristic " + cx.displayName + " on " + vdev.metrics.title);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // setup next poll...
+            this.pollingTimer = setTimeout(this.pollUpdate.bind(this), this.pollInterval*1000);
+        }.bind(this));
     }
 
 }
@@ -291,14 +337,17 @@ ZWayServerAccessory.prototype = {
     ,
     configureCharacteristic: function(cx, vdev){
         var that = this;
-
-        var gdv = function(){
-            debug("Default value for " + vdev.metrics.title + " is " + vdev.metrics.level);
-            return vdev.metrics.level;
-        };
+        
+        // Add this combination to the maps...
+        if(!this.platform.cxVDevMap[vdev.id]) this.platform.cxVDevMap[vdev.id] = [];
+        this.platform.cxVDevMap[vdev.id].push(cx);
+        if(!this.platform.vDevStore[vdev.id]) this.platform.vDevStore[vdev.id] = vdev;
         
         if(cx instanceof Characteristic.Name){
-            cx.getDefaultValue = function(){ return this.name; };
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.title;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, that.name);
@@ -310,8 +359,8 @@ ZWayServerAccessory.prototype = {
         if(cx instanceof Characteristic.On){
             cx.zway_getValueFromVDev = function(vdev){
                 var val = false;
-                if(vdev.metrics.level === "off"){
-                    val = false;
+                if(vdev.metrics.level === "on"){
+                    val = true;
                 } else if(vdev.metrics.level <= 5) {
                     val = false;
                 } else if (vdev.metrics.level > 5) {
@@ -386,7 +435,7 @@ ZWayServerAccessory.prototype = {
             }.bind(this));
             cx.on('set', function(level, callback){
                 this.command(vdev, "exact", {level: parseInt(level, 10)}).then(function(result){
-                    debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
+                    //debug("Got value: " + result.data.metrics.level + ", for " + vdev.metrics.title + ".");
                     callback();
                 });
             }.bind(this));
@@ -397,8 +446,10 @@ ZWayServerAccessory.prototype = {
 
         if(cx instanceof Characteristic.TemperatureDisplayUnits){
             //TODO: Always in °C for now.
-            cx.getDefaultValue = function(){ return Characteristic.TemperatureDisplayUnits.CELSIUS; };
-            cx.value = cx.getDefaultValue();
+            cx.zway_getValueFromVDev = function(vdev){
+                return Characteristic.TemperatureDisplayUnits.CELSIUS;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TemperatureDisplayUnits.CELSIUS);
@@ -409,8 +460,10 @@ ZWayServerAccessory.prototype = {
         
         if(cx instanceof Characteristic.CurrentHeatingCoolingState){
             //TODO: Always HEAT for now, we don't have an example to work with that supports another function.
-            cx.getDefaultValue = function(){ return Characteristic.CurrentHeatingCoolingState.HEAT; };
-            cx.value = cx.getDefaultValue();
+            cx.zway_getValueFromVDev = function(vdev){
+                return Characteristic.CurrentHeatingCoolingState.HEAT;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.CurrentHeatingCoolingState.HEAT);
@@ -420,8 +473,10 @@ ZWayServerAccessory.prototype = {
         
         if(cx instanceof Characteristic.TargetHeatingCoolingState){
             //TODO: Always HEAT for now, we don't have an example to work with that supports another function.
-            cx.getDefaultValue = function(){ return Characteristic.TargetHeatingCoolingState.HEAT; };
-            cx.value = cx.getDefaultValue();
+            cx.zway_getValueFromVDev = function(vdev){
+                return Characteristic.TargetHeatingCoolingState.HEAT;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TargetHeatingCoolingState.HEAT);
@@ -446,8 +501,10 @@ ZWayServerAccessory.prototype = {
         
         if(cx instanceof Characteristic.TargetDoorState){
             //TODO: We only support this for Door sensors now, so it's a fixed value.
-            cx.getDefaultValue = function(){ return Characteristic.TargetDoorState.CLOSED; };
-            cx.value = cx.getDefaultValue();
+            cx.zway_getValueFromVDev = function(vdev){
+                return Characteristic.TargetDoorState.CLOSED;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TargetDoorState.CLOSED);
@@ -458,8 +515,10 @@ ZWayServerAccessory.prototype = {
         
         if(cx instanceof Characteristic.ObstructionDetected){
             //TODO: We only support this for Door sensors now, so it's a fixed value.
-            cx.getDefaultValue = function(){ return false; };
-            cx.value = cx.getDefaultValue();
+            cx.zway_getValueFromVDev = function(vdev){
+                return false;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, false);
@@ -498,8 +557,10 @@ ZWayServerAccessory.prototype = {
         
         if(cx instanceof Characteristic.ChargingState){
             //TODO: No known chargeable devices(?), so always return false.
-            cx.getDefaultValue = function(){ return Characteristic.ChargingState.NOT_CHARGING; };
-            cx.value = cx.getDefaultValue();
+            cx.zway_getValueFromVDev = function(vdev){
+                return Characteristic.ChargingState.NOT_CHARGING;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.ChargingState.NOT_CHARGING);
@@ -547,7 +608,7 @@ ZWayServerAccessory.prototype = {
         services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.primary]));
         
         if(this.devDesc.types["battery.Battery"]){
-            //services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.types["battery.Battery"]]));
+            services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.types["battery.Battery"]]));
         }
         
         debug("Loaded services for " + this.name);
