@@ -1,4 +1,5 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var Service = require("HAP-NodeJS").Service;
+var Characteristic = require("HAP-NodeJS").Characteristic;
 var lifxObj = require('lifx-api');
 var lifx;
 
@@ -23,14 +24,7 @@ LIFxPlatform.prototype = {
             var bulbs = JSON.parse(body);
 
             for(var i = 0; i < bulbs.length; i ++) {
-                var bulb = bulbs[i];
-                var accessory = new LIFxBulbAccessory(
-                    that.log,
-                    bulb.label,
-                    bulb.uuid,
-                    bulb.model,
-                    bulb.id
-                );
+                var accessory = new LIFxBulbAccessory(that.log, bulbs[i]);
                 foundAccessories.push(accessory);
             }
             callback(foundAccessories)
@@ -38,135 +32,119 @@ LIFxPlatform.prototype = {
     }
 }
 
-function LIFxBulbAccessory(log, label, serial, model, deviceId) {
+function LIFxBulbAccessory(log, bulb) {
   // device info
-  this.name = label;
-  this.model = model;
-  this.deviceId = deviceId;
-  this.serial = serial;
+  this.name = bulb.label;
+  this.model = bulb.product_name;
+  this.deviceId = bulb.id;
+  this.serial = bulb.uuid;
+  this.capabilities = bulb.capabilities;
   this.log = log;
 }
 
 LIFxBulbAccessory.prototype = {
-    getPower: function(callback){
+    get: function(type, callback){
         var that = this;
 
-        lifx.listLights("all", function(body) {
-            var bulbs = JSON.parse(body);
+        lifx.listLights("id:"+ that.deviceId, function(body) {
+            var bulb = JSON.parse(body);
 
-            for(var i = 0; i < bulbs.length; i ++) {
-                var bulb = bulbs[i];
-
-              if(bulb.deviceId == that.deviceId) {
-                  return bulb.state;
-              }
+            if (bulb.connected != true) {
+                callback(new Error("Device not found"), false);
+                return;
             }
-            return "off";
-        });
 
-        nest.fetchStatus(function (data) {
-          var device = data.shared[that.deviceId];
-          that.log("Target temperature for " + this.name + " is: " + device.target_temperature);
-          callback(device.target_temperature);
+            switch(type) {
+                case "power":
+                    callback(null, bulb.power == "on" ? 1 : 0);
+                    break;
+                case "brightness":
+                    callback(null, Math.round(bulb.brightness * 100));
+                    break;
+                case "hue":
+                    callback(null, bulb.color.hue);
+                    break;
+                case "saturation":
+                    callback(null, Math.round(bulb.color.saturation * 100));
+                    break;
+            }
         });
     },
-    setPower: function(state){
+    identify: function(callback) {
         var that = this;
-        this.log("Setting power state for heating cooling for " + this.name + " to: " + targetTemperatureType);
-        lifx.setPower("all", state, 1, function (body) {
-            this.log("body");
+
+        lifx.breatheEffect("id:"+ that.deviceId, 'green', null, 1, 3, false, true, 0.5, function (body) {
+            callback();
+        });
+    },
+    setColor: function(type, state, callback){
+        var that = this;
+        var color;
+
+        switch(type) {
+            case "brightness":
+                color = "brightness:" + (state / 100);
+                break;
+            case "hue":
+                color = "hue:" + state;
+                break;
+            case "saturation":
+                color = "saturation:" + (state / 100);
+                break;
+        }
+
+        lifx.setColor("id:"+ that.deviceId, color, 0, null, function (body) {
+            callback();
+        });
+    },
+    setPower: function(state, callback){
+        var that = this;
+
+        lifx.setPower("id:"+ that.deviceId, (state == 1 ? "on" : "off"), 0, function (body) {
+            callback();
         });
     },
 
     getServices: function() {
         var that = this;
-        var chars= [{
-            sType: types.ACCESSORY_INFORMATION_STYPE,
-            characteristics: [{
-                cType: types.NAME_CTYPE,
-                onUpdate: null,
-                perms: ["pr"],
-                format: "string",
-                initialValue: this.name,
-                supportEvents: false,
-                supportBonjour: false,
-                manfDescription: "Name of the accessory",
-                designedMaxLength: 255
-            },{
-                cType: types.MANUFACTURER_CTYPE,
-                onUpdate: null,
-                perms: ["pr"],
-                format: "string",
-                initialValue: "LIFx",
-                supportEvents: false,
-                supportBonjour: false,
-                manfDescription: "Manufacturer",
-                designedMaxLength: 255
-            },{
-                cType: types.MODEL_CTYPE,
-                onUpdate: null,
-                perms: ["pr"],
-                format: "string",
-                initialValue: this.model,
-                supportEvents: false,
-                supportBonjour: false,
-                manfDescription: "Model",
-                designedMaxLength: 255
-            },{
-                cType: types.SERIAL_NUMBER_CTYPE,
-                onUpdate: null,
-                perms: ["pr"],
-                format: "string",
-                initialValue: this.serial,
-                supportEvents: false,
-                supportBonjour: false,
-                manfDescription: "SN",
-                designedMaxLength: 255
-            },{
-                cType: types.IDENTIFY_CTYPE,
-                onUpdate: null,
-                perms: ["pw"],
-                format: "bool",
-                initialValue: true,
-                supportEvents: false,
-                supportBonjour: false,
-                manfDescription: "Identify Accessory",
-                designedMaxLength: 1
-            }]
-        }, {
-            sType: types.LIGHTBULB_STYPE,
-            characteristics: [{
-                cType: types.NAME_CTYPE,
-                onUpdate: null,
-                perms: ["pr"],
-                format: "string",
-                initialValue: this.name,
-                supportEvents: false,
-                supportBonjour: false,
-                manfDescription: "Name of LIFx bulb",
-                designedMaxLength: 255
-            }, {
-                cType: types.POWER_STATE_CTYPE,
-                onUpdate: function (value) {
-                  that.setPower(value);
-                },
-                onRead: function (callback) {
-                  that.getPower(function (state) {
-                    callback(state);
-                  });
-                },
-                perms: ["pw", "pr", "ev"],
-                format: "int",
-                initialValue: 0,
-                supportEvents: false,
-                supportBonjour: false,
-                manfDescription: "Power state",
-                designedMinValue: 0,
-                designedMaxValue: 1,
-                designedMinStep: 1
-            }]
-        }];
-        return chars;
+        var services = []
+        var service = new Service.Lightbulb(this.name);
+
+        service
+        .getCharacteristic(Characteristic.On)
+        .on('identify', function(callback) {})
+        .on('get', function(callback) { that.get("power", callback);})
+        .on('set', function(value, callback) {that.setPower(value, callback);});
+
+        service
+        .addCharacteristic(Characteristic.Brightness)
+        .on('get', function(callback) { that.get("brightness", callback);})
+        .on('set', function(value, callback) { that.setColor("brightness", value, callback);});
+
+        if (this.capabilities.has_color == true) {
+            service
+            .addCharacteristic(Characteristic.Hue)
+            .on('get', function(callback) { that.get("hue", callback);})
+            .on('set', function(value, callback) { that.setColor("hue", value, callback);});
+
+            service
+            .addCharacteristic(Characteristic.Saturation)
+            .on('get', function(callback) { that.get("saturation", callback);})
+            .on('set', function(value, callback) { that.setColor("saturation", value, callback);});
+        }
+
+        services.push(service);
+
+        service = new Service.AccessoryInformation();
+
+        service
+            .setCharacteristic(Characteristic.Manufacturer, "LiFX")
+            .setCharacteristic(Characteristic.Model, this.model)
+            .setCharacteristic(Characteristic.SerialNumber, this.serial);
+
+        services.push(service);
+
+        return services;
     }
 }
 
