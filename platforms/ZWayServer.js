@@ -280,6 +280,9 @@ ZWayServerAccessory.prototype = {
             case "battery.Battery":
                 services.push(new Service.BatteryService(vdev.metrics.title));
                 break;
+            case "sensorMultilevel.Luminiscence":
+                services.push(new Service.LightSensor(vdev.metrics.title));
+                break;
         }
         
         var validServices =[];
@@ -310,6 +313,7 @@ ZWayServerAccessory.prototype = {
             map[(new Characteristic.BatteryLevel).UUID] = ["battery.Battery"];
             map[(new Characteristic.StatusLowBattery).UUID] = ["battery.Battery"];
             map[(new Characteristic.ChargingState).UUID] = ["battery.Battery"]; //TODO: Always a fixed result
+            map[(new Characteristic.CurrentAmbientLightLevel).UUID] = ["sensorMultilevel.Luminiscence"];
         }
         
         if(cx instanceof Characteristic.Name) return vdevPreferred;
@@ -381,6 +385,9 @@ ZWayServerAccessory.prototype = {
                     callback();
                 });
             }.bind(this));
+            cx.on('change', function(ev){
+                debug("Device " + vdev.metrics.title + ", characteristic " + cx.displayName + " changed from " + ev.oldValue + " to " + ev.newValue);
+            });
             return cx;
         }
 
@@ -497,6 +504,9 @@ ZWayServerAccessory.prototype = {
                     callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
+            cx.on('change', function(ev){
+                debug("Device " + vdev.metrics.title + ", characteristic " + cx.displayName + " changed from " + ev.oldValue + " to " + ev.newValue);
+            });
         }
         
         if(cx instanceof Characteristic.TargetDoorState){
@@ -568,7 +578,30 @@ ZWayServerAccessory.prototype = {
             //cx.readable = false;
             cx.writable = false;
         }
-        
+     
+        if(cx instanceof Characteristic.CurrentAmbientLightLevel){
+            cx.zway_getValueFromVDev = function(vdev){
+                if(vdev.metrics.scaleTitle === "%"){
+                    // Completely unscientific guess, based on test-fit data and Wikipedia real-world lux values.
+                    // This will probably change!
+                    return 0.0005 * (vdev.metrics.level^3.6);
+                } else {
+                    return vdev.metrics.level;
+                }
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            cx.on('change', function(ev){
+                debug("Device " + vdev.metrics.title + ", characteristic " + cx.displayName + " changed from " + ev.oldValue + " to " + ev.newValue);
+            });
+            return cx;
+        }
     }
     ,
     configureService: function(service, vdev){
@@ -612,9 +645,15 @@ ZWayServerAccessory.prototype = {
         }
         
         // Odds and ends...if there are sensors that haven't been used, add services for them...
+        
         var tempSensor = this.devDesc.types["sensorMultilevel.Temperature"] !== undefined ? this.devDesc.devices[this.devDesc.types["sensorMultilevel.Temperature"]] : false;
         if(tempSensor && !this.platform.cxVDevMap[tempSensor.id]){
             services = services.concat(this.getVDevServices(tempSensor));
+        }
+        
+        var lightSensor = this.devDesc.types["sensorMultilevel.Luminiscence"] !== undefined ? this.devDesc.devices[this.devDesc.types["sensorMultilevel.Luminiscence"]] : false;
+        if(lightSensor && !this.platform.cxVDevMap[lightSensor.id]){
+            services = services.concat(this.getVDevServices(lightSensor));
         }
         
         debug("Loaded services for " + this.name);
