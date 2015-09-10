@@ -8,6 +8,7 @@ var Accessory = require('HAP-NodeJS').Accessory;
 var Service = require('HAP-NodeJS').Service;
 var Characteristic = require('HAP-NodeJS').Characteristic;
 var accessoryLoader = require('HAP-NodeJS').AccessoryLoader;
+var once = require('HAP-NodeJS/lib/util/once').once;
 
 console.log("Starting HomeBridge server...");
 
@@ -118,7 +119,7 @@ function loadPlatforms() {
 
 function loadPlatformAccessories(platformInstance, log) {
   asyncCalls++;
-  platformInstance.accessories(function(foundAccessories){
+  platformInstance.accessories(once(function(foundAccessories){
       asyncCalls--;
       
       // loop through accessories adding them to the list and registering them
@@ -137,7 +138,7 @@ function loadPlatformAccessories(platformInstance, log) {
       // were we the last callback?
       if (asyncCalls === 0 && !asyncWait)
         publish();
-  });
+  }));
 }
 
 function createAccessory(accessoryInstance, displayName) {

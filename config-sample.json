@@ -104,15 +104,15 @@
             "password" : "your-carwings-password"
         },
         {
-            "accessory": "XfinityHome",
+            "accessory": "iControl",
             "name": "Xfinity Home",
-            "description": "This shim supports the 'Xfinity Home' security system. Unfortunately I don't know how to generate the 'dsig' property, so you'll need to figure yours out by running the Xfinity Home app on your iOS device while connected to a proxy server like Charles. If you didn't understand any of that, sorry! I welcome any suggestions for how to figure out dsig automatically.",
-            "email": "your-comcast-email@example.com",
+            "description": "This shim supports iControl-based security systems like Xfinity Home.",
+            "system": "XFINITY_HOME",
+            "email": "your-comcast-email",
             "password": "your-comcast-password",
-            "dsig": "your-digital-signature",
             "pin": "your-security-system-pin-code"
         },
-         {
+        {
             "accessory": "HomeMatic",
             "name": "Light",
             "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
