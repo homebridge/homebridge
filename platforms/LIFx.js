@@ -214,7 +214,6 @@ LIFxBulbAccessory.prototype = {
                 // gets and sets over the lan api
                 service
                 .getCharacteristic(Characteristic.On)
-                .on('identify', function(callback) {})
                 .on('get', function(callback) { that.getLan("power", callback);})
                 .on('set', function(value, callback) {that.setLanPower(value, callback);});
 
@@ -239,7 +238,6 @@ LIFxBulbAccessory.prototype = {
                 // gets over the lan api, sets over the remote api
                 service
                 .getCharacteristic(Characteristic.On)
-                .on('identify', function(callback) {})
                 .on('get', function(callback) { that.getLan("power", callback);})
                 .on('set', function(value, callback) {that.setRemotePower(value, callback);});
 
@@ -264,7 +262,6 @@ LIFxBulbAccessory.prototype = {
                 // gets and sets over the remote api
                 service
                 .getCharacteristic(Characteristic.On)
-                .on('identify', function(callback) {})
                 .on('get', function(callback) { that.getRemote("power", callback);})
                 .on('set', function(value, callback) {that.setRemotePower(value, callback);});
 
@@ -291,7 +288,7 @@ LIFxBulbAccessory.prototype = {
         service = new Service.AccessoryInformation();
 
         service
-            .setCharacteristic(Characteristic.Manufacturer, "LiFX")
+            .setCharacteristic(Characteristic.Manufacturer, "LIFX")
             .setCharacteristic(Characteristic.Model, this.model)
             .setCharacteristic(Characteristic.SerialNumber, this.serial);
 
