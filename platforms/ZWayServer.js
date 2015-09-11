@@ -584,7 +584,10 @@ ZWayServerAccessory.prototype = {
                 if(vdev.metrics.scaleTitle === "%"){
                     // Completely unscientific guess, based on test-fit data and Wikipedia real-world lux values.
                     // This will probably change!
-                    return 0.0005 * (vdev.metrics.level^3.6);
+                    var lux = 0.0005 * (vdev.metrics.level^3.6);
+                    if(lux < cx.minimumValue) return cx.minimumValue;
+                    if(lux > cx.maximumValue) return cx.maximumValue;
+                    return lux;
                 } else {
                     return vdev.metrics.level;
                 }
