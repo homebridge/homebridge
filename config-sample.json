@@ -79,7 +79,17 @@
             "password": "zwayuserpassword",
             "poll_interval": 2,
             "split_services": false
-        }
+        },
+        {
+            "platform": "MiLight",
+            "name": "MiLight",
+            "ip_address": "255.255.255.255",
+            "port": 8899,
+            "type": "rgbw",
+            "delay": 30,
+            "repeat": 3,
+            "zones":["Kitchen Lamp","Bedroom Lamp","Living Room Lamp","Hallway Lamp"]
+         }
     ],
 
     "accessories": [
@@ -161,16 +171,6 @@
             "pin": "1234" // PIN used for arming / disarming
         },
         {
-            "accessory":"MiLight",
-            "name": "Lamp",
-            "ip_address": "255.255.255.255",
-            "port": 8899,
-            "zone": 1,
-            "type": "rgbw",
-            "delay": 35,
-            "repeat": 3
-        },
-        {
             "accessory": "Tesla",
             "name": "Tesla",
             "description": "This shim supports controlling climate control on the Tesla Model S.",
@@ -180,7 +180,7 @@
         {
             "accessory": "Hyperion",
             "name": "TV Backlight",
-            "description": "Control the Hyperion TV backlight server. https://github.com/tvdzwan/hyperion"
+            "description": "Control the Hyperion TV backlight server. https://github.com/tvdzwan/hyperion",
             "host": "localhost", 
             "port": "19444"
         }
