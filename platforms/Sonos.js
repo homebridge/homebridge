@@ -6,6 +6,8 @@ function SonosPlatform(log, config){
     this.config = config;
     this.name = config["name"];
     this.playVolume = config["play_volume"];
+    // timeout for device discovery
+    this.discoveryTimeout = (config.deviceDiscoveryTimeout || 10)*1000; // assume 10sec as a default
 }
 
 SonosPlatform.prototype = {
@@ -13,15 +15,42 @@ SonosPlatform.prototype = {
         this.log("Fetching Sonos devices.");
         var that = this;
         
+        // track found devices so we don't add duplicates
+        var roomNamesFound = {};
+        
+        // collector array for the devices from callbacks
+        var devicesFound = [];
+        // tell the sonos callbacks if timeout already occured
+        var timeout = false;
+        
+        // the timeout event will push the accessories back
+        setTimeout(function(){
+            timeout=true;
+            callback(devicesFound);
+        }, this.discoveryTimeout);
+        
+        
         sonos.search(function (device) {
             that.log("Found device at " + device.host);
 
             device.deviceDescription(function (err, description) {
-                if (description["zoneType"] != '11') {
-                    that.log("Found playable device - " + description["roomName"]);
-                    // device is an instance of sonos.Sonos
-                    var accessory = new SonosAccessory(that.log, that.config, device, description);
-                    callback([accessory]);
+                if (description["zoneType"] != '11' && description["zoneType"] != '8') { // 8 is the Sonos SUB
+                    var roomName = description["roomName"];
+                    
+                    if (!roomNamesFound[roomName]) {
+                        roomNamesFound[roomName] = true;
+                        that.log("Found playable device - " + roomName);
+                        if (timeout) {
+                            that.log("Ignored: Discovered after timeout (Set deviceDiscoveryTimeout parameter in Sonos section of config.json)");
+                        }
+                        // device is an instance of sonos.Sonos
+                        var accessory = new SonosAccessory(that.log, that.config, device, description);
+                        // add it to the collector array
+                        devicesFound.push(accessory);
+                    }
+                    else {
+                        that.log("Ignoring playable device with duplicate room name - " + roomName);
+                    }
                 }
             });
         });

@@ -1,4 +1,11 @@
 {
+    "bridge": {
+        "name": "Homebridge",
+        "username": "CC:22:3D:E3:CE:30",
+        "port": 51826,
+        "pin": "031-45-154"
+    },
+    
     "description": "This is an example configuration file with all supported devices. You can use this as a template for creating your own configuration file containing devices you actually own.",
 
     "platforms": [
@@ -34,7 +41,9 @@
             "platform": "Domoticz",
             "name": "Domoticz",
             "server": "127.0.0.1",
-            "port": "8005"
+            "port": "8080",
+            "roomid": 0,
+            "loadscenes": 1
         },
         {
             "platform": "PhilipsHue",
@@ -62,7 +71,25 @@
             "platform": "YamahaAVR",
             "play_volume": -35,
             "setMainInputTo": "AirPlay" 
-        }
+        },
+        {
+            "platform": "ZWayServer",
+            "url": "http://192.168.1.10:8083/",
+            "login": "zwayusername",
+            "password": "zwayuserpassword",
+            "poll_interval": 2,
+            "split_services": false
+        },
+        {
+            "platform": "MiLight",
+            "name": "MiLight",
+            "ip_address": "255.255.255.255",
+            "port": 8899,
+            "type": "rgbw",
+            "delay": 30,
+            "repeat": 3,
+            "zones":["Kitchen Lamp","Bedroom Lamp","Living Room Lamp","Hallway Lamp"]
+         }
     ],
 
     "accessories": [
@@ -95,15 +122,15 @@
             "password" : "your-carwings-password"
         },
         {
-            "accessory": "XfinityHome",
+            "accessory": "iControl",
             "name": "Xfinity Home",
-            "description": "This shim supports the 'Xfinity Home' security system. Unfortunately I don't know how to generate the 'dsig' property, so you'll need to figure yours out by running the Xfinity Home app on your iOS device while connected to a proxy server like Charles. If you didn't understand any of that, sorry! I welcome any suggestions for how to figure out dsig automatically.",
-            "email": "your-comcast-email@example.com",
+            "description": "This shim supports iControl-based security systems like Xfinity Home.",
+            "system": "XFINITY_HOME",
+            "email": "your-comcast-email",
             "password": "your-comcast-password",
-            "dsig": "your-digital-signature",
             "pin": "your-security-system-pin-code"
         },
-         {
+        {
             "accessory": "HomeMatic",
             "name": "Light",
             "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
@@ -143,22 +170,19 @@
             "port" : 4999, // Port the SER2SOCK process is running on
             "pin": "1234" // PIN used for arming / disarming
         },
-        {                                                                                                                                                                                                                                                                                                          |
-            "accessory": "MiLight",                                                                                                                                                                                                                                                                                |
-            "name": "Lamp",                                                                                                                                                                                                                                                                                        |
-            "ip_address": "255.255.255.255", // IP Address of the WiFi Bridge, or 255.255.255.255 to broadcast to all                                                                                                                                                                                              |
-            "port": 8899, // Default port 8899 (50000 for v1 or v2 bridge)                                                                                                                                                                                                                                         |
-            "zone": 1, // Zone to address commands to (not used for rgb only bulbs)                                                                                                                                                                                                                                |
-            "type": "rgbw", // Bulb type (rgbw, rgb, white)                                                                                                                                                                                                                                                        |
-            "delay": 35, // Delay between commands sent to the WiFi bridge (default 35)                                                                                                                                                                                                                            |
-            "repeat": 3 // Number of times each command is repeated for reliability (default 3)                                                                                                                                                                                                                    |
-        },
         {
             "accessory": "Tesla",
             "name": "Tesla",
             "description": "This shim supports controlling climate control on the Tesla Model S.",
             "username": "tesla_email",
             "password" : "tesla_password"
+        },
+        {
+            "accessory": "Hyperion",
+            "name": "TV Backlight",
+            "description": "Control the Hyperion TV backlight server. https://github.com/tvdzwan/hyperion",
+            "host": "localhost", 
+            "port": "19444"
         }
     ]
 }

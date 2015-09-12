@@ -1,9 +1,9 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "0.0.0",
+  "version": "0.1.1",
   "scripts": {
-    "start": "node app.js"
+    "start": "DEBUG=* node app.js || true"
   },
   "repository": {
     "type": "git",
@@ -13,23 +13,31 @@
   "dependencies": {
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "carwingsjs": "0.0.x",
+    "color": "0.10.x",
+    "eibd": "^0.3.1",
     "elkington": "kevinohara80/elkington",
-    "hap-nodejs": "git+https://github.com/khaost/HAP-NodeJS#2a1bc8d99a2009317ab5da93faebea34c89f197c",
+    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#6bf0f9eaaa2d87db8d1768114c61f4acbb095c41",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
+    "lifx-api": "^1.0.1",
+    "lifx": "https://github.com/magicmonkey/lifxjs.git",
     "mdns": "^2.2.4",
     "node-hue-api": "^1.0.5",
-    "node-milight-promise": "0.0.2",
+    "node-icontrol": "^0.1.4",
+    "node-milight-promise": "0.0.x",
     "node-persist": "0.0.x",
+    "q": "1.4.x",
+    "tough-cookie": "^2.0.0",
     "request": "2.49.x",
     "sonos": "0.8.x",
     "telldus-live": "0.2.x",
+    "teslams": "1.0.1",
     "unofficial-nest-api": "git+https://github.com/hachidorii/unofficial_nodejs_nest.git#d8d48edc952b049ff6320ef99afa7b2f04cdee98",
     "wemo": "0.2.x",
     "wink-js": "0.0.5",
     "xml2js": "0.4.x",
     "xmldoc": "0.1.x",
     "yamaha-nodejs": "0.4.x",
-    "teslams": "1.0.1"
+    "debug": "^2.2.0"
   }
 }

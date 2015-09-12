@@ -1,9 +1,23 @@
 var fs = require('fs');
 var path = require('path');
 var storage = require('node-persist');
-var crypto = require('crypto');
+var hap = require('HAP-NodeJS');
+var uuid = require('HAP-NodeJS').uuid;
+var Bridge = require('HAP-NodeJS').Bridge;
+var Accessory = require('HAP-NodeJS').Accessory;
+var Service = require('HAP-NodeJS').Service;
+var Characteristic = require('HAP-NodeJS').Characteristic;
+var accessoryLoader = require('HAP-NodeJS').AccessoryLoader;
+var once = require('HAP-NodeJS/lib/util/once').once;
 
 console.log("Starting HomeBridge server...");
+
+console.log("_____________________________________________________________________");
+console.log("IMPORTANT: Homebridge is in the middle of some big changes.");
+console.log("           Read more about it here:");
+console.log("           https://github.com/nfarina/homebridge/wiki/Migration-Guide");
+console.log("_____________________________________________________________________");
+console.log("");
 
 // Look for the configuration file
 var configPath = path.join(__dirname, "config.json");
@@ -14,176 +28,185 @@ if (!fs.existsSync(configPath)) {
     process.exit(1);
 }
 
-// Initialize persistent storage
-storage.initSync();
+// Initialize HAP-NodeJS
+hap.init();
 
 // Load up the configuration file
-var config = JSON.parse(fs.readFileSync(configPath));
+var config;
+try {
+  config = JSON.parse(fs.readFileSync(configPath));
+}
+catch (err) {
+  console.log("There was a problem reading your config.json file.");
+  console.log("Please try pasting your config.json file here to validate it: http://jsonlint.com");
+  console.log("");
+  throw err;
+}
 
-// Just to prevent them getting garbage collected
-var accessories = [];
+// pull out our custom Bridge settings from config.json, if any
+var bridgeConfig = config.bridge || {};
+
+// Start by creating our Bridge which will host all loaded Accessories
+var bridge = new Bridge(bridgeConfig.name || 'Homebridge', uuid.generate("HomeBridge"));
+
+// keep track of async calls we're waiting for callbacks on before we can start up
+// this is hacky but this is all going away once we build proper plugin support
+var asyncCalls = 0;
+var asyncWait = false;
 
 function startup() {
+    asyncWait = true;
     if (config.platforms) loadPlatforms();
     if (config.accessories) loadAccessories();
+    asyncWait = false;
+    
+    // publish now unless we're waiting on anyone
+    if (asyncCalls == 0)
+      publish();
 }
 
 function loadAccessories() {
 
     // Instantiate all accessories in the config
     console.log("Loading " + config.accessories.length + " accessories...");
+    
     for (var i=0; i<config.accessories.length; i++) {
 
         var accessoryConfig = config.accessories[i];
 
         // Load up the class for this accessory
-        var accessoryName = accessoryConfig["accessory"]; // like "WeMo"
-        var accessoryModule = require('./accessories/' + accessoryName + ".js"); // like "./accessories/WeMo.js"
+        var accessoryType = accessoryConfig["accessory"]; // like "WeMo"
+        var accessoryModule = require('./accessories/' + accessoryType + ".js"); // like "./accessories/WeMo.js"
         var accessoryConstructor = accessoryModule.accessory; // like "WeMoAccessory", a JavaScript constructor
 
         // Create a custom logging function that prepends the device display name for debugging
-        var name = accessoryConfig["name"];
-        var log = function(name) { return function(s) { console.log("[" + name + "] " + s); }; }(name);
+        var accessoryName = accessoryConfig["name"];
+        var log = createLog(accessoryName);
 
-        log("Initializing " + accessoryName + " accessory...");
-        var accessory = new accessoryConstructor(log, accessoryConfig);
-        accessories.push(accessory);
-
-        // Extract the raw "services" for this accessory which is a big array of objects describing the various
-        // hooks in and out of HomeKit for the HAP-NodeJS server.
-        var services = accessory.getServices();
-
-        // Create the HAP server for this accessory
-        createHAPServer(name, services, accessory.transportCategory);
+        log("Initializing %s accessory...", accessoryType);
+        
+        var accessoryInstance = new accessoryConstructor(log, accessoryConfig);
+        var accessory = createAccessory(accessoryInstance, accessoryName);
+        
+        // add it to the bridge
+        bridge.addBridgedAccessory(accessory);
     }
 }
 
 function loadPlatforms() {
 
     console.log("Loading " + config.platforms.length + " platforms...");
+    
     for (var i=0; i<config.platforms.length; i++) {
 
         var platformConfig = config.platforms[i];
 
         // Load up the class for this accessory
-        var platformName = platformConfig["platform"]; // like "Wink"
-        var platformModule = require('./platforms/' + platformName + ".js"); // like "./platforms/Wink.js"
+        var platformType = platformConfig["platform"]; // like "Wink"
+        var platformName = platformConfig["name"];
+        var platformModule = require('./platforms/' + platformType + ".js"); // like "./platforms/Wink.js"
         var platformConstructor = platformModule.platform; // like "WinkPlatform", a JavaScript constructor
 
-        // Create a custom logging function that prepends the platform display name for debugging
-        var name = platformConfig["name"];
-        var log = function(name) { return function(s) { console.log("[" + name + "] " + s); }; }(name);
+        // Create a custom logging function that prepends the platform name for debugging
+        var log = createLog(platformName);
 
-        log("Initializing " + platformName + " platform...");
+        log("Initializing %s platform...", platformType);
 
-        var platform = new platformConstructor(log, platformConfig);
-
-        // query for devices
-        platform.accessories(function(foundAccessories){
-            // loop through accessories adding them to the list and registering them
-            for (var i = 0; i < foundAccessories.length; i++) {
-                accessory = foundAccessories[i]
-                accessories.push(accessory);
-                log("Initializing device with name " + accessory.name + "...")
-                // Extract the raw "services" for this accessory which is a big array of objects describing the various
-                // hooks in and out of HomeKit for the HAP-NodeJS server.
-                var services = accessory.getServices();
-                // Create the HAP server for this accessory
-                createHAPServer(accessory.name, services, accessory.transportCategory);
-            }
-            accessories.push.apply(accessories, foundAccessories);
-        })
+        var platformInstance = new platformConstructor(log, platformConfig);
+        loadPlatformAccessories(platformInstance, log);
     }
 }
 
-//
-// Creates the actual HAP servers which listen on different sockets
-//
+function loadPlatformAccessories(platformInstance, log) {
+  asyncCalls++;
+  platformInstance.accessories(once(function(foundAccessories){
+      asyncCalls--;
+      
+      // loop through accessories adding them to the list and registering them
+      for (var i = 0; i < foundAccessories.length; i++) {
+          var accessoryInstance = foundAccessories[i];
+          var accessoryName = accessoryInstance.name; // assume this property was set
+          
+          log("Initializing platform accessory '%s'...", accessoryName);
+          
+          var accessory = createAccessory(accessoryInstance, accessoryName);
 
-// Pull in required HAP-NodeJS stuff
-var accessory_Factor = new require("HAP-NodeJS/Accessory.js");
-var accessoryController_Factor = new require("HAP-NodeJS/AccessoryController.js");
-var service_Factor = new require("HAP-NodeJS/Service.js");
-var characteristic_Factor = new require("HAP-NodeJS/Characteristic.js");
-
-// Each accessory has its own little server. We'll need to allocate some ports for these servers
-var nextPort = 51826;
-var nextServer = 0;
-var accessoryServers = [];
-var accessoryControllers = [];
-var usernames = {};
-
-function createHAPServer(name, services, transportCategory) {
-    var accessoryController = new accessoryController_Factor.AccessoryController();
-
-    //loop through services
-    for (var j = 0; j < services.length; j++) {
-        var service = new service_Factor.Service(services[j].sType);
-
-        //loop through characteristics
-        for (var k = 0; k < services[j].characteristics.length; k++) {
-            var options = {
-                onRead: services[j].characteristics[k].onRead,
-                onRegister: services[j].characteristics[k].onRegister,
-                type: services[j].characteristics[k].cType,
-                perms: services[j].characteristics[k].perms,
-                format: services[j].characteristics[k].format,
-                initialValue: services[j].characteristics[k].initialValue,
-                supportEvents: services[j].characteristics[k].supportEvents,
-                supportBonjour: services[j].characteristics[k].supportBonjour,
-                manfDescription: services[j].characteristics[k].manfDescription,
-                designedMaxLength: services[j].characteristics[k].designedMaxLength,
-                designedMinValue: services[j].characteristics[k].designedMinValue,
-                designedMaxValue: services[j].characteristics[k].designedMaxValue,
-                designedMinStep: services[j].characteristics[k].designedMinStep,
-                unit: services[j].characteristics[k].unit
-            };
-
-            var characteristic = new characteristic_Factor.Characteristic(options, services[j].characteristics[k].onUpdate);
-
-            service.addCharacteristic(characteristic);
-        }
-        accessoryController.addService(service);
-    }
-
-    // create a unique "username" for this accessory based on the default display name
-    var username = createUsername(name);
-
-    if (usernames[username]) {
-        console.log("Cannot create another accessory with the same name '" + name + "'. The 'name' property must be unique for each accessory.");
-        return;
-    }
-
-    // remember that we used this name already
-    usernames[username] = name;
-
-    // increment ports for each accessory
-    nextPort = nextPort + (nextServer*2);
-
-    // hardcode the PIN to something random (same PIN as HAP-NodeJS sample accessories)
-    var pincode = "031-45-154";
-
-    var accessory = new accessory_Factor.Accessory(name, username, storage, parseInt(nextPort), pincode, accessoryController, transportCategory);
-    accessoryServers[nextServer] = accessory;
-    accessoryControllers[nextServer] = accessoryController;
-    accessory.publishAccessory();
-
-    nextServer++;
+          // add it to the bridge
+          bridge.addBridgedAccessory(accessory);
+      }
+      
+      // were we the last callback?
+      if (asyncCalls === 0 && !asyncWait)
+        publish();
+  }));
 }
 
-// Creates a unique "username" for HomeKit from a hash of the given string
-function createUsername(str) {
+function createAccessory(accessoryInstance, displayName) {
+  
+  var services = accessoryInstance.getServices();
+  
+  if (!(services[0] instanceof Service)) {
+    // The returned "services" for this accessory is assumed to be the old style: a big array
+    // of JSON-style objects that will need to be parsed by HAP-NodeJS's AccessoryLoader.
 
-    // Hash str into something like "098F6BCD4621D373CADE4E832627B4F6"
-    var hash = crypto.createHash('md5').update(str).digest("hex").toUpperCase();
+    // Create the actual HAP-NodeJS "Accessory" instance
+    return accessoryLoader.parseAccessoryJSON({
+      displayName: displayName,
+      services: services
+    });
+  }
+  else {
+    // The returned "services" for this accessory are simply an array of new-API-style
+    // Service instances which we can add to a created HAP-NodeJS Accessory directly.
+    
+    var accessoryUUID = uuid.generate(accessoryInstance.constructor.name + ":" + displayName);
+    
+    var accessory = new Accessory(displayName, accessoryUUID);
+    
+    // listen for the identify event if the accessory instance has defined an identify() method
+    if (accessoryInstance.identify)
+      accessory.on('identify', function(paired, callback) { accessoryInstance.identify(callback); });
+    
+    services.forEach(function(service) {
+      
+      // if you returned an AccessoryInformation service, merge its values with ours
+      if (service instanceof Service.AccessoryInformation) {
+        var existingService = accessory.getService(Service.AccessoryInformation);
+        
+        // pull out any values you may have defined
+        var manufacturer = service.getCharacteristic(Characteristic.Manufacturer).value;
+        var model = service.getCharacteristic(Characteristic.Model).value;
+        var serialNumber = service.getCharacteristic(Characteristic.SerialNumber).value;
+        
+        if (manufacturer) existingService.setCharacteristic(Characteristic.Manufacturer, manufacturer);
+        if (model) existingService.setCharacteristic(Characteristic.Model, model);
+        if (serialNumber) existingService.setCharacteristic(Characteristic.SerialNumber, serialNumber);
+      }
+      else {
+        accessory.addService(service);
+      }
+    });
+    
+    return accessory;
+  }
+}
 
-    // Turn it into a MAC-address-looking "username" for HomeKit
-    return hash[0] + hash[1] + ":" +
-           hash[2] + hash[3] + ":" +
-           hash[4] + hash[5] + ":" +
-           hash[6] + hash[7] + ":" +
-           hash[8] + hash[9] + ":" +
-           hash[10] + hash[11];
+// Returns a logging function that prepends messages with the given name in [brackets].
+function createLog(name) {
+  return function(message) {
+    var rest = Array.prototype.slice.call(arguments, 1 ); // any arguments after message
+    var args = ["[%s] " + message, name].concat(rest);
+    console.log.apply(console, args);
+  }
+}
+
+function publish() {
+  bridge.publish({
+    username: bridgeConfig.username || "CC:22:3D:E3:CE:30",
+    port: bridgeConfig.port || 51826,
+    pincode: bridgeConfig.pin || "031-45-154",
+    category: Accessory.Categories.OTHER
+  });
 }
 
 startup();
