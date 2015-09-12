@@ -56,7 +56,6 @@ function ZWayServerPlatform(log, config){
     this.login        = config["login"];
     this.password     = config["password"];
     this.name_overrides = config["name_overrides"];
-    this.batteryLow   = config["battery_low_level"];
     this.pollInterval = config["poll_interval"] || 2;
     this.lastUpdate   = 0;
     this.cxVDevMap    = {};
