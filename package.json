@@ -26,6 +26,8 @@
     "node-icontrol": "^0.1.4",
     "node-milight-promise": "0.0.x",
     "node-persist": "0.0.x",
+    "q": "1.4.x",
+    "tough-cookie": "^2.0.0",
     "request": "2.49.x",
     "sonos": "0.8.x",
     "telldus-live": "0.2.x",
@@ -35,6 +37,7 @@
     "wink-js": "0.0.5",
     "xml2js": "0.4.x",
     "xmldoc": "0.1.x",
-    "yamaha-nodejs": "0.4.x"
+    "yamaha-nodejs": "0.4.x",
+    "debug": "^2.2.0"
   }
 }
