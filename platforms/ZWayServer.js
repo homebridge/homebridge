@@ -6,57 +6,15 @@ var request = require("request");
 var tough = require('tough-cookie');
 var Q = require("q");
 
-var zwshkDeviceClasses = [
-    {
-        primaryType: "switchBinary",
-        subTypes: {
-            "battery": true,
-            "sensorMultilevel.Electric": true
-        },
-        tcType: types.SWITCH_TCTYPE
-    }
-    ,
-    {
-        primaryType: "thermostat",
-        subTypes: {
-            "sensorMultiLevel.Temperature": true,
-            "battery": true
-        },
-        tcType: types.THERMOSTAT_TCTYPE
-    }
-    ,
-    {
-        primaryType: "sensorBinary.Door/Window",
-        subTypes: {
-            "battery": true
-        },
-        tcType: types.SENSOR_TCTYPE
-    }
-    ,
-    {
-        primaryType: "sensorMultilevel.Temperature",
-        subTypes: {
-            "battery": true
-        },
-        tcType: types.SENSOR_TCTYPE
-    }
-    ,
-    {
-        primaryType: "switchMultilevel",
-        subTypes: {
-            "battery": true
-        },
-        tcType: types.LIGHTBULB_TCTYPE
-    }
-];
-
 function ZWayServerPlatform(log, config){
     this.log          = log;
     this.url          = config["url"];
     this.login        = config["login"];
     this.password     = config["password"];
     this.name_overrides = config["name_overrides"];
+    this.batteryLow   = config["battery_low_level"] || 15;
     this.pollInterval = config["poll_interval"] || 2;
+    this.splitServices= config["split_services"] || false;
     this.lastUpdate   = 0;
     this.cxVDevMap    = {};
     this.vDevStore    = {};
@@ -79,7 +37,6 @@ ZWayServerPlatform.prototype = {
         opts.headers = {
             "Cookie": "ZWAYSession=" + this.sessionId
         };
-//opts.proxy = 'http://localhost:8888';
 
         request(opts, function(error, response, body){
             if(response.statusCode == 401){
@@ -87,7 +44,6 @@ ZWayServerPlatform.prototype = {
                 request({
                     method: "POST",
                     url: that.url + 'ZAutomation/api/v1/login',
-//proxy: 'http://localhost:8888',
                     body: { //JSON.stringify({
                         "form": true,
                         "login": that.login,
@@ -130,6 +86,16 @@ ZWayServerPlatform.prototype = {
     accessories: function(callback) {
         debug("Fetching Z-Way devices...");
 
+        //TODO: Unify this with getVDevServices, so there's only one place with mapping between service and vDev type.
+        //Note: Order matters!
+        var primaryDeviceClasses = [
+            "switchBinary",
+            "thermostat",
+            "sensorBinary.Door/Window",
+            "sensorMultilevel.Temperature",
+            "switchMultilevel"
+        ];
+
         var that = this;
         var foundAccessories = [];
 
@@ -143,7 +109,7 @@ ZWayServerPlatform.prototype = {
             var groupedDevices = {};
             for(var i = 0; i < devices.length; i++){
                 var vdev = devices[i];
-                if(vdev.tags.indexOf("HomeBridge:Skip") >= 0) { debug("Tag says skip!"); continue; }
+                if(vdev.tags.indexOf("Homebridge:Skip") >= 0) { debug("Tag says skip!"); continue; }
                 var gdid = vdev.id.replace(/^(.*?)_zway_(\d+-\d+)-\d.*/, '$1_$2');
                 var gd = groupedDevices[gdid] || (groupedDevices[gdid] = {devices: [], types: {}, primary: undefined});
                 gd.devices.push(vdev);
@@ -162,13 +128,13 @@ ZWayServerPlatform.prototype = {
                 }
                 
                 var accessory = null;
-                for(var ti = 0; ti < zwshkDeviceClasses.length; ti++){
-                    if(gd.types[zwshkDeviceClasses[ti].primaryType] !== undefined){
-                        gd.primary = gd.types[zwshkDeviceClasses[ti].primaryType];
+                for(var ti = 0; ti < primaryDeviceClasses.length; ti++){
+                    if(gd.types[primaryDeviceClasses[ti]] !== undefined){
+                        gd.primary = gd.types[primaryDeviceClasses[ti]];
                         var pd = gd.devices[gd.primary];
                         var name = pd.metrics && pd.metrics.title ? pd.metrics.title : pd.id;
-                        debug("Using class with primaryType " + zwshkDeviceClasses[ti].primaryType + ", " + name + " (" + pd.id + ") as primary.");
-                        accessory = new ZWayServerAccessory(name, zwshkDeviceClasses[ti], gd, that);
+                        debug("Using primary device with type " + primaryDeviceClasses[ti] + ", " + name + " (" + pd.id + ") as primary.");
+                        accessory = new ZWayServerAccessory(name, gd, that);
                         break;
                     }
                 }
@@ -230,10 +196,9 @@ ZWayServerPlatform.prototype = {
 
 }
 
-function ZWayServerAccessory(name, dclass, devDesc, platform) {
+function ZWayServerAccessory(name, devDesc, platform) {
   // device info
   this.name     = name;
-  this.dclass   = dclass;
   this.devDesc  = devDesc;
   this.platform = platform;
   this.log      = platform.log;
@@ -294,6 +259,12 @@ ZWayServerAccessory.prototype = {
     }
     ,
     uuidToTypeKeyMap: null
+    ,
+    extraCharacteristicsMap: {
+        "battery.Battery": [Characteristic.BatteryLevel, Characteristic.StatusLowBattery],
+        "sensorMultilevel.Temperature": [Characteristic.CurrentTemperature, Characteristic.TemperatureDisplayUnits],
+        "sensorMultilevel.Luminiscence": [Characteristic.CurrentAmbientLightLevel]
+    }
     ,
     getVDevForCharacteristic: function(cx, vdevPreferred){
         var map = this.uuidToTypeKeyMap;
@@ -641,21 +612,50 @@ ZWayServerAccessory.prototype = {
         var services = [informationService];
     
         services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.primary]));
-        
-        if(this.devDesc.types["battery.Battery"]){
-            services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.types["battery.Battery"]]));
-        }
-        
-        // Odds and ends...if there are sensors that haven't been used, add services for them...
-        
-        var tempSensor = this.devDesc.types["sensorMultilevel.Temperature"] !== undefined ? this.devDesc.devices[this.devDesc.types["sensorMultilevel.Temperature"]] : false;
-        if(tempSensor && !this.platform.cxVDevMap[tempSensor.id]){
-            services = services.concat(this.getVDevServices(tempSensor));
-        }
-        
-        var lightSensor = this.devDesc.types["sensorMultilevel.Luminiscence"] !== undefined ? this.devDesc.devices[this.devDesc.types["sensorMultilevel.Luminiscence"]] : false;
-        if(lightSensor && !this.platform.cxVDevMap[lightSensor.id]){
-            services = services.concat(this.getVDevServices(lightSensor));
+
+        if(this.platform.splitServices){
+            if(this.devDesc.types["battery.Battery"]){
+                services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.types["battery.Battery"]]));
+            }
+
+            // Odds and ends...if there are sensors that haven't been used, add services for them...
+
+            var tempSensor = this.devDesc.types["sensorMultilevel.Temperature"] !== undefined ? this.devDesc.devices[this.devDesc.types["sensorMultilevel.Temperature"]] : false;
+            if(tempSensor && !this.platform.cxVDevMap[tempSensor.id]){
+                services = services.concat(this.getVDevServices(tempSensor));
+            }
+
+            var lightSensor = this.devDesc.types["sensorMultilevel.Luminiscence"] !== undefined ? this.devDesc.devices[this.devDesc.types["sensorMultilevel.Luminiscence"]] : false;
+            if(lightSensor && !this.platform.cxVDevMap[lightSensor.id]){
+                services = services.concat(this.getVDevServices(lightSensor));
+            }
+        } else {
+            // Everything outside the primary service gets added as optional characteristics...
+            var service = services[1];
+            var existingCxUUIDs = {};
+            for(var i = 0; i < service.characteristics.length; i++) existingCxUUIDs[service.characteristics[i].UUID] = true;
+            
+            for(var i = 0; i < this.devDesc.devices.length; i++){
+                var vdev = this.devDesc.devices[i];
+                if(this.platform.cxVDevMap[vdev.id]) continue; // Don't double-use anything
+                var extraCxClasses = this.extraCharacteristicsMap[ZWayServerPlatform.getVDevTypeKey(vdev)];
+                var extraCxs = [];
+                if(!extraCxClasses || extraCxClasses.length === 0) continue;
+                for(var j = 0; j < extraCxClasses.length; j++){
+                    var cx = new extraCxClasses[j]();
+                    if(existingCxUUIDs[cx.UUID]) continue; // Don't have two of the same Characteristic type in one service!
+                    var vdev2 = this.getVDevForCharacteristic(cx, vdev); // Just in case...will probably return vdev.
+                    if(!vdev2){
+                        // Uh oh... one of the extraCxClasses can't be configured! Abort all extras for this vdev!
+                        extraCxs = []; // to wipe out any already setup cxs.
+                        break;
+                    }
+                    this.configureCharacteristic(cx, vdev2);
+                    extraCxs.push(cx);
+                }
+                for(var j = 0; j < extraCxs.length; j++)
+                    service.addCharacteristic(extraCxs[j]);
+            }
         }
         
         debug("Loaded services for " + this.name);
