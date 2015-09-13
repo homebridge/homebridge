@@ -687,6 +687,9 @@ FHEM_dim_values = [ 'dim06%', 'dim12%', 'dim18%', 'dim25%', 'dim31%', 'dim37%', 
 
 FHEMAccessory.prototype = {
   reading2homekit: function(reading,value) {
+    if( value == undefined )
+      return undefined;
+
     if( reading == 'hue' ) {
       value = Math.round(value * 360 / this.mappings.hue ? this.mappings.hue.max : 360);
 
@@ -735,13 +738,12 @@ FHEMAccessory.prototype = {
           value = 0;
 
     } else if( reading == 'lock' ) {
-        if( value.match( /^locked/ ) )
+        if( value.match( /uncertain/ ) )
+          value = 4;
+        else if( value.match( /^locked/ ) )
           value = 1;
         else
           value = 0;
-
-        if( value.match( /uncertain/ ) )
-          value = 4;
 
     } else if( reading == 'temperature'
                || reading == 'measured-temp'
