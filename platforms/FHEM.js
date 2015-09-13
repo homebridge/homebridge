@@ -604,7 +604,7 @@ FHEMAccessory(log, connection, s) {
 
 
   if( this.mappings.onOff )
-    log( s.Internals.NAME + ' has onOff [' +  this.mappings.onOff + ']' );
+    log( s.Internals.NAME + ' has onOff [' +  this.mappings.onOff.reading + ':' + this.mappings.onOff.cmdOn +',' + this.mappings.onOff.cmdOff + ']' );
   if( this.mappings.hue )
     log( s.Internals.NAME + ' has hue [0-' + this.mappings.hue.max +']' );
   if( this.mappings.sat )
@@ -618,7 +618,7 @@ FHEMAccessory(log, connection, s) {
   if( this.mappings.direction )
     log( s.Internals.NAME + ' has direction' );
 
-log(s);
+//log( util.inspect(s) );
 
   // device info
   this.name		= s.Internals.NAME;
