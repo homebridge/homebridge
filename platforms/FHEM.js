@@ -1720,9 +1720,7 @@ FHEMAccessory.prototype = {
   },
 
   sType: function() {
-    if( match = this.PossibleSets.match(/[\^ ]volume\b/) ) {
-      return types.SPEAKER_STYPE;
-    } else if( this.isSwitch ) {
+    if( this.isSwitch ) {
       return types.SWITCH_STYPE;
     } else if( this.mappings.garage ) {
       return types.GARAGE_DOOR_OPENER_STYPE;
@@ -1781,7 +1779,7 @@ function FHEMdebug_handleRequest(request, response){
       response.write( "FHEM_lastEventTime: "+ new Date(FHEM_lastEventTime) +"<br><br>" );
     response.end( "cached: " + util.inspect(FHEM_cached).replace(/\n/g, '<br>') );
 
-  } else if( request.url == "/xxsubscriptions" ) {
+  } else if( request.url == "/subscriptions" ) {
     response.write( "<a href='/'>home</a><br><br>" );
     response.end( "subscriptions: " + util.inspect(FHEM_subscriptions, {depth: 4}).replace(/\n/g, '<br>') );
 
