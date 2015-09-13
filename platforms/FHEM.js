@@ -1318,7 +1318,7 @@ FHEMAccessory.prototype = {
 
     if( this.mappings.volume ) {
       cTypes.push({
-        cType: types.OUTPUTVOLUME_CTYPE,
+        cType: '00000027-0000-1000-8000-0026BB765291', // FIXME!!!
         onUpdate: function(value, context) {
           if( context === 'fromFhem' )
             return;
@@ -1781,11 +1781,11 @@ function FHEMdebug_handleRequest(request, response){
       response.write( "FHEM_lastEventTime: "+ new Date(FHEM_lastEventTime) +"<br><br>" );
     response.end( "cached: " + util.inspect(FHEM_cached).replace(/\n/g, '<br>') );
 
-  } else if( request.url == "/subscriptions" ) {
+  } else if( request.url == "/xxsubscriptions" ) {
     response.write( "<a href='/'>home</a><br><br>" );
     response.end( "subscriptions: " + util.inspect(FHEM_subscriptions, {depth: 4}).replace(/\n/g, '<br>') );
 
-  } else if( request.url == "/persist" ) {
+  } else if( request.url == "/xxpersist" ) {
     response.write( "<a href='/'>home</a><br><br>" );
     var unique = {};
     Object.keys(FHEM_subscriptions).forEach(function(key) {
