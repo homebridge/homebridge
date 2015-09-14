@@ -25,6 +25,8 @@ var Characteristic = require("HAP-NodeJS").Characteristic;
 var url = require('url')
 var request = require("request");
 
+var communicationError = new Error('Can not communicate with Home Assistant.')
+
 function HomeAssistantPlatform(log, config){
 
   // auth info
@@ -133,25 +135,25 @@ function HomeAssistantLight(log, data, client) {
 HomeAssistantLight.prototype = {
   getPowerState: function(callback){
     this.log("fetching power state for: " + this.name);
+
     this.client.fetchState(this.entity_id, function(data){
       if (data) {
         powerState = data.state == 'on'
-        callback(powerState)
+        callback(null, powerState)
       }else{
-        callback(null)
+        callback(communicationError)
       }
     }.bind(this))
   },
   getBrightness: function(callback){
     this.log("fetching brightness for: " + this.name);
-    that = this
+
     this.client.fetchState(this.entity_id, function(data){
       if (data && data.attributes) {
-        that.log('returned brightness: ' + data.attributes.brightness)
         brightness = ((data.attributes.brightness || 0) / 255)*100
-        callback(brightness)
+        callback(null, brightness)
       }else{
-        callback(null)
+        callback(communicationError)
       }
     }.bind(this))
   },
@@ -168,7 +170,7 @@ HomeAssistantLight.prototype = {
           that.log("Successfully set power state on the '"+that.name+"' to on");
           callback()
         }else{
-          callback(new Error('Can not communicate with Home Assistant.'))
+          callback(communicationError)
         }
       }.bind(this))
     }else{
@@ -179,7 +181,7 @@ HomeAssistantLight.prototype = {
           that.log("Successfully set power state on the '"+that.name+"' to off");
           callback()
         }else{
-          callback(new Error('Can not communicate with Home Assistant.'))
+          callback(communicationError)
         }
       }.bind(this))
     }
@@ -198,7 +200,7 @@ HomeAssistantLight.prototype = {
         that.log("Successfully set brightness on the '"+that.name+"' to " + level);
         callback()
       }else{
-        callback(new Error('Can not communicate with Home Assistant.'))
+        callback(communicationError)
       }
     }.bind(this))
   },
