@@ -20,6 +20,10 @@
 // - Fixed issue that 'on-off'-type lights would not react on Siri 'Switch on/off light'; On/Off types are now handled as Lights instead of Switches
 //   (Cannot determine if 'on/off'-type device is a Light or a Switch :( )
 //
+// 14 September 2015 [lukeredpath]
+// - Fixed incorrect dimmer range for LightwaveRF lights (0-32 required, MaxDimLevel should be honored)
+//
+//
 // Domoticz JSON API required
 // https://www.domoticz.com/wiki/Domoticz_API/JSON_URL's#Lights_and_switches
 //
@@ -186,9 +190,7 @@ DomoticzAccessory.prototype = {
 				url = this.platform.urlForQuery("type=command&param=setcolbrightnessvalue&idx=" + this.idx + "&hue=" + value + "&brightness=100" + "&iswhite=false");
 			}
 			else if (c == "setLevel") {
-				//Range should be 0-16 instead of 0-100
-				//See http://www.domoticz.com/wiki/Domoticz_API/JSON_URL%27s#Set_a_dimmable_light_to_a_certain_level
-				value = Math.round((value / 100) * 16)
+                                value = this.dimmerLevelForValue(value)
 				url = this.platform.urlForQuery("type=command&param=switchlight&idx=" + this.idx + "&switchcmd=Set%20Level&level=" + value);
 			}
 			else if (value != undefined) {
@@ -211,10 +213,18 @@ DomoticzAccessory.prototype = {
 				that.log("There was a problem sending command " + c + " to" + that.name);
 				that.log(url);
 			} else {
-				that.log(that.name + " sent command " + c);
+				that.log(that.name + " sent command " + c + " (value: " + value + ")");
       		}
       	})
   	},
+
+  // translates the HomeKit dim level as a percentage to whatever scale the device requires
+  dimmerLevelForValue: function(value) {
+    if (this.MaxDimLevel == 100) {
+      return value;
+    }
+    return Math.round((value / 100.0) * this.MaxDimLevel) 
+  },
 
   informationCharacteristics: function() {
     return [
