@@ -8,6 +8,9 @@
 // - Added support for Scenes
 // - Sorting device names
 //
+// 22 July 2015 [lukeredpath]
+// - Added SSL and basic auth support
+//
 // 26 August 2015 [EddyK69]
 // - Added parameter in config.json: 'loadscenes' for enabling/disabling loading scenes
 // - Fixed issue with dimmer-range; was 0-100, should be 0-16
