@@ -89,6 +89,12 @@
             "delay": 30,
             "repeat": 3,
             "zones":["Kitchen Lamp","Bedroom Lamp","Living Room Lamp","Hallway Lamp"]
+         },
+         {
+             "platform": "HomeAssistant",
+             "name": "HomeAssistant",
+             "host": "http://192.168.1.10:8123",
+             "password": "XXXXX"
          }
     ],
 
@@ -183,6 +189,13 @@
             "description": "Control the Hyperion TV backlight server. https://github.com/tvdzwan/hyperion",
             "host": "localhost", 
             "port": "19444"
+        },
+        {
+            "accessory": "mpdclient",
+            "name" : "mpd",
+            "host" : "localhost",
+            "port" : 6600,
+            "description": "Allows some control of an MPD server"
         }
     ]
 }
