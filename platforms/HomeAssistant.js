@@ -20,7 +20,8 @@
 // When you attempt to add a device, it will ask for a "PIN code".
 // The default code for all HomeBridge accessories is 031-45-154.
 
-var types = require("HAP-NodeJS/accessories/types.js");
+var Service = require("HAP-NodeJS").Service;
+var Characteristic = require("HAP-NodeJS").Characteristic;
 var url = require('url')
 var request = require("request");
 
@@ -68,6 +69,27 @@ HomeAssistantPlatform.prototype = {
     })
 
   },
+  fetchState: function(entity_id, callback){
+    this._request('GET', '/states/' + entity_id, {}, function(error, response, data){
+      if (error) {
+        callback(null)
+      }else{
+        callback(data)
+      }
+    })
+  },
+  callService: function(domain, service, service_data, callback){
+    var options = {}
+    options.body = service_data
+
+    this._request('POST', '/services/' + domain + '/' + service, options, function(error, response, data){
+      if (error) {
+        callback(null)
+      }else{
+        callback(data)
+      }
+    })
+  },
   accessories: function(callback) {
     this.log("Fetching HomeAssistant devices.");
 
@@ -82,7 +104,7 @@ HomeAssistantPlatform.prototype = {
         entity = data[i]
 
         if (entity.entity_id.match(lightsRE)) {
-          accessory = new HomeAssistantAccessory(that.log, entity, that)
+          accessory = new HomeAssistantLight(that.log, entity, that)
           foundAccessories.push(accessory)
         }
       }
@@ -93,8 +115,9 @@ HomeAssistantPlatform.prototype = {
   }
 }
 
-function HomeAssistantAccessory(log, data, client) {
+function HomeAssistantLight(log, data, client) {
   // device info
+  this.domain = "light"
   this.data = data
   this.entity_id = data.entity_id
   if (data.attributes && data.attributes.friendly_name) {
@@ -107,43 +130,22 @@ function HomeAssistantAccessory(log, data, client) {
   this.log = log;
 }
 
-HomeAssistantAccessory.prototype = {
-  _callService: function(service, service_data, callback){
-    var options = {}
-    options.body = service_data
-
-    this.client._request('POST', '/services/light/' + service, options, function(error, response, data){
-      if (error) {
-        callback(null)
-      }else{
-        callback(data)
-      }
-    })
-  },
-  _fetchState: function(callback){
-    this.client._request('GET', '/states/' + this.entity_id, {}, function(error, response, data){
-      if (error) {
-        callback(null)
-      }else{
-        callback(data)
-      }
-    })
-  },
+HomeAssistantLight.prototype = {
   getPowerState: function(callback){
     this.log("fetching power state for: " + this.name);
-    this._fetchState(function(data){
+    this.client.fetchState(this.entity_id, function(data){
       if (data) {
         powerState = data.state == 'on'
         callback(powerState)
       }else{
         callback(null)
       }
-    })
+    }.bind(this))
   },
   getBrightness: function(callback){
     this.log("fetching brightness for: " + this.name);
     that = this
-    this._fetchState(function(data){
+    this.client.fetchState(this.entity_id, function(data){
       if (data && data.attributes) {
         that.log('returned brightness: ' + data.attributes.brightness)
         brightness = ((data.attributes.brightness || 0) / 255)*100
@@ -151,9 +153,9 @@ HomeAssistantAccessory.prototype = {
       }else{
         callback(null)
       }
-    })
+    }.bind(this))
   },
-  setPowerState: function(powerOn) {
+  setPowerState: function(powerOn, callback) {
     var that = this;
     var service_data = {}
     service_data.entity_id = this.entity_id
@@ -161,22 +163,28 @@ HomeAssistantAccessory.prototype = {
     if (powerOn) {
       this.log("Setting power state on the '"+this.name+"' to on");
 
-      this._callService('turn_on', service_data, function(data){
+      this.client.callService(this.domain, 'turn_on', service_data, function(data){
         if (data) {
           that.log("Successfully set power state on the '"+that.name+"' to on");
+          callback()
+        }else{
+          callback(new Error('Can not communicate with Home Assistant.'))
         }
-      })
+      }.bind(this))
     }else{
       this.log("Setting power state on the '"+this.name+"' to off");
 
-      this._callService('turn_off', service_data, function(data){
+      this.client.callService(this.domain, 'turn_off', service_data, function(data){
         if (data) {
           that.log("Successfully set power state on the '"+that.name+"' to off");
+          callback()
+        }else{
+          callback(new Error('Can not communicate with Home Assistant.'))
         }
-      })
+      }.bind(this))
     }
   },
-  setBrightness: function(level) {
+  setBrightness: function(level, callback) {
     var that = this;
     var service_data = {}
     service_data.entity_id = this.entity_id
@@ -185,21 +193,26 @@ HomeAssistantAccessory.prototype = {
 
     this.log("Setting brightness on the '"+this.name+"' to " + level);
 
-    this._callService('turn_on', service_data, function(data){
+    this.client.callService(this.domain, 'turn_on', service_data, function(data){
       if (data) {
         that.log("Successfully set brightness on the '"+that.name+"' to " + level);
+        callback()
+      }else{
+        callback(new Error('Can not communicate with Home Assistant.'))
       }
-    })
+    }.bind(this))
   },
   getServices: function() {
     var lightbulbService = new Service.Lightbulb();
 
     lightbulbService
       .getCharacteristic(Characteristic.On)
+      .on('get', this.getPowerState.bind(this))
       .on('set', this.setPowerState.bind(this));
 
     lightbulbService
-      .addCharacteristic(new Characteristic.Brightness())
+      .addCharacteristic(Characteristic.Brightness)
+      .on('get', this.getBrightness.bind(this))
       .on('set', this.setBrightness.bind(this));
 
     return [lightbulbService];
@@ -207,5 +220,5 @@ HomeAssistantAccessory.prototype = {
 
 }
 
-module.exports.accessory = HomeAssistantAccessory;
+module.exports.accessory = HomeAssistantLight;
 module.exports.platform = HomeAssistantPlatform;
