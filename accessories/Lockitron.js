@@ -51,7 +51,7 @@ LockitronAccessory.prototype.setState = function(state, callback) {
     }
     else {
       this.log("Error '%s' setting lock state. Response: %s", err, body);
-      callback(err);
+      callback(err || new Error("Error setting lock state."));
     }
   }.bind(this));
 },
