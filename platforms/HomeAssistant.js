@@ -97,7 +97,11 @@ function HomeAssistantAccessory(log, data, client) {
   // device info
   this.data = data
   this.entity_id = data.entity_id
-  this.name = data.attributes.friendly_name
+  if (data.attributes && data.attributes.friendly_name) {
+    this.name = data.attributes.friendly_name
+  }else{
+    this.name = data.entity_id.split('.').pop().replace(/_/g, ' ')
+  }
 
   this.client = client
   this.log = log;
