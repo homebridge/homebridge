@@ -1062,6 +1062,9 @@ FHEMAccessory.prototype = {
 
   identify: function(callback) {
     this.log('['+this.name+'] identify requested!');
+    if( match = this.PossibleSets.match(/[\^ ]toggle\b/) ) {
+      this.command( 'identify' );
+    }
     callback();
   },
 
