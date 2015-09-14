@@ -20,7 +20,7 @@
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "lifx-api": "^1.0.1",
-    "lifx": "https://github.com/magicmonkey/lifxjs.git",
+    "lifx": "git+https://github.com/magicmonkey/lifxjs.git",
     "mdns": "^2.2.4",
     "node-hue-api": "^1.0.5",
     "node-icontrol": "^0.1.4",
