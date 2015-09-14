@@ -98,15 +98,22 @@ HomeAssistantPlatform.prototype = {
     var that = this;
     var foundAccessories = [];
     var lightsRE = /^light\./i
+    var switchRE = /^switch\./i
 
 
     this._request('GET', '/states', {}, function(error, response, data){
 
       for (var i = 0; i < data.length; i++) {
         entity = data[i]
+        var accessory = null
 
         if (entity.entity_id.match(lightsRE)) {
           accessory = new HomeAssistantLight(that.log, entity, that)
+        }else if (entity.entity_id.match(switchRE)){
+          accessory = new HomeAssistantSwitch(that.log, entity, that)
+        }
+
+        if (accessory) {
           foundAccessories.push(accessory)
         }
       }
