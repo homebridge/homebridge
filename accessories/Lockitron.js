@@ -8,6 +8,7 @@ module.exports = {
 
 function LockitronAccessory(log, config) {
   this.log = log;
+  this.name = config["name"];
   this.accessToken = config["api_token"];
   this.lockID = config["lock_id"];
 }
