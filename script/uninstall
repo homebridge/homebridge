@@ -5,8 +5,13 @@ echo "Uninstalling Homebridge..."
 forever stop homebridge > /dev/null 2>&1
 
 if [[ "$OSTYPE" == "linux*" ]]; then
-## install for linux
-  echo ""
+  ## uninstall for linux
+
+  # stop the service.
+  sudo /etc/init.d/homebridge stop
+
+  # remove the service from launching at boot.
+  sudo update-rc.d -f homebridge remove
 elif [[ "$OSTYPE" == "darwin"* ]]; then
   ## uninstall for OS X
 
