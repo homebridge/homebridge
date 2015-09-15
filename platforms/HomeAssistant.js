@@ -7,6 +7,29 @@
 // URL:     http://home-assistant.io
 // GitHub:  https://github.com/balloob/home-assistant
 //
+// HA accessories supported: Lights, Switches, Media Players.
+//
+// Media Player Support
+//
+// Media players on your Home Assistant will be added to your HomeKit as a light.
+// While this seems like a hack at first, it's actually quite useful. You can
+// turn them on, off, and set their volume (as a function of brightness).
+//
+// There are some rules to know about how on/off treats your media player. If
+// your media player supports play/pause, then turning them on and off via
+// HomeKit will play and pause them. If they do not support play/pause but then
+// support on/off they will be turned on and then off.
+//
+// HomeKit does not have a characteristic of Volume or a Speaker type. So we are
+// using the light device type here. So to turn your speaker up and down, you
+// will need to use the same language you use to set the brighness of a light.
+// You can play around with language to see what fits best.
+//
+// Examples
+//
+// Dim the Kitchen Speaker to 40%
+// Set the brightness of the Kitchen Speaker to 40%
+//
 // Remember to add platform to config.json. Example:
 // "platforms": [
 //    {
