@@ -1,0 +1,8 @@
+#!/bin/sh
+echo "Updating from GitHub..."
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+git pull origin $BRANCH
+
+npm update
+
+script/restart

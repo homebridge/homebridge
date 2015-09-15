@@ -1,0 +1,30 @@
+#!/bin/sh
+
+set -e
+
+if ! test $(which forever)
+then
+  echo
+  echo "!!!!"
+  echo "You don't have forever installed. You need to install it first."
+  echo
+  echo "Just install it with this command: "
+  echo 'sudo npm install forever -g'
+  echo
+  exit 1
+fi
+
+mkdir -p log
+
+echo "Installing packages..."
+npm install > /dev/null 2>&1
+
+if [ ! -f  config.json ]
+then
+  echo
+  echo "==> Creating your config. Please edit config.json."
+  echo
+  cp config-sample.json config.json
+fi
+
+echo "Finished setting up Homebridge! run it with script/server or install it with script/install."

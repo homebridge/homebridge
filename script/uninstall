@@ -1,0 +1,6 @@
+#!/bin/sh
+
+echo "Uninstalling Homebridge..."
+forever stop homebridge > /dev/null 2>&1
+launchctl unload ~/Library/LaunchAgents/org.homebridge.plist
+rm ~/Library/LaunchAgents/org.homebridge.plist

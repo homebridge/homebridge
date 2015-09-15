@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -e
+
+echo "Installing Homebridge..."
+
+APP_PATH=`pwd`
+USER_NAME=`whoami`
+
+cp startup/org.homebridge.plist ~/Library/LaunchAgents/org.homebridge.plist
+
+sed -i '' -e "s#%USER%#$USER_NAME#g" ~/Library/LaunchAgents/org.homebridge.plist
+sed -i '' -e "s#%PATH%#$APP_PATH#g" ~/Library/LaunchAgents/org.homebridge.plist
+
+launchctl load -w -F ~/Library/LaunchAgents/org.homebridge.plist
