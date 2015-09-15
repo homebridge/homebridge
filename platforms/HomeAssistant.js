@@ -27,7 +27,8 @@
 //
 // Examples
 //
-// Dim the Kitchen Speaker to 40%
+// Dim the Kitchen Speaker to 40% - sets volume to 40%
+// Dim the the Kitchen Speaker 10% - lowers the volume by 10%
 // Set the brightness of the Kitchen Speaker to 40%
 //
 // Remember to add platform to config.json. Example:
