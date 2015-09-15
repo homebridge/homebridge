@@ -3,11 +3,11 @@
 // Remember to add platform to config.json. Example:
 // "platforms": [
 //     {
-            "platform": "FibaroHC2",
-            "name": "FibaroHC2",
-            "host": "PUT IP ADDRESS OF YOUR HC2 HERE",
-            "username": "PUT USERNAME OF YOUR HC2 HERE",
-            "password": "PUT PASSWORD OF YOUR HC2 HERE"
+//            "platform": "FibaroHC2",
+//            "name": "FibaroHC2",
+//            "host": "PUT IP ADDRESS OF YOUR HC2 HERE",
+//            "username": "PUT USERNAME OF YOUR HC2 HERE",
+//            "password": "PUT PASSWORD OF YOUR HC2 HERE"
 //     }
 // ],
 //
