@@ -196,6 +196,15 @@
             "host" : "localhost",
             "port" : 6600,
             "description": "Allows some control of an MPD server"
+        },
+        {
+            "accessory": "FileSensor",
+            "name": "File Time Motion Sensor",
+            "path": "/tmp/CameraDump/",
+            "window_seconds": 5,
+            "sensor_type": "m",
+            "inverse": false
         }
+
     ]
 }
