@@ -7,9 +7,21 @@ echo "Installing Homebridge..."
 APP_PATH=`pwd`
 USER_NAME=`whoami`
 
-cp startup/org.homebridge.plist ~/Library/LaunchAgents/org.homebridge.plist
 
-sed -i '' -e "s#%USER%#$USER_NAME#g" ~/Library/LaunchAgents/org.homebridge.plist
-sed -i '' -e "s#%PATH%#$APP_PATH#g" ~/Library/LaunchAgents/org.homebridge.plist
+if [[ "$OSTYPE" == "linux*" ]]; then
+## install for linux
+  echo ""
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  ## install for OS X
 
-launchctl load -w -F ~/Library/LaunchAgents/org.homebridge.plist
+  # copy template plist to the correct path.
+  cp startup/org.homebridge.plist ~/Library/LaunchAgents/org.homebridge.plist
+
+  # Set the current user for the script to run as.
+  sed -i '' -e "s#%USER%#$USER_NAME#g" ~/Library/LaunchAgents/org.homebridge.plist
+  # Set the current path for where the app lives.
+  sed -i '' -e "s#%PATH%#$APP_PATH#g" ~/Library/LaunchAgents/org.homebridge.plist
+
+  # Tell launchd to start it.
+  launchctl load -w -F ~/Library/LaunchAgents/org.homebridge.plist
+fi

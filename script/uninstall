@@ -1,6 +1,17 @@
 #!/bin/sh
 
 echo "Uninstalling Homebridge..."
+# make forever stop the app.
 forever stop homebridge > /dev/null 2>&1
-launchctl unload ~/Library/LaunchAgents/org.homebridge.plist
-rm ~/Library/LaunchAgents/org.homebridge.plist
+
+if [[ "$OSTYPE" == "linux*" ]]; then
+## install for linux
+  echo ""
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  ## uninstall for OS X
+
+  # tell launchd to stop the process.
+  launchctl unload ~/Library/LaunchAgents/org.homebridge.plist
+  # remove the launchd script.
+  rm ~/Library/LaunchAgents/org.homebridge.plist
+fi
