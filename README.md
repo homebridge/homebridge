@@ -52,26 +52,21 @@ You'll also need some patience, as Siri can be very strict about sentence struct
 
 # Getting Started
 
-OK, if you're still excited enough about ordering Siri to make your coffee (which, who wouldn't be!) then here's how to set things up. First, clone this repo:
+OK, if you're still excited enough about ordering Siri to make your coffee (which, who wouldn't be!) then here's how to set things up. First, clone this repo and set up the project:
 
     $ git clone https://github.com/nfarina/homebridge.git
     $ cd homebridge
-    $ npm install
+    $ script/bootstrap
 
-**Node**: You'll need to have NodeJS version 0.12.x or better installed for required submodule `HAP-NodeJS` to load.
+**Node**: You'll need to have NodeJS version 0.12.x or better installed for required submodule `HAP-NodeJS` to load as well as the `forever` node package..
+
+The server won't do anything until you've edited your `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) or platforms you wish to make available to iOS. The sample configuration has been copied for you into `config.json`. It includes declarations for all supported accessories and platforms. Remove everything except for the accessories and platforms you'll be using.
 
 Now you should be able to run the homebridge server:
 
     $ cd homebridge
-    $ npm run start
-    Starting Homebridge server...
-    Couldn't find a config.json file [snip]
+    $ script/server
 
-The server won't do anything until you've created a `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) or platforms you wish to make available to iOS. You can start by copying and modifying the included `config-sample.json` file which includes declarations for all supported accessories and platforms.
-
-Once you've added your devices and/or platforms, you should be able to run the server again and see them initialize:
-
-    $ npm run start
     Starting Homebridge server...
     Loading 6 accessories...
     [Speakers] Initializing 'Sonos' accessory...
@@ -83,6 +78,22 @@ Once you've added your devices and/or platforms, you should be able to run the s
     [Wink] Initializing device with name Living Room Lamp...
 
 Your server is now ready to receive commands from iOS.
+
+# Installing Homebridge to Run at Boot and in the Background
+Homebridge can be run at boot and in the background on OS X and any Linux variation that uses SysVinit (/etc/init.d scripts) to launch services. To install homebridge as
+a service:
+
+    $ script/install
+
+It should load for you in the background. You can find logs in `log/logs.log`. To uninstall it you can run `script/uninstall`. To restart it you can run `script/restart`.
+
+# Upgrading
+
+If you want to upgrade homebridge, simply run:
+
+    $ script/upgrade
+
+It will pull the newest version from the repo on GitHub and restart itself.
 
 # Adding your devices to iOS
 
