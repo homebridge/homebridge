@@ -14,3 +14,4 @@ npm-debug.log
 # HomeBridge
 config.json
 persist/
+log/
