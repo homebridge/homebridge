@@ -18,12 +18,14 @@ var types = require("HAP-NodeJS/accessories/types.js");
 var request = require("request");
 
 function FibaroHC2Platform(log, config){
-  this.log          = log;
-  this.host     = config["host"];
-  this.username = config["username"];
-  this.password = config["password"];
-  this.auth = "Basic " + new Buffer(this.username + ":" + this.password).toString("base64");
-  this.url = "http://"+this.host+"/api/devices";
+  	this.log          = log;
+  	this.host     = config["host"];
+  	this.username = config["username"];
+  	this.password = config["password"];
+  	this.auth = "Basic " + new Buffer(this.username + ":" + this.password).toString("base64");
+  	this.url = "http://"+this.host+"/api/devices";
+  
+	startPollingUpdate( this );
 }
 
 FibaroHC2Platform.prototype = {
@@ -75,7 +77,7 @@ FibaroHC2Platform.prototype = {
         }
         callback(foundAccessories);
       } else {
-        that.log("There was a problem authenticating with FibaroHC2.");
+        that.log("There was a problem connecting with FibaroHC2.");
       }
     });
 
@@ -212,6 +214,10 @@ FibaroHC2Platform.prototype = {
 		} else if (that.CONTROL_CHARACTERISTICS[i] == types.POWER_STATE_CTYPE)  {
 			cTypes.push({
 				cType: types.POWER_STATE_CTYPE,
+		        onRegister: function(characteristic) {
+    		    	characteristic.eventEnabled = true;
+          			subscribeUpdate(characteristic, that, true);
+        		},
 				onUpdate: function(value) {
 					  if (value == 0) {
 						that.platform.command("turnOff", null, that)
@@ -233,6 +239,10 @@ FibaroHC2Platform.prototype = {
 		} else if (that.CONTROL_CHARACTERISTICS[i] == types.BRIGHTNESS_CTYPE)  {
 			cTypes.push({
         		cType: types.BRIGHTNESS_CTYPE,
+		        onRegister: function(characteristic) {
+    		    	characteristic.eventEnabled = true;
+          			subscribeUpdate(characteristic, that, false);
+        		},
         		onUpdate: function(value) { that.platform.command("setValue", value, that); },
         		onRead: function(callback) {
           			that.platform.getAccessoryValue(callback, false, that);
@@ -251,6 +261,10 @@ FibaroHC2Platform.prototype = {
 		} else if (that.CONTROL_CHARACTERISTICS[i] == types.WINDOW_COVERING_CURRENT_POSITION_CTYPE)  {
 			cTypes.push({
         		cType: types.WINDOW_COVERING_CURRENT_POSITION_CTYPE,
+		        onRegister: function(characteristic) {
+    		    	characteristic.eventEnabled = true;
+          			subscribeUpdate(characteristic, that, false);
+        		},
         		onRead: function(callback) {
           			that.platform.getAccessoryValue(callback, false, that);
         		},
@@ -268,6 +282,10 @@ FibaroHC2Platform.prototype = {
 		} else if (that.CONTROL_CHARACTERISTICS[i] == types.WINDOW_COVERING_TARGET_POSITION_CTYPE)  {
       		cTypes.push({
         		cType: types.WINDOW_COVERING_TARGET_POSITION_CTYPE,
+        		onRegister: function(characteristic) {
+    		    	characteristic.eventEnabled = true;
+          			subscribeUpdate(characteristic, that, false);
+        		},
         		onUpdate: function(value) { that.platform.command("setValue", value, that); },
         		onRead: function(callback) {
           			that.platform.getAccessoryValue(callback, false, that);
@@ -299,6 +317,10 @@ FibaroHC2Platform.prototype = {
 		} else if (that.CONTROL_CHARACTERISTICS[i] == types.CURRENT_TEMPERATURE_CTYPE) {
 	    	cTypes.push({
         		cType: types.CURRENT_TEMPERATURE_CTYPE,
+		        onRegister: function(characteristic) {
+    		    	characteristic.eventEnabled = true;
+          			subscribeUpdate(characteristic, that, false);
+        		},
         		onRead: function(callback) {
           			that.platform.getAccessoryValue(callback, false, that);
         		},
@@ -314,6 +336,10 @@ FibaroHC2Platform.prototype = {
 		} else if (that.CONTROL_CHARACTERISTICS[i] == types.MOTION_DETECTED_CTYPE) {
 	    	cTypes.push({
         		cType: types.MOTION_DETECTED_CTYPE,
+		        onRegister: function(characteristic) {
+    		    	characteristic.eventEnabled = true;
+          			subscribeUpdate(characteristic, that, true);
+        		},
         		onRead: function(callback) {
           			that.platform.getAccessoryValue(callback, true, that);
         		},
@@ -328,6 +354,10 @@ FibaroHC2Platform.prototype = {
 		} else if (that.CONTROL_CHARACTERISTICS[i] == types.CONTACT_SENSOR_STATE_CTYPE) {
 		    cTypes.push({
         		cType: types.CONTACT_SENSOR_STATE_CTYPE,
+		        onRegister: function(characteristic) {
+    		    	characteristic.eventEnabled = true;
+          			subscribeUpdate(characteristic, that, true);
+        		},
         		onRead: function(callback) {
           			that.platform.getAccessoryValue(callback, true, that);
         		},
@@ -441,5 +471,60 @@ FibaroDoorSensorAccessory.prototype = {
 	return this.platform.getAccessoryServices(this);
   }
 };
+var lastPoll=0;
+var pollingUpdateRunning = false;
+
+function startPollingUpdate( platform )
+{
+	if( pollingUpdateRunning )
+    	return;
+  	pollingUpdateRunning = true;
+  	
+  	var updateUrl = "http://"+platform.host+"/api/refreshStates?last="+lastPoll;
+
+  	request.get({
+      url: updateUrl,
+      headers : {
+            "Authorization" : platform.auth
+      },
+      json: true
+    }, function(err, response, json) {
+      	if (!err && response.statusCode == 200) {
+        	if (json != undefined) {
+        		lastPoll = json.last;
+        		if (json.changes != undefined) {
+          			json.changes.map(function(s) {
+          				if (s.value != undefined) {
+          					
+          					var value=parseInt(s.value);
+          					if (isNaN(value))
+          						value=(s.value === "true");
+          					for (i=0;i<updateSubscriptions.length; i++) {
+          						var subscription = updateSubscriptions[i];
+          						if (subscription.id == s.id) {
+	          						if ((subscription.onOff && typeof(value) == "boolean") || !subscription.onOff)
+	    	      							subscription.characteristic.updateValue(value, null);
+          							else
+	    	      							subscription.characteristic.updateValue(value == 0 ? false : true, null);
+          						}
+          					}
+          				}
+          			})
+          		}
+        	}
+      	} else {
+        	platform.log("There was a problem connecting with FibaroHC2.");
+      	}
+	  	pollingUpdateRunning = false;
+    	setTimeout( function(){startPollingUpdate(platform)}, 2000 );
+    });
+
+}
+
+var updateSubscriptions = [];
+function subscribeUpdate(characteristic, accessory, onOff)
+{
+  updateSubscriptions.push({ 'id': accessory.id, 'characteristic': characteristic, 'accessory': accessory, 'onOff': onOff });
+}
 
 module.exports.platform = FibaroHC2Platform;
