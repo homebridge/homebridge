@@ -1,12 +1,12 @@
 #!/bin/sh
 
-forever=`which forever`
+FOREVER_PATH=`which forever`
 
 test -z "$NODE_ENV" &&
   export NODE_ENV='development'
 
 if [ "$NODE_ENV" = "development" ]; then
-  $forever -f startup/forever/development.json
+  $FOREVER_PATH -f startup/forever/development.json
 else
-  $forever start startup/forever/production.json
+  $FOREVER_PATH start startup/forever/production.json
 fi
