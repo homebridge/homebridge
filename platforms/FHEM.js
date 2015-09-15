@@ -551,8 +551,11 @@ FHEMAccessory(log, connection, s) {
   if( s.Internals.TYPE == 'SONOSPLAYER' ) //FIXME: use sets [Pp]lay/[Pp]ause/[Ss]top
     this.mappings.onOff = { reading: 'transportState', cmdOn: 'play', cmdOff: 'pause' };
   else if( s.PossibleSets.match(/[\^ ]on\b/)
-           && s.PossibleSets.match(/[\^ ]off\b/) )
+           && s.PossibleSets.match(/[\^ ]off\b/) ) {
     this.mappings.onOff = { reading: 'state', cmdOn: 'on', cmdOff: 'off' };
+    if( !s.Readings.state )
+      delete this.mappings.onOff.reading;
+  }
 
   var event_map = s.Attributes.eventMap;
   if( event_map ) {
@@ -912,14 +915,21 @@ FHEMAccessory.prototype = {
   },
 
   query: function(reading, callback) {
+    if( reading == undefined ) {
+      if( callback != undefined )
+        callback( 1 );
+      return;
+    }
+
     this.log("query: " + this.name + "-" + reading);
 
     var result = FHEM_cached[this.device + '-' + reading];
     if( result != undefined ) {
       this.log("  cached: " + result);
       if( callback != undefined )
-        callback( result );
-      return( result );
+        callback( undefined, result );
+      return result;
+
     } else
       this.log("  not cached" );
 
@@ -1009,11 +1019,14 @@ FHEMAccessory.prototype = {
                     that.log("  mapped: " + value);
                     FHEM_update( that.device + '-' + reading, value, true );
 
-                    if( value == undefined )
-                      return;
-                    if( callback != undefined )
-                      callback(value);
-                    return(value);
+                    if( callback != undefined ) {
+                      if( value == undefined )
+                        callback(1);
+                      else
+                        callback(undefined, value);
+                    }
+
+                    return value ;
 
                 } );
   },
@@ -1038,7 +1051,7 @@ FHEMAccessory.prototype = {
       return new Service.Thermostat(name);
     } else if( this.mappings.contact ) {
       this.log("  contact sensor service for " + this.name)
-      return new Service.ContactSensorState(name);
+      return new Service.ContactSensor(name);
     } else if( this.mappings.occupancy ) {
       this.log("  occupancy sensor service for " + this.name)
       return new Service.OccupancySensor(name);
@@ -1098,7 +1111,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query( that.mappings.onOff.reading, function(state){ callback(undefined, state); } );
+                     that.query(that.mappings.onOff.reading, callback);
                    }.bind(this) );
     }
 
@@ -1118,7 +1131,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query(that.mappings.pct.reading, function(pct){ callback(undefined,pct); });
+                     that.query(that.mappings.pct.reading, callback);
                    }.bind(this) );
 
     } else if( this.hasDim ) {
@@ -1137,7 +1150,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query('pct', function(pct){ callback(undefined,pct); });
+                     that.query('pct', callback);
                    }.bind(this) );
 
     }
@@ -1158,7 +1171,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query(that.mappings.hue.reading, function(hue){ callback(undefined,hue); });
+                     that.query(that.mappings.hue.reading, callback);
                    }.bind(this) );
 
     } else if( this.mappings.rgb ) {
@@ -1177,7 +1190,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query('hue', function(hue){ callback(undefined,hue); });
+                     that.query('hue', callback);
                    }.bind(this) );
 
       if( !this.mappings.sat ) {
@@ -1195,7 +1208,7 @@ FHEMAccessory.prototype = {
                        callback();
                      }.bind(this) )
           .on('get', function(callback) {
-                       that.query('sat', function(sat){ callback(undefined,sat); });
+                       that.query('sat', callback);
                      }.bind(this) );
       }
 
@@ -1214,7 +1227,7 @@ FHEMAccessory.prototype = {
                        callback();
                      }.bind(this) )
           .on('get', function(callback) {
-                       that.query('bri', function(bri){ callback(undefined,bri); });
+                       that.query('bri', callback);
                      }.bind(this) );
       }
 
@@ -1236,14 +1249,14 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query(that.mappings.sat.reading, function(sat){ callback(undefined,sat); });
+                     that.query(that.mappings.sat.reading, callback);
                    }.bind(this) );
     }
 
     if( this.mappings.volume ) {
       this.log("    custom volume characteristic for " + this.name)
 
-      var characteristic = new Characteristic('Adjust the Volume of this device', '00000027-0000-1000-8000-0026BB765291'); // FIXME!!!
+      var characteristic = new Characteristic('Volume', '00000027-0000-1000-8000-0026BB765291'); // FIXME!!!
       controlService.addCharacteristic(characteristic);
 
       if( !that.mappings.volume.nocache ) {
@@ -1253,8 +1266,8 @@ FHEMAccessory.prototype = {
         characteristic.value = 10;
       }
 
-      characteristic.format = 'int';
-      //characteristic.unit = 'percentage';
+      characteristic.format = 'uint8';
+      characteristic.unit = 'percentage';
       characteristic.maximumValue = 100;
       characteristic.minimumValue = 0;
       characteristic.stepValue = 1;
@@ -1269,7 +1282,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query(that.mappings.volume.reading, function(volume){ callback(undefined,volume); });
+                     that.query(that.mappings.volume.reading, callback);
                    }.bind(this) );
 
     }
@@ -1284,7 +1297,7 @@ FHEMAccessory.prototype = {
 
       characteristic
         .on('get', function(callback) {
-                     that.query(that.mappings.blind.reading, function(pos){ callback(undefined,pos); });
+                     that.query(that.mappings.blind.reading, callback);
                    }.bind(this) );
 
 
@@ -1301,7 +1314,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query(that.mappings.blind.reading, function(pos){ callback(undefined,pos); });
+                     that.query(that.mappings.blind.reading, callback);
                    }.bind(this) );
 
 
@@ -1316,7 +1329,7 @@ FHEMAccessory.prototype = {
       characteristic
         .on('get', function(callback) {
                      if( that.mappings.motor )
-                       that.query(that.mappings.motor.reading, function(state){ callback(undefined,state); });
+                       that.query(that.mappings.motor.reading, callback);
                    }.bind(this) );
 
     }
@@ -1332,7 +1345,7 @@ FHEMAccessory.prototype = {
 
       characteristic
         .on('get', function(callback) {
-                     that.query(that.mappings.window.reading, function(pos){ callback(undefined,pos); });
+                     that.query(that.mappings.window.reading, callback);
                    }.bind(this) );
 
 
@@ -1349,7 +1362,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query(that.mappings.window.reading, function(level){ callback(undefined,level); });
+                     that.query(that.mappings.window.reading, callback);
                    }.bind(this) );
 
 
@@ -1364,7 +1377,7 @@ FHEMAccessory.prototype = {
       characteristic
         .on('get', function(callback) {
                      if( that.mappings.direction )
-                       that.query(that.mappings.direction.reading, function(direction){ callback(undefined,direction); });
+                       that.query(that.mappings.direction.reading, callback);
                    }.bind(this) );
 
     }
@@ -1424,7 +1437,7 @@ FHEMAccessory.prototype = {
 
       characteristic
         .on('get', function(callback) {
-                     that.query(that.mappings.temperature.reading, function(temperature){ callback(undefined,temperature); });
+                     that.query(that.mappings.temperature.reading, callback);
                    }.bind(this) );
 
     }
@@ -1440,7 +1453,7 @@ FHEMAccessory.prototype = {
 
       characteristic
         .on('get', function(callback) {
-                     that.query(that.mappings.humidity.reading, function(humidity){ callback(undefined,humidity); });
+                     that.query(that.mappings.humidity.reading, callback);
                    }.bind(this) );
 
     }
@@ -1456,7 +1469,7 @@ FHEMAccessory.prototype = {
 
       characteristic
         .on('get', function(callback) {
-                     that.query(that.mappings.airquality.reading, function(airquality){ callback(undefined,airquality); });
+                     that.query(that.mappings.airquality.reading, callback);
                    }.bind(this) );
     }
 
@@ -1477,7 +1490,7 @@ FHEMAccessory.prototype = {
                      callback();
                    }.bind(this) )
         .on('get', function(callback) {
-                     that.query(that.mappings.thermostat.reading, function(temperature){ callback(undefined,temperature); });
+                     that.query(that.mappings.thermostat.reading, callback);
                    }.bind(this) );
 
     }
@@ -1492,7 +1505,7 @@ FHEMAccessory.prototype = {
 
       characteristic
         .on('get', function(callback) {
-                     that.query(that.mappings.contact.reading, function(state){ callback(undefined,state); });
+                     that.query(that.mappings.contact.reading, callback);
                    }.bind(this) );
 
     }
@@ -1507,7 +1520,7 @@ FHEMAccessory.prototype = {
 
       characteristic
         .on('get', function(callback) {
-                     that.query(that.mappings.occupancy.reading, function(state){ callback(undefined,state); });
+                     that.query(that.mappings.occupancy.reading, callback);
                    }.bind(this) );
 
     }
