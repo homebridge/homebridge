@@ -17,6 +17,9 @@ fi
 mkdir -p log
 
 echo "Installing packages..."
+if [[ "$OSTYPE" == "linux*" ]]; then
+  echo "This might take a while on a Raspberry Pi..."
+fi
 npm install > /dev/null 2>&1
 
 if [ ! -f  config.json ]
