@@ -72,7 +72,7 @@
                 },
                 {
                     "accessory_type": "knxdevice",
-                    "description":"sample device with multiple services. Multiple services of different types are widely supported"
+                    "description":"sample device with multiple services. Multiple services of different types are widely supported",
                     "name": "Office",
                     "services": [
                         {

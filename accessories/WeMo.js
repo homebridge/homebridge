@@ -30,6 +30,30 @@ WeMoAccessory.prototype.search = function() {
   }.bind(this));
 }
 
+WeMoAccessory.prototype.getMotion = function(callback) {
+
+  if (!this.device) {
+    this.log("No '%s' device found (yet?)", this.wemoName);
+    callback(new Error("Device not found"), false);
+    return;
+  }
+
+  this.log("Getting motion state on the '%s'...", this.wemoName);
+
+  this.device.getBinaryState(function(err, result) {
+    if (!err) {
+      var binaryState = parseInt(result);
+      var powerOn = binaryState > 0;
+      this.log("Motion state for the '%s' is %s", this.wemoName, binaryState);
+      callback(null, powerOn);
+    }
+    else {
+      this.log("Error getting motion state on the '%s': %s", this.wemoName, err.message);
+      callback(err);
+    }
+  }.bind(this));
+}
+
 WeMoAccessory.prototype.getPowerOn = function(callback) {
 
   if (!this.device) {
@@ -121,6 +145,15 @@ WeMoAccessory.prototype.getServices = function() {
     
     
     return [garageDoorService];
+  }
+  else if (this.service == "MotionSensor") {
+    var motionSensorService = new Service.MotionSensor(this.name);
+
+    motionSensorService
+      .getCharacteristic(Characteristic.MotionDetected)
+      .on('get', this.getMotion.bind(this));
+
+    return [motionSensorService];
   }
   else {
     throw new Error("Unknown service type '%s'", this.service);
