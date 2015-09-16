@@ -7,7 +7,27 @@
 // URL:     http://home-assistant.io
 // GitHub:  https://github.com/balloob/home-assistant
 //
-// HA accessories supported: Lights, Switches, Media Players.
+// HA accessories supported: Lights, Switches, Media Players, Scenes.
+//
+// Optional Devices - Edit the supported_types key in the config to pick which
+//                    of the 4 types you would like to expose to HomeKit from
+//                    Home Assistant. light, switch, media_player, scene.
+//
+//
+// Scene Support
+//
+// You can optionally import your Home Assistant scenes. These will appear to
+// HomeKit as switches. You can simply say "turn on party time". In some cases
+// scenes names are already rerved in HomeKit...like "Good Morning" and
+// "Good Night". You will be able to just say "Good Morning" or "Good Night" to
+// have these triggered.
+//
+// You might want to play with the wording to figure out what ends up working well
+// for your scene names. It's also important to not populate any actual HomeKit
+// scenes with the same names, as Siri will pick these instead of your Home
+// Assistant scenes.
+//
+//
 //
 // Media Player Support
 //
@@ -25,6 +45,8 @@
 // will need to use the same language you use to set the brighness of a light.
 // You can play around with language to see what fits best.
 //
+//
+//
 // Examples
 //
 // Dim the Kitchen Speaker to 40% - sets volume to 40%
@@ -37,7 +59,8 @@
 //        "platform": "HomeAssistant",
 //        "name": "HomeAssistant",
 //        "host": "http://192.168.1.50:8123",
-//        "password": "xxx"
+//        "password": "xxx",
+//        "supported_types": ["light", "switch", "media_player", "scene"]
 //    }
 // ]
 //
@@ -56,6 +79,7 @@ function HomeAssistantPlatform(log, config){
   // auth info
   this.host = config["host"];
   this.password = config["password"];
+  this.supportedTypes = config["supported_types"];
 
   this.log = log;
 }
@@ -121,22 +145,26 @@ HomeAssistantPlatform.prototype = {
 
     var that = this;
     var foundAccessories = [];
-    var lightsRE = /^light\./i
-    var switchRE = /^switch\./i
-    var mediaPlayerRE = /^media_player\./i
-
 
     this._request('GET', '/states', {}, function(error, response, data){
 
       for (var i = 0; i < data.length; i++) {
         entity = data[i]
+        entity_type = entity.entity_id.split('.')[0]
+
+        if (that.supportedTypes.indexOf(entity_type) == -1) {
+          continue;
+        }
+
         var accessory = null
 
-        if (entity.entity_id.match(lightsRE)) {
+        if (entity_type == 'light') {
           accessory = new HomeAssistantLight(that.log, entity, that)
-        }else if (entity.entity_id.match(switchRE)){
+        }else if (entity_type == 'switch'){
           accessory = new HomeAssistantSwitch(that.log, entity, that)
-        }else if (entity.entity_id.match(mediaPlayerRE) && entity.attributes && entity.attributes.supported_media_commands){
+        }else if (entity_type == 'scene'){
+          accessory = new HomeAssistantSwitch(that.log, entity, that, 'scene')
+        }else if (entity_type == 'media_player' && entity.attributes && entity.attributes.supported_media_commands){
           accessory = new HomeAssistantMediaPlayer(that.log, entity, that)
         }
 
@@ -240,6 +268,12 @@ HomeAssistantLight.prototype = {
   },
   getServices: function() {
     var lightbulbService = new Service.Lightbulb();
+    var informationService = new Service.AccessoryInformation();
+
+    informationService
+      .setCharacteristic(Characteristic.Manufacturer, "Home Assistant")
+      .setCharacteristic(Characteristic.Model, "Light")
+      .setCharacteristic(Characteristic.SerialNumber, "xxx");
 
     lightbulbService
       .getCharacteristic(Characteristic.On)
@@ -251,7 +285,7 @@ HomeAssistantLight.prototype = {
       .on('get', this.getBrightness.bind(this))
       .on('set', this.setBrightness.bind(this));
 
-    return [lightbulbService];
+    return [informationService, lightbulbService];
   }
 
 }
@@ -375,6 +409,12 @@ HomeAssistantMediaPlayer.prototype = {
   },
   getServices: function() {
     var lightbulbService = new Service.Lightbulb();
+    var informationService = new Service.AccessoryInformation();
+
+    informationService
+      .setCharacteristic(Characteristic.Manufacturer, "Home Assistant")
+      .setCharacteristic(Characteristic.Model, "Media Player")
+      .setCharacteristic(Characteristic.SerialNumber, "xxx");
 
     lightbulbService
       .getCharacteristic(Characteristic.On)
@@ -389,15 +429,15 @@ HomeAssistantMediaPlayer.prototype = {
         .on('set', this.setVolume.bind(this));
     }
 
-    return [lightbulbService];
+    return [informationService, lightbulbService];
   }
 
 }
 
 
-function HomeAssistantSwitch(log, data, client) {
+function HomeAssistantSwitch(log, data, client, type) {
   // device info
-  this.domain = "switch"
+  this.domain = type || "switch"
   this.data = data
   this.entity_id = data.entity_id
   if (data.attributes && data.attributes.friendly_name) {
@@ -454,13 +494,35 @@ HomeAssistantSwitch.prototype = {
   },
   getServices: function() {
     var switchService = new Service.Switch();
+    var informationService = new Service.AccessoryInformation();
+    var model;
 
-    switchService
-      .getCharacteristic(Characteristic.On)
-      .on('get', this.getPowerState.bind(this))
-      .on('set', this.setPowerState.bind(this));
+    switch (this.domain) {
+      case "scene":
+        model = "Scene"
+        break;
+      default:
+        model = "Switch"
+    }
 
-    return [switchService];
+    informationService
+      .setCharacteristic(Characteristic.Manufacturer, "Home Assistant")
+      .setCharacteristic(Characteristic.Model, model)
+      .setCharacteristic(Characteristic.SerialNumber, "xxx");
+
+    if (this.domain == 'switch') {
+      switchService
+        .getCharacteristic(Characteristic.On)
+        .on('get', this.getPowerState.bind(this))
+        .on('set', this.setPowerState.bind(this));
+
+    }else{
+      switchService
+        .getCharacteristic(Characteristic.On)
+        .on('set', this.setPowerState.bind(this));
+    }
+
+    return [informationService, switchService];
   }
 
 }

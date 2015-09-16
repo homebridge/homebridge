@@ -13,10 +13,11 @@
   "dependencies": {
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "carwingsjs": "0.0.x",
+    "chokidar": "^1.0.5",
     "color": "0.10.x",
     "eibd": "^0.3.1",
     "elkington": "kevinohara80/elkington",
-    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#6bf0f9eaaa2d87db8d1768114c61f4acbb095c41",
+    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#0030b35856e04ee2b42f0d05839feaa5c44cbd1f",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "lifx-api": "^1.0.1",
