@@ -458,7 +458,12 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TargetHeatingCoolingState.HEAT);
             });
-            cx.writable = false;
+            // Hmm... apparently if this is not setable, we can't add a thermostat change to a scene. So, make it writable but a no-op.
+            cx.writable = true;
+            cx.on('set', function(newValue, callback){
+                debug("WARN: Set of TargetHeatingCoolingState not yet implemented, resetting to HEAT!")
+                callback(undefined, Characteristic.TargetHeatingCoolingState.HEAT);
+            }.bind(this));
             return cx;
         }
         

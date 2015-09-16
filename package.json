@@ -13,14 +13,15 @@
   "dependencies": {
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
     "carwingsjs": "0.0.x",
+    "chokidar": "^1.0.5",
     "color": "0.10.x",
     "eibd": "^0.3.1",
     "elkington": "kevinohara80/elkington",
-    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#6bf0f9eaaa2d87db8d1768114c61f4acbb095c41",
+    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#98ef550c8d6fd961741673d4b695a74dd0126eba",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "lifx-api": "^1.0.1",
-    "lifx": "https://github.com/magicmonkey/lifxjs.git",
+    "lifx": "git+https://github.com/magicmonkey/lifxjs.git",
     "mdns": "^2.2.4",
     "node-hue-api": "^1.0.5",
     "node-icontrol": "^0.1.4",
@@ -37,6 +38,7 @@
     "wink-js": "0.0.5",
     "xml2js": "0.4.x",
     "xmldoc": "0.1.x",
+    "komponist" : "0.1.0",
     "yamaha-nodejs": "0.4.x",
     "debug": "^2.2.0"
   }
