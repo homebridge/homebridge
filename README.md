@@ -11,7 +11,7 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
  * _Siri, turn off the Speakers._ ([Sonos](http://www.sonos.com))
  * _Siri, turn on the Dehumidifier._ ([WeMo](http://www.belkin.com/us/Products/home-automation/c/wemo-home-automation/))
  * _Siri, turn on Away Mode._ ([Xfinity Home](http://www.comcast.com/home-security.html))
- * _Siri, turn on the living room lights._ ([Wink](http://www.wink.com), [SmartThings](http://www.smartthings.com), [X10](http://github.com/edc1591/rest-mochad), [Philips Hue](http://meethue.com), [LimitlessLED/MiLight/Easybulb](http://www.limitlessled.com/))
+ * _Siri, turn on the living room lights._ ([Wink](http://www.wink.com), [SmartThings](http://www.smartthings.com), [X10](http://github.com/edc1591/rest-mochad), [Philips Hue](http://meethue.com), [LimitlessLED/MiLight/Easybulb](http://www.limitlessled.com/), [LIFx](http://www.lifx.com/))
  * _Siri, set the movie scene._ ([Logitech Harmony](http://myharmony.com/))
 
 If you would like to support any other devices, please write a shim and create a pull request and I'd be happy to add it to this official list.
