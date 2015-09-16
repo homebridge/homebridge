@@ -94,7 +94,8 @@
              "platform": "HomeAssistant",
              "name": "HomeAssistant",
              "host": "http://192.168.1.10:8123",
-             "password": "XXXXX"
+             "password": "XXXXX",
+             "supported_types": ["light", "switch", "media_player", "scene"]
          }
     ],
 
