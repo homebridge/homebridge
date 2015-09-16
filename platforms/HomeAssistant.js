@@ -399,9 +399,9 @@ HomeAssistantMediaPlayer.prototype = {
 }
 
 
-function HomeAssistantSwitch(log, data, client) {
+function HomeAssistantSwitch(log, data, client, type) {
   // device info
-  this.domain = "switch"
+  this.domain = type || "switch"
   this.data = data
   this.entity_id = data.entity_id
   if (data.attributes && data.attributes.friendly_name) {
