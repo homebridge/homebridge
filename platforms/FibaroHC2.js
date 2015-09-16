@@ -115,6 +115,11 @@ FibaroHC2Platform.prototype = {
     return services;
   },
   command: function(c,value, that) {
+  	if (that.doNotSet != undefined && that.doNotSet == true) {
+  		that.doNotSet = false;
+  		return;
+  	}
+
     var url = "http://"+this.host+"/api/devices/"+that.id+"/action/"+c;
   	var body = value != undefined ? JSON.stringify({
 		  "args": [
@@ -502,6 +507,7 @@ function startPollingUpdate( platform )
           					for (i=0;i<updateSubscriptions.length; i++) {
           						var subscription = updateSubscriptions[i];
           						if (subscription.id == s.id) {
+          							subscription.accessory.doNotSet = true;
 	          						if ((subscription.onOff && typeof(value) == "boolean") || !subscription.onOff)
 	    	      							subscription.characteristic.updateValue(value, null);
           							else
