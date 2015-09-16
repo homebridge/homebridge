@@ -37,7 +37,8 @@
 //        "platform": "HomeAssistant",
 //        "name": "HomeAssistant",
 //        "host": "http://192.168.1.50:8123",
-//        "password": "xxx"
+//        "password": "xxx",
+//        "supported_types": ["light", "switch", "media_player", "scene"]
 //    }
 // ]
 //
@@ -56,6 +57,7 @@ function HomeAssistantPlatform(log, config){
   // auth info
   this.host = config["host"];
   this.password = config["password"];
+  this.supportedTypes = config["supported_types"];
 
   this.log = log;
 }
@@ -121,22 +123,24 @@ HomeAssistantPlatform.prototype = {
 
     var that = this;
     var foundAccessories = [];
-    var lightsRE = /^light\./i
-    var switchRE = /^switch\./i
-    var mediaPlayerRE = /^media_player\./i
-
 
     this._request('GET', '/states', {}, function(error, response, data){
 
       for (var i = 0; i < data.length; i++) {
         entity = data[i]
+        entity_type = entity.entity_id.split('.')[0]
+
+        if (that.supportedTypes.indexOf(entity_type) == -1) {
+          continue;
+        }
+
         var accessory = null
 
-        if (entity.entity_id.match(lightsRE)) {
+        if (entity_type == 'light') {
           accessory = new HomeAssistantLight(that.log, entity, that)
-        }else if (entity.entity_id.match(switchRE)){
+        }else if (entity_type == 'switch'){
           accessory = new HomeAssistantSwitch(that.log, entity, that)
-        }else if (entity.entity_id.match(mediaPlayerRE) && entity.attributes && entity.attributes.supported_media_commands){
+        }else if (entity_type == 'media_player' && entity.attributes && entity.attributes.supported_media_commands){
           accessory = new HomeAssistantMediaPlayer(that.log, entity, that)
         }
 
