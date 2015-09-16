@@ -246,6 +246,12 @@ HomeAssistantLight.prototype = {
   },
   getServices: function() {
     var lightbulbService = new Service.Lightbulb();
+    var informationService = new Service.AccessoryInformation();
+
+    informationService
+      .setCharacteristic(Characteristic.Manufacturer, "Home Assistant")
+      .setCharacteristic(Characteristic.Model, "Light")
+      .setCharacteristic(Characteristic.SerialNumber, "xxx");
 
     lightbulbService
       .getCharacteristic(Characteristic.On)
@@ -257,7 +263,7 @@ HomeAssistantLight.prototype = {
       .on('get', this.getBrightness.bind(this))
       .on('set', this.setBrightness.bind(this));
 
-    return [lightbulbService];
+    return [informationService, lightbulbService];
   }
 
 }
@@ -381,6 +387,12 @@ HomeAssistantMediaPlayer.prototype = {
   },
   getServices: function() {
     var lightbulbService = new Service.Lightbulb();
+    var informationService = new Service.AccessoryInformation();
+
+    informationService
+      .setCharacteristic(Characteristic.Manufacturer, "Home Assistant")
+      .setCharacteristic(Characteristic.Model, "Media Player")
+      .setCharacteristic(Characteristic.SerialNumber, "xxx");
 
     lightbulbService
       .getCharacteristic(Characteristic.On)
@@ -395,7 +407,7 @@ HomeAssistantMediaPlayer.prototype = {
         .on('set', this.setVolume.bind(this));
     }
 
-    return [lightbulbService];
+    return [informationService, lightbulbService];
   }
 
 }
@@ -460,13 +472,36 @@ HomeAssistantSwitch.prototype = {
   },
   getServices: function() {
     var switchService = new Service.Switch();
+    var informationService = new Service.AccessoryInformation();
+    var model;
 
-    switchService
-      .getCharacteristic(Characteristic.On)
-      .on('get', this.getPowerState.bind(this))
-      .on('set', this.setPowerState.bind(this));
+    switch (this.domain) {
+      case "scene":
+        model = "Scene"
+        break;
+      default:
+        model = "Switch"
 
-    return [switchService];
+    }
+
+    informationService
+      .setCharacteristic(Characteristic.Manufacturer, "Home Assistant")
+      .setCharacteristic(Characteristic.Model, model)
+      .setCharacteristic(Characteristic.SerialNumber, "xxx");
+
+    if (this.domain == 'switch') {
+      switchService
+        .getCharacteristic(Characteristic.On)
+        .on('get', this.getPowerState.bind(this))
+        .on('set', this.setPowerState.bind(this));
+
+    }else{
+      switchService
+        .getCharacteristic(Characteristic.On)
+        .on('set', this.setPowerState.bind(this));
+    }
+
+    return [informationService, switchService];
   }
 
 }
