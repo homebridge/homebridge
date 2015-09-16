@@ -7,7 +7,27 @@
 // URL:     http://home-assistant.io
 // GitHub:  https://github.com/balloob/home-assistant
 //
-// HA accessories supported: Lights, Switches, Media Players.
+// HA accessories supported: Lights, Switches, Media Players, Scenes.
+//
+// Optional Devices - Edit the supported_types key in the config to pick which
+//                    of the 4 types you would like to expose to HomeKit from
+//                    Home Assistant. light, switch, media_player, scene.
+//
+//
+// Scene Support
+//
+// You can optionally import your Home Assistant scenes. These will appear to
+// HomeKit as switches. You can simply say "turn on party time". In some cases
+// scenes names are already rerved in HomeKit...like "Good Morning" and
+// "Good Night". You will be able to just say "Good Morning" or "Good Night" to
+// have these triggered.
+//
+// You might want to play with the wording to figure out what ends up working well
+// for your scene names. It's also important to not populate any actual HomeKit
+// scenes with the same names, as Siri will pick these instead of your Home
+// Assistant scenes.
+//
+//
 //
 // Media Player Support
 //
@@ -24,6 +44,8 @@
 // using the light device type here. So to turn your speaker up and down, you
 // will need to use the same language you use to set the brighness of a light.
 // You can play around with language to see what fits best.
+//
+//
 //
 // Examples
 //
