@@ -481,7 +481,6 @@ HomeAssistantSwitch.prototype = {
         break;
       default:
         model = "Switch"
-
     }
 
     informationService
