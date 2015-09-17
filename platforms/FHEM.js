@@ -160,6 +160,31 @@ function FHEM_startLongpoll(connection) {
                        FHEM_update( device+'-sat', sat );
                        FHEM_update( device+'-bri', bri );
                        continue;
+                     } else if( reading == 'activity') {
+
+                       Object.keys(FHEM_subscriptions).forEach(function(key) {
+                         var parts = key.split( '-', 2 );
+                         if( parts[1] != reading )
+                           return;
+                         if( parts[0] == device )
+                           return;
+                         if( parts[0].substr(0,1) != '#' )
+                           return;
+
+                         var subscription = FHEM_subscriptions[key];
+                         var accessory = subscription.accessory;
+
+                         device = parts[0].substr(1);
+
+                         var state = 0;
+                         if( value == accessory.activity_name )
+                           state = 1;
+
+                         subscription.characteristic.setValue(state, undefined, 'fromFhem');
+//console.log(key + ': ' + state );
+                       } );
+
+                       continue;
                      }
 
                      value = accessory.reading2homekit(reading, value);
@@ -360,12 +385,8 @@ FHEMPlatform.prototype = {
                                     || s.Attributes.genericDeviceType ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
-                         } else if( s.PossibleSets.match(/[\^ ]on\b/)
-                                    && s.PossibleSets.match(/[\^ ]off\b/) ) {
-                           accessory = new FHEMAccessory(that.log, that.connection, s);
-
-                         } else if( s.PossibleSets.match(/[\^ ]Volume\b/) ) { //FIXME: use sets [Pp]lay/[Pp]ause/[Ss]top
-                           that.log( s.Internals.NAME + ' has volume');
+                         } else if( s.PossibleSets.match(/\bon\b/)
+                                    && s.PossibleSets.match(/\boff\b/) ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
                          } else if( s.Attributes.subType == 'thermostat'
@@ -390,6 +411,30 @@ FHEMPlatform.prototype = {
 
                          } else if( s.Readings.voc ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
+
+                         } else if( s.Internals.TYPE == 'harmony' ) {
+                           if( s.Internals.id ) {
+                             if( s.Attributes.genericDeviceType )
+                               accessory = new FHEMAccessory(that.log, that.connection, s);
+                             else
+                               that.log( 'ignoring harmony device ' + s.Internals.NAME + ' without genericDeviceType attribte' );
+
+                           } else {
+                             that.log( 'creating devices for activities in ' + s.Internals.NAME );
+                             var match;
+                             if( match = s.PossibleSets.match(/\bactivity:([^\s]*)/) ) {
+                               var activities = match[1].split(',');
+                               for( var i = 0; i < activities.length; i++ ) {
+                                 var activity = activities[i];
+                                 accessory = new FHEMAccessory(that.log, that.connection, s, activity);
+
+                                 if( accessory && Object.getOwnPropertyNames(accessory).length )
+                                   foundAccessories.push(accessory);
+                               }
+                               accessory = null;
+                             }
+
+                           }
 
                          } else {
                            that.log( 'ignoring ' + s.Internals.NAME );
@@ -417,7 +462,7 @@ FHEMPlatform.prototype = {
 }
 
 function
-FHEMAccessory(log, connection, s) {
+FHEMAccessory(log, connection, s, activity_name) {
 //log( 'sets: ' + s.PossibleSets );
 //log("got json: " + util.inspect(s) );
 //log("got json: " + util.inspect(s.Internals) );
@@ -439,20 +484,20 @@ FHEMAccessory(log, connection, s) {
   this.mappings = {};
 
   var match;
-  if( match = s.PossibleSets.match(/[\^ ]pct\b/) ) {
+  if( match = s.PossibleSets.match(/\bpct\b/) ) {
     this.mappings.pct = { reading: 'pct', cmd: 'pct' };
-  } else if( match = s.PossibleSets.match(/[\^ ]dim\d+%/) ) {
+  } else if( match = s.PossibleSets.match(/\bdim\d+%/) ) {
     s.hasDim = true;
     s.pctMax = 100;
   }
-  if( match = s.PossibleSets.match(/[\^ ]hue[^\b\s]*(,(\d+)?)+\b/) ) {
+  if( match = s.PossibleSets.match(/\bhue[^\b\s]*(,(\d+)?)+\b/) ) {
     s.isLight = true;
     var max = 360;
     if( match[2] != undefined )
       max = match[2];
     this.mappings.hue = { reading: 'hue', cmd: 'hue', min: 0, max: max };
   }
-  if( match = s.PossibleSets.match(/[\^ ]sat[^\b\s]*(,(\d+)?)+\b/) ) {
+  if( match = s.PossibleSets.match(/\bsat[^\b\s]*(,(\d+)?)+\b/) ) {
     s.isLight = true;
     var max = 100;
     if( match[2] != undefined )
@@ -460,12 +505,12 @@ FHEMAccessory(log, connection, s) {
     this.mappings.sat = { reading: 'sat', cmd: 'sat', min: 0, max: max };
   }
 
-  if( s.PossibleSets.match(/[\^ ]rgb\b/) ) {
+  if( s.PossibleSets.match(/\brgb\b/) ) {
     s.isLight = true;
     this.mappings.rgb = { reading: 'rgb', cmd: 'rgb' };
     if( s.Internals.TYPE == 'SWAP_0000002200000003' )
       this.mappings.rgb = { reading: '0B-RGBlevel', cmd: 'rgb' };
-  } else if( s.PossibleSets.match(/[\^ ]RGB\b/) ) {
+  } else if( s.PossibleSets.match(/\bRGB\b/) ) {
     s.isLight = true;
     this.mappings.rgb = { reading: 'RGB', cmd: 'RGB' };
   }
@@ -538,9 +583,9 @@ FHEMAccessory(log, connection, s) {
   else if( s.Attributes.model == 'fs20di' )
     s.isLight = true;
 
-  if( s.PossibleSets.match(/[\^ ]desired-temp\b/) )
+  if( s.PossibleSets.match(/\bdesired-temp\b/) )
     this.mappings.thermostat = { reading: 'desired-temp', cmd: 'desired-temp' };
-  else if( s.PossibleSets.match(/[\^ ]desiredTemperature\b/) )
+  else if( s.PossibleSets.match(/\bdesiredTemperature\b/) )
     this.mappings.thermostat = { reading: 'desiredTemperature', cmd: 'desiredTemperature' };
   else if( s.isThermostat ) {
     s.isThermostat = false;
@@ -550,8 +595,16 @@ FHEMAccessory(log, connection, s) {
 
   if( s.Internals.TYPE == 'SONOSPLAYER' ) //FIXME: use sets [Pp]lay/[Pp]ause/[Ss]top
     this.mappings.onOff = { reading: 'transportState', cmdOn: 'play', cmdOff: 'pause' };
-  else if( s.PossibleSets.match(/[\^ ]on\b/)
-           && s.PossibleSets.match(/[\^ ]off\b/) ) {
+
+  else if( s.Internals.TYPE == 'harmony'
+           && s.Internals.id )
+    this.mappings.onOff = { reading: 'power', cmdOn: 'on', cmdOff: 'off' };
+
+  else if( s.Internals.TYPE == 'harmony' )
+    this.mappings.onOff = { reading: 'activity', cmdOn: 'activity '+activity_name, cmdOff: 'off' };
+
+  else if( s.PossibleSets.match(/\bon\b/)
+           && s.PossibleSets.match(/\boff\b/) ) {
     this.mappings.onOff = { reading: 'state', cmdOn: 'on', cmdOff: 'off' };
     if( !s.Readings.state )
       delete this.mappings.onOff.reading;
@@ -617,6 +670,8 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' has motor' );
   if( this.mappings.direction )
     log( s.Internals.NAME + ' has direction' );
+  if( this.mappings.volume )
+    log( s.Internals.NAME + ' has volume ['+ this.mappings.volume.reading + ':' + (this.mappings.volume.nocache ? 'not cached' : 'cached' )  +']' );
 
 //log( util.inspect(s) );
 
@@ -629,6 +684,10 @@ FHEMAccessory(log, connection, s) {
                                            : (s.Attributes.model ? s.Attributes.model
                                                                  : ( s.Internals.model ? s.Internals.model : '<unknown>' ) );
   this.PossibleSets     = s.PossibleSets;
+
+  if( activity_name )
+    this.name = activity_name + ' (' + s.Internals.NAME + ')';
+  this.activity_name = activity_name;
 
   if( this.type == 'CUL_HM' ) {
     this.serial = s.Internals.DEF;
@@ -687,10 +746,10 @@ FHEMAccessory.prototype = {
       return undefined;
 
     if( reading == 'hue' ) {
-      value = Math.round(value * 360 / this.mappings.hue ? this.mappings.hue.max : 360);
+      value = Math.round(value * 360 / (this.mappings.hue ? this.mappings.hue.max : 360) );
 
     } else if( reading == 'sat' ) {
-      value = Math.round(value * 100 / this.mappings.sat ? this.mappings.sat.max : 100);
+      value = Math.round(value * 100 / (this.mappings.sat ? this.mappings.sat.max : 100) );
 
     } else if( reading == 'pct' ) {
       value = parseInt( value );
@@ -1032,7 +1091,7 @@ FHEMAccessory.prototype = {
   },
 
   createDeviceService: function() {
-    var name = this.alias + 'xxx';
+    var name = this.alias + ' (' + this.name + ')';
 
     if( this.isSwitch ) {
       this.log("  switch service for " + this.name)
@@ -1075,7 +1134,7 @@ FHEMAccessory.prototype = {
 
   identify: function(callback) {
     this.log('['+this.name+'] identify requested!');
-    if( match = this.PossibleSets.match(/[\^ ]toggle\b/) ) {
+    if( match = this.PossibleSets.match(/\btoggle\b/) ) {
       this.command( 'identify' );
     }
     callback();
@@ -1089,7 +1148,7 @@ FHEMAccessory.prototype = {
 
     informationService
       .setCharacteristic(Characteristic.Manufacturer, "FHEM:"+this.type)
-      .setCharacteristic(Characteristic.Model, "FHEM:"+this.model ? this.model : '<unknown>')
+      .setCharacteristic(Characteristic.Model, "FHEM:"+ (this.model ? this.model : '<unknown>') )
       .setCharacteristic(Characteristic.SerialNumber, this.serial ? this.serial : '<unknown>');
 
     var controlService = this.createDeviceService();
@@ -1101,8 +1160,18 @@ FHEMAccessory.prototype = {
       var characteristic = controlService.getCharacteristic(Characteristic.On);
 
       FHEM_subscribe(characteristic, that.mappings.onOff.informId, that);
-      if( FHEM_cached[that.mappings.onOff.informId] != undefined )
-        characteristic.value = FHEM_cached[that.mappings.onOff.informId];
+
+      if( this.activity_name ) {
+        FHEM_subscribe(characteristic, '#' + this.activity_name +'-'+ that.mappings.onOff.reading , that);
+
+        if( FHEM_cached[that.mappings.onOff.informId] != undefined )
+          characteristic.value = FHEM_cached[that.mappings.onOff.informId]==this.activity_name?1:0;
+
+      } else {
+        if( FHEM_cached[that.mappings.onOff.informId] != undefined )
+          characteristic.value = FHEM_cached[that.mappings.onOff.informId];
+
+      }
 
       characteristic
         .on('set', function(value, callback, context) {
