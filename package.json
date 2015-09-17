@@ -30,6 +30,7 @@
     "q": "1.4.x",
     "tough-cookie": "^2.0.0",
     "request": "2.49.x",
+    "serialport": "^1.7.4",
     "sonos": "0.8.x",
     "telldus-live": "0.2.x",
     "teslams": "1.0.1",
