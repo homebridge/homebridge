@@ -211,6 +211,7 @@ function createLog(name) {
 }
 
 function publish() {
+  printPin(bridgeConfig.pin);
   bridge.publish({
     username: bridgeConfig.username || "CC:22:3D:E3:CE:30",
     port: bridgeConfig.port || 51826,
@@ -220,5 +221,3 @@ function publish() {
 }
 
 startup();
-
-printPin(bridgeConfig.pin);
