@@ -39,7 +39,7 @@ GenericRS232DeviceAccessory.prototype = {
   },
   
   getServices: function() {
-    var switchService = new Service.Switch();
+    var switchService = new Service.Switch(this.name);
     var informationService = new Service.AccessoryInformation();
 
     informationService
