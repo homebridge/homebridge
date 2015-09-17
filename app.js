@@ -191,6 +191,16 @@ function createAccessory(accessoryInstance, displayName) {
   }
 }
 
+// Returns the setup code in a scannable format.
+function printPin(pin) {
+  console.log("Scan this code with your HomeKit App on your iOS device:");
+  console.log("\x1b[30;47m%s\x1b[0m", "                       ");
+  console.log("\x1b[30;47m%s\x1b[0m", "    ┌────────────┐     ");
+  console.log("\x1b[30;47m%s\x1b[0m", "    │ " + pin + " │     ");
+  console.log("\x1b[30;47m%s\x1b[0m", "    └────────────┘     ");
+  console.log("\x1b[30;47m%s\x1b[0m", "                       ");
+}
+
 // Returns a logging function that prepends messages with the given name in [brackets].
 function createLog(name) {
   return function(message) {
@@ -201,6 +211,7 @@ function createLog(name) {
 }
 
 function publish() {
+  printPin(bridgeConfig.pin);
   bridge.publish({
     username: bridgeConfig.username || "CC:22:3D:E3:CE:30",
     port: bridgeConfig.port || 51826,
