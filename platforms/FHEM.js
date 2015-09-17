@@ -385,8 +385,8 @@ FHEMPlatform.prototype = {
                                     || s.Attributes.genericDeviceType ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
-                         } else if( s.PossibleSets.match(/\bon\b/)
-                                    && s.PossibleSets.match(/\boff\b/) ) {
+                         } else if( s.PossibleSets.match(/(^| )on\b/)
+                                    && s.PossibleSets.match(/(^| )off\b/) ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
                          } else if( s.Attributes.subType == 'thermostat'
@@ -422,8 +422,8 @@ FHEMPlatform.prototype = {
                            } else {
                              that.log( 'creating devices for activities in ' + s.Internals.NAME );
                              var match;
-                             if( match = s.PossibleSets.match(/\bactivity:([^\s]*)/) ) {
-                               var activities = match[1].split(',');
+                             if( match = s.PossibleSets.match(/(^| )activity:([^\s]*)/) ) {
+                               var activities = match[2].split(',');
                                for( var i = 0; i < activities.length; i++ ) {
                                  var activity = activities[i];
                                  accessory = new FHEMAccessory(that.log, that.connection, s, activity);
@@ -484,33 +484,33 @@ FHEMAccessory(log, connection, s, activity_name) {
   this.mappings = {};
 
   var match;
-  if( match = s.PossibleSets.match(/\bpct\b/) ) {
+  if( match = s.PossibleSets.match(/(^| )pct\b/) ) {
     this.mappings.pct = { reading: 'pct', cmd: 'pct' };
-  } else if( match = s.PossibleSets.match(/\bdim\d+%/) ) {
+  } else if( match = s.PossibleSets.match(/(^| )dim\d+%/) ) {
     s.hasDim = true;
     s.pctMax = 100;
   }
-  if( match = s.PossibleSets.match(/\bhue[^\b\s]*(,(\d+)?)+\b/) ) {
+  if( match = s.PossibleSets.match(/(^| )hue[^\b\s]*(,(\d+)?)+\b/) ) {
     s.isLight = true;
     var max = 360;
-    if( match[2] != undefined )
-      max = match[2];
+    if( match[3] != undefined )
+      max = match[3];
     this.mappings.hue = { reading: 'hue', cmd: 'hue', min: 0, max: max };
   }
-  if( match = s.PossibleSets.match(/\bsat[^\b\s]*(,(\d+)?)+\b/) ) {
+  if( match = s.PossibleSets.match(/(^| )sat[^\b\s]*(,(\d+)?)+\b/) ) {
     s.isLight = true;
     var max = 100;
-    if( match[2] != undefined )
-      max = match[2];
+    if( match[3] != undefined )
+      max = match[3];
     this.mappings.sat = { reading: 'sat', cmd: 'sat', min: 0, max: max };
   }
 
-  if( s.PossibleSets.match(/\brgb\b/) ) {
+  if( s.PossibleSets.match(/(^| )rgb\b/) ) {
     s.isLight = true;
     this.mappings.rgb = { reading: 'rgb', cmd: 'rgb' };
     if( s.Internals.TYPE == 'SWAP_0000002200000003' )
       this.mappings.rgb = { reading: '0B-RGBlevel', cmd: 'rgb' };
-  } else if( s.PossibleSets.match(/\bRGB\b/) ) {
+  } else if( s.PossibleSets.match(/(^| )RGB\b/) ) {
     s.isLight = true;
     this.mappings.rgb = { reading: 'RGB', cmd: 'RGB' };
   }
@@ -583,9 +583,9 @@ FHEMAccessory(log, connection, s, activity_name) {
   else if( s.Attributes.model == 'fs20di' )
     s.isLight = true;
 
-  if( s.PossibleSets.match(/\bdesired-temp\b/) )
+  if( s.PossibleSets.match(/(^| )desired-temp\b/) )
     this.mappings.thermostat = { reading: 'desired-temp', cmd: 'desired-temp' };
-  else if( s.PossibleSets.match(/\bdesiredTemperature\b/) )
+  else if( s.PossibleSets.match(/(^| )desiredTemperature\b/) )
     this.mappings.thermostat = { reading: 'desiredTemperature', cmd: 'desiredTemperature' };
   else if( s.isThermostat ) {
     s.isThermostat = false;
@@ -603,8 +603,8 @@ FHEMAccessory(log, connection, s, activity_name) {
   else if( s.Internals.TYPE == 'harmony' )
     this.mappings.onOff = { reading: 'activity', cmdOn: 'activity '+activity_name, cmdOff: 'off' };
 
-  else if( s.PossibleSets.match(/\bon\b/)
-           && s.PossibleSets.match(/\boff\b/) ) {
+  else if( s.PossibleSets.match(/(^| )on\b/)
+           && s.PossibleSets.match(/(^| )off\b/) ) {
     this.mappings.onOff = { reading: 'state', cmdOn: 'on', cmdOff: 'off' };
     if( !s.Readings.state )
       delete this.mappings.onOff.reading;
@@ -1134,7 +1134,7 @@ FHEMAccessory.prototype = {
 
   identify: function(callback) {
     this.log('['+this.name+'] identify requested!');
-    if( match = this.PossibleSets.match(/\btoggle\b/) ) {
+    if( match = this.PossibleSets.match(/(^| )toggle\b/) ) {
       this.command( 'identify' );
     }
     callback();
