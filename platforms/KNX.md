@@ -1,7 +1,7 @@
 # Syntax of the config.json
 In the platforms section, you can insert a KNX type platform. 
 You need to configure all devices directly in the config.json.
-
+````json
     "platforms": [
         {
             "platform": "KNX",
@@ -33,8 +33,9 @@ You need to configure all devices directly in the config.json.
                     ]
                 }
         }
-        
+````
 In the accessories section (the array within the brackets [ ]) you can insert as many objects as you like in the following form
+````json
     {
 	    "accessory_type": "knxdevice",
 	    "name": "Here goes your display name, this will be shown in HomeKit apps",
@@ -43,8 +44,9 @@ In the accessories section (the array within the brackets [ ]) you can insert as
 	        }
 	    ]
     }
-                 
+````                 
 You have to add services in the following syntax:
+````json
     {
         "type": "SERVICENAME",
         "description": "This is just for you to remember things",
@@ -62,9 +64,11 @@ You have to add services in the following syntax:
             ]
         }
     }
-CHARACTERISTIC are properties that are dependent on the service type, so they are listed below.
-Two kinds of addresses are supported: "Set":"1/2/3" is a writable group address, to which changes are sent if the service supports changing values. Changes on the bus are listened to, too.
-"Listen":["1/2/3","1/2/4","1/2/5"] is an array of addresses that are listened to additionally. To these addresses never values get written, but the on startup the service will issue read requests to ALL addresses listed in Set: and in Listen:  
+````
+`CHARACTERISTICx` are properties that are dependent on the service type, so they are listed below.
+
+Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group address, to which changes are sent if the service supports changing values. Changes on the bus are listened to, too.
+`"Listen":["1/2/3","1/2/4","1/2/5"]` is an array of addresses that are listened to additionally. To these addresses never values get written, but the on startup the service will issue *KNX read requests* to ALL addresses listed in `Set:` and in `Listen:`  
 
 
 # Supported Services and their characteristics
