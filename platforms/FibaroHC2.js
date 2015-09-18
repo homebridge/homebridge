@@ -15,6 +15,8 @@
 // The default code for all HomeBridge accessories is 031-45-154.
 
 var types = require("HAP-NodeJS/accessories/types.js");
+var Service = require("HAP-NodeJS").Service;
+var Characteristic = require("HAP-NodeJS").Characteristic;
 var request = require("request");
 
 function FibaroHC2Platform(log, config){
@@ -47,31 +49,27 @@ FibaroHC2Platform.prototype = {
           json.map(function(s) {
           	that.log("Found: " + s.type);
           	if (s.visible == true) {
-          		if (s.type == "com.fibaro.multilevelSwitch") {
-            		accessory = new FibaroDimmerAccessory(that, s.name, s.id);
+          		var accessory = null;
+          		if (s.type == "com.fibaro.multilevelSwitch")
+            		accessory = new FibaroDimmerAccessory(that, s);
+				else if (s.type == "com.fibaro.FGRM222" || s.type == "com.fibaro.FGR221")
+            		accessory = new FibaroRollerShutterAccessory(that, s);
+				else if (s.type == "com.fibaro.binarySwitch" || s.type == "com.fibaro.developer.bxs.virtualBinarySwitch")
+            		accessory = new FibaroBinarySwitchAccessory(that, s);
+				else if (s.type == "com.fibaro.FGMS001" || s.type == "com.fibaro.motionSensor")
+            		accessory = new FibaroMotionSensorAccessory(that, s);
+				else if (s.type == "com.fibaro.temperatureSensor")
+            		accessory = new FibaroTemperatureSensorAccessory(that, s);
+				else if (s.type == "com.fibaro.doorSensor")
+            		accessory = new FibaroDoorSensorAccessory(that, s);
+				else if (s.type == "com.fibaro.lightSensor")
+            		accessory = new FibaroLightSensorAccessory(that, s);
+				if (accessory != null) {
+					accessory.getServices = function() {
+  							return that.getServices(accessory);
+  					};
             		foundAccessories.push(accessory);
-				} else if (s.type == "com.fibaro.FGRM222")
-				{
-            		accessory = new FibaroRollerShutterAccessory(that, s.name, s.id);
-            		foundAccessories.push(accessory);
-				} else if (s.type == "com.fibaro.binarySwitch" || s.type == "com.fibaro.developer.bxs.virtualBinarySwitch")
-				{
-            		accessory = new FibaroBinarySwitchAccessory(that, s.name, s.id);
-            		foundAccessories.push(accessory);
-				} else if (s.type == "com.fibaro.FGMS001")
-				{
-            		accessory = new FibaroMotionSensorAccessory(that, s.name, s.id);
-            		foundAccessories.push(accessory);
-				} else if (s.type == "com.fibaro.temperatureSensor")
-				{
-            		accessory = new FibaroTemperatureSensorAccessory(that, s.name, s.id);
-            		foundAccessories.push(accessory);
-				} else if (s.type == "com.fibaro.doorSensor")
-				{
-            		accessory = new FibaroDoorSensorAccessory(that, s.name, s.id);
-            		foundAccessories.push(accessory);
-				}
-
+            	}
 			}
           })
         }
@@ -82,49 +80,10 @@ FibaroHC2Platform.prototype = {
     });
 
   },
-  getAccessoryValue: function(callback, returnBoolean, that) {
-    var url = "http://"+that.platform.host+"/api/devices/"+that.id+"/properties/value";
-    request.get({
-          headers : {
-            "Authorization" : that.platform.auth
-      },
-      json: true,
-      url: url
-    }, function(err, response, json) {
-      that.platform.log(url);
-      if (!err && response.statusCode == 200) {
-      	if (returnBoolean)
-      	   	callback(json.value == 0 ? 0 : 1);
-		else
-	      	callback(json.value);
-      } else {
-        that.platform.log("There was a problem getting value from" + that.id);
-      }
-    })
-  },
-  getAccessoryServices: function(that) {
-    var services = [{
-      sType: types.ACCESSORY_INFORMATION_STYPE,
-      characteristics: this.informationCharacteristics(that),
-    },
-    {
-      sType: that.SERVICE_TYPE,
-      characteristics: this.controlCharacteristics(that)
-    }];
-    this.log("Loaded services for " + that.name)
-    return services;
-  },
   command: function(c,value, that) {
-  	if (that.doNotSet != undefined && that.doNotSet == true) {
-  		that.doNotSet = false;
-  		return;
-  	}
-
     var url = "http://"+this.host+"/api/devices/"+that.id+"/action/"+c;
   	var body = value != undefined ? JSON.stringify({
-		  "args": [
-    				value
-  				  ]
+		  "args": [	value ]
 	}) : null;
 	var method = "post";
     request({
@@ -144,338 +103,153 @@ FibaroHC2Platform.prototype = {
       }
     });
   },
-  informationCharacteristics: function(that)
-  {
-    return [
-      {
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: that.name,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Name of the accessory",
-        designedMaxLength: 255
-      },{
-        cType: types.MANUFACTURER_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "Fibaro",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Manufacturer",
-        designedMaxLength: 255
-      },{
-        cType: types.MODEL_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: that.MODEL_TYPE,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Model",
-        designedMaxLength: 255
-      },{
-        cType: types.SERIAL_NUMBER_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: "A1S2NASF88EW",
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "SN",
-        designedMaxLength: 255
-      },{
-        cType: types.IDENTIFY_CTYPE,
-        onUpdate: null,
-        perms: ["pw"],
-        format: "bool",
-        initialValue: false,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Identify Accessory",
-        designedMaxLength: 1
+  getAccessoryValue: function(callback, returnBoolean, that) {
+    var url = "http://"+that.platform.host+"/api/devices/"+that.id+"/properties/value";
+    request.get({
+          headers : {
+            "Authorization" : that.platform.auth
+      },
+      json: true,
+      url: url
+    }, function(err, response, json) {
+      that.platform.log(url);
+      if (!err && response.statusCode == 200) {
+      	if (returnBoolean)
+      	   	callback(undefined, json.value == 0 ? 0 : 1);
+		else
+	      	callback(undefined, json.value);
+      } else {
+        that.platform.log("There was a problem getting value from" + that.id);
       }
-    ]
+    })
   },
-  controlCharacteristics: function(that) {
-    var cTypes = [];
-  	var l = that.CONTROL_CHARACTERISTICS.length;
-	for (var i = 0; i < l; i++) {
-		if (that.CONTROL_CHARACTERISTICS[i] == types.NAME_CTYPE) {
-			cTypes.push({
-				cType: types.NAME_CTYPE,
-				onUpdate: null,
-				perms: ["pr"],
-				format: "string",
-				initialValue: that.name,
-				supportEvents: true,
-				supportBonjour: false,
-				manfDescription: "Name of service",
-				designedMaxLength: 255
-			});
-		} else if (that.CONTROL_CHARACTERISTICS[i] == types.POWER_STATE_CTYPE)  {
-			cTypes.push({
-				cType: types.POWER_STATE_CTYPE,
-		        onRegister: function(characteristic) {
-    		    	characteristic.eventEnabled = true;
-          			subscribeUpdate(characteristic, that, true);
-        		},
-				onUpdate: function(value) {
-					  if (value == 0) {
-						that.platform.command("turnOff", null, that)
-					  } else {
-						that.platform.command("turnOn", null, that)
-					  }
-				},
-				onRead: function(callback) {
-					  that.platform.getAccessoryValue(callback, true, that);
-				},
-				perms: ["pw","pr","ev"],
-				format: "bool",
-				initialValue: 0,
-				supportEvents: true,
-				supportBonjour: false,
-				manfDescription: "Change the power state",
-				designedMaxLength: 1
-			});
-		} else if (that.CONTROL_CHARACTERISTICS[i] == types.BRIGHTNESS_CTYPE)  {
-			cTypes.push({
-        		cType: types.BRIGHTNESS_CTYPE,
-		        onRegister: function(characteristic) {
-    		    	characteristic.eventEnabled = true;
-          			subscribeUpdate(characteristic, that, false);
-        		},
-        		onUpdate: function(value) { that.platform.command("setValue", value, that); },
-        		onRead: function(callback) {
-          			that.platform.getAccessoryValue(callback, false, that);
-        		},
-        		perms: ["pw","pr","ev"],
-        		format: "int",
-        		initialValue:  0,
-        		supportEvents: true,
-        		supportBonjour: false,
-        		manfDescription: "Adjust Brightness of Light",
-        		designedMinValue: 0,
-        		designedMaxValue: 100,
-        		designedMinStep: 10,
-        		unit: "%"
-      		});
-		} else if (that.CONTROL_CHARACTERISTICS[i] == types.WINDOW_COVERING_CURRENT_POSITION_CTYPE)  {
-			cTypes.push({
-        		cType: types.WINDOW_COVERING_CURRENT_POSITION_CTYPE,
-		        onRegister: function(characteristic) {
-    		    	characteristic.eventEnabled = true;
-          			subscribeUpdate(characteristic, that, false);
-        		},
-        		onRead: function(callback) {
-          			that.platform.getAccessoryValue(callback, false, that);
-        		},
-        		perms: ["pr","ev"],
-        		format: "int",
-        		initialValue: 0,
-        		supportEvents: false,
-        		supportBonjour: false,
-        		manfDescription: "Current Blind Position",
-        		designedMinValue: 0,
-        		designedMaxValue: 100,
-        		designedMinStep: 1,
-        		unit: "%"
-      		});
-		} else if (that.CONTROL_CHARACTERISTICS[i] == types.WINDOW_COVERING_TARGET_POSITION_CTYPE)  {
-      		cTypes.push({
-        		cType: types.WINDOW_COVERING_TARGET_POSITION_CTYPE,
-        		onRegister: function(characteristic) {
-    		    	characteristic.eventEnabled = true;
-          			subscribeUpdate(characteristic, that, false);
-        		},
-        		onUpdate: function(value) { that.platform.command("setValue", value, that); },
-        		onRead: function(callback) {
-          			that.platform.getAccessoryValue(callback, false, that);
-        		},
-        		perms: ["pw","pr","ev"],
-        		format: "int",
-        		initialValue: 0,
-        		supportEvents: false,
-        		supportBonjour: false,
-        		manfDescription: "Target Blind Position",
-        		designedMinValue: 0,
-        		designedMaxValue: 100,
-        		designedMinStep: 1,
-        		unit: "%"
-      		});
-		} else if (that.CONTROL_CHARACTERISTICS[i] == types.WINDOW_COVERING_OPERATION_STATE_CTYPE)  {
-      		cTypes.push({
-        		cType: types.WINDOW_COVERING_OPERATION_STATE_CTYPE,
-        		perms: ["pr","ev"],
-        		format: "int",
-        		initialValue: 0,
-        		supportEvents: false,
-        		supportBonjour: false,
-        		manfDescription: "Position State",
-        		designedMinValue: 0,
-        		designedMaxValue: 2,
-        		designedMinStep: 1,
-      		});
-		} else if (that.CONTROL_CHARACTERISTICS[i] == types.CURRENT_TEMPERATURE_CTYPE) {
-	    	cTypes.push({
-        		cType: types.CURRENT_TEMPERATURE_CTYPE,
-		        onRegister: function(characteristic) {
-    		    	characteristic.eventEnabled = true;
-          			subscribeUpdate(characteristic, that, false);
-        		},
-        		onRead: function(callback) {
-          			that.platform.getAccessoryValue(callback, false, that);
-        		},
-        		perms: ["pr","ev"],
-        		format: "float",
-        		unit: "celsius",
-        		stepValue: 0.1,
-        		initialValue: 0,
-        		supportEvents: true,
-        		supportBonjour: false,
-        		manfDescription: "Get current temperature"
-      		});
-		} else if (that.CONTROL_CHARACTERISTICS[i] == types.MOTION_DETECTED_CTYPE) {
-	    	cTypes.push({
-        		cType: types.MOTION_DETECTED_CTYPE,
-		        onRegister: function(characteristic) {
-    		    	characteristic.eventEnabled = true;
-          			subscribeUpdate(characteristic, that, true);
-        		},
-        		onRead: function(callback) {
-          			that.platform.getAccessoryValue(callback, true, that);
-        		},
-        		perms: ["pr","ev"],
-        		format: "bool",
-        		initialValue: 0,
-        		supportEvents: true,
-        		supportBonjour: false,
-        		manfDescription: "Detect motion",
-        		designedMaxLength: 1
-      		});
-		} else if (that.CONTROL_CHARACTERISTICS[i] == types.CONTACT_SENSOR_STATE_CTYPE) {
-		    cTypes.push({
-        		cType: types.CONTACT_SENSOR_STATE_CTYPE,
-		        onRegister: function(characteristic) {
-    		    	characteristic.eventEnabled = true;
-          			subscribeUpdate(characteristic, that, true);
-        		},
-        		onRead: function(callback) {
-          			that.platform.getAccessoryValue(callback, true, that);
-        		},
-        		perms: ["pr","ev"],
-        		format: "bool",
-        		initialValue: 0,
-        		supportEvents: true,
-        		supportBonjour: false,
-        		manfDescription: "Detect door contact",
-        		designedMaxLength: 1
-      		});
-		}
-	}
-   	return cTypes
-  }
+  getInformationService: function(homebridgeAccessory) {
+    var informationService = new Service.AccessoryInformation();
+    informationService
+                .setCharacteristic(Characteristic.Name, homebridgeAccessory.name)
+				.setCharacteristic(Characteristic.Manufacturer, homebridgeAccessory.manufacturer)
+			    .setCharacteristic(Characteristic.Model, homebridgeAccessory.model)
+			    .setCharacteristic(Characteristic.SerialNumber, homebridgeAccessory.serialNumber);
+  	return informationService;
+  },
+  bindCharacteristicEvents: function(characteristic, homebridgeAccessory) {
+  	var onOff = characteristic.format == "bool" ? true : false;
+  	var readOnly = characteristic.writable == undefined || characteristic.writable == false ? true : false;
+    subscribeUpdate(characteristic, homebridgeAccessory, onOff);
+	if (!readOnly) {
+    	characteristic
+    	    .on('set', function(value, callback, context) {
+        	            	if( context !== 'fromFibaro' ) {
+            	        		if (onOff) 
+									homebridgeAccessory.platform.command(value == 0 ? "turnOff": "turnOn", null, homebridgeAccessory);
+								else
+									homebridgeAccessory.platform.command("setValue", value, homebridgeAccessory);
+							}
+    	            		callback();
+        	           }.bind(this) );
+    }
+    characteristic
+        .on('get', function(callback) {
+					  	homebridgeAccessory.platform.getAccessoryValue(callback, onOff, homebridgeAccessory);
+                   }.bind(this) );
+  },
+  getServices: function(homebridgeAccessory) {
+  	var informationService = homebridgeAccessory.platform.getInformationService(homebridgeAccessory);
+  	for (var i=0; i < homebridgeAccessory.characteristics.length; i++) {
+	    var characteristic = homebridgeAccessory.controlService.getCharacteristic(homebridgeAccessory.characteristics[i]);
+	    if (characteristic == undefined)
+	    	characteristic = homebridgeAccessory.controlService.addCharacteristic(homebridgeAccessory.characteristics[i]);
+		homebridgeAccessory.platform.bindCharacteristicEvents(characteristic, homebridgeAccessory);
+  	}
+    
+    return [informationService, homebridgeAccessory.controlService];
+  }  
 }
 
-function FibaroDimmerAccessory(platform, name, id) {
-  // device info
-  this.platform = platform;
-  this.name     = name;
-  this.id 		= id;
-  this.MODEL_TYPE = "Dimmer";
-  this.SERVICE_TYPE   	= types.LIGHTBULB_STYPE;
-  this.CONTROL_CHARACTERISTICS = [types.NAME_CTYPE, types.POWER_STATE_CTYPE, types.BRIGHTNESS_CTYPE];
+function FibaroDimmerAccessory(platform, s) {
+  	this.platform 			= platform;
+  	this.remoteAccessory	= s;
+  	this.id 				= s.id;
+  	this.name				= s.name;
+  	this.model				= s.type;
+  	this.manufacturer		= "Fibaro";
+  	this.serialNumber		= "<unknown>";
+    this.controlService = new Service.Lightbulb(this.name);
+    this.characteristics = [Characteristic.On, Characteristic.Brightness];
 }
 
-FibaroDimmerAccessory.prototype = {
-  getServices: function() {
-	return this.platform.getAccessoryServices(this);
-  } 
-};
-
-function FibaroRollerShutterAccessory(platform, name, id) {
-  // device info
-  this.platform = platform;
-  this.name     = name;
-  this.id 		= id;
-  this.MODEL_TYPE = "Roller Shutter 2";
-  this.SERVICE_TYPE   	= types.WINDOW_COVERING_STYPE;
-  this.CONTROL_CHARACTERISTICS = [types.NAME_CTYPE, types.WINDOW_COVERING_CURRENT_POSITION_CTYPE, types.WINDOW_COVERING_TARGET_POSITION_CTYPE, types.WINDOW_COVERING_OPERATION_STATE_CTYPE];
-
+function FibaroRollerShutterAccessory(platform, s) {
+  	this.platform 			= platform;
+  	this.remoteAccessory	= s;
+  	this.id 				= s.id;
+  	this.name				= s.name;
+  	this.model				= s.type;
+  	this.manufacturer		= "Fibaro";
+  	this.serialNumber		= "<unknown>";
+    this.controlService = new Service.WindowCovering(this.name);
+    this.characteristics = [Characteristic.CurrentPosition, Characteristic.TargetPosition, Characteristic.PositionState];
 }
 
-FibaroRollerShutterAccessory.prototype = {
-  getServices: function() {
-	return this.platform.getAccessoryServices(this);
-  }
-};
-
-function FibaroBinarySwitchAccessory(platform, name, id) {
-  // device info
-  this.platform = platform;
-  this.name     = name;
-  this.id 		= id;
-  this.MODEL_TYPE = "Binary Switch";
-  this.SERVICE_TYPE = types.SWITCH_STYPE;
-  this.CONTROL_CHARACTERISTICS = [types.NAME_CTYPE, types.POWER_STATE_CTYPE];
+function FibaroBinarySwitchAccessory(platform, s) {
+  	this.platform 			= platform;
+  	this.remoteAccessory	= s;
+  	this.id 				= s.id;
+  	this.name				= s.name;
+  	this.model				= s.type;
+  	this.manufacturer		= "Fibaro";
+  	this.serialNumber		= "<unknown>";
+    this.controlService = new Service.Switch(this.name);
+    this.characteristics = [Characteristic.On];
 }
 
-FibaroBinarySwitchAccessory.prototype = {
-  getServices: function() {
-	return this.platform.getAccessoryServices(this);
-  }
-};
-
-function FibaroTemperatureSensorAccessory(platform, name, id) {
-  // device info
-  this.platform = platform;
-  this.name     = name;
-  this.id 		= id;
-  this.MODEL_TYPE = "Temperature Sensor";
-  this.SERVICE_TYPE = types.TEMPERATURE_SENSOR_STYPE;
-  this.CONTROL_CHARACTERISTICS = [types.NAME_CTYPE, types.CURRENT_TEMPERATURE_CTYPE];
+function FibaroMotionSensorAccessory(platform, s) {
+  	this.platform 			= platform;
+  	this.remoteAccessory	= s;
+  	this.id 				= s.id;
+  	this.name				= s.name;
+  	this.model				= "Motion Sensor";
+  	this.manufacturer		= "Fibaro";
+  	this.serialNumber		= "<unknown>";
+    this.controlService = new Service.MotionSensor(this.name);
+    this.characteristics = [Characteristic.MotionDetected];
 }
 
-FibaroTemperatureSensorAccessory.prototype = {
-  getServices: function() {
-	return this.platform.getAccessoryServices(this);
-  }
-};
-
-function FibaroMotionSensorAccessory(platform, name, id) {
-  // device info
-  this.platform = platform;
-  this.name     = name;
-  this.id 		= id;
-  this.MODEL_TYPE = "Motion Sensor";
-  this.SERVICE_TYPE = types.MOTION_SENSOR_STYPE;
-  this.CONTROL_CHARACTERISTICS = [types.NAME_CTYPE, types.MOTION_DETECTED_CTYPE];
+function FibaroTemperatureSensorAccessory(platform, s) {
+  	this.platform 			= platform;
+  	this.remoteAccessory	= s;
+  	this.id 				= s.id;
+  	this.name				= s.name;
+  	this.model				= s.type;
+  	this.manufacturer		= "Fibaro";
+  	this.serialNumber		= "<unknown>";
+    this.controlService = new Service.TemperatureSensor(this.name);
+    this.characteristics = [Characteristic.CurrentTemperature];
 }
 
-FibaroMotionSensorAccessory.prototype = {
-  getServices: function() {
-	return this.platform.getAccessoryServices(this);
-  }
-};
-
-function FibaroDoorSensorAccessory(platform, name, id) {
-  // device info
-  this.platform = platform;
-  this.name     = name;
-  this.id 		= id;
-  this.MODEL_TYPE = "Door Sensor";
-  this.SERVICE_TYPE = types.CONTACT_SENSOR_STYPE;
-  this.CONTROL_CHARACTERISTICS = [types.NAME_CTYPE, types.CONTACT_SENSOR_STATE_CTYPE];
+function FibaroDoorSensorAccessory(platform, s) {
+  	this.platform 			= platform;
+  	this.remoteAccessory	= s;
+  	this.id 				= s.id;
+  	this.name				= s.name;
+  	this.model				= s.type;
+  	this.manufacturer		= "Fibaro";
+  	this.serialNumber		= "<unknown>";
+    this.controlService = new Service.ContactSensor(this.name);
+    this.characteristics = [Characteristic.ContactSensorState];
 }
 
-FibaroDoorSensorAccessory.prototype = {
-  getServices: function() {
-	return this.platform.getAccessoryServices(this);
-  }
-};
+function FibaroLightSensorAccessory(platform, s) {
+  	this.platform 			= platform;
+  	this.remoteAccessory	= s;
+  	this.id 				= s.id;
+  	this.name				= s.name;
+  	this.model				= s.type;
+  	this.manufacturer		= "Fibaro";
+  	this.serialNumber		= "<unknown>";
+    this.controlService = new Service.LightSensor(this.name);
+    this.characteristics = [Characteristic.CurrentAmbientLightLevel];
+}
+
 var lastPoll=0;
 var pollingUpdateRunning = false;
 
@@ -507,11 +281,10 @@ function startPollingUpdate( platform )
           					for (i=0;i<updateSubscriptions.length; i++) {
           						var subscription = updateSubscriptions[i];
           						if (subscription.id == s.id) {
-          							subscription.accessory.doNotSet = true;
 	          						if ((subscription.onOff && typeof(value) == "boolean") || !subscription.onOff)
-	    	      							subscription.characteristic.updateValue(value, null);
+	    	      							subscription.characteristic.setValue(value, undefined, 'fromFibaro');
           							else
-	    	      							subscription.characteristic.updateValue(value == 0 ? false : true, null);
+	    	      							subscription.characteristic.setValue(value == 0 ? false : true, undefined, 'fromFibaro');
           						}
           					}
           				}
@@ -530,6 +303,7 @@ function startPollingUpdate( platform )
 var updateSubscriptions = [];
 function subscribeUpdate(characteristic, accessory, onOff)
 {
+// TODO: optimized management of updateSubscription data structure (no array with sequential access)
   updateSubscriptions.push({ 'id': accessory.id, 'characteristic': characteristic, 'accessory': accessory, 'onOff': onOff });
 }
 
