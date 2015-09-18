@@ -73,6 +73,14 @@
             "setMainInputTo": "AirPlay" 
         },
         {
+            "platform": "ZWayServer",
+            "url": "http://192.168.1.10:8083/",
+            "login": "zwayusername",
+            "password": "zwayuserpassword",
+            "poll_interval": 2,
+            "split_services": false
+        },
+        {
             "platform": "MiLight",
             "name": "MiLight",
             "ip_address": "255.255.255.255",
@@ -81,6 +89,13 @@
             "delay": 30,
             "repeat": 3,
             "zones":["Kitchen Lamp","Bedroom Lamp","Living Room Lamp","Hallway Lamp"]
+         },
+         {
+             "platform": "HomeAssistant",
+             "name": "HomeAssistant",
+             "host": "http://192.168.1.10:8123",
+             "password": "XXXXX",
+             "supported_types": ["light", "switch", "media_player", "scene"]
          }
     ],
 
@@ -172,9 +187,36 @@
         {
             "accessory": "Hyperion",
             "name": "TV Backlight",
-            "description": "Control the Hyperion TV backlight server. https://github.com/tvdzwan/hyperion"
+            "description": "Control the Hyperion TV backlight server. https://github.com/tvdzwan/hyperion",
             "host": "localhost", 
             "port": "19444"
+        },
+        {
+            "accessory": "mpdclient",
+            "name" : "mpd",
+            "host" : "localhost",
+            "port" : 6600,
+            "description": "Allows some control of an MPD server"
+        },
+        {
+            "accessory": "FileSensor",
+            "name": "File Time Motion Sensor",
+            "path": "/tmp/CameraDump/",
+            "window_seconds": 5,
+            "sensor_type": "m",
+            "inverse": false
+        },
+        {
+            "accessory": "GenericRS232Device",
+            "name": "Projector",
+            "description": "Make sure you set a 'Siri-Name' for your iOS-Device (example: 'Home Cinema') otherwise it might not work.",
+            "id": "TYDYMU044UVNP",
+            "baudrate": 9600,
+            "device": "/dev/tty.usbserial",
+            "manufacturer": "Acer",
+            "model_name": "H6510BD",
+            "on_command": "* 0 IR 001\r",
+            "off_command": "* 0 IR 002\r"
         }
     ]
 }
