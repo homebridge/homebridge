@@ -493,34 +493,31 @@ HomeAssistantSwitch.prototype = {
     }
   },
   getServices: function() {
-    var switchService = new Service.Switch();
     var informationService = new Service.AccessoryInformation();
+    var switchService;
     var model;
 
-    switch (this.domain) {
-      case "scene":
-        model = "Scene"
-        break;
-      default:
-        model = "Switch"
+    if (this.domain == 'switch') {
+      model = "Switch"
+      switchService = new Service.Switch();
+
+      switchService
+        .getCharacteristic(Characteristic.On)
+        .on('get', this.getPowerState.bind(this))
+        .on('set', this.setPowerState.bind(this));
+    }else{
+      model = "Scene"
+      switchService = new Service.StatelessProgrammableSwitch();
+
+      switchService
+        .getCharacteristic(Characteristic.ProgrammableSwitchEvent)
+        .on('set', this.setPowerState.bind(this));
     }
 
     informationService
       .setCharacteristic(Characteristic.Manufacturer, "Home Assistant")
       .setCharacteristic(Characteristic.Model, model)
-      .setCharacteristic(Characteristic.SerialNumber, "xxx");
-
-    if (this.domain == 'switch') {
-      switchService
-        .getCharacteristic(Characteristic.On)
-        .on('get', this.getPowerState.bind(this))
-        .on('set', this.setPowerState.bind(this));
-
-    }else{
-      switchService
-        .getCharacteristic(Characteristic.On)
-        .on('set', this.setPowerState.bind(this));
-    }
+      .setCharacteristic(Characteristic.SerialNumber, "ha-" + this.entity_id.replace(/_|\./g, '-'));
 
     return [informationService, switchService];
   }
