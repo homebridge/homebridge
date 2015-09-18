@@ -74,17 +74,18 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 # Supported Services and their characteristics
 
 ## Lightbulb
- On: DPT 1, 1 as on, 0 as off<BR>
- Brightness: DPT5 percentage, 100% (=255) the brightest
+ -  On: DPT 1, 1 as on, 0 as off
+ -  Brightness: DPT5 percentage, 100% (=255) the brightest
  
  
 ## LockMechanism
-LockCurrentState: DPT 1, 1 as secured
+-  LockCurrentState: DPT 1, 1 as secured
 OR (but not both:)
-LockCurrentStateSecured0: DPT 1, 0 as secured
+-  LockCurrentStateSecured0: DPT 1, 0 as secured
 
-LockTargetState: DPT 1, 1 as secured 
-LockTargetStateSecured0: DPT 1, 0 as secured
+-  LockTargetState: DPT 1, 1 as secured
+OR 
+-  LockTargetStateSecured0: DPT 1, 0 as secured
 
 ## Thermostat
 CurrentTemperature: DPT9 in °C [listen only]
