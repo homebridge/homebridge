@@ -19,19 +19,16 @@ You need to configure all devices directly in the config.json.
                             "name": "Living Room North Lamp",
                             "On": {
                                 "Set": "1/1/6",
-                                "Listen": [
-                                    "1/1/63"
-                                ]
+                                "Listen": ["1/1/63"]
                             },
                             "Brightness": {
                                 "Set": "1/1/62",
-                                "Listen": [
-                                    "1/1/64"
-                                ]
+                                "Listen": ["1/1/64"]
                             }
                         }
                     ]
                 }
+             ]
         }
 ````
 In the accessories section (the array within the brackets [ ]) you can insert as many objects as you like in the following form
@@ -73,27 +70,41 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 
 # Supported Services and their characteristics
 
+## ContactSensor
+-  ContactSensorState: DPT 1, 0 as contact **OR**
+-  ContactSensorStateContact1: DPT 1, 1 as contact
+
+-  StatusActive: DPT 1, 1 as true
+-  StatusFault: DPT 1, 1 as true
+-  StatusTampered: DPT 1, 1 as true
+-  StatusLowBattery: DPT 1, 1 as true
 ## Lightbulb
  -  On: DPT 1, 1 as on, 0 as off
  -  Brightness: DPT5 percentage, 100% (=255) the brightest
  
  
 ## LockMechanism
--  LockCurrentState: DPT 1, 1 as secured **OR (but not both:)**
+-  LockCurrentState: DPT 1, 1 as secured **OR (but not both:)** 
 -  LockCurrentStateSecured0: DPT 1, 0 as secured
 
--  LockTargetState: DPT 1, 1 as secured **OR** 
+-  LockTargetState: DPT 1, 1 as secured **OR**  
 -  LockTargetStateSecured0: DPT 1, 0 as secured
 
+## Outlet
+ -  On: DPT 1, 1 as on, 0 as off
+ -  OutletInUse: DPT 1, 1 as on, 0 as off
+ 
+## Switch
+ -  On: DPT 1, 1 as on, 0 as off
+
+## TemperatureSensor
+-  CurrentTemperature: DPT9 in °C [listen only]
+  
 ## Thermostat
 -  CurrentTemperature: DPT9 in °C [listen only]
 -  TargetTemperature: DPT9, values 0..40°C only, all others are ignored
 -  CurrentHeatingCoolingState: DPT5 HVAC, because of the incompatible mapping only off and heating (=auto) are shown, [listen only]
 -  TargetHeatingCoolingState: as above
-
-
-## TemperatureSensor
--  CurrentTemperature: DPT9 in °C [listen only]
 
 ## Window
 -  CurrentPosition: DPT5 percentage
@@ -113,16 +124,9 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 -  CurrentVerticalTiltAngle
 -  ObstructionDetected
 
-## ContactSensor
--  ContactSensorState: DPT 1, 0 as contact **OR**
--  ContactSensorStateContact1: DPT 1, 1 as contact
 
--  StatusActive: DPT 1, 1 as true
--  StatusFault: DPT 1, 1 as true
--  StatusTampered: DPT 1, 1 as true
--  StatusLowBattery: DPT 1, 1 as true
 
 
 # DISCLAIMER
-This is work in progress!
+**This is work in progress!**
 

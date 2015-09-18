@@ -1,13 +1,16 @@
-/*
+/**
  * This is a KNX universal accessory shim.
  * This is NOT the version for dynamic installation 
  * 
 New 2015-09-16: Welcome iOS9.0
-new features includ:
-services: 
-Window
-WindowCovering
-ContactSensor
+new features include:
+-  services: 
+-  Window
+-  WindowCovering
+-  ContactSensor
+New 2015-0918: 
+-  Services Switch and Outlet
+-  Code cleanup
  * 
  */
 var Service = require("HAP-NodeJS").Service;
@@ -102,7 +105,6 @@ KNXDevice.prototype = {
 				}.bind(this));
 			}.bind(this));
 		},	
-
 		// issues an all purpose read request on the knx bus
 		// DOES NOT WAIT for an answer. Please register the address with a callback using registerGA() function
 		knxread: function(groupAddress){
@@ -132,7 +134,6 @@ KNXDevice.prototype = {
 				}.bind(this));
 			}.bind(this));		
 		},
-
 		// issuing multiple read requests at once 
 		knxreadarray: function (groupAddresses) {
 			if (groupAddresses.constructor.toString().indexOf("Array") > -1) {
@@ -147,7 +148,9 @@ KNXDevice.prototype = {
 				this.knxread (groupAddresses);
 			}
 		},
-
+/** Write special type routines
+ *  
+ */
 		// special types
 		knxwrite_percent: function(callback, groupAddress, value) {
 			var numericValue = 0;
@@ -159,10 +162,9 @@ KNXDevice.prototype = {
 			}
 			this.knxwrite(callback, groupAddress,'DPT5',numericValue);
 		},
-
-
-		// need to spit registers into types
-
+/** Registering routines
+ * 
+ */
 		// boolean: get 0 or 1 from the bus, write boolean
 		knxregister_bool: function(addresses, characteristic) {
 			this.log("knx registering BOOLEAN " + addresses);
@@ -201,7 +203,6 @@ KNXDevice.prototype = {
 				}
 			}.bind(this));
 		},
-
 		// float
 		knxregister_float: function(addresses, characteristic) {
 			this.log("knx registering FLOAT " + addresses);
@@ -216,8 +217,6 @@ KNXDevice.prototype = {
 					
 			}.bind(this));
 		},
-
-		// what about HVAC heating cooling types?
 		knxregister_HVAC: function(addresses, characteristic) {
 			this.log("knx registering HVAC " + addresses);
 			knxd_registerGA(addresses, function(val, src, dest, type){
@@ -245,7 +244,7 @@ KNXDevice.prototype = {
 				characteristic.setValue(HAPvalue, undefined, 'fromKNXBus');
 			}.bind(this));
 		},
-		// to do! KNX: DPT 20.102 = One Byte like DPT5
+		/** KNX HVAC (heating, ventilation, and air conditioning) types do not really match to homekit types:
 //		0 = Auto
 //		1 = Comfort
 //		2 = Standby
@@ -257,8 +256,8 @@ KNXDevice.prototype = {
 //		Characteristic.TargetHeatingCoolingState.HEAT = 1;
 //		Characteristic.TargetHeatingCoolingState.COOL = 2;
 //		Characteristic.TargetHeatingCoolingState.AUTO = 3;
-
-
+		AUTO (3) is not allowed as return type from devices!
+*/
 		// undefined, has to match!
 		knxregister: function(addresses, characteristic) {
 			this.log("knx registering " + addresses);
@@ -268,14 +267,14 @@ KNXDevice.prototype = {
 			}.bind(this));
 		},
 
-		/*
-		 *  set methods used for creating callbacks, such as
-		 *  		var Characteristic = myService.addCharacteristic(new Characteristic.Brightness())
-		 *				.on('set', function(value, callback, context) {
-		 *					this.setPercentage(value, callback, context, this.config[index].Set)
-		 *				}.bind(this));
-		 *  
-		 */
+/** set methods used for creating callbacks
+ *  such as
+ *  		var Characteristic = myService.addCharacteristic(new Characteristic.Brightness())
+ *				.on('set', function(value, callback, context) {
+ *					this.setPercentage(value, callback, context, this.config[index].Set)
+ *				}.bind(this));
+ *  
+ */
 		setBooleanState: function(value, callback, context, gaddress) {
 			if (context === 'fromKNXBus') {
 				this.log(gaddress + " event ping pong, exit!");
@@ -308,7 +307,6 @@ KNXDevice.prototype = {
 			}
 
 		},
-
 		setPercentage: function(value, callback, context, gaddress) {
 			if (context === 'fromKNXBus') {
 				this.log("event ping pong, exit!");
@@ -324,7 +322,6 @@ KNXDevice.prototype = {
 				this.knxwrite(callback, gaddress,'DPT5',numericValue);
 			}
 		},
-
 		setFloat: function(value, callback, context, gaddress) {
 			if (context === 'fromKNXBus') {
 				this.log(gaddress + " event ping pong, exit!");
@@ -340,7 +337,6 @@ KNXDevice.prototype = {
 				this.knxwrite(callback, gaddress,'DPT9',numericValue);			
 			}
 		},
-
 		setHVACState: function(value, callback, context, gaddress) {
 			if (context === 'fromKNXBus') {
 				this.log(gaddress + " event ping pong, exit!");
@@ -371,21 +367,16 @@ KNXDevice.prototype = {
 			}
 
 		},
-
-
+/** identify dummy
+ * 
+ */
 		identify: function(callback) {
 			this.log("Identify requested!");
 			callback(); // success
 		},
-
-
-		/*
-		 *  function getXXXXXXXService(config)
-		 *  
-		 *  returns a configured service object to the caller (accessory/device)
-		 *  
-		 */
-
+/** bindCharacteristic
+ *  initializes callbacks for 'set' events (from HK) and for KNX bus reads (to HK)
+ */
 		bindCharacteristic: function(myService, characteristicType, valueType, config) {
 			var myCharacteristic = myService.getCharacteristic(characteristicType);
 			if (myCharacteristic === undefined) {
@@ -453,7 +444,60 @@ KNXDevice.prototype = {
 			}
 			return myCharacteristic; // for chaining or whatsoever
 		},
-
+/**
+ *  function getXXXXXXXService(config)
+ *  returns a configured service object to the caller (accessory/device)
+ *  
+ *  @param config
+ *  pass a configuration array parsed from config.json
+ *  specifically for this service
+ *  
+ */
+		getContactSenserService: function(config) {
+//			Characteristic.ContactSensorState.CONTACT_DETECTED = 0;
+//			Characteristic.ContactSensorState.CONTACT_NOT_DETECTED = 1;
+			
+			// some sanity checks 
+			if (config.type !== "ContactSensor") {
+				this.log("[ERROR] ContactSensor Service for non 'ContactSensor' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] ContactSensor Service without 'name' property called");
+				return undefined;
+			}
+			
+			var myService = new Service.ContactSensor(config.name,config.name);
+			if (config.ContactSensorState) {
+				this.log("ContactSensor ContactSensorState characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.ContactSensorState, "Bool", config.ContactSensorState);
+			} else if (config.ContactSensorStateContact1) {
+				this.log("ContactSensor ContactSensorStateContact1 characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.ContactSensorState, "BoolReverse", config.ContactSensorStateContact1);
+			} 
+			//optionals
+			if (config.StatusActive) {
+				this.log("ContactSensor StatusActive characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusActive);
+				this.bindCharacteristic(myService, Characteristic.StatusActive, "Bool", config.StatusActive);
+			} 
+			if (config.StatusFault) {
+				this.log("ContactSensor StatusFault characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusFault);
+				this.bindCharacteristic(myService, Characteristic.StatusFault, "Bool", config.StatusFault);
+			} 
+			if (config.StatusTampered) {
+				this.log("ContactSensor StatusTampered characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusTampered);
+				this.bindCharacteristic(myService, Characteristic.StatusTampered, "Bool", config.StatusTampered);
+			} 
+			if (config.StatusLowBattery) {
+				this.log("ContactSensor StatusLowBattery characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusLowBattery);
+				this.bindCharacteristic(myService, Characteristic.StatusLowBattery, "Bool", config.StatusLowBattery);
+			} 
+			return myService;
+		},		
 		getLightbulbService: function(config) {
 			// some sanity checks
 			//this.config = config;
@@ -482,13 +526,13 @@ KNXDevice.prototype = {
 			//iterate(myService);
 			return myService;
 		},
-		
 		getLockMechanismService: function(config) {
-			// some sanity checks
-			//this.config = config;
+
+/**			//this.config = config;
 //			Characteristic.LockCurrentState.UNSECURED = 0;
 //			Characteristic.LockCurrentState.SECURED = 1;
-
+*/			
+			// some sanity checks
 			if (config.type !== "LockMechanism") {
 				this.log("[ERROR] LockMechanism Service for non 'LockMechanism' service called");
 				return undefined;
@@ -497,6 +541,7 @@ KNXDevice.prototype = {
 				this.log("[ERROR] LockMechanism Service without 'name' property called");
 				return undefined;
 			}
+			
 			var myService = new Service.LockMechanism(config.name,config.name);
 			// LockCurrentState
 			if (config.LockCurrentState) {
@@ -520,28 +565,61 @@ KNXDevice.prototype = {
 			//iterate(myService);
 			return myService;
 		},
-		
+		getOutletService: function(config) {
+			/**
+			 *   this.addCharacteristic(Characteristic.On);
+			 *   this.addCharacteristic(Characteristic.OutletInUse);
+			 */
+			// some sanity checks
+			if (config.type !== "Outlet") {
+				this.log("[ERROR] Outlet Service for non 'Outlet' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] Outlet Service without 'name' property called");
+				return undefined;
+			}
+			var myService = new Service.Outlet(config.name,config.name);
+			// On (and Off)
+			if (config.On) {
+				this.log("Outlet on/off characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.On, "Bool", config.On);
+			} // OutletInUse characteristic
+			if (config.OutletInUse) {
+				this.log("Outlet on/off characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.OutletInUse, "Bool", config.OutletInUse);
+			}
+			return myService;
+		},
+		getSwitchService: function(config) {
+			// some sanity checks
+			if (config.type !== "Switch") {
+				this.log("[ERROR] Switch Service for non 'Switch' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] Switch Service without 'name' property called");
+				return undefined;
+			}
+			var myService = new Service.Switch(config.name,config.name);
+			// On (and Off)
+			if (config.On) {
+				this.log("Switch on/off characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.On, "Bool", config.On);
+			} // On characteristic
 
+			return myService;
+		},
 		getThermostatService: function(config) {
-
-
-//			// Required Characteristics
-//			this.addCharacteristic(Characteristic.CurrentHeatingCoolingState);
-//			this.addCharacteristic(Characteristic.TargetHeatingCoolingState);
-//			this.addCharacteristic(Characteristic.CurrentTemperature); //check
-//			this.addCharacteristic(Characteristic.TargetTemperature);  //
-//			this.addCharacteristic(Characteristic.TemperatureDisplayUnits);
-			//
-//			// Optional Characteristics
-//			this.addOptionalCharacteristic(Characteristic.CurrentRelativeHumidity);
-//			this.addOptionalCharacteristic(Characteristic.TargetRelativeHumidity);
-//			this.addOptionalCharacteristic(Characteristic.CoolingThresholdTemperature);
-//			this.addOptionalCharacteristic(Characteristic.HeatingThresholdTemperature);
-
+/**
+			// Optional Characteristics
+			this.addOptionalCharacteristic(Characteristic.CurrentRelativeHumidity);
+			this.addOptionalCharacteristic(Characteristic.TargetRelativeHumidity);
+			this.addOptionalCharacteristic(Characteristic.CoolingThresholdTemperature);
+			this.addOptionalCharacteristic(Characteristic.HeatingThresholdTemperature);
+*/
 
 			// some sanity checks 
-
-
 			if (config.type !== "Thermostat") {
 				this.log("[ERROR] Thermostat Service for non 'Thermostat' service called");
 				return undefined;
@@ -550,6 +628,7 @@ KNXDevice.prototype = {
 				this.log("[ERROR] Thermostat Service without 'name' property called");
 				return undefined;
 			}
+
 			var myService = new Service.Thermostat(config.name,config.name);
 			// CurrentTemperature)
 			if (config.CurrentTemperature) {
@@ -581,15 +660,9 @@ KNXDevice.prototype = {
 			}
 			return myService;
 		},
-		
-		// temperature sensor type (iOS9 assumed)
 		getTemperatureSensorService: function(config) {
 
-
-
 			// some sanity checks 
-
-
 			if (config.type !== "TemperatureSensor") {
 				this.log("[ERROR] TemperatureSensor Service for non 'TemperatureSensor' service called");
 				return undefined;
@@ -606,28 +679,18 @@ KNXDevice.prototype = {
 			} 
 			return myService;
 		},		
-
-
-
-		// window type (iOS9 assumed)
 		getWindowService: function(config) {
-//			Service.Window = function(displayName, subtype) {
-//			  Service.call(this, displayName, '0000008B-0000-1000-8000-0026BB765291', subtype);
-//
-//			  // Required Characteristics
-//			  this.addCharacteristic(Characteristic.CurrentPosition);
-//			  this.addCharacteristic(Characteristic.TargetPosition);
-//			  this.addCharacteristic(Characteristic.PositionState);
-//
-//			  // Optional Characteristics
-//			  this.addOptionalCharacteristic(Characteristic.HoldPosition);
-//			  this.addOptionalCharacteristic(Characteristic.ObstructionDetected);
-//			  this.addOptionalCharacteristic(Characteristic.Name);
-
-		//		Characteristic.PositionState.DECREASING = 0;
-//		Characteristic.PositionState.INCREASING = 1;
-//		Characteristic.PositionState.STOPPED = 2;
-
+/**			
+		Optional Characteristics
+		this.addOptionalCharacteristic(Characteristic.HoldPosition);
+		this.addOptionalCharacteristic(Characteristic.ObstructionDetected);
+		this.addOptionalCharacteristic(Characteristic.Name);
+		
+		PositionState values: The KNX blind actuators I have return only MOVING=1 and STOPPED=0
+		Characteristic.PositionState.DECREASING = 0;
+		Characteristic.PositionState.INCREASING = 1;
+		Characteristic.PositionState.STOPPED = 2;
+*/
 
 			// some sanity checks 
 
@@ -656,34 +719,17 @@ KNXDevice.prototype = {
 			} 
 			return myService;
 		},			
-
-		
-//		/**
-//		 * Service "Window Covering"
-//		 */
-//
-//		Service.WindowCovering = function(displayName, subtype) {
-//		  Service.call(this, displayName, '0000008C-0000-1000-8000-0026BB765291', subtype);
-//
-//		  // Required Characteristics
-//		  this.addCharacteristic(Characteristic.CurrentPosition);
-//		  this.addCharacteristic(Characteristic.TargetPosition);
-//		  this.addCharacteristic(Characteristic.PositionState);
-//
-//		  // Optional Characteristics
-//		  this.addOptionalCharacteristic(Characteristic.HoldPosition);
-//		  this.addOptionalCharacteristic(Characteristic.TargetHorizontalTiltAngle);
-//		  this.addOptionalCharacteristic(Characteristic.TargetVerticalTiltAngle);
-//		  this.addOptionalCharacteristic(Characteristic.CurrentHorizontalTiltAngle);
-//		  this.addOptionalCharacteristic(Characteristic.CurrentVerticalTiltAngle);
-//		  this.addOptionalCharacteristic(Characteristic.ObstructionDetected);
-//		  this.addOptionalCharacteristic(Characteristic.Name);
-//		};
 		getWindowCoveringService: function(config) {
-
+			/**
+			  // Optional Characteristics
+			  this.addOptionalCharacteristic(Characteristic.HoldPosition);
+			  this.addOptionalCharacteristic(Characteristic.TargetHorizontalTiltAngle);
+			  this.addOptionalCharacteristic(Characteristic.TargetVerticalTiltAngle);
+			  this.addOptionalCharacteristic(Characteristic.CurrentHorizontalTiltAngle);
+			  this.addOptionalCharacteristic(Characteristic.CurrentVerticalTiltAngle);
+			  this.addOptionalCharacteristic(Characteristic.ObstructionDetected);
+	*/
 			// some sanity checks 
-
-
 			if (config.type !== "WindowCovering") {
 				this.log("[ERROR] WindowCovering Service for non 'WindowCovering' service called");
 				return undefined;
@@ -692,8 +738,8 @@ KNXDevice.prototype = {
 				this.log("[ERROR] WindowCovering Service without 'name' property called");
 				return undefined;
 			}
-			var myService = new Service.WindowCovering(config.name,config.name);
 
+			var myService = new Service.WindowCovering(config.name,config.name);
 			if (config.CurrentPosition) {
 				this.log("WindowCovering CurrentPosition characteristic enabled");
 				this.bindCharacteristic(myService, Characteristic.CurrentPosition, "Percent", config.CurrentPosition);
@@ -705,64 +751,6 @@ KNXDevice.prototype = {
 			if (config.PositionState) {
 				this.log("WindowCovering PositionState characteristic enabled");
 				this.bindCharacteristic(myService, Characteristic.PositionState, "Float", config.PositionState);
-			} 
-			return myService;
-		},		
-		
-//		Service.ContactSensor = function(displayName, subtype) {
-//			  Service.call(this, displayName, '00000080-0000-1000-8000-0026BB765291', subtype);
-//
-//			  // Required Characteristics
-//			  this.addCharacteristic(Characteristic.ContactSensorState);
-//
-//			  // Optional Characteristics
-//			  this.addOptionalCharacteristic(Characteristic.StatusActive);
-//			  this.addOptionalCharacteristic(Characteristic.StatusFault);
-//			  this.addOptionalCharacteristic(Characteristic.StatusTampered);
-//			  this.addOptionalCharacteristic(Characteristic.StatusLowBattery);
-//			  this.addOptionalCharacteristic(Characteristic.Name);
-//			};
-//		Characteristic.ContactSensorState.CONTACT_DETECTED = 0;
-//		Characteristic.ContactSensorState.CONTACT_NOT_DETECTED = 1;
-		getContactSenserService: function(config) {
-			// some sanity checks 
-			if (config.type !== "ContactSensor") {
-				this.log("[ERROR] ContactSensor Service for non 'ContactSensor' service called");
-				return undefined;
-			}
-			if (!config.name) {
-				this.log("[ERROR] ContactSensor Service without 'name' property called");
-				return undefined;
-			}
-			var myService = new Service.ContactSensor(config.name,config.name);
-
-			if (config.ContactSensorState) {
-				this.log("ContactSensor ContactSensorState characteristic enabled");
-				this.bindCharacteristic(myService, Characteristic.ContactSensorState, "Bool", config.ContactSensorState);
-			} else if (config.ContactSensorStateContact1) {
-				this.log("ContactSensor ContactSensorStateContact1 characteristic enabled");
-				this.bindCharacteristic(myService, Characteristic.ContactSensorState, "BoolReverse", config.ContactSensorStateContact1);
-			} 
-			//optionals
-			if (config.StatusActive) {
-				this.log("ContactSensor StatusActive characteristic enabled");
-				myService.addCharacteristic(Characteristic.StatusActive);
-				this.bindCharacteristic(myService, Characteristic.StatusActive, "Bool", config.StatusActive);
-			} 
-			if (config.StatusFault) {
-				this.log("ContactSensor StatusFault characteristic enabled");
-				myService.addCharacteristic(Characteristic.StatusFault);
-				this.bindCharacteristic(myService, Characteristic.StatusFault, "Bool", config.StatusFault);
-			} 
-			if (config.StatusTampered) {
-				this.log("ContactSensor StatusTampered characteristic enabled");
-				myService.addCharacteristic(Characteristic.StatusTampered);
-				this.bindCharacteristic(myService, Characteristic.StatusTampered, "Bool", config.StatusTampered);
-			} 
-			if (config.StatusLowBattery) {
-				this.log("ContactSensor StatusLowBattery characteristic enabled");
-				myService.addCharacteristic(Characteristic.StatusLowBattery);
-				this.bindCharacteristic(myService, Characteristic.StatusLowBattery, "Bool", config.StatusLowBattery);
 			} 
 			return myService;
 		},		
@@ -788,8 +776,8 @@ KNXDevice.prototype = {
 
 			accessoryServices.push(informationService);
 
-			iterate(this.config);
-//			throw new Error("STOP");
+			//iterate(this.config);
+
 			if (!this.config.services){
 				this.log("No services found in accessory?!")
 			}
@@ -814,6 +802,9 @@ KNXDevice.prototype = {
 				case "LockMechanism":
 					accessoryServices.push(this.getLockMechanismService(configService));
 					break;
+				case "Switch":
+					accessoryServices.push(this.getSwitchService(configService));
+					break;					
 				case "TemperatureSensor":
 					accessoryServices.push(this.getTemperatureSensorService(configService));
 					break;
