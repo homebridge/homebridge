@@ -526,6 +526,25 @@ KNXDevice.prototype = {
 			//iterate(myService);
 			return myService;
 		},
+		getLightSensorService: function(config) {
+
+			// some sanity checks 
+			if (config.type !== "LightSensor") {
+				this.log("[ERROR] LightSensor Service for non 'LightSensor' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] LightSensor Service without 'name' property called");
+				return undefined;
+			}
+			var myService = new Service.LightSensor(config.name,config.name);
+			// CurrentTemperature)
+			if (config.CurrentAmbientLightLevel) {
+				this.log("LightSensor CurrentAmbientLightLevel characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.CurrentAmbientLightLevel, "Float", config.CurrentAmbientLightLevel);
+			} 
+			return myService;
+		},	
 		getLockMechanismService: function(config) {
 
 /**			//this.config = config;
@@ -756,10 +775,9 @@ KNXDevice.prototype = {
 		},		
 		
 		
+	
 		
-		/* assemble the device ***************************************************************************************************/
-
-
+/* assemble the device ***************************************************************************************************/
 		getServices: function() {
 
 			// you can OPTIONALLY create an information service if you wish to override
@@ -798,6 +816,9 @@ KNXDevice.prototype = {
 					break;				
 				case "Lightbulb":
 					accessoryServices.push(this.getLightbulbService(configService));
+					break;
+				case "LightSensor":
+					accessoryServices.push(this.getLightSensorService(configService));
 					break;
 				case "LockMechanism":
 					accessoryServices.push(this.getLockMechanismService(configService));
