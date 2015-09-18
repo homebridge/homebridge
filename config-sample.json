@@ -205,7 +205,18 @@
             "window_seconds": 5,
             "sensor_type": "m",
             "inverse": false
+        },
+        {
+            "accessory": "GenericRS232Device",
+            "name": "Projector",
+            "description": "Make sure you set a 'Siri-Name' for your iOS-Device (example: 'Home Cinema') otherwise it might not work.",
+            "id": "TYDYMU044UVNP",
+            "baudrate": 9600,
+            "device": "/dev/tty.usbserial",
+            "manufacturer": "Acer",
+            "model_name": "H6510BD",
+            "on_command": "* 0 IR 001\r",
+            "off_command": "* 0 IR 002\r"
         }
-
     ]
 }
