@@ -74,7 +74,7 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 # Supported Services and their characteristics
 
 ## Lightbulb
- On: DPT 1, 1 as on, 0 as off
+ On: DPT 1, 1 as on, 0 as off<BR>
  Brightness: DPT5 percentage, 100% (=255) the brightest
  
  
