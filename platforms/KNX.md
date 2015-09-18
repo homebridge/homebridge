@@ -79,51 +79,48 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
  
  
 ## LockMechanism
--  LockCurrentState: DPT 1, 1 as secured
-OR (but not both:)
+-  LockCurrentState: DPT 1, 1 as secured **OR (but not both:)**
 -  LockCurrentStateSecured0: DPT 1, 0 as secured
 
--  LockTargetState: DPT 1, 1 as secured
-OR 
+-  LockTargetState: DPT 1, 1 as secured **OR** 
 -  LockTargetStateSecured0: DPT 1, 0 as secured
 
 ## Thermostat
-CurrentTemperature: DPT9 in °C [listen only]
-TargetTemperature: DPT9, values 0..40°C only, all others are ignored
-CurrentHeatingCoolingState: DPT5 HVAC, because of the incompatible mapping only off and heating (=auto) are shown, [listen only]
-TargetHeatingCoolingState: as above
+-  CurrentTemperature: DPT9 in °C [listen only]
+-  TargetTemperature: DPT9, values 0..40°C only, all others are ignored
+-  CurrentHeatingCoolingState: DPT5 HVAC, because of the incompatible mapping only off and heating (=auto) are shown, [listen only]
+-  TargetHeatingCoolingState: as above
 
 
 ## TemperatureSensor
-CurrentTemperature: DPT9 in °C [listen only]
+-  CurrentTemperature: DPT9 in °C [listen only]
 
 ## Window
-CurrentPosition: DPT5 percentage
-TargetPosition: DPT5 percentage
-PositionState: DPT5 value [listen only]
+-  CurrentPosition: DPT5 percentage
+-  TargetPosition: DPT5 percentage
+-  PositionState: DPT5 value [listen only]
 
 ## WindowCovering
-CurrentPosition: DPT5 percentage
-TargetPosition: DPT5 percentage
-PositionState: DPT5 value [listen only]
+-  CurrentPosition: DPT5 percentage
+-  TargetPosition: DPT5 percentage
+-  PositionState: DPT5 value [listen only]
 
 ### not yet supported
-HoldPosition
-TargetHorizontalTiltAngle
-TargetVerticalTiltAngle
-CurrentHorizontalTiltAngle
-CurrentVerticalTiltAngle
-ObstructionDetected
+-  HoldPosition
+-  TargetHorizontalTiltAngle
+-  TargetVerticalTiltAngle
+-  CurrentHorizontalTiltAngle
+-  CurrentVerticalTiltAngle
+-  ObstructionDetected
 
 ## ContactSensor
-ContactSensorState: DPT 1, 0 as contact
-OR
-ContactSensorStateContact1: DPT 1, 1 as contact
+-  ContactSensorState: DPT 1, 0 as contact **OR**
+-  ContactSensorStateContact1: DPT 1, 1 as contact
 
-StatusActive: DPT 1, 1 as true
-StatusFault: DPT 1, 1 as true
-StatusTampered: DPT 1, 1 as true
-StatusLowBattery: DPT 1, 1 as true
+-  StatusActive: DPT 1, 1 as true
+-  StatusFault: DPT 1, 1 as true
+-  StatusTampered: DPT 1, 1 as true
+-  StatusLowBattery: DPT 1, 1 as true
 
 
 # DISCLAIMER
