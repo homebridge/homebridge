@@ -5,7 +5,7 @@ set -e
 echo "Installing Homebridge..."
 
 APP_PATH=`pwd`
-FOREVER_PATH=`which forever`
+FOREVER_PATH=`which forever || true`
 USER_NAME=`whoami`
 
 
