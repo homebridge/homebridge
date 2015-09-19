@@ -667,7 +667,7 @@ KNXDevice.prototype = {
 			//iterate(myService);
 			return myService;
 		},
-		getMotionSenserService: function(config) {
+		getMotionSensorService: function(config) {
 //			Characteristic.ContactSensorState.CONTACT_DETECTED = 0;
 //			Characteristic.ContactSensorState.CONTACT_NOT_DETECTED = 1;
 			
@@ -682,7 +682,7 @@ KNXDevice.prototype = {
 			}
 			
 			var myService = new Service.MotionSensor(config.name,config.name);
-			if (config.ContactSensorState) {
+			if (config.MotionDetected) {
 				this.log("MotionSensor MotionDetected characteristic enabled");
 				this.bindCharacteristic(myService, Characteristic.MotionDetected, "Bool", config.MotionDetected);
 			}
