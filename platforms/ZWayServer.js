@@ -11,6 +11,7 @@ function ZWayServerPlatform(log, config){
     this.url          = config["url"];
     this.login        = config["login"];
     this.password     = config["password"];
+    this.opt_in       = config["opt_in"];
     this.name_overrides = config["name_overrides"];
     this.batteryLow   = config["battery_low_level"] || 15;
     this.pollInterval = config["poll_interval"] || 2;
@@ -110,6 +111,7 @@ ZWayServerPlatform.prototype = {
             for(var i = 0; i < devices.length; i++){
                 var vdev = devices[i];
                 if(vdev.tags.indexOf("Homebridge:Skip") >= 0) { debug("Tag says skip!"); continue; }
+                if(this.opt_in && vdev.tags.indexOf("Homebridge:Include") < 0) continue;
                 var gdid = vdev.id.replace(/^(.*?)_zway_(\d+-\d+)-\d.*/, '$1_$2');
                 var gd = groupedDevices[gdid] || (groupedDevices[gdid] = {devices: [], types: {}, primary: undefined});
                 gd.devices.push(vdev);
@@ -222,6 +224,27 @@ ZWayServerAccessory.prototype = {
         });
     },
     
+    rgb2hsv: function(obj) {
+        var r = obj.r/255, g = obj.g/255, b = obj.b/255;
+        var max, min, d, h, s, v;
+
+        if (min === max) {
+            // shade of gray
+            return [0, 0, r];
+        }
+
+        min = Math.min(r, Math.min(g, b));
+        max = Math.max(r, Math.max(g, b));
+
+        var d = (r === min) ? g - b : ((b === min) ? r - g : b - r);
+        h = (r === min) ? 3 : ((b === min) ? 1 : 5);
+        h = 60 * (h - d/(max - min));
+        s = (max - min) / max;
+        v = max;
+        return {"h": h, "s": s * 100, "v": v};
+    }
+    ,
+    
     getVDevServices: function(vdev){
         var typeKey = ZWayServerPlatform.getVDevTypeKey(vdev);
         var services = [], service;
@@ -272,6 +295,8 @@ ZWayServerAccessory.prototype = {
             this.uuidToTypeKeyMap = map = {};
             map[(new Characteristic.On).UUID] = ["switchBinary","switchMultilevel"];
             map[(new Characteristic.Brightness).UUID] = ["switchMultilevel"];
+            map[(new Characteristic.Hue).UUID] = ["switchRGBW"];
+            map[(new Characteristic.Saturation).UUID] = ["switchRGBW"];
             map[(new Characteristic.CurrentTemperature).UUID] = ["sensorMultilevel.Temperature","thermostat"];
             map[(new Characteristic.TargetTemperature).UUID] = ["thermostat"];
             map[(new Characteristic.TemperatureDisplayUnits).UUID] = ["sensorMultilevel.Temperature","thermostat"]; //TODO: Always a fixed result
@@ -310,7 +335,7 @@ ZWayServerAccessory.prototype = {
     }
     ,
     configureCharacteristic: function(cx, vdev){
-        var that = this;
+        var that, accessory = this;
         
         // Add this combination to the maps...
         if(!this.platform.cxVDevMap[vdev.id]) this.platform.cxVDevMap[vdev.id] = [];
@@ -378,6 +403,50 @@ ZWayServerAccessory.prototype = {
                     callback();
                 });
             }.bind(this));
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.Hue){
+            cx.zway_getValueFromVDev = function(vdev){
+                return accessory.rgb2hsv(vdev.metrics.color).h;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            
+            cx.writeable = false;
+            //cx.on('set', function(level, callback){
+            //    this.command(vdev, "exact", {level: "on", "color.r": 255, "color.g": 0, "color.b": 0}).then(function(result){
+            //        callback();
+            //    });
+            //}.bind(this));
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.Saturation){
+            cx.zway_getValueFromVDev = function(vdev){
+                return accessory.rgb2hsv(vdev.metrics.color).s;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            
+            cx.writeable = false;
+            //cx.on('set', function(level, callback){
+            //    this.command(vdev, "exact", {level: "on", "color.r": 255, "color.g": 0, "color.b": 0}).then(function(result){
+            //        callback();
+            //    });
+            //}.bind(this));
             return cx;
         }
 
