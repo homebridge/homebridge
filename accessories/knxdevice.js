@@ -210,7 +210,7 @@ KNXDevice.prototype = {
 			this.log("knx registering FLOAT " + addresses);
 			knxd_registerGA(addresses, function(val, src, dest, type){
 				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
-				if (val>=(characteristic.minimumValue || 0) && val<=(characteristic.maximumValue || 255) {
+				if (val>=(characteristic.minimumValue || 0) && val<=(characteristic.maximumValue || 255)) {
 					characteristic.setValue(val, undefined, 'fromKNXBus'); 
 				} else {
 					this.log("Value %s out of bounds %s...%s ",hk_value, (characteristic.minimumValue || 0), (characteristic.maximumValue || 255));
