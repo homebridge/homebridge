@@ -12,7 +12,8 @@ New 2015-09-18:
 -  Services Switch and Outlet
 -  Code cleanup
 New 2015-09-19:
-- GarageDoorOpener Service
+-  GarageDoorOpener Service
+-  MotionSensor Service
  * 
  */
 var Service = require("HAP-NodeJS").Service;
@@ -666,6 +667,48 @@ KNXDevice.prototype = {
 			//iterate(myService);
 			return myService;
 		},
+		getMotionSenserService: function(config) {
+//			Characteristic.ContactSensorState.CONTACT_DETECTED = 0;
+//			Characteristic.ContactSensorState.CONTACT_NOT_DETECTED = 1;
+			
+			// some sanity checks 
+			if (config.type !== "MotionSensor") {
+				this.log("[ERROR] MotionSensor Service for non 'MotionSensor' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] MotionSensor Service without 'name' property called");
+				return undefined;
+			}
+			
+			var myService = new Service.MotionSensor(config.name,config.name);
+			if (config.ContactSensorState) {
+				this.log("MotionSensor MotionDetected characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.MotionDetected, "Bool", config.MotionDetected);
+			}
+			//optionals
+			if (config.StatusActive) {
+				this.log("MotionSensor StatusActive characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusActive);
+				this.bindCharacteristic(myService, Characteristic.StatusActive, "Bool", config.StatusActive);
+			} 
+			if (config.StatusFault) {
+				this.log("MotionSensor StatusFault characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusFault);
+				this.bindCharacteristic(myService, Characteristic.StatusFault, "Bool", config.StatusFault);
+			} 
+			if (config.StatusTampered) {
+				this.log("MotionSensor StatusTampered characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusTampered);
+				this.bindCharacteristic(myService, Characteristic.StatusTampered, "Bool", config.StatusTampered);
+			} 
+			if (config.StatusLowBattery) {
+				this.log("MotionSensor StatusLowBattery characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusLowBattery);
+				this.bindCharacteristic(myService, Characteristic.StatusLowBattery, "Bool", config.StatusLowBattery);
+			} 
+			return myService;
+		},	
 		getOutletService: function(config) {
 			/**
 			 *   this.addCharacteristic(Characteristic.On);
@@ -903,6 +946,9 @@ KNXDevice.prototype = {
 				case "LockMechanism":
 					accessoryServices.push(this.getLockMechanismService(configService));
 					break;
+				case "MotionSensor":
+					accessoryServices.push(this.getMotionSensorService(configService));
+					break;	
 				case "Switch":
 					accessoryServices.push(this.getSwitchService(configService));
 					break;					

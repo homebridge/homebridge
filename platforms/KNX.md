@@ -120,6 +120,13 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 
 *ToDo here: correction of mappings, HomeKit reqires lock states UNSECURED=0, SECURED=1, JAMMED = 2, UNKNOWN=3*
 
+## MotionSensor
+-  MotionDetected: DPT 1.002, 1 as motion detected
+
+-  StatusActive: DPT 1.011, 1 as true
+-  StatusFault: DPT 1.011, 1 as true
+-  StatusTampered: DPT 1.011, 1 as true
+-  StatusLowBattery: DPT 1.011, 1 as true
 
 ## Outlet
  -  On: DPT 1.001, 1 as on, 0 as off
