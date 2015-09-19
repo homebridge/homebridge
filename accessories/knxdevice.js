@@ -322,6 +322,21 @@ KNXDevice.prototype = {
 				this.knxwrite(callback, gaddress,'DPT5',numericValue);
 			}
 		},
+		setInt: function(value, callback, context, gaddress) {
+			if (context === 'fromKNXBus') {
+				this.log("event ping pong, exit!");
+				if (callback) {
+					callback();
+				}
+			} else {	  
+				var numericValue = 0;
+				if (value && value>=0 && value<=255) {
+					numericValue = value;  // assure 1..255 for KNX bus  
+				}
+				this.log("Setting "+gaddress+" int to %s (%s)", value, numericValue);
+				this.knxwrite(callback, gaddress,'DPT5',numericValue);
+			}
+		},
 		setFloat: function(value, callback, context, gaddress) {
 			if (context === 'fromKNXBus') {
 				this.log(gaddress + " event ping pong, exit!");
@@ -406,6 +421,11 @@ KNXDevice.prototype = {
 						this.setFloat(value, callback, context, config.Set);
 					}.bind(this));
 					break;
+				case "Int":
+					myCharacteristic.on('set', function(value, callback, context) {
+						this.setInt(value, callback, context, config.Set);
+					}.bind(this));
+					break;
 				case "HVAC":
 					myCharacteristic.on('set', function(value, callback, context) {
 						this.setHVACState(value, callback, context, config.Set);
@@ -430,6 +450,10 @@ KNXDevice.prototype = {
 					this.knxregister_percent([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;
 				case "Float":
+					this.knxregister_float([config.Set].concat(config.Listen || []), myCharacteristic);
+					break;
+				case "Int":
+					// use float as return type for ints, for we don't care
 					this.knxregister_float([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;
 				case "HVAC":
@@ -498,6 +522,62 @@ KNXDevice.prototype = {
 			} 
 			return myService;
 		},		
+		getGarageDoorOpenerService: function(config) {
+//			  // Required Characteristics
+//			  this.addCharacteristic(Characteristic.CurrentDoorState);
+//			  this.addCharacteristic(Characteristic.TargetDoorState);
+//			  this.addCharacteristic(Characteristic.ObstructionDetected);
+//			Characteristic.CurrentDoorState.OPEN = 0;
+//			Characteristic.CurrentDoorState.CLOSED = 1;
+//			Characteristic.CurrentDoorState.OPENING = 2;
+//			Characteristic.CurrentDoorState.CLOSING = 3;
+//			Characteristic.CurrentDoorState.STOPPED = 4;
+//			//
+//			  // Optional Characteristics
+//			  this.addOptionalCharacteristic(Characteristic.LockCurrentState);
+//			  this.addOptionalCharacteristic(Characteristic.LockTargetState);
+			// The value property of LockCurrentState must be one of the following:
+//			Characteristic.LockCurrentState.UNSECURED = 0;
+//			Characteristic.LockCurrentState.SECURED = 1;
+//			Characteristic.LockCurrentState.JAMMED = 2;
+//			Characteristic.LockCurrentState.UNKNOWN = 3;
+			
+			// some sanity checks 
+			if (config.type !== "GarageDoorOpener") {
+				this.log("[ERROR] GarageDoorOpener Service for non 'GarageDoorOpener' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] GarageDoorOpener Service without 'name' property called");
+				return undefined;
+			}
+			
+			var myService = new Service.GarageDoorOpener(config.name,config.name);
+			if (config.CurrentDoorState) {
+				this.log("GarageDoorOpener CurrentDoorState characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.CurrentDoorState, "Int", config.CurrentDoorState);
+			}
+			if (config.TargetDoorState) {
+				this.log("GarageDoorOpener TargetDoorState characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.TargetDoorState, "Int", config.TargetDoorState);
+			}
+			if (config.ObstructionDetected) {
+				this.log("GarageDoorOpener ObstructionDetected characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.ObstructionDetected, "Bool", config.ObstructionDetected);
+			}
+			//optionals
+			if (config.LockCurrentState) {
+				this.log("GarageDoorOpener LockCurrentState characteristic enabled");
+				myService.addCharacteristic(Characteristic.LockCurrentState);
+				this.bindCharacteristic(myService, Characteristic.LockCurrentState, "Int", config.LockCurrentState);
+			} 
+			if (config.LockTargetState) {
+				this.log("GarageDoorOpener LockTargetState characteristic enabled");
+				myService.addCharacteristic(Characteristic.LockTargetState);
+				this.bindCharacteristic(myService, Characteristic.LockTargetState, "Bool", config.LockTargetState);
+			} 
+			return myService;
+		},	
 		getLightbulbService: function(config) {
 			// some sanity checks
 			//this.config = config;
@@ -657,11 +737,6 @@ KNXDevice.prototype = {
 			// TargetTemperature if available 
 			if (config.TargetTemperature) {
 				this.log("Thermostat TargetTemperature characteristic enabled");
-				
-				// DEBUG
-				console.log("default value: " + myService.getCharacteristic(Characteristic.TargetTemperature).value);
-				// DEBUG
-				
 				// default boundary too narrow for thermostats
 				myService.getCharacteristic(Characteristic.TargetTemperature).minimumValue=0; // °C
 				myService.getCharacteristic(Characteristic.TargetTemperature).maximumValue=40; // °C
@@ -790,7 +865,7 @@ KNXDevice.prototype = {
 			informationService
 			.setCharacteristic(Characteristic.Manufacturer, "Opensource Community")
 			.setCharacteristic(Characteristic.Model, "KNX Universal Device")
-			.setCharacteristic(Characteristic.SerialNumber, "Version 1.1");
+			.setCharacteristic(Characteristic.SerialNumber, "Version 1.1.2");
 
 			accessoryServices.push(informationService);
 
@@ -814,6 +889,9 @@ KNXDevice.prototype = {
 				case "ContactSensor":
 					accessoryServices.push(this.getContactSenserService(configService));
 					break;				
+				case "GarageDoorOpener":
+					accessoryServices.push(this.getGarageDoorOpenerService(configService));
+					break;
 				case "Lightbulb":
 					accessoryServices.push(this.getLightbulbService(configService));
 					break;
