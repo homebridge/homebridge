@@ -64,10 +64,20 @@ FibaroHC2Platform.prototype = {
             		accessory = new FibaroDoorSensorAccessory(that, s);
 				else if (s.type == "com.fibaro.lightSensor")
             		accessory = new FibaroLightSensorAccessory(that, s);
+            	else if (s.type == "com.fibaro.FGWP101")
+            		accessory = new FibaroOutletAccessory(that, s);
+            	
 				if (accessory != null) {
 					accessory.getServices = function() {
   							return that.getServices(accessory);
   					};
+  					accessory.platform 			= that;
+				  	accessory.remoteAccessory	= s;
+  					accessory.id 				= s.id;
+  					accessory.name				= s.name;
+  					accessory.model				= s.type;
+  					accessory.manufacturer		= "Fibaro";
+  					accessory.serialNumber		= "<unknown>";
             		foundAccessories.push(accessory);
             	}
 			}
@@ -103,23 +113,30 @@ FibaroHC2Platform.prototype = {
       }
     });
   },
-  getAccessoryValue: function(callback, returnBoolean, that) {
-    var url = "http://"+that.platform.host+"/api/devices/"+that.id+"/properties/value";
+  getAccessoryValue: function(callback, returnBoolean, homebridgeAccessory, powerValue) {
+    var url = "http://"+homebridgeAccessory.platform.host+"/api/devices/"+homebridgeAccessory.id+"/properties/";
+    if (powerValue)
+    	url = url + "power";
+    else    
+    	url = url + "value";
+    	
     request.get({
           headers : {
-            "Authorization" : that.platform.auth
+            "Authorization" : homebridgeAccessory.platform.auth
       },
       json: true,
       url: url
     }, function(err, response, json) {
-      that.platform.log(url);
+      homebridgeAccessory.platform.log(url);
       if (!err && response.statusCode == 200) {
-      	if (returnBoolean)
+      	if (powerValue) {
+      		callback(undefined, parseFloat(json.value) > 1.0 ? true : false);
+      	} else if (returnBoolean)
       	   	callback(undefined, json.value == 0 ? 0 : 1);
 		else
 	      	callback(undefined, json.value);
       } else {
-        that.platform.log("There was a problem getting value from" + that.id);
+        homebridgeAccessory.platform.log("There was a problem getting value from" + homebridgeAccessory.id);
       }
     })
   },
@@ -135,6 +152,7 @@ FibaroHC2Platform.prototype = {
   bindCharacteristicEvents: function(characteristic, homebridgeAccessory) {
   	var onOff = characteristic.format == "bool" ? true : false;
   	var readOnly = characteristic.writable == undefined || characteristic.writable == false ? true : false;
+  	var powerValue = (characteristic.UUID == "00000026-0000-1000-8000-0026BB765291") ? true : false;
     subscribeUpdate(characteristic, homebridgeAccessory, onOff);
 	if (!readOnly) {
     	characteristic
@@ -150,7 +168,7 @@ FibaroHC2Platform.prototype = {
     }
     characteristic
         .on('get', function(callback) {
-					  	homebridgeAccessory.platform.getAccessoryValue(callback, onOff, homebridgeAccessory);
+					  	homebridgeAccessory.platform.getAccessoryValue(callback, onOff, homebridgeAccessory, powerValue);
                    }.bind(this) );
   },
   getServices: function(homebridgeAccessory) {
@@ -167,87 +185,43 @@ FibaroHC2Platform.prototype = {
 }
 
 function FibaroDimmerAccessory(platform, s) {
-  	this.platform 			= platform;
-  	this.remoteAccessory	= s;
-  	this.id 				= s.id;
-  	this.name				= s.name;
-  	this.model				= s.type;
-  	this.manufacturer		= "Fibaro";
-  	this.serialNumber		= "<unknown>";
     this.controlService = new Service.Lightbulb(this.name);
     this.characteristics = [Characteristic.On, Characteristic.Brightness];
 }
 
 function FibaroRollerShutterAccessory(platform, s) {
-  	this.platform 			= platform;
-  	this.remoteAccessory	= s;
-  	this.id 				= s.id;
-  	this.name				= s.name;
-  	this.model				= s.type;
-  	this.manufacturer		= "Fibaro";
-  	this.serialNumber		= "<unknown>";
     this.controlService = new Service.WindowCovering(this.name);
     this.characteristics = [Characteristic.CurrentPosition, Characteristic.TargetPosition, Characteristic.PositionState];
 }
 
 function FibaroBinarySwitchAccessory(platform, s) {
-  	this.platform 			= platform;
-  	this.remoteAccessory	= s;
-  	this.id 				= s.id;
-  	this.name				= s.name;
-  	this.model				= s.type;
-  	this.manufacturer		= "Fibaro";
-  	this.serialNumber		= "<unknown>";
     this.controlService = new Service.Switch(this.name);
     this.characteristics = [Characteristic.On];
 }
 
 function FibaroMotionSensorAccessory(platform, s) {
-  	this.platform 			= platform;
-  	this.remoteAccessory	= s;
-  	this.id 				= s.id;
-  	this.name				= s.name;
-  	this.model				= "Motion Sensor";
-  	this.manufacturer		= "Fibaro";
-  	this.serialNumber		= "<unknown>";
     this.controlService = new Service.MotionSensor(this.name);
     this.characteristics = [Characteristic.MotionDetected];
 }
 
 function FibaroTemperatureSensorAccessory(platform, s) {
-  	this.platform 			= platform;
-  	this.remoteAccessory	= s;
-  	this.id 				= s.id;
-  	this.name				= s.name;
-  	this.model				= s.type;
-  	this.manufacturer		= "Fibaro";
-  	this.serialNumber		= "<unknown>";
     this.controlService = new Service.TemperatureSensor(this.name);
     this.characteristics = [Characteristic.CurrentTemperature];
 }
 
 function FibaroDoorSensorAccessory(platform, s) {
-  	this.platform 			= platform;
-  	this.remoteAccessory	= s;
-  	this.id 				= s.id;
-  	this.name				= s.name;
-  	this.model				= s.type;
-  	this.manufacturer		= "Fibaro";
-  	this.serialNumber		= "<unknown>";
     this.controlService = new Service.ContactSensor(this.name);
     this.characteristics = [Characteristic.ContactSensorState];
 }
 
 function FibaroLightSensorAccessory(platform, s) {
-  	this.platform 			= platform;
-  	this.remoteAccessory	= s;
-  	this.id 				= s.id;
-  	this.name				= s.name;
-  	this.model				= s.type;
-  	this.manufacturer		= "Fibaro";
-  	this.serialNumber		= "<unknown>";
     this.controlService = new Service.LightSensor(this.name);
     this.characteristics = [Characteristic.CurrentAmbientLightLevel];
+}
+
+function FibaroOutletAccessory(platform, s) {
+    this.controlService = new Service.Outlet(this.name);
+    this.characteristics = [Characteristic.On, Characteristic.OutletInUse];
 }
 
 var lastPoll=0;
@@ -281,10 +255,12 @@ function startPollingUpdate( platform )
           					for (i=0;i<updateSubscriptions.length; i++) {
           						var subscription = updateSubscriptions[i];
           						if (subscription.id == s.id) {
-	          						if ((subscription.onOff && typeof(value) == "boolean") || !subscription.onOff)
-	    	      							subscription.characteristic.setValue(value, undefined, 'fromFibaro');
+          							if (s.power != undefined && subscription.characteristic.UUID == "00000026-0000-1000-8000-0026BB765291") {
+          								subscription.characteristic.setValue(parseFloat(s.power) > 1.0 ? true : false, undefined, 'fromFibaro');
+          							} else if ((subscription.onOff && typeof(value) == "boolean") || !subscription.onOff)
+	    	      						subscription.characteristic.setValue(value, undefined, 'fromFibaro');
           							else
-	    	      							subscription.characteristic.setValue(value == 0 ? false : true, undefined, 'fromFibaro');
+	    	      						subscription.characteristic.setValue(value == 0 ? false : true, undefined, 'fromFibaro');
           						}
           					}
           				}
