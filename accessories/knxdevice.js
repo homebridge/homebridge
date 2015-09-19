@@ -8,9 +8,11 @@ new features include:
 -  Window
 -  WindowCovering
 -  ContactSensor
-New 2015-0918: 
+New 2015-09-18: 
 -  Services Switch and Outlet
 -  Code cleanup
+New 2015-09-19:
+- GarageDoorOpener Service
  * 
  */
 var Service = require("HAP-NodeJS").Service;
@@ -148,20 +150,7 @@ KNXDevice.prototype = {
 				this.knxread (groupAddresses);
 			}
 		},
-/** Write special type routines
- *  
- */
-		// special types
-		knxwrite_percent: function(callback, groupAddress, value) {
-			var numericValue = 0;
-			if (value && value>=0 && value <= 100)  {
-				numericValue = 255*value/100;  // convert 1..100 to 1..255 for KNX bus  
-			} else {
-				this.log("[ERROR] Percentage value ot of bounds ");
-				numericValue = 0;
-			}
-			this.knxwrite(callback, groupAddress,'DPT5',numericValue);
-		},
+
 /** Registering routines
  * 
  */
@@ -210,11 +199,22 @@ KNXDevice.prototype = {
 				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
 				var hk_value = Math.round(val*10)/10;
 				if (hk_value>=characteristic.minimumValue && hk_value<=characteristic.maximumValue) {
-					characteristic.setValue(hk_value, undefined, 'fromKNXBus'); // 1 decoimal for HomeKit
+					characteristic.setValue(hk_value, undefined, 'fromKNXBus'); // 1 decimal for HomeKit
 				} else {
 					this.log("Value %s out of bounds %s...%s ",hk_value, characteristic.minimumValue, characteristic.maximumValue);
 				}
-					
+			}.bind(this));
+		},
+		//integer
+		knxregister_int: function(addresses, characteristic) {
+			this.log("knx registering FLOAT " + addresses);
+			knxd_registerGA(addresses, function(val, src, dest, type){
+				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
+				if (val>=(characteristic.minimumValue || 0) && val<=(characteristic.maximumValue || 255) {
+					characteristic.setValue(val, undefined, 'fromKNXBus'); 
+				} else {
+					this.log("Value %s out of bounds %s...%s ",hk_value, (characteristic.minimumValue || 0), (characteristic.maximumValue || 255));
+				}
 			}.bind(this));
 		},
 		knxregister_HVAC: function(addresses, characteristic) {
@@ -431,9 +431,10 @@ KNXDevice.prototype = {
 						this.setHVACState(value, callback, context, config.Set);
 					}.bind(this));
 					break;
-				default:
+				default: {
 					this.log("[ERROR] unknown type passed");
-				throw new Error("[ERROR] unknown type passed");
+					throw new Error("[ERROR] unknown type passed");
+					}
 				} 
 			}
 			if ([config.Set].concat(config.Listen || []).length>0) {
@@ -453,8 +454,7 @@ KNXDevice.prototype = {
 					this.knxregister_float([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;
 				case "Int":
-					// use float as return type for ints, for we don't care
-					this.knxregister_float([config.Set].concat(config.Listen || []), myCharacteristic);
+					this.knxregister_int([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;
 				case "HVAC":
 					this.knxregister_HVAC([config.Set].concat(config.Listen || []), myCharacteristic);
@@ -559,6 +559,8 @@ KNXDevice.prototype = {
 			}
 			if (config.TargetDoorState) {
 				this.log("GarageDoorOpener TargetDoorState characteristic enabled");
+				//myService.getCharacteristic(Characteristic.TargetDoorState).minimumValue=0; // 
+				//myService.getCharacteristic(Characteristic.TargetDoorState).maximumValue=4; // 
 				this.bindCharacteristic(myService, Characteristic.TargetDoorState, "Int", config.TargetDoorState);
 			}
 			if (config.ObstructionDetected) {
