@@ -140,9 +140,7 @@ WeMoAccessory.prototype.getServices = function() {
     
     garageDoorService
       .getCharacteristic(Characteristic.TargetDoorState)
-      .on('set', this.setTargetDoorState.bind(this))
-      .supportsEventNotification = false;
-    
+      .on('set', this.setTargetDoorState.bind(this));
     
     return [garageDoorService];
   }
