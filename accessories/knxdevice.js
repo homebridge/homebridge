@@ -8,9 +8,12 @@ new features include:
 -  Window
 -  WindowCovering
 -  ContactSensor
-New 2015-0918: 
+New 2015-09-18: 
 -  Services Switch and Outlet
 -  Code cleanup
+New 2015-09-19:
+-  GarageDoorOpener Service
+-  MotionSensor Service
  * 
  */
 var Service = require("HAP-NodeJS").Service;
@@ -148,20 +151,7 @@ KNXDevice.prototype = {
 				this.knxread (groupAddresses);
 			}
 		},
-/** Write special type routines
- *  
- */
-		// special types
-		knxwrite_percent: function(callback, groupAddress, value) {
-			var numericValue = 0;
-			if (value && value>=0 && value <= 100)  {
-				numericValue = 255*value/100;  // convert 1..100 to 1..255 for KNX bus  
-			} else {
-				this.log("[ERROR] Percentage value ot of bounds ");
-				numericValue = 0;
-			}
-			this.knxwrite(callback, groupAddress,'DPT5',numericValue);
-		},
+
 /** Registering routines
  * 
  */
@@ -210,11 +200,22 @@ KNXDevice.prototype = {
 				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
 				var hk_value = Math.round(val*10)/10;
 				if (hk_value>=characteristic.minimumValue && hk_value<=characteristic.maximumValue) {
-					characteristic.setValue(hk_value, undefined, 'fromKNXBus'); // 1 decoimal for HomeKit
+					characteristic.setValue(hk_value, undefined, 'fromKNXBus'); // 1 decimal for HomeKit
 				} else {
 					this.log("Value %s out of bounds %s...%s ",hk_value, characteristic.minimumValue, characteristic.maximumValue);
 				}
-					
+			}.bind(this));
+		},
+		//integer
+		knxregister_int: function(addresses, characteristic) {
+			this.log("knx registering FLOAT " + addresses);
+			knxd_registerGA(addresses, function(val, src, dest, type){
+				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
+				if (val>=(characteristic.minimumValue || 0) && val<=(characteristic.maximumValue || 255)) {
+					characteristic.setValue(val, undefined, 'fromKNXBus'); 
+				} else {
+					this.log("Value %s out of bounds %s...%s ",hk_value, (characteristic.minimumValue || 0), (characteristic.maximumValue || 255));
+				}
 			}.bind(this));
 		},
 		knxregister_HVAC: function(addresses, characteristic) {
@@ -322,6 +323,21 @@ KNXDevice.prototype = {
 				this.knxwrite(callback, gaddress,'DPT5',numericValue);
 			}
 		},
+		setInt: function(value, callback, context, gaddress) {
+			if (context === 'fromKNXBus') {
+				this.log("event ping pong, exit!");
+				if (callback) {
+					callback();
+				}
+			} else {	  
+				var numericValue = 0;
+				if (value && value>=0 && value<=255) {
+					numericValue = value;  // assure 1..255 for KNX bus  
+				}
+				this.log("Setting "+gaddress+" int to %s (%s)", value, numericValue);
+				this.knxwrite(callback, gaddress,'DPT5',numericValue);
+			}
+		},
 		setFloat: function(value, callback, context, gaddress) {
 			if (context === 'fromKNXBus') {
 				this.log(gaddress + " event ping pong, exit!");
@@ -406,14 +422,20 @@ KNXDevice.prototype = {
 						this.setFloat(value, callback, context, config.Set);
 					}.bind(this));
 					break;
+				case "Int":
+					myCharacteristic.on('set', function(value, callback, context) {
+						this.setInt(value, callback, context, config.Set);
+					}.bind(this));
+					break;
 				case "HVAC":
 					myCharacteristic.on('set', function(value, callback, context) {
 						this.setHVACState(value, callback, context, config.Set);
 					}.bind(this));
 					break;
-				default:
+				default: {
 					this.log("[ERROR] unknown type passed");
-				throw new Error("[ERROR] unknown type passed");
+					throw new Error("[ERROR] unknown type passed");
+					}
 				} 
 			}
 			if ([config.Set].concat(config.Listen || []).length>0) {
@@ -431,6 +453,9 @@ KNXDevice.prototype = {
 					break;
 				case "Float":
 					this.knxregister_float([config.Set].concat(config.Listen || []), myCharacteristic);
+					break;
+				case "Int":
+					this.knxregister_int([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;
 				case "HVAC":
 					this.knxregister_HVAC([config.Set].concat(config.Listen || []), myCharacteristic);
@@ -498,6 +523,64 @@ KNXDevice.prototype = {
 			} 
 			return myService;
 		},		
+		getGarageDoorOpenerService: function(config) {
+//			  // Required Characteristics
+//			  this.addCharacteristic(Characteristic.CurrentDoorState);
+//			  this.addCharacteristic(Characteristic.TargetDoorState);
+//			  this.addCharacteristic(Characteristic.ObstructionDetected);
+//			Characteristic.CurrentDoorState.OPEN = 0;
+//			Characteristic.CurrentDoorState.CLOSED = 1;
+//			Characteristic.CurrentDoorState.OPENING = 2;
+//			Characteristic.CurrentDoorState.CLOSING = 3;
+//			Characteristic.CurrentDoorState.STOPPED = 4;
+//			//
+//			  // Optional Characteristics
+//			  this.addOptionalCharacteristic(Characteristic.LockCurrentState);
+//			  this.addOptionalCharacteristic(Characteristic.LockTargetState);
+			// The value property of LockCurrentState must be one of the following:
+//			Characteristic.LockCurrentState.UNSECURED = 0;
+//			Characteristic.LockCurrentState.SECURED = 1;
+//			Characteristic.LockCurrentState.JAMMED = 2;
+//			Characteristic.LockCurrentState.UNKNOWN = 3;
+			
+			// some sanity checks 
+			if (config.type !== "GarageDoorOpener") {
+				this.log("[ERROR] GarageDoorOpener Service for non 'GarageDoorOpener' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] GarageDoorOpener Service without 'name' property called");
+				return undefined;
+			}
+			
+			var myService = new Service.GarageDoorOpener(config.name,config.name);
+			if (config.CurrentDoorState) {
+				this.log("GarageDoorOpener CurrentDoorState characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.CurrentDoorState, "Int", config.CurrentDoorState);
+			}
+			if (config.TargetDoorState) {
+				this.log("GarageDoorOpener TargetDoorState characteristic enabled");
+				//myService.getCharacteristic(Characteristic.TargetDoorState).minimumValue=0; // 
+				//myService.getCharacteristic(Characteristic.TargetDoorState).maximumValue=4; // 
+				this.bindCharacteristic(myService, Characteristic.TargetDoorState, "Int", config.TargetDoorState);
+			}
+			if (config.ObstructionDetected) {
+				this.log("GarageDoorOpener ObstructionDetected characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.ObstructionDetected, "Bool", config.ObstructionDetected);
+			}
+			//optionals
+			if (config.LockCurrentState) {
+				this.log("GarageDoorOpener LockCurrentState characteristic enabled");
+				myService.addCharacteristic(Characteristic.LockCurrentState);
+				this.bindCharacteristic(myService, Characteristic.LockCurrentState, "Int", config.LockCurrentState);
+			} 
+			if (config.LockTargetState) {
+				this.log("GarageDoorOpener LockTargetState characteristic enabled");
+				myService.addCharacteristic(Characteristic.LockTargetState);
+				this.bindCharacteristic(myService, Characteristic.LockTargetState, "Bool", config.LockTargetState);
+			} 
+			return myService;
+		},	
 		getLightbulbService: function(config) {
 			// some sanity checks
 			//this.config = config;
@@ -584,6 +667,48 @@ KNXDevice.prototype = {
 			//iterate(myService);
 			return myService;
 		},
+		getMotionSensorService: function(config) {
+//			Characteristic.ContactSensorState.CONTACT_DETECTED = 0;
+//			Characteristic.ContactSensorState.CONTACT_NOT_DETECTED = 1;
+			
+			// some sanity checks 
+			if (config.type !== "MotionSensor") {
+				this.log("[ERROR] MotionSensor Service for non 'MotionSensor' service called");
+				return undefined;
+			}
+			if (!config.name) {
+				this.log("[ERROR] MotionSensor Service without 'name' property called");
+				return undefined;
+			}
+			
+			var myService = new Service.MotionSensor(config.name,config.name);
+			if (config.MotionDetected) {
+				this.log("MotionSensor MotionDetected characteristic enabled");
+				this.bindCharacteristic(myService, Characteristic.MotionDetected, "Bool", config.MotionDetected);
+			}
+			//optionals
+			if (config.StatusActive) {
+				this.log("MotionSensor StatusActive characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusActive);
+				this.bindCharacteristic(myService, Characteristic.StatusActive, "Bool", config.StatusActive);
+			} 
+			if (config.StatusFault) {
+				this.log("MotionSensor StatusFault characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusFault);
+				this.bindCharacteristic(myService, Characteristic.StatusFault, "Bool", config.StatusFault);
+			} 
+			if (config.StatusTampered) {
+				this.log("MotionSensor StatusTampered characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusTampered);
+				this.bindCharacteristic(myService, Characteristic.StatusTampered, "Bool", config.StatusTampered);
+			} 
+			if (config.StatusLowBattery) {
+				this.log("MotionSensor StatusLowBattery characteristic enabled");
+				myService.addCharacteristic(Characteristic.StatusLowBattery);
+				this.bindCharacteristic(myService, Characteristic.StatusLowBattery, "Bool", config.StatusLowBattery);
+			} 
+			return myService;
+		},	
 		getOutletService: function(config) {
 			/**
 			 *   this.addCharacteristic(Characteristic.On);
@@ -657,11 +782,6 @@ KNXDevice.prototype = {
 			// TargetTemperature if available 
 			if (config.TargetTemperature) {
 				this.log("Thermostat TargetTemperature characteristic enabled");
-				
-				// DEBUG
-				console.log("default value: " + myService.getCharacteristic(Characteristic.TargetTemperature).value);
-				// DEBUG
-				
 				// default boundary too narrow for thermostats
 				myService.getCharacteristic(Characteristic.TargetTemperature).minimumValue=0; // °C
 				myService.getCharacteristic(Characteristic.TargetTemperature).maximumValue=40; // °C
@@ -790,7 +910,7 @@ KNXDevice.prototype = {
 			informationService
 			.setCharacteristic(Characteristic.Manufacturer, "Opensource Community")
 			.setCharacteristic(Characteristic.Model, "KNX Universal Device")
-			.setCharacteristic(Characteristic.SerialNumber, "Version 1.1");
+			.setCharacteristic(Characteristic.SerialNumber, "Version 1.1.2");
 
 			accessoryServices.push(informationService);
 
@@ -814,6 +934,9 @@ KNXDevice.prototype = {
 				case "ContactSensor":
 					accessoryServices.push(this.getContactSenserService(configService));
 					break;				
+				case "GarageDoorOpener":
+					accessoryServices.push(this.getGarageDoorOpenerService(configService));
+					break;
 				case "Lightbulb":
 					accessoryServices.push(this.getLightbulbService(configService));
 					break;
@@ -823,6 +946,9 @@ KNXDevice.prototype = {
 				case "LockMechanism":
 					accessoryServices.push(this.getLockMechanismService(configService));
 					break;
+				case "MotionSensor":
+					accessoryServices.push(this.getMotionSensorService(configService));
+					break;	
 				case "Switch":
 					accessoryServices.push(this.getSwitchService(configService));
 					break;					
