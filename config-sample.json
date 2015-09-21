@@ -96,6 +96,16 @@
              "host": "http://192.168.1.10:8123",
              "password": "XXXXX",
              "supported_types": ["light", "switch", "media_player", "scene"]
+         },
+         {
+            "platform": "FHEM",
+            "name": "FHEM",             // Name your FHEM server
+            "server": "127.0.0.1",      // IP address your FHEM instance is running
+            "port": 8083                // Port your FHEM instance is running
+            //last line has no comma! If you uncomment a single line below, can add ","
+            // "ssl": true, //optional true (https or false (http)
+            // "auth": {'user': "fhem", 'pass': "fhempassword"},    //optional
+            // "filter": "room=xyz"   //optional
          }
     ],
 
