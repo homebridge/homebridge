@@ -1669,7 +1669,6 @@ FHEMAccessory.prototype = {
       FHEM_subscribe(characteristic, this.mappings.thermostat.informId, this);
       characteristic.value = FHEM_cached[this.mappings.thermostat.informId];
 
-console.log( this.mappings.thermostat );
       characteristic.setProps( {
         maxValue: this.mappings.thermostat.max,
         minValue: this.mappings.thermostat.min,
