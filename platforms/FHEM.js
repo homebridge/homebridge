@@ -602,6 +602,10 @@ FHEMAccessory(log, connection, s, activity_name) {
   } else if( s.Internals.TYPE == 'CUL_FHTTK' ) {
     this.mappings.contact = { reading: 'Window' };
 
+  } else if( s.Internals.TYPE == 'MAX'
+             && s.Internals.type == 'ShutterContact' ) {
+    this.mappings.contact = { reading: 'state' };
+
   } else if( s.Attributes.subType == 'threeStateSensor' ) {
     this.mappings.contact = { reading: 'contact' };
 
@@ -921,6 +925,10 @@ FHEMAccessory.prototype = {
 
       if( value == 'off' )
         value = 0;
+      else if( value == 'opened' )
+        value = Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
+      else if( value == 'closed' )
+        value = Characteristic.ContactSensorState.CONTACT_DETECTED;
       else if( value == 'present' )
         value = Characteristic.OccupancyDetected.OCCUPANCY_DETECTED;
       else if( value == 'absent' )
