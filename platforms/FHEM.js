@@ -1,4 +1,5 @@
 // FHEM Platform Shim for HomeBridge
+// current version on https://github.com/justme-1968/homebridge
 //
 // Remember to add platform to config.json. Example:
 // "platforms": [
@@ -12,14 +13,10 @@
 //         'filter': "room=xyz"
 //     }
 // ],
-//
-// When you attempt to add a device, it will ask for a "PIN code".
-// The default code for all HomeBridge accessories is 031-45-154.
 
 var Service = require("HAP-NodeJS").Service;
 var Characteristic = require("HAP-NodeJS").Characteristic;
 
-var types = require('HAP-NodeJS/accessories/types.js');
 
 var util = require('util');
 
@@ -167,25 +164,21 @@ function FHEM_startLongpoll(connection) {
 
                      } else if( reading == 'activity') {
 
+                       FHEM_update( device+'-'+reading, value, true );
+
                        Object.keys(FHEM_subscriptions).forEach(function(key) {
-                         var parts = key.split( '-', 2 );
+                         var parts = key.split( '-', 3 );
+                         if( parts[0] != '#' + device )
+                           return;
                          if( parts[1] != reading )
-                           return;
-                         if( parts[0] == device )
-                           return;
-                         if( parts[0].substr(0,1) != '#' )
                            return;
 
                          var subscription = FHEM_subscriptions[key];
                          var accessory = subscription.accessory;
 
-                         device = parts[0].substr(1);
+                         var activity = parts[2];
 
-                         var state = 0;
-                         if( value == accessory.activity_name )
-                           state = 1;
-
-                         subscription.characteristic.setValue(state, undefined, 'fromFHEM');
+                         subscription.characteristic.setValue(value==activity?1:0, undefined, 'fromFHEM');
                        } );
 
                        continue;
@@ -200,6 +193,24 @@ function FHEM_startLongpoll(connection) {
                        FHEM_update( device+'-hue', hue );
                        FHEM_update( device+'-sat', sat );
                        FHEM_update( device+'-bri', bri );
+                       continue;
+
+                     } else if(accessory.mappings.colormode) {
+                       //FIXME: add colormode ct
+                       if( reading == 'xy') {
+                         var xy = value.split(',');
+                         var rgb = FHEM_xyY2rgb(xy[0], xy[1] , 1);
+                         var hsv = FHEM_rgb2hsv(rgb);
+                         var hue = parseInt( hsv[0] * 360 );
+                         var sat = parseInt( hsv[1] * 100 );
+                         var bri = parseInt( hsv[2] * 100 );
+
+                         FHEM_update( device+'-hue', hue );
+                         FHEM_update( device+'-sat', sat );
+                         FHEM_update( device+'-bri', bri );
+                       }
+
+                       FHEM_update( device+'-'+reading, value, false );
                        continue;
 
                      }
@@ -322,6 +333,90 @@ FHEM_hsv2rgb(h,s,v) {
 
   return FHEM_rgb2hex( Math.round(r*255),Math.round(g*255),Math.round(b*255) );
 }
+function
+FHEM_ct2rgb(ct)
+{
+  // calculation from http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code
+  // adjusted by 1000K
+  var temp = (1000000/ct)/100 + 10;
+
+  var r = 0;
+  var g = 0;
+  var b = 0;
+
+  r = 255;
+  if( temp > 66 )
+    r = 329.698727446 * Math.pow(temp - 60, -0.1332047592);
+  if( r < 0 )
+    r = 0;
+  if( r > 255 )
+    r = 255;
+
+  if( temp <= 66 )
+    g = 99.4708025861 * Math.log(temp) - 161.1195681661;
+  else
+    g = 288.1221695283 * Math.pow(temp - 60, -0.0755148492);
+  if( g < 0 )
+    g = 0;
+  if( g > 255 );
+    g = 255;
+
+  b = 255;
+  if( temp <= 19 )
+    b = 0;
+  if( temp < 66 )
+    b = 138.5177312231 * log(temp-10) - 305.0447927307;
+  if( b < 0 )
+    b = 0;
+  if( b > 255 )
+    b = 255;
+
+  return FHEM_rgb2hex( Math.round(r*255),Math.round(g*255),Math.round(b*255) );
+}
+
+function
+FHEM_xyY2rgb(x,y,Y)
+{
+  // calculation from http://www.brucelindbloom.com/index.html
+
+  var r = 0;
+  var g = 0;
+  var b = 0;
+
+  if( y > 0 ) {
+    var X = x * Y / y;
+    var Z = (1 - x - y)*Y / y;
+
+    if( X > 1
+        || Y > 1
+        || Z > 1 ) {
+      var f = Math.max(X,Y,Z);
+      X /= f;
+      Y /= f;
+      Z /= f;
+    }
+
+    r =  0.7982 * X + 0.3389 * Y - 0.1371 * Z;
+    g = -0.5918 * X + 1.5512 * Y + 0.0406 * Z;
+    b =  0.0008 * X + 0.0239 * Y + 0.9753 * Z;
+
+    if( r > 1
+        || g > 1
+        || b > 1 ) {
+      var f = Math.max(r,g,b);
+      r /= f;
+      g /= f;
+      b /= f;
+    }
+
+    r *= 255;
+    g *= 255;
+    b *= 255;
+  }
+
+  return FHEM_rgb2hex( Math.round(r*255),Math.round(g*255),Math.round(b*255) );
+}
+
 
 function
 FHEM_rgb2hsv(r,g,b){
@@ -435,28 +530,7 @@ FHEMPlatform.prototype = {
                            accessory = new FHEMAccessory(this.log, this.connection, s);
 
                          } else if( s.Internals.TYPE == 'harmony' ) {
-                           if( s.Internals.id != undefined ) {
-                             if( s.Attributes.genericDeviceType )
-                               accessory = new FHEMAccessory(this.log, this.connection, s);
-                             else
-                               this.log( 'ignoring harmony device ' + s.Internals.NAME + ' without genericDeviceType attribte' );
-
-                           } else {
-                             this.log( 'creating devices for activities in ' + s.Internals.NAME );
-                             var match;
-                             if( match = s.PossibleSets.match(/(^| )activity:([^\s]*)/) ) {
-                               var activities = match[2].split(',');
-                               for( var i = 0; i < activities.length; i++ ) {
-                                 var activity = activities[i];
-                                 accessory = new FHEMAccessory(this.log, this.connection, s, activity);
-
-                                 if( accessory && Object.getOwnPropertyNames(accessory).length )
-                                   foundAccessories.push(accessory);
-                               }
-                               accessory = null;
-                             }
-
-                           }
+                             accessory = new FHEMAccessory(this.log, this.connection, s);
 
                          } else {
                            this.log( 'ignoring ' + s.Internals.NAME + ' (' + s.Internals.TYPE + ')' );
@@ -484,7 +558,7 @@ FHEMPlatform.prototype = {
 }
 
 function
-FHEMAccessory(log, connection, s, activity_name) {
+FHEMAccessory(log, connection, s) {
 //log( 'sets: ' + s.PossibleSets );
 //log("got json: " + util.inspect(s) );
 //log("got json: " + util.inspect(s.Internals) );
@@ -526,6 +600,12 @@ FHEMAccessory(log, connection, s, activity_name) {
       max = match[3];
     this.mappings.sat = { reading: 'sat', cmd: 'sat', min: 0, max: max };
   }
+
+  if( s.Readings.colormode )
+    this.mappings.colormode = { reading: 'colormode' };
+  if( s.Readings.xy )
+    this.mappings.xy = { reading: 'xy' };
+  //FIXME: add ct/colortemperature
 
   if( s.PossibleSets.match(/(^| )rgb\b/) ) {
     s.isLight = true;
@@ -652,14 +732,17 @@ FHEMAccessory(log, connection, s, activity_name) {
   if( s.Internals.TYPE == 'SONOSPLAYER' ) //FIXME: use sets [Pp]lay/[Pp]ause/[Ss]top
     this.mappings.onOff = { reading: 'transportState', cmdOn: 'play', cmdOff: 'pause' };
 
-  else if( s.Internals.TYPE == 'harmony'
-           && s.Internals.id != undefined )
-    this.mappings.onOff = { reading: 'power', cmdOn: 'on', cmdOff: 'off' };
+  else if( s.Internals.TYPE == 'harmony' ) {
+    if( s.Internals.id != undefined ) {
+      if( s.Attributes.genericDeviceType )
+        this.mappings.onOff = { reading: 'power', cmdOn: 'on', cmdOff: 'off' };
+      else
+        return null;
 
-  else if( s.Internals.TYPE == 'harmony' )
-    this.mappings.onOff = { reading: 'activity', cmdOn: 'activity '+activity_name, cmdOff: 'off' };
+    } else
+      this.mappings.onOff = { reading: 'activity', cmdOn: 'activity', cmdOff: 'off' };
 
-  else if( s.PossibleSets.match(/(^| )on\b/)
+  } else if( s.PossibleSets.match(/(^| )on\b/)
            && s.PossibleSets.match(/(^| )off\b/) ) {
     this.mappings.onOff = { reading: 'state', cmdOn: 'on', cmdOff: 'off' };
     if( !s.Readings.state )
@@ -713,9 +796,13 @@ FHEMAccessory(log, connection, s, activity_name) {
   if( this.mappings.onOff )
     log( s.Internals.NAME + ' has onOff [' +  this.mappings.onOff.reading + ';' + this.mappings.onOff.cmdOn +',' + this.mappings.onOff.cmdOff + ']' );
   if( this.mappings.hue )
-    log( s.Internals.NAME + ' has hue [0-' + this.mappings.hue.max +']' );
+    log( s.Internals.NAME + ' has hue [' + this.mappings.hue.reading + ';0-' + this.mappings.hue.max +']' );
   if( this.mappings.sat )
-    log( s.Internals.NAME + ' has sat [0-' + this.mappings.sat.max +']' );
+    log( s.Internals.NAME + ' has sat [' + this.mappings.sat.reading + ';0-' + this.mappings.sat.max +']' );
+  if( this.mappings.colormode )
+    log( s.Internals.NAME + ' has colormode [' + this.mappings.colormode.reading +']' );
+  if( this.mappings.xy )
+    log( s.Internals.NAME + ' has xy [' + this.mappings.xy.reading +']' );
   if( this.mappings.thermostat_mode )
     log( s.Internals.NAME + ' has thermostat mode ['+ this.mappings.thermostat_mode.reading + ';' + this.mappings.thermostat_mode.cmd +']' );
   if( this.mappings.temperature )
@@ -744,10 +831,6 @@ FHEMAccessory(log, connection, s, activity_name) {
                                            : (s.Attributes.model ? s.Attributes.model
                                                                  : ( s.Internals.model ? s.Internals.model : '<unknown>' ) );
   this.PossibleSets     = s.PossibleSets;
-
-  if( activity_name )
-    this.name = activity_name + ' (' + s.Internals.NAME + ')';
-  this.activity_name = activity_name;
 
   if( this.type == 'CUL_HM' ) {
     this.serial = s.Internals.DEF;
@@ -935,7 +1018,7 @@ FHEMAccessory.prototype = {
         value = Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED;
       else if( value == '000000' )
         value = 0;
-      else if( value.match( /^[A-D]0$/ ) ) //FIXME: is handled by event_map now
+      else if( value.match( /^[A-D]0$/ ) ) //FIXME: not necessary any more. handled by event_map now.
         value = 0;
       else
         value = 1;
@@ -1201,8 +1284,10 @@ FHEMAccessory.prototype = {
                 }.bind(this) );
   },
 
-  createDeviceService: function() {
+  createDeviceService: function(subtype) {
     var name = this.alias + ' (' + this.name + ')';
+    if( subtype )
+      name = subtype + ' (' + this.name + ')';
 
     if( this.isSwitch ) {
       this.log("  switch service for " + this.name)
@@ -1239,8 +1324,8 @@ FHEMAccessory.prototype = {
       return new Service.AirQualitySensor(name);
     }
 
-    this.log("  switch service for " + this.name)
-    return new Service.Switch(name);
+    this.log("  switch service for " + this.name + ' (' + subtype + ')' )
+    return new Service.Switch(name, subtype);
   },
 
   identify: function(callback) {
@@ -1252,17 +1337,84 @@ FHEMAccessory.prototype = {
   },
 
   getServices: function() {
+    var services = [];
+
     this.log("creating services for " + this.name)
 
     this.log("  information service for " + this.name)
     var informationService = new Service.AccessoryInformation();
+    services.push( informationService );
 
     informationService
       .setCharacteristic(Characteristic.Manufacturer, "FHEM:"+this.type)
       .setCharacteristic(Characteristic.Model, "FHEM:"+ (this.model ? this.model : '<unknown>') )
       .setCharacteristic(Characteristic.SerialNumber, this.serial ? this.serial : '<unknown>');
 
+
+    // FIXME: allow multiple switch characteristics also for other types. check if this.mappings.onOff an array.
+    if( this.type == 'harmony'
+        && this.mappings.onOff.reading == 'activity' ) {
+
+      FHEM_subscribe(undefined, this.mappings.onOff.informId, this);
+
+      var match;
+      if( match = this.PossibleSets.match(/(^| )activity:([^\s]*)/) ) {
+        var activities = match[2].split(',');
+        for( var i = 0; i < activities.length; i++ ) {
+          var activity = activities[i];
+
+          var controlService = this.createDeviceService(activity);
+          services.push( controlService );
+
+          this.log("      power characteristic for " + this.name + ' ' + activity);
+
+          var characteristic = controlService.getCharacteristic(Characteristic.On);
+
+          FHEM_subscribe(characteristic, '#' + this.device + '-' + this.mappings.onOff.reading + '-' + activity, this);
+
+          characteristic.value = (FHEM_cached[this.mappings.onOff.informId]==activity?1:0);
+
+          characteristic
+            .on('set', function(activity, value, callback, context) {
+                         if( context !== 'fromFHEM' )
+                           this.command( 'set', value == 0 ? this.mappings.onOff.cmdOff : this.mappings.onOff.cmdOn + ' ' + activity );
+                         callback();
+                       }.bind(this, activity) )
+            .on('get', function(activity, callback) {
+                         var result = this.query(this.mappings.onOff.reading);
+                         callback( undefined, result==activity?1:0 );
+                       }.bind(this, activity) );
+          }
+      }
+
+      return services;
+    }
+
+    if( this.mappings.xy
+        && this.mappings.colormode ) {
+      FHEM_subscribe(undefined, this.mappings.xy.informId, this);
+      FHEM_subscribe(undefined, this.mappings.colormode.informId, this);
+
+
+      //FIXME: add colormode ct
+      if( FHEM_cached[this.mappings.colormode.informId] == 'xy' ) {
+        var value = FHEM_cached[this.mappings.xy.informId];
+        var xy = value.split(',');
+        var rgb = FHEM_xyY2rgb(xy[0], xy[1] , 1);
+        var hsv = FHEM_rgb2hsv(rgb);
+        var hue = parseInt( hsv[0] * 360 );
+        var sat = parseInt( hsv[1] * 100 );
+        var bri = parseInt( hsv[2] * 100 );
+
+        //FHEM_update( device+'-'+reading, value, false );
+        FHEM_update( this.device+'-hue', hue );
+        FHEM_update( this.device+'-sat', sat );
+        FHEM_update( this.device+'-bri', bri );
+      }
+    }
+
     var controlService = this.createDeviceService();
+    services.push( controlService );
 
     if( this.mappings.onOff ) {
       this.log("    power characteristic for " + this.name)
@@ -1271,17 +1423,8 @@ FHEMAccessory.prototype = {
 
       FHEM_subscribe(characteristic, this.mappings.onOff.informId, this);
 
-      if( this.activity_name ) {
-        FHEM_subscribe(characteristic, '#' + this.activity_name +'-'+ this.mappings.onOff.reading , this);
-
-        if( FHEM_cached[this.mappings.onOff.informId] != undefined )
-          characteristic.value = FHEM_cached[this.mappings.onOff.informId]==this.activity_name?1:0;
-
-      } else {
-        if( FHEM_cached[this.mappings.onOff.informId] != undefined )
-          characteristic.value = FHEM_cached[this.mappings.onOff.informId];
-
-      }
+      if( FHEM_cached[this.mappings.onOff.informId] != undefined )
+        characteristic.value = FHEM_cached[this.mappings.onOff.informId];
 
       characteristic
         .on('set', function(value, callback, context) {
@@ -1668,7 +1811,6 @@ FHEMAccessory.prototype = {
     }
 
 
-    //FIXME: parse range and set designedMinValue & designedMaxValue & designedMinStep
     if( this.mappings.thermostat ) {
       this.log("    target temperature characteristic for " + this.name)
 
@@ -1755,7 +1897,7 @@ FHEMAccessory.prototype = {
                    }.bind(this) );
     }
 
-    return [informationService, controlService];
+    return services;
   }
 
 };
