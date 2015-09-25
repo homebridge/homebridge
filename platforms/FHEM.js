@@ -643,6 +643,9 @@ FHEMAccessory(log, connection, s) {
   if( s.Readings.humidity )
     this.mappings.humidity = { reading: 'humidity' };
 
+  if( s.Readings.luminosity )
+    this.mappings.light = { reading: 'luminosity' };
+
   if( s.Readings.voc )
     this.mappings.airquality = { reading: 'voc' };
 
@@ -815,6 +818,8 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' has temperature ['+ this.mappings.temperature.reading +']' );
   if( this.mappings.humidity )
     log( s.Internals.NAME + ' has humidity ['+ this.mappings.humidity.reading +']' );
+  if( this.mappings.light )
+    log( s.Internals.NAME + ' has light ['+ this.mappings.light.reading +']' );
   if( this.mappings.airquality )
     log( s.Internals.NAME + ' has voc ['+ this.mappings.airquality.reading +']' );
   if( this.mappings.motor )
@@ -984,6 +989,9 @@ FHEMAccessory.prototype = {
 
     } else if( reading == 'humidity' ) {
       value = parseInt( value );
+
+    } else if( reading == 'luminosity' ) {
+      value = parseFloat( value ) / 0.265;
 
     } else if( reading == 'voc' ) {
       value = parseInt( value );
@@ -1329,8 +1337,11 @@ FHEMAccessory.prototype = {
     } else if( this.mappings.humidity ) {
       this.log("  humidity sensor service for " + this.name)
       return new Service.HumiditySensor(name);
+    } else if( this.mappings.light ) {
+      this.log("  light sensor service for " + this.name)
+      return new Service.LightSensor(name);
     } else if( this.mappings.airquality ) {
-      this.log("  humidity sensor service for " + this.name)
+      this.log("  air quality sensor service for " + this.name)
       return new Service.AirQualitySensor(name);
     }
 
@@ -1360,7 +1371,7 @@ FHEMAccessory.prototype = {
       .setCharacteristic(Characteristic.Model, "FHEM:"+ (this.model ? this.model : '<unknown>') )
       .setCharacteristic(Characteristic.SerialNumber, this.serial ? this.serial : '<unknown>');
 
-    
+
     if( this.mappings.firmware ) {
       this.log("    firmware revision characteristic for " + this.name)
 
@@ -1806,6 +1817,21 @@ FHEMAccessory.prototype = {
       characteristic
         .on('get', function(callback) {
                      this.query(this.mappings.humidity.reading, callback);
+                   }.bind(this) );
+    }
+
+    if( this.mappings.light ) {
+      this.log("    light characteristic for " + this.name)
+
+      var characteristic = controlService.getCharacteristic(Characteristic.CurrentAmbientLightLevel)
+                           || controlService.addCharacteristic(Characteristic.CurrentAmbientLightLevel);
+
+      FHEM_subscribe(characteristic, this.mappings.light.informId, this);
+      characteristic.value = FHEM_cached[this.mappings.light.informId];
+
+      characteristic
+        .on('get', function(callback) {
+                     this.query(this.mappings.light.reading, callback);
                    }.bind(this) );
     }
 
