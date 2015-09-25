@@ -54,9 +54,7 @@ You'll also need some patience, as Siri can be very strict about sentence struct
 
 OK, if you're still excited enough about ordering Siri to make your coffee (which, who wouldn't be!) then here's how to set things up.
 
-**Note:** You'll need to make sure you have the following package installed for your platform. 
-
- * libavahi-compat-libdnssd-dev
+**Note:** If you're running on Linux, you'll need to make sure you have the `libavahi-compat-libdnssd-dev` package installed.
  
 First, clone this repo:
 
@@ -64,7 +62,7 @@ First, clone this repo:
     $ cd homebridge
     $ npm install
 
-**Node**: You'll need to have NodeJS version 0.12.x or better installed for required submodule `HAP-NodeJS` to load.
+**Note**: You'll need to have NodeJS version 0.12.x or better installed for required submodule `HAP-NodeJS` to load.
 
  
 Now you should be able to run the homebridge server:
