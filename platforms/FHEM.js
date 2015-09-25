@@ -242,7 +242,8 @@ function FHEM_startLongpoll(connection) {
 }
 
 
-function FHEMPlatform(log, config) {
+function
+FHEMPlatform(log, config) {
   this.log     = log;
   this.server  = config['server'];
   this.port    = config['port'];
@@ -567,13 +568,22 @@ FHEMAccessory(log, connection, s) {
     return new FHEMAccessory(log, connection, s);
 
   if( s.Attributes.disable == 1 ) {
-    this.log( s.Internals.NAME + ' is disabled');
+    log( s.Internals.NAME + ' is disabled');
     return null;
 
   } else if( s.Internals.TYPE == 'structure' ) {
-    this.log( 'ignoring structure ' + s.Internals.NAME );
+    log( 'ignoring ' + s.Internals.NAME + ' (' + s.Internals.TYPE + ')' );
     return null;
 
+  }
+
+  var genericType = s.Attributes.genericDeviceType;
+  if( !genericType )
+    genericType = s.Attributes.genericDisplayType;
+
+  if( genericType == 'ignore' ) {
+    log( 'ignoring ' + s.Internals.NAME );
+    return null;
   }
 
 
@@ -645,15 +655,11 @@ FHEMAccessory(log, connection, s) {
   if( s.Readings.direction )
     this.mappings.direction = { reading: 'direction' };
 
+  if( s.Readings['D-firmware'] )
+    this.mappings.firmware = { reading: 'D-firmware' };
 
-  var genericType = s.Attributes.genericDeviceType;
-  if( !genericType )
-    genericType = s.Attributes.genericDisplayType;
 
-  if( genericType == 'ignore' )
-    return null;
-
-  else if( genericType == 'switch' )
+  if( genericType == 'switch' )
     s.isSwitch = true;
 
   else if( genericType == 'garage' )
@@ -817,6 +823,8 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' has battery ['+ this.mappings.battery.reading +']' );
   if( this.mappings.direction )
     log( s.Internals.NAME + ' has direction ['+ this.mappings.direction.reading +']' );
+  if( this.mappings.firmware )
+    log( s.Internals.NAME + ' has firmware ['+ this.mappings.firmware.reading +']' );
   if( this.mappings.volume )
     log( s.Internals.NAME + ' has volume ['+ this.mappings.volume.reading + ':' + (this.mappings.volume.nocache ? 'not cached' : 'cached' )  +']' );
 
@@ -833,21 +841,23 @@ FHEMAccessory(log, connection, s) {
   this.PossibleSets     = s.PossibleSets;
 
   if( this.type == 'CUL_HM' ) {
-    this.serial = s.Internals.DEF;
+    this.serial = this.type + '.' + s.Internals.DEF;
     if( s.Attributes.serialNr )
       this.serial = s.Attributes.serialNr;
     else if( s.Readings['D-serialNr'] && s.Readings['D-serialNr'].Value )
       this.serial = s.Readings['D-serialNr'].Value;
   } else if( this.type == 'CUL_WS' )
-    this.serial = s.Internals.DEF;
+    this.serial = this.type + '.' + s.Internals.DEF;
   else if( this.type == 'FS20' )
-    this.serial = s.Internals.DEF;
+    this.serial = this.type + '.' + s.Internals.DEF;
   else if( this.type == 'IT' )
-    this.serial = s.Internals.DEF;
+    this.serial = this.type + '.' + s.Internals.DEF;
   else if( this.type == 'HUEDevice' )
     this.serial = s.Internals.uniqueid;
   else if( this.type == 'SONOSPLAYER' )
     this.serial = s.Internals.UDN;
+
+  this.uuid_base = this.serial;
 
   this.hasDim   = s.hasDim;
   this.pctMax   = s.pctMax;
@@ -1350,6 +1360,24 @@ FHEMAccessory.prototype = {
       .setCharacteristic(Characteristic.Model, "FHEM:"+ (this.model ? this.model : '<unknown>') )
       .setCharacteristic(Characteristic.SerialNumber, this.serial ? this.serial : '<unknown>');
 
+    
+    if( this.mappings.firmware ) {
+      this.log("    firmware revision characteristic for " + this.name)
+
+      var characteristic = informationService.getCharacteristic(Characteristic.FirmwareRevision)
+                           || informationService.addCharacteristic(Characteristic.FirmwareRevision);
+
+      FHEM_subscribe(characteristic, this.mappings.firmware.informId, this);
+
+      characteristic.value = FHEM_cached[this.mappings.firmware.informId];
+
+      characteristic
+        .on('get', function(callback) {
+                     if( this.mappings.firmware )
+                       this.query(this.mappings.firmware.reading, callback);
+                   }.bind(this) );
+    }
+
 
     // FIXME: allow multiple switch characteristics also for other types. check if this.mappings.onOff an array.
     if( this.type == 'harmony'
@@ -1372,6 +1400,7 @@ FHEMAccessory.prototype = {
 
           FHEM_subscribe(characteristic, '#' + this.device + '-' + this.mappings.onOff.reading + '-' + activity, this);
 
+          characteristic.displayName = activity;
           characteristic.value = (FHEM_cached[this.mappings.onOff.informId]==activity?1:0);
 
           characteristic
