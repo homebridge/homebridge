@@ -1,4 +1,7 @@
 
+# For browser-refresh
+.git
+
 # Mac
 .DS_Store
 

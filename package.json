@@ -29,14 +29,14 @@
   },
   "preferGlobal": true,
   "dependencies": {
-    "commander": "^2.8.1",
-    "diffsync": "^2.1.2",
-    "express": "^4.13.3",
-    "express-interceptor": "^1.1.1",
-    "express-jsxtransform": "^3.0.3",
-    "hap-nodejs": "git+https://github.com/nfarina/HAP-NodeJS#3b1eaa8",
-    "react-tools": "^0.13.3",
-    "semver": "^4.3.6",
-    "socket.io": "^1.3.6"
+    "commander": "2.8.1",
+    "diffsync": "2.1.2",
+    "express": "4.13.3",
+    "express-interceptor": "1.1.1",
+    "express-jsxtransform": "4.0.2",
+    "hap-nodejs": "0.0.2",
+    "react-tools": "0.13.3",
+    "semver": "5.0.3",
+    "socket.io": "1.3.7"
   }
 }

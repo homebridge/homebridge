@@ -1,6 +1,6 @@
 {
   "name": "plugin-lockitron",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Lockitron Support for HomeBridge",
   "license": "ISC",
   "keywords": [
@@ -10,6 +10,6 @@
     "homebridge": ">=0.0.0"
   },
   "dependencies": {
-    "basic-request": "^0.1.1"
+    "basic-request": "0.1.1"
   }
 }
