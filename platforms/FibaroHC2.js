@@ -51,22 +51,21 @@ FibaroHC2Platform.prototype = {
           	if (s.visible == true) {
           		var accessory = null;
           		if (s.type == "com.fibaro.multilevelSwitch")
-            		accessory = new FibaroDimmerAccessory(that, s);
+            		accessory = new FibaroAccessory(new Service.Lightbulb(s.name), [Characteristic.On, Characteristic.Brightness]);
 				else if (s.type == "com.fibaro.FGRM222" || s.type == "com.fibaro.FGR221")
-            		accessory = new FibaroRollerShutterAccessory(that, s);
+            		accessory = new FibaroAccessory(new Service.WindowCovering(s.name), [Characteristic.CurrentPosition, Characteristic.TargetPosition, Characteristic.PositionState]);
 				else if (s.type == "com.fibaro.binarySwitch" || s.type == "com.fibaro.developer.bxs.virtualBinarySwitch")
-            		accessory = new FibaroBinarySwitchAccessory(that, s);
+            		accessory = new FibaroAccessory(new Service.Switch(s.name), [Characteristic.On]);
 				else if (s.type == "com.fibaro.FGMS001" || s.type == "com.fibaro.motionSensor")
-            		accessory = new FibaroMotionSensorAccessory(that, s);
+            		accessory = new FibaroAccessory(new Service.MotionSensor(s.name), [Characteristic.MotionDetected]);
 				else if (s.type == "com.fibaro.temperatureSensor")
-            		accessory = new FibaroTemperatureSensorAccessory(that, s);
+            		accessory = new FibaroAccessory(new Service.TemperatureSensor(s.name), [Characteristic.CurrentTemperature]);
 				else if (s.type == "com.fibaro.doorSensor")
-            		accessory = new FibaroDoorSensorAccessory(that, s);
+            		accessory = new FibaroAccessory(new Service.ContactSensor(s.name), [Characteristic.ContactSensorState]);
 				else if (s.type == "com.fibaro.lightSensor")
-            		accessory = new FibaroLightSensorAccessory(that, s);
+            		accessory = new FibaroAccessory(new Service.LightSensor(s.name), [Characteristic.CurrentAmbientLightLevel]);
             	else if (s.type == "com.fibaro.FGWP101")
-            		accessory = new FibaroOutletAccessory(that, s);
-            	
+            		accessory = new FibaroAccessory(new Service.Outlet(s.name), [Characteristic.On, Characteristic.OutletInUse]);
 				if (accessory != null) {
 					accessory.getServices = function() {
   							return that.getServices(accessory);
@@ -150,8 +149,11 @@ FibaroHC2Platform.prototype = {
   	return informationService;
   },
   bindCharacteristicEvents: function(characteristic, homebridgeAccessory) {
-  	var onOff = characteristic.format == "bool" ? true : false;
-  	var readOnly = characteristic.writable == undefined || characteristic.writable == false ? true : false;
+  	var onOff = characteristic.props.format == "bool" ? true : false;
+  	var readOnly = true;
+  	for (var i = 0; i < characteristic.props.perms.length; i++)
+		if (characteristic.props.perms[i] == "pw")
+			readOnly = false;
   	var powerValue = (characteristic.UUID == "00000026-0000-1000-8000-0026BB765291") ? true : false;
     subscribeUpdate(characteristic, homebridgeAccessory, onOff);
 	if (!readOnly) {
@@ -184,44 +186,9 @@ FibaroHC2Platform.prototype = {
   }  
 }
 
-function FibaroDimmerAccessory(platform, s) {
-    this.controlService = new Service.Lightbulb(this.name);
-    this.characteristics = [Characteristic.On, Characteristic.Brightness];
-}
-
-function FibaroRollerShutterAccessory(platform, s) {
-    this.controlService = new Service.WindowCovering(this.name);
-    this.characteristics = [Characteristic.CurrentPosition, Characteristic.TargetPosition, Characteristic.PositionState];
-}
-
-function FibaroBinarySwitchAccessory(platform, s) {
-    this.controlService = new Service.Switch(this.name);
-    this.characteristics = [Characteristic.On];
-}
-
-function FibaroMotionSensorAccessory(platform, s) {
-    this.controlService = new Service.MotionSensor(this.name);
-    this.characteristics = [Characteristic.MotionDetected];
-}
-
-function FibaroTemperatureSensorAccessory(platform, s) {
-    this.controlService = new Service.TemperatureSensor(this.name);
-    this.characteristics = [Characteristic.CurrentTemperature];
-}
-
-function FibaroDoorSensorAccessory(platform, s) {
-    this.controlService = new Service.ContactSensor(this.name);
-    this.characteristics = [Characteristic.ContactSensorState];
-}
-
-function FibaroLightSensorAccessory(platform, s) {
-    this.controlService = new Service.LightSensor(this.name);
-    this.characteristics = [Characteristic.CurrentAmbientLightLevel];
-}
-
-function FibaroOutletAccessory(platform, s) {
-    this.controlService = new Service.Outlet(this.name);
-    this.characteristics = [Characteristic.On, Characteristic.OutletInUse];
+function FibaroAccessory(controlService, characteristics) {
+    this.controlService = controlService;
+    this.characteristics = characteristics;
 }
 
 var lastPoll=0;
