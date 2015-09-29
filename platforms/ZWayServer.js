@@ -93,8 +93,8 @@ ZWayServerPlatform.prototype = {
             "thermostat",
             "switchMultilevel",
             "switchBinary",
-            "sensorBinary.Door/Window"
-            "sensorMultilevel.Temperature",
+            "sensorBinary.Door/Window",
+            "sensorMultilevel.Temperature"
         ];
 
         var that = this;
