@@ -57,7 +57,8 @@ FHEM_update(inform_id, value, no_update) {
 
     FHEM_cached[inform_id] = value;
     //FHEM_cached[inform_id] = { 'value': value, 'timestamp': Date.now() };
-    console.log("  caching: " + inform_id + ": " + value + " as " + typeof(value) );
+    var date = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
+    console.log("  " + date + " caching: " + inform_id + ": " + value + " as " + typeof(value) );
 
     if( !no_update )
       subscription.characteristic.setValue(value, undefined, 'fromFHEM');
@@ -457,9 +458,60 @@ FHEM_rgb2hsv(r,g,b){
   return  [h,s,v];
 }
 
+function
+FHEM_execute(log,connection,cmd,callback) {
+  var url = encodeURI( connection.base_url + "/fhem?cmd=" + cmd + "&XHR=1");
+  log( '  executing: ' + url );
+
+  connection.request
+              .get( { url: url, gzip: true },
+               function(err, response, result) {
+                      if( !err && response.statusCode == 200 ) {
+                        result = result.replace(/[\r\n]/g, "");
+                        if( callback )
+                          callback( result );
+
+                      } else {
+                        log("There was a problem connecting to FHEM ("+ url +").");
+                        if( response )
+                          log( "  " + response.statusCode + ": " + response.statusMessage );
+
+                      }
+
+                    } )
+              .on( 'error', function(err) { log("There was a problem connecting to FHEM ("+ url +"):"+ err); } );
+}
 
 FHEMPlatform.prototype = {
+  execute: function(cmd,callback) {FHEM_execute(this.log, this.connection, cmd, callback)},
+
+  checkAndSetGenericDeviceType: function() {
+    this.log("Checking genericDeviceType...");
+
+    var cmd = '{AttrVal("global","userattr","")}';
+
+    this.execute( cmd,
+                  function(result) {
+                    //if( result == undefined )
+                      //result = "";
+
+                    if( !result.match(/(^| )genericDeviceType\b/) ) {
+                      //FIXME: use addToAttrList
+                      var cmd = 'attr global userattr ' + result + ' genericDeviceType:ignore,switch,outlet,light,blind,thermostat,garage,window,lock';
+                      this.execute( cmd,
+                                    function(result) {
+console.log( result );
+                                        console.log( 'genericDeviceType attribute was not known. please restart homebridge.' );
+                                        process.exit(0);
+                                    } );
+                    }
+                  }.bind(this) );
+
+  },
+
   accessories: function(callback) {
+    //this.checkAndSetGenericDeviceType();
+
     this.log("Fetching FHEM switchable devices...");
 
     var foundAccessories = [];
@@ -1164,7 +1216,8 @@ FHEMAccessory.prototype = {
     this.execute(cmd);
   },
 
-  execute: function(cmd,callback) {
+  execute: function(cmd,callback) {FHEM_execute(this.log, this.connection, cmd, callback)},
+  executexxx: function(cmd,callback) {
     var url = encodeURI( this.connection.base_url + "/fhem?cmd=" + cmd + "&XHR=1");
     this.log( '  executing: ' + url );
 
@@ -1890,7 +1943,7 @@ FHEMAccessory.prototype = {
                      this.query(this.mappings.thermostat.reading, callback);
                    }.bind(this) );
 
-      if( this.mappings.thermostat_mode ) {
+      if( this.mappings.thermostat_modex ) {
         this.log("    current mode characteristic for " + this.name)
 
         var characteristic = controlService.getCharacteristic(Characteristic.CurrentHeatingCoolingState);
@@ -1904,7 +1957,7 @@ FHEMAccessory.prototype = {
                      }.bind(this) );
       }
 
-      if( this.mappings.thermostat_mode ) {
+      if( this.mappings.thermostat_modex ) {
         this.log("    target mode characteristic for " + this.name)
 
         var characteristic = controlService.getCharacteristic(Characteristic.TargetHeatingCoolingState);
