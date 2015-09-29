@@ -256,16 +256,16 @@ ZWayServerAccessory.prototype = {
         var services = [], service;
         switch (typeKey) {
             case "thermostat":
-                services.push(new Service.Thermostat(vdev.metrics.title));
+                services.push(new Service.Thermostat(vdev.metrics.title, vdev.id));
                 break;
             case "switchBinary":
-                services.push(new Service.Switch(vdev.metrics.title));
+                services.push(new Service.Switch(vdev.metrics.title, vdev.id));
                 break;
             case "switchMultilevel":
-                services.push(new Service.Lightbulb(vdev.metrics.title));
+                services.push(new Service.Lightbulb(vdev.metrics.title, vdev.id));
                 break;
             case "sensorBinary.Door/Window":
-                services.push(new Service.GarageDoorOpener(vdev.metrics.title));
+                services.push(new Service.GarageDoorOpener(vdev.metrics.title, vdev.id));
                 break;
             case "sensorMultilevel.Temperature":
                 services.push(new Service.TemperatureSensor(vdev.metrics.title, vdev.id));
