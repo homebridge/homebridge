@@ -113,10 +113,16 @@ ZWayServerPlatform.prototype = {
                 if(vdev.tags.indexOf("Homebridge:Skip") >= 0) { debug("Tag says skip!"); continue; }
                 if(this.opt_in && vdev.tags.indexOf("Homebridge:Include") < 0) continue;
                 var gdid = vdev.id.replace(/^(.*?)_zway_(\d+-\d+)-\d.*/, '$1_$2');
-                var gd = groupedDevices[gdid] || (groupedDevices[gdid] = {devices: [], types: {}, primary: undefined});
+                var gd = groupedDevices[gdid] || (groupedDevices[gdid] = {devices: [], types: {}, extras: {}, primary: undefined});
                 gd.devices.push(vdev);
-                gd.types[ZWayServerPlatform.getVDevTypeKey(vdev)] = gd.devices.length - 1;
-                gd.types[vdev.deviceType] = gd.devices.length - 1; // also include the deviceType only as a possibility
+                var tk = ZWayServerPlatform.getVDevTypeKey(vdev);
+                if(gd.types[tk] === undefined){
+                    gd.types[tk] = gd.devices.length - 1;
+                } else {
+                    gd.extras[tk] = gd.extras[tk] || [];
+                    gd.extras[tk].push(gd.devices.length - 1);
+                }
+                if(tk !== vdev.deviceType) gd.types[vdev.deviceType] = gd.devices.length - 1; // also include the deviceType only as a possibility
             }
             //TODO: Make a second pass, re-splitting any devices that don't make sense together
             for(var gdid in groupedDevices) {
@@ -250,25 +256,25 @@ ZWayServerAccessory.prototype = {
         var services = [], service;
         switch (typeKey) {
             case "switchBinary":
-                services.push(new Service.Switch(vdev.metrics.title));
+                services.push(new Service.Switch(vdev.metrics.title, vdev.id));
                 break;
             case "switchMultilevel":
-                services.push(new Service.Lightbulb(vdev.metrics.title));
+                services.push(new Service.Lightbulb(vdev.metrics.title, vdev.id));
                 break;
             case "thermostat":
-                services.push(new Service.Thermostat(vdev.metrics.title));
+                services.push(new Service.Thermostat(vdev.metrics.title, vdev.id));
                 break;
             case "sensorMultilevel.Temperature":
-                services.push(new Service.TemperatureSensor(vdev.metrics.title));
+                services.push(new Service.TemperatureSensor(vdev.metrics.title, vdev.id));
                 break;
             case "sensorBinary.Door/Window":
-                services.push(new Service.GarageDoorOpener(vdev.metrics.title));
+                services.push(new Service.GarageDoorOpener(vdev.metrics.title, vdev.id));
                 break;
             case "battery.Battery":
-                services.push(new Service.BatteryService(vdev.metrics.title));
+                services.push(new Service.BatteryService(vdev.metrics.title, vdev.id));
                 break;
             case "sensorMultilevel.Luminiscence":
-                services.push(new Service.LightSensor(vdev.metrics.title));
+                services.push(new Service.LightSensor(vdev.metrics.title, vdev.id));
                 break;
         }
         
@@ -335,7 +341,7 @@ ZWayServerAccessory.prototype = {
     }
     ,
     configureCharacteristic: function(cx, vdev){
-        var that, accessory = this;
+        var accessory = this;
         
         // Add this combination to the maps...
         if(!this.platform.cxVDevMap[vdev.id]) this.platform.cxVDevMap[vdev.id] = [];
@@ -349,7 +355,7 @@ ZWayServerAccessory.prototype = {
             cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
-                callback(false, that.name);
+                callback(false, accessory.name);
             });
             cx.writable = false;
             return cx;
@@ -597,7 +603,7 @@ ZWayServerAccessory.prototype = {
         
         if(cx instanceof Characteristic.StatusLowBattery){
             cx.zway_getValueFromVDev = function(vdev){
-                return vdev.metrics.level <= that.platform.batteryLow ? Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW : Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+                return vdev.metrics.level <= accessory.platform.batteryLow ? Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW : Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
             };
             cx.value = cx.zway_getValueFromVDev(vdev);
             cx.on('get', function(callback, context){
@@ -686,6 +692,12 @@ ZWayServerAccessory.prototype = {
         var services = [informationService];
     
         services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.primary]));
+        
+        // Any extra switchMultilevels? Could be a RGBW+W bulb, add them as additional services...
+        if(this.devDesc.extras["switchMultilevel"]) for(var i = 0; i < this.devDesc.extras["switchMultilevel"].length; i++){
+            var xvdev = this.devDesc.devices[this.devDesc.extras["switchMultilevel"][i]];
+            services = services.concat(this.getVDevServices(xvdev));
+        }
 
         if(this.platform.splitServices){
             if(this.devDesc.types["battery.Battery"]){
