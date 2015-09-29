@@ -90,11 +90,11 @@ ZWayServerPlatform.prototype = {
         //TODO: Unify this with getVDevServices, so there's only one place with mapping between service and vDev type.
         //Note: Order matters!
         var primaryDeviceClasses = [
-            "switchBinary",
             "thermostat",
-            "sensorBinary.Door/Window",
+            "switchMultilevel",
+            "switchBinary",
+            "sensorBinary.Door/Window"
             "sensorMultilevel.Temperature",
-            "switchMultilevel"
         ];
 
         var that = this;
@@ -255,20 +255,20 @@ ZWayServerAccessory.prototype = {
         var typeKey = ZWayServerPlatform.getVDevTypeKey(vdev);
         var services = [], service;
         switch (typeKey) {
+            case "thermostat":
+                services.push(new Service.Thermostat(vdev.metrics.title));
+                break;
             case "switchBinary":
-                services.push(new Service.Switch(vdev.metrics.title, vdev.id));
+                services.push(new Service.Switch(vdev.metrics.title));
                 break;
             case "switchMultilevel":
-                services.push(new Service.Lightbulb(vdev.metrics.title, vdev.id));
+                services.push(new Service.Lightbulb(vdev.metrics.title));
                 break;
-            case "thermostat":
-                services.push(new Service.Thermostat(vdev.metrics.title, vdev.id));
+            case "sensorBinary.Door/Window":
+                services.push(new Service.GarageDoorOpener(vdev.metrics.title));
                 break;
             case "sensorMultilevel.Temperature":
                 services.push(new Service.TemperatureSensor(vdev.metrics.title, vdev.id));
-                break;
-            case "sensorBinary.Door/Window":
-                services.push(new Service.GarageDoorOpener(vdev.metrics.title, vdev.id));
                 break;
             case "battery.Battery":
                 services.push(new Service.BatteryService(vdev.metrics.title, vdev.id));
