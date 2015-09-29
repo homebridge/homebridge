@@ -33,7 +33,12 @@ var hue = require("node-hue-api"),
     HueApi = hue.HueApi,
     lightState = hue.lightState;
 
+/* // Oldschool
 var types = require("HAP-NodeJS/accessories/types.js");
+*/
+var Service = require("HAP-NodeJS").Service;
+var Characteristic = require("HAP-NodeJS").Characteristic;
+
 
 function PhilipsHuePlatform(log, config) {
   this.log = log;
@@ -167,7 +172,7 @@ PhilipsHueAccessory.prototype = {
   // Convert 0-65535 to 0-360
   hueToArcDegrees: function(value) {
     value = value/65535;
-    value = value*100;
+    value = value*360;
     value = Math.round(value);
     return value;
   },
@@ -186,8 +191,7 @@ PhilipsHueAccessory.prototype = {
     return value;
   },
   // Create and set a light state
-  executeChange: function(api, device, characteristic, value) {
-    var that = this;
+  executeChange: function(characteristic, value, callback) {
     var state = lightState.create();
     switch(characteristic.toLowerCase()) {
       case 'identify':
@@ -211,164 +215,118 @@ PhilipsHueAccessory.prototype = {
         state.saturation(value);
         break;
     }
-    api.setLightState(device.id, state, function(err, lights) {
+    this.api.setLightState(this.id, state, function(err, lights) {
+      if (callback == null) {
+        return;
+      }
       if (!err) {
-        that.log(device.name + ", characteristic: " + characteristic + ", value: " + value + ".");
+      	if (callback) callback(); // Success
+      	callback = null;
+        this.log("Set " + this.device.name + ", characteristic: " + characteristic + ", value: " + value + ".");
       }
       else {
         if (err.code == "ECONNRESET") {
           setTimeout(function() {
-            that.executeChange(api, device, characteristic, value);
+            this.executeChange(characteristic, value, callback);
           }, 300);
         } else {
-          that.log(err);
+          this.log(err);
+          callback(new Error(err));
         }
       }
-    });
+    }.bind(this));
   },
+  // Read light state
+  // TODO: implement clever polling/update and caching
+  //       maybe a better NodeJS hue API exists for this
+  getState: function(characteristic, callback) {
+    this.api.lightStatus(this.id, function(err, status) {
+      if (callback == null) {
+      	return;
+      }
+      
+      if (err) {
+        if (err.code == "ECONNRESET") {
+          setTimeout(function() {
+            this.getState(characteristic, callback);
+          }.bind(this), 300);
+        } else {
+          this.log(err);
+          callback(new Error(err));
+        }
+      }
+      
+      else {
+        switch(characteristic.toLowerCase()) {
+        case 'power':
+          callback(null, status.state.on  ? 1 : 0);
+          break;
+        case 'hue':
+          callback(null, this.hueToArcDegrees(status.state.hue));
+          break;
+        case 'brightness':
+          callback(null, this.bitsToPercentage(status.state.bri));
+          break;
+        case 'saturation':
+          callback(null, this.bitsToPercentage(status.state.sat));
+          break;
+        //default:
+        //  this.log("Device " + that.device.name + " does not support reading characteristic " + characteristic);
+        //  callback(Error("Device " + that.device.name + " does not support reading characteristic " + characteristic) );
+        }
+		
+        callback = null;
+		
+        //this.log("Get " + that.device.name + ", characteristic: " + characteristic + ", value: " + value + ".");
+      }
+    }.bind(this));
+  },
+  
+  // Respond to identify request
+  identify: function(callback) { 
+  	this.executeChange("identify", true, callback); 
+  },
+
   // Get Services
   getServices: function() {
     var that = this;
-    var bulb_characteristics = [
-      {
-        cType: types.NAME_CTYPE,
-        onUpdate: null,
-        perms: ["pr"],
-        format: "string",
-        initialValue: this.name,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Name of service",
-        designedMaxLength: 255
-      },{
-        cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) {
-          that.executeChange(that.api, that.device, "power", value);
-        },
-        perms: ["pw","pr","ev"],
-        format: "bool",
-        initialValue: that.device.state.on,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Turn On the Light",
-        designedMaxLength: 1
-      },{
-        cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) {
-          that.executeChange(that.api, that.device, "brightness", value);
-        },
-        perms: ["pw","pr","ev"],
-        format: "int",
-        initialValue: that.bitsToPercentage(that.device.state.bri),
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Adjust Brightness of Light",
-        designedMinValue: 0,
-        designedMaxValue: 100,
-        designedMinStep: 1,
-        unit: "%"
-      }
-    ];
-    // Handle the Hue/Hue Lux divergence
-    if (that.device.state.hasOwnProperty('hue') && that.device.state.hasOwnProperty('sat')) {
-      bulb_characteristics.push({
-        cType: types.HUE_CTYPE,
-        onUpdate: function(value) {
-          that.executeChange(that.api, that.device, "hue", value);
-        },
-        perms: ["pw","pr","ev"],
-        format: "int",
-        initialValue: that.hueToArcDegrees(that.device.state.hue),
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Adjust Hue of Light",
-        designedMinValue: 0,
-        designedMaxValue: 360,
-        designedMinStep: 1,
-        unit: "arcdegrees"
-      });
-      bulb_characteristics.push({
-        cType: types.SATURATION_CTYPE,
-        onUpdate: function(value) {
-          that.executeChange(that.api, that.device, "saturation", value);
-        },
-        perms: ["pw","pr","ev"],
-        format: "int",
-        initialValue: that.bitsToPercentage(that.device.state.sat),
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Adjust Saturation of Light",
-        designedMinValue: 0,
-        designedMaxValue: 100,
-        designedMinStep: 1,
-        unit: "%"
-      });
-    }
-    var accessory_data = [
-      {
-        sType: types.ACCESSORY_INFORMATION_STYPE,
-        characteristics: [
-          {
-            cType: types.NAME_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: this.name,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Name of the accessory",
-            designedMaxLength: 255
-          },{
-            cType: types.MANUFACTURER_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: "Philips",
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Manufacturer",
-            designedMaxLength: 255
-          },{
-            cType: types.MODEL_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: that.model,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Model",
-            designedMaxLength: 255
-          },{
-            cType: types.SERIAL_NUMBER_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: that.device.uniqueid,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "SN",
-            designedMaxLength: 255
-          },{
-            cType: types.IDENTIFY_CTYPE,
-            onUpdate: function(value) {
-              that.executeChange(that.api, that.device, "identify", value);
-            },
-            perms: ["pw"],
-            format: "bool",
-            initialValue: false,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Identify Accessory",
-            designedMaxLength: 1
-          }
-        ]
-      },{
-        sType: types.LIGHTBULB_STYPE,
-        // `bulb_characteristics` defined based on bulb type
-        characteristics: bulb_characteristics
-      }
-    ];
-    return accessory_data;
+    
+    // Use HomeKit types defined in HAP node JS
+	var lightbulbService = new Service.Lightbulb(this.name);
+
+	// Basic light controls, common to Hue and Hue lux
+	lightbulbService
+	.getCharacteristic(Characteristic.On)
+	.on('get', function(callback) { that.getState("power", callback);})
+	.on('set', function(value, callback) { that.executeChange("power", value, callback);});
+
+	lightbulbService
+	.addCharacteristic(Characteristic.Brightness)
+	.on('get', function(callback) { that.getState("brightness", callback);})
+	.on('set', function(value, callback) { that.executeChange("brightness", value, callback);});
+
+	// Handle the Hue/Hue Lux divergence
+	if (this.device.state.hasOwnProperty('hue') && this.device.state.hasOwnProperty('sat')) {
+		lightbulbService
+		.addCharacteristic(Characteristic.Hue)
+		.on('get', function(callback) { that.getState("hue", callback);})
+		.on('set', function(value, callback) { that.executeChange("hue", value, callback);});
+
+		lightbulbService
+		.addCharacteristic(Characteristic.Saturation)
+		.on('get', function(callback) { that.getState("saturation", callback);})
+		.on('set', function(value, callback) { that.executeChange("saturation", value, callback);});
+	}
+
+	var informationService = new Service.AccessoryInformation();
+
+	informationService
+		.setCharacteristic(Characteristic.Manufacturer, "Philips")
+		.setCharacteristic(Characteristic.Model, this.model)
+		.setCharacteristic(Characteristic.SerialNumber, this.device.uniqueid)
+		.addCharacteristic(Characteristic.FirmwareRevision, this.device.swversion);
+
+	return [informationService, lightbulbService];
   }
 };
 
