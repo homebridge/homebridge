@@ -47,7 +47,7 @@ You have to add services in the following syntax:
     {
         "type": "SERVICENAME",
         "description": "This is just for you to remember things",
-        "name": "We need a name for each service, though it usually shows only if multiple services are present in one accessory",
+        "name": "beer tap thermostat",
         "CHARACTERISTIC1": {
             "Set": "1/1/6",
             "Listen": [
@@ -66,6 +66,35 @@ You have to add services in the following syntax:
 
 Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group address, to which changes are sent if the service supports changing values. Changes on the bus are listened to, too.
 `"Listen":["1/2/3","1/2/4","1/2/5"]` is an array of addresses that are listened to additionally. To these addresses never values get written, but the on startup the service will issue *KNX read requests* to ALL addresses listed in `Set:` and in `Listen:`  
+
+
+For two characteristics there are additional minValue and maxValue attributes. These are CurrentTemperature and TargetTemperature, and are used in TemperatureSensor and Thermostat.
+
+So the charcteristic section may look like:
+
+ ````json
+    {
+        "type": "Thermostat",
+        "description": "Sample thermostat",
+        "name": "We need a name for each service, though it usually shows only if multiple services are present in one accessory",
+        "CurrentTemperature": {
+            "Set": "1/1/6",
+            "Listen": [
+                "1/1/63"
+            ],
+            minValue: -18,
+            maxValue: 30
+        },
+        "TargetTemperature": {
+            "Set": "1/1/62",
+            "Listen": [
+                "1/1/64"
+            ],
+            minValue: -4,
+            maxValue: 12
+        }
+    }
+````
 
 
 # Supported Services and their characteristics
@@ -139,7 +168,7 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 -  CurrentTemperature: DPT9.001 in °C [listen only]
   
 ## Thermostat
--  CurrentTemperature: DPT9.001 in °C [listen only]
+-  CurrentTemperature: DPT9.001 in °C [listen only], -40 to 80°C if not overriden as shown above
 -  TargetTemperature: DPT9.001, values 0..40°C only, all others are ignored
 -  CurrentHeatingCoolingState: DPT20.102 HVAC, because of the incompatible mapping only off and heating (=auto) are shown, [listen only]
 -  TargetHeatingCoolingState: DPT20.102 HVAC, as above
