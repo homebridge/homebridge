@@ -195,26 +195,44 @@ KNXDevice.prototype = {
 		},
 		// float
 		knxregister_float: function(addresses, characteristic) {
+			// update for props refactor https://github.com/KhaosT/HAP-NodeJS/commit/1d84d128d1513beedcafc24d2c07d98185563243#diff-cb84de3a1478a38b2cf8388d709f1c1cR50
+			
+			var validValue = true;
+			var hk_value = 0.0;
 			this.log("knx registering FLOAT " + addresses);
 			knxd_registerGA(addresses, function(val, src, dest, type){
 				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
-				var hk_value = Math.round(val*10)/10;
-				if (hk_value>=characteristic.minimumValue && hk_value<=characteristic.maximumValue) {
+				// make hk_value compliant to properties
+				if (characteristic.props.minStep) {
+					// quantize
+					hk_value = Math.round(val/characteristic.props.minStep)*characteristic.props.minStep;	
+				} else {
+					hk_value = val;
+				}
+				// range check
+				validValue = true; // assume validity at beginning
+				if (characteristic.props.minValue) {
+					validValue = validValue && (hk_value>=characteristic.props.minValue);
+				}
+				if (characteristic.props.maxValue) {
+					validValue = validValue && (hk_value<=characteristic.props.maxValue);
+				}
+				if (validValue) {
 					characteristic.setValue(hk_value, undefined, 'fromKNXBus'); // 1 decimal for HomeKit
 				} else {
-					this.log("Value %s out of bounds %s...%s ",hk_value, characteristic.minimumValue, characteristic.maximumValue);
+					this.log("Accessory "+ this.name +":" + characteristic.displayName+ ": Value %s out of bounds %s...%s ",hk_value, characteristic.props.minValue, characteristic.props.maxValue);
 				}
 			}.bind(this));
 		},
 		//integer
 		knxregister_int: function(addresses, characteristic) {
-			this.log("knx registering FLOAT " + addresses);
+			this.log("knx registering INT " + addresses);
 			knxd_registerGA(addresses, function(val, src, dest, type){
 				this.log("Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
-				if (val>=(characteristic.minimumValue || 0) && val<=(characteristic.maximumValue || 255)) {
+				if (val>=(characteristic.props.minValue || 0) && val<=(characteristic.props.maxValue || 255)) {
 					characteristic.setValue(val, undefined, 'fromKNXBus'); 
 				} else {
-					this.log("Value %s out of bounds %s...%s ",hk_value, (characteristic.minimumValue || 0), (characteristic.maximumValue || 255));
+					this.log("Accessory "+ this.name +":" + characteristic.displayName+ ": Value %s out of bounds %s...%s ",hk_value, (characteristic.props.minValue || 0), (characteristic.props.maxValue || 255));
 				}
 			}.bind(this));
 		},
@@ -775,16 +793,25 @@ KNXDevice.prototype = {
 
 			var myService = new Service.Thermostat(config.name,config.name);
 			// CurrentTemperature)
+			// props update for https://github.com/KhaosT/HAP-NodeJS/commit/1d84d128d1513beedcafc24d2c07d98185563243#diff-cb84de3a1478a38b2cf8388d709f1c1cR108
 			if (config.CurrentTemperature) {
 				this.log("Thermostat CurrentTemperature characteristic enabled");
+				myService.getCharacteristic(Characteristic.CurrentTemperature).setProps({
+					minValue: config.CurrentTemperature.minValue || -40,
+					maxValue: config.CurrentTemperature.maxValue || 60
+				}); // °C by default
 				this.bindCharacteristic(myService, Characteristic.CurrentTemperature, "Float", config.CurrentTemperature);
 			} 
 			// TargetTemperature if available 
 			if (config.TargetTemperature) {
 				this.log("Thermostat TargetTemperature characteristic enabled");
 				// default boundary too narrow for thermostats
-				myService.getCharacteristic(Characteristic.TargetTemperature).minimumValue=0; // °C
-				myService.getCharacteristic(Characteristic.TargetTemperature).maximumValue=40; // °C
+				// props update for https://github.com/KhaosT/HAP-NodeJS/commit/1d84d128d1513beedcafc24d2c07d98185563243#diff-cb84de3a1478a38b2cf8388d709f1c1cR108
+				myService.getCharacteristic(Characteristic.TargetTemperature).setProps({
+					minValue: config.TargetTemperature.minValue || 0,
+					maxValue: config.TargetTemperature.maxValue || 40
+				});
+				
 				this.bindCharacteristic(myService, Characteristic.TargetTemperature, "Float", config.TargetTemperature);
 			}
 			// HVAC 
@@ -812,10 +839,16 @@ KNXDevice.prototype = {
 			}
 			var myService = new Service.TemperatureSensor(config.name,config.name);
 			// CurrentTemperature)
+			// props update for https://github.com/KhaosT/HAP-NodeJS/commit/1d84d128d1513beedcafc24d2c07d98185563243#diff-cb84de3a1478a38b2cf8388d709f1c1cR108
 			if (config.CurrentTemperature) {
-				this.log("TemperatureSensor CurrentTemperature characteristic enabled");
+				this.log("Thermostat CurrentTemperature characteristic enabled");
+				myService.getCharacteristic(Characteristic.CurrentTemperature).setProps({
+					minValue: config.CurrentTemperature.minValue || -40,
+					maxValue: config.CurrentTemperature.maxValue || 60
+				}); // °C by default
 				this.bindCharacteristic(myService, Characteristic.CurrentTemperature, "Float", config.CurrentTemperature);
 			} 
+
 			return myService;
 		},		
 		getWindowService: function(config) {
