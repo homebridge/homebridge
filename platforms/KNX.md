@@ -152,7 +152,7 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 ## WindowCovering
 -  CurrentPosition: DPT5 percentage
 -  TargetPosition: DPT5 percentage
--  PositionState: DPT5 value [listen only]
+-  PositionState: DPT5 value [listen only: 0 Closing, 1 Opening, 2 STopped]
 
 ### not yet supported
 -  HoldPosition
