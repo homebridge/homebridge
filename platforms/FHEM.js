@@ -3,13 +3,13 @@
 // Remember to add platform to config.json. Example:
 // "platforms": [
 //     {
-//         'platform': "FHEM",
-//         'name': "FHEM",
-//         'server': "127.0.0.1",
-//         'port': 8083,
-//         'ssl': true,
-//         'auth': {'user': "fhem", 'pass': "fhempassword"},
-//         'filter': "room=xyz"
+//         "platform": "FHEM",
+//         "name": "FHEM",
+//         "server": "127.0.0.1",
+//         "port": 8083,
+//         "ssl": true,   //optional
+//         "auth": {'user': "fhem", 'pass': "fhempassword"},    //optional
+//         "filter": "room=xyz"   //optional
 //     }
 // ],
 //
