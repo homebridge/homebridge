@@ -367,10 +367,17 @@ FHEMPlatform.prototype = {
                          } else if( s.PossibleSets.match(/[\^ ]Volume\b/) ) { //FIXME: use sets [Pp]lay/[Pp]ause/[Ss]top
                            that.log( s.Internals.NAME + ' has volume');
                            accessory = new FHEMAccessory(that.log, that.connection, s);
+                         
+                         //Eltako FSB61NP - Blind Actuator
+                         // } else if( s.PossibleSets.match(/[\^ ]down\b/) ) { 
+                         //   that.log( s.Internals.NAME + ' has down');
+                         //   accessory = new FHEMAccessory(that.log, that.connection, s);
 
                          } else if( s.Attributes.subType == 'thermostat'
                                     || s.Attributes.subType == 'blindActuator'
-                                    || s.Attributes.subType == 'threeStateSensor' ) {
+                                    || s.Attributes.subType == 'threeStateSensor' 
+                                    || s.Attributes.model == 'FSB61') { //RB - Adding FSB61
+                           that.log( s.Attributes.model + ' detected');
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
                          } else if( s.Attributes.model == 'HM-SEC-WIN' ) {
@@ -418,9 +425,12 @@ FHEMPlatform.prototype = {
 
 function
 FHEMAccessory(log, connection, s) {
-//log( 'sets: ' + s.PossibleSets );
-//log("got json: " + util.inspect(s) );
-//log("got json: " + util.inspect(s.Internals) );
+
+
+log( 'sets: ' + s.PossibleSets );
+log("Attributes: " + util.inspect(s.Attributes) );
+log("Internals: " + util.inspect(s.Internals) );
+log("Readings: " + util.inspect(s.Readings) );
 
   if( !(this instanceof FHEMAccessory) )
     return new FHEMAccessory(log, connection, s);
@@ -459,6 +469,15 @@ FHEMAccessory(log, connection, s) {
       max = match[2];
     this.mappings.sat = { reading: 'sat', cmd: 'sat', min: 0, max: max };
   }
+
+  //RB - WindowCovering
+  if( match = s.PossibleSets.match(/[\^ ]position\b/) ) {
+    this.mappings.position = { reading: 'position', cmd: 'position', min: 0, max: 100 };
+  }
+  if( match = s.PossibleSets.match(/[\^ ]opens\b/) ) {
+    this.mappings.state = { reading: 'state' };
+  }
+
 
   if( s.PossibleSets.match(/[\^ ]rgb\b/) ) {
     s.isLight = true;
@@ -517,6 +536,11 @@ FHEMAccessory(log, connection, s) {
   } else if( genericType == 'window'
            || s.Attributes.model == 'HM-SEC-WIN' ) {
     this.mappings.window = { reading: 'level', cmd: 'level' };
+
+    //RB - add WindowCovering
+  } else if( genericType == 'windowCovering'
+           || s.Attributes.model == 'FSB61' ) {
+    this.mappings.windowCovering = { reading: 'position', cmd: 'position' };
 
   } else if( genericType == 'lock'
            || s.Attributes.model == 'HM-SEC-KEY' ) {
@@ -579,6 +603,8 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' is lock ['+ this.mappings.lock.reading +']' );
   else if( this.mappings.window )
     log( s.Internals.NAME + ' is window' );
+  else if( this.mappings.windowCovering )
+    log( s.Internals.NAME + ' is windowCovering' );
   else if( this.mappings.blind )
     log( s.Internals.NAME + ' is blind ['+ this.mappings.blind.reading +']' );
   else if( this.mappings.thermostat )
@@ -617,18 +643,26 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' has motor' );
   if( this.mappings.direction )
     log( s.Internals.NAME + ' has direction' );
+  //RB - WindowCovering
+  if( this.mappings.position )
+    log( s.Internals.NAME + ' has position [0-' + this.mappings.position.max +']');
+  if( this.mappings.state )
+    log( s.Internals.NAME + ' has state');
 
-//log( util.inspect(s) );
+
+
+// log( util.inspect(s) );
 
   // device info
-  this.name		= s.Internals.NAME;
-  this.alias		= s.Attributes.alias ? s.Attributes.alias : s.Internals.NAME;
-  this.device		= s.Internals.NAME;
+  this.name   = s.Internals.NAME;
+  this.alias    = s.Attributes.alias ? s.Attributes.alias : s.Internals.NAME;
+  this.device   = s.Internals.NAME;
   this.type             = s.Internals.TYPE;
   this.model            = s.Readings.model ? s.Readings.model.Value
                                            : (s.Attributes.model ? s.Attributes.model
                                                                  : ( s.Internals.model ? s.Internals.model : '<unknown>' ) );
   this.PossibleSets     = s.PossibleSets;
+
 
   if( this.type == 'CUL_HM' ) {
     this.serial = s.Internals.DEF;
@@ -646,6 +680,8 @@ FHEMAccessory(log, connection, s) {
     this.serial = s.Internals.uniqueid;
   else if( this.type == 'SONOSPLAYER' )
     this.serial = s.Internals.UDN;
+  else if( this.type == 'EnOcean' )
+    this.serial = s.Internals.DEF;
 
   this.hasDim   = s.hasDim;
   this.pctMax   = s.pctMax;
@@ -655,10 +691,13 @@ FHEMAccessory(log, connection, s) {
 
 //log( util.inspect(s.Readings) );
 
+  //RB - Add windowCovering?
   if( this.mappings.blind || this.mappings.door || this.mappings.garage || this.mappings.window || this.mappings.thermostat )
     delete this.mappings.onOff;
 
+
   var that = this;
+  log("Keys: " + Object.keys(this.mappings));
   Object.keys(this.mappings).forEach(function(key) {
     var reading = that.mappings[key].reading;
     if( s.Readings[reading] && s.Readings[reading].Value ) {
@@ -667,7 +706,10 @@ FHEMAccessory(log, connection, s) {
 
       if( value != undefined ) {
         var inform_id = that.device +'-'+ reading;
+        // log("-----> inform_id " + inform_id);
+        // log("-----> key " + key);
         that.mappings[key].informId = inform_id;
+        // log("-----> that.mappings[key].informId " + that.mappings[key].informId);
 
         if( !that.mappings[key].nocache )
           FHEM_cached[inform_id] = value;
@@ -702,6 +744,18 @@ FHEMAccessory.prototype = {
         value = Characteristic.PositionState.DECREASING;
       else
         value = Characteristic.PositionState.STOPPED;
+
+    //RB
+    } else if(reading == 'state') {
+      if( value.match(/^opens/))
+        value = Characteristic.PositionState.INCREASING;
+      else if( value.match(/^closes/))
+        value = Characteristic.PositionState.DECREASING;
+      else
+        value = Characteristic.PositionState.STOPPED;
+    } else if(reading == 'position') {
+        value = parseInt( value );
+
 
     } else if(reading == 'direction') {
       if( value.match(/^opening/))
@@ -875,6 +929,20 @@ FHEMAccessory.prototype = {
 
         cmd = "set " + this.device + " " + this.mappings.window.cmd + " " + value;
 
+      } else if (this.mappings.windowCovering){
+
+        cmd = "set " + this.device + " " ;
+
+        if( value == 0 )
+          cmd += "up";
+        else if (value == 100)
+          cmd += "down";
+        else {
+          cmd += this.mappings.windowCovering.cmd + " " + value;
+        }       
+        this.log("cmd: " + cmd);
+
+
       } else if( this.mappings.blind )
         cmd = "set " + this.device + " " + this.mappings.blind.cmd + " " + value;
 
@@ -1032,7 +1100,9 @@ FHEMAccessory.prototype = {
   },
 
   createDeviceService: function() {
-    var name = this.alias + 'xxx';
+    // var name = "FHEM:" + this.alias ;
+    var name = this.alias ;
+
 
     if( this.isSwitch ) {
       this.log("  switch service for " + this.name)
@@ -1043,6 +1113,10 @@ FHEMAccessory.prototype = {
     } else if( this.mappings.window ) {
       this.log("  window service for " + this.name)
       return new Service.Window(name);
+    //RB - Added Window Covering for FSB61...
+    } else if( this.mappings.windowCovering ) {
+      this.log("  windowCovering service for " + this.name)
+      return new Service.WindowCovering(name);
     } else if( this.mappings.blind ) {
       this.log("  window covering service for " + this.name)
       return new Service.WindowCovering(name);
@@ -1068,8 +1142,9 @@ FHEMAccessory.prototype = {
       this.log("  humidity sensor service for " + this.name)
       return new Service.AirQualitySensor(name);
     }
+    
 
-    this.log("  switch service for " + this.name)
+    this.log("  No match: adding switch service for " + this.name)
     return new Service.Switch(name);
   },
 
@@ -1287,6 +1362,7 @@ FHEMAccessory.prototype = {
 
     }
 
+    //BLIND - CONTROL
     if( this.mappings.blind ) {
       this.log("    current position characteristic for " + this.name)
 
@@ -1334,7 +1410,7 @@ FHEMAccessory.prototype = {
 
     }
 
-    if( this.mappings.window ) {
+    if( this.mappings.window) {
       this.log("    current position characteristic for " + this.name)
 
       var characteristic = controlService.getCharacteristic(Characteristic.CurrentPosition);
@@ -1363,6 +1439,56 @@ FHEMAccessory.prototype = {
                    }.bind(this) )
         .on('get', function(callback) {
                      that.query(that.mappings.window.reading, callback);
+                   }.bind(this) );
+
+
+      this.log("    position state characteristic for " + this.name)
+
+      var characteristic = controlService.getCharacteristic(Characteristic.PositionState);
+
+      if( that.mappings.direction )
+        FHEM_subscribe(characteristic, that.mappings.direction.informId, that);
+      characteristic.value = that.mappings.direction?FHEM_cached[that.mappings.direction.informId]:Characteristic.PositionState.STOPPED;
+
+      characteristic
+        .on('get', function(callback) {
+                     if( that.mappings.direction )
+                       that.query(that.mappings.direction.reading, callback);
+                   }.bind(this) );
+
+    }
+
+
+    //RB
+    if( this.mappings.windowCovering) {
+      this.log("    current position characteristic for " + this.name)
+
+      var characteristic = controlService.getCharacteristic(Characteristic.CurrentPosition);
+
+      FHEM_subscribe(characteristic, that.name+'-state', that);
+      FHEM_subscribe(characteristic, that.mappings.windowCovering.informId, that);
+      characteristic.value = FHEM_cached[that.mappings.windowCovering.informId];
+
+      characteristic
+        .on('get', function(callback) {
+                     that.query(that.mappings.windowCovering.reading, callback);
+                   }.bind(this) );
+
+
+      this.log("    target position characteristic for " + this.name)
+
+      var characteristic = controlService.getCharacteristic(Characteristic.TargetPosition);
+
+      characteristic.value = FHEM_cached[that.mappings.windowCovering.informId];
+
+      characteristic
+        .on('set', function(value, callback, context) {
+                     if( context !== 'fromFhem' )
+                       that.delayed('targetPosition', value, 1500);
+                     callback();
+                   }.bind(this) )
+        .on('get', function(callback) {
+                     that.query(that.mappings.windowCovering.reading, callback);
                    }.bind(this) );
 
 
