@@ -89,14 +89,19 @@
             "delay": 30,
             "repeat": 3,
             "zones":["Kitchen Lamp","Bedroom Lamp","Living Room Lamp","Hallway Lamp"]
-         },
-         {
+        },
+        {
              "platform": "HomeAssistant",
              "name": "HomeAssistant",
              "host": "http://192.168.1.10:8123",
              "password": "XXXXX",
              "supported_types": ["light", "switch", "media_player", "scene"]
-         }
+        },
+        {
+            "platform": "LIFx",
+            "name": "LIFx",
+            "access_token": "XXXXXXXX generate at https://cloud.lifx.com/settings"
+        }
     ],
 
     "accessories": [
