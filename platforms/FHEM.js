@@ -377,7 +377,7 @@ FHEMPlatform.prototype = {
                                     || s.Attributes.subType == 'blindActuator'
                                     || s.Attributes.subType == 'threeStateSensor' 
                                     || s.Attributes.model == 'FSB61') { //RB - Adding FSB61
-                           that.log( s.Attributes.model + ' detected');
+                           // that.log( s.Attributes.model + ' detected');
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
                          } else if( s.Attributes.model == 'HM-SEC-WIN' ) {
@@ -427,10 +427,10 @@ function
 FHEMAccessory(log, connection, s) {
 
 
-log( 'sets: ' + s.PossibleSets );
-log("Attributes: " + util.inspect(s.Attributes) );
-log("Internals: " + util.inspect(s.Internals) );
-log("Readings: " + util.inspect(s.Readings) );
+// log( 'sets: ' + s.PossibleSets );
+// log("Attributes: " + util.inspect(s.Attributes) );
+// log("Internals: " + util.inspect(s.Internals) );
+// log("Readings: " + util.inspect(s.Readings) );
 
   if( !(this instanceof FHEMAccessory) )
     return new FHEMAccessory(log, connection, s);
@@ -470,7 +470,7 @@ log("Readings: " + util.inspect(s.Readings) );
     this.mappings.sat = { reading: 'sat', cmd: 'sat', min: 0, max: max };
   }
 
-  //RB - WindowCovering
+  //WindowCovering
   if( match = s.PossibleSets.match(/[\^ ]position\b/) ) {
     this.mappings.position = { reading: 'position', cmd: 'position', min: 0, max: 100 };
   }
@@ -537,7 +537,7 @@ log("Readings: " + util.inspect(s.Readings) );
            || s.Attributes.model == 'HM-SEC-WIN' ) {
     this.mappings.window = { reading: 'level', cmd: 'level' };
 
-    //RB - add WindowCovering
+    //WindowCovering
   } else if( genericType == 'windowCovering'
            || s.Attributes.model == 'FSB61' ) {
     this.mappings.windowCovering = { reading: 'position', cmd: 'position' };
@@ -643,7 +643,7 @@ log("Readings: " + util.inspect(s.Readings) );
     log( s.Internals.NAME + ' has motor' );
   if( this.mappings.direction )
     log( s.Internals.NAME + ' has direction' );
-  //RB - WindowCovering
+  //WindowCovering
   if( this.mappings.position )
     log( s.Internals.NAME + ' has position [0-' + this.mappings.position.max +']');
   if( this.mappings.state )
@@ -691,13 +691,12 @@ log("Readings: " + util.inspect(s.Readings) );
 
 //log( util.inspect(s.Readings) );
 
-  //RB - Add windowCovering?
+  //Add windowCovering?
   if( this.mappings.blind || this.mappings.door || this.mappings.garage || this.mappings.window || this.mappings.thermostat )
     delete this.mappings.onOff;
 
 
   var that = this;
-  log("Keys: " + Object.keys(this.mappings));
   Object.keys(this.mappings).forEach(function(key) {
     var reading = that.mappings[key].reading;
     if( s.Readings[reading] && s.Readings[reading].Value ) {
@@ -706,10 +705,7 @@ log("Readings: " + util.inspect(s.Readings) );
 
       if( value != undefined ) {
         var inform_id = that.device +'-'+ reading;
-        // log("-----> inform_id " + inform_id);
-        // log("-----> key " + key);
         that.mappings[key].informId = inform_id;
-        // log("-----> that.mappings[key].informId " + that.mappings[key].informId);
 
         if( !that.mappings[key].nocache )
           FHEM_cached[inform_id] = value;
@@ -745,7 +741,7 @@ FHEMAccessory.prototype = {
       else
         value = Characteristic.PositionState.STOPPED;
 
-    //RB
+    //Doesn't really work as FHEM sets state to STOP...
     } else if(reading == 'state') {
       if( value.match(/^opens/))
         value = Characteristic.PositionState.INCREASING;
@@ -940,7 +936,7 @@ FHEMAccessory.prototype = {
         else {
           cmd += this.mappings.windowCovering.cmd + " " + value;
         }       
-        this.log("cmd: " + cmd);
+        // this.log("cmd: " + cmd);
 
 
       } else if( this.mappings.blind )
@@ -1100,8 +1096,7 @@ FHEMAccessory.prototype = {
   },
 
   createDeviceService: function() {
-    // var name = "FHEM:" + this.alias ;
-    var name = this.alias ;
+    var name = "FHEM:" + this.alias ;
 
 
     if( this.isSwitch ) {
@@ -1113,7 +1108,6 @@ FHEMAccessory.prototype = {
     } else if( this.mappings.window ) {
       this.log("  window service for " + this.name)
       return new Service.Window(name);
-    //RB - Added Window Covering for FSB61...
     } else if( this.mappings.windowCovering ) {
       this.log("  windowCovering service for " + this.name)
       return new Service.WindowCovering(name);
@@ -1459,7 +1453,6 @@ FHEMAccessory.prototype = {
     }
 
 
-    //RB
     if( this.mappings.windowCovering) {
       this.log("    current position characteristic for " + this.name)
 
