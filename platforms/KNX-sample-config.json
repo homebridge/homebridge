@@ -8,7 +8,7 @@
 	"description": "This is an example configuration file for KNX platform shim",
 	"hint": "Always paste into jsonlint.com validation page before starting your homebridge, saves a lot of frustration",
 	"hint2": "Replace all group addresses by current addresses of your installation, these are arbitrary examples!",
-	"hint3": "For valid services and their characteristics have a look at the knxdevice.md file in folder accessories!",
+	"hint3": "For valid services and their characteristics have a look at the KNX.md file in folder platforms!",
 	"platforms": [
 		{
 			"platform": "KNX",
@@ -61,13 +61,13 @@
 					"services": [
 						{
 							"type": "LockMechanism",
-							"description": "iOS8 Lock mechanism, Supports LockCurrentStateSecured0 OR LockCurrentState, LockTargetStateSecured0 OR LockTargetState, use depending if LOCKED is 0 or 1",
+							"description": "iOS8 Lock mechanism, Supports LockCurrentState, LockTargetState, append R to the addresses if LOCKED is 1",
 							"name": "Office Window Lock",
-							"LockCurrentStateSecured0": {
-								"Listen": "5/3/15"
+							"LockCurrentState": {
+								"Listen": "5/3/15R"
 							},
-							"LockTargetStateSecured0": {
-								"Listen": "5/3/15"
+							"LockTargetState": {
+								"Listen": "5/3/16R"
 							}
 						}
 					]
