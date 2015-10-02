@@ -180,6 +180,11 @@ ZWayServerPlatform.prototype = {
                     if(this.cxVDevMap[upd.id]){
                         var vdev = this.vDevStore[upd.id];
                         vdev.metrics.level = upd.metrics.level;
+                        if(upd.metrics.color){
+                            vdev.metrics.r = upd.metrics.r;
+                            vdev.metrics.g = upd.metrics.g;
+                            vdev.metrics.b = upd.metrics.b;
+                        }
                         vdev.updateTime = upd.updateTime;
                         var cxs = this.cxVDevMap[upd.id];
                         for(var j = 0; j < cxs.length; j++){
@@ -231,26 +236,62 @@ ZWayServerAccessory.prototype = {
     },
     
     rgb2hsv: function(obj) {
+        // RGB: 0-255; H: 0-360, S,V: 0-100
         var r = obj.r/255, g = obj.g/255, b = obj.b/255;
         var max, min, d, h, s, v;
 
-        if (min === max) {
-            // shade of gray
-            return [0, 0, r];
-        }
-
         min = Math.min(r, Math.min(g, b));
         max = Math.max(r, Math.max(g, b));
+
+        if (min === max) {
+            // shade of gray
+            return {h: 0, s: 0, v: r * 100};
+        }
 
         var d = (r === min) ? g - b : ((b === min) ? r - g : b - r);
         h = (r === min) ? 3 : ((b === min) ? 1 : 5);
         h = 60 * (h - d/(max - min));
         s = (max - min) / max;
         v = max;
-        return {"h": h, "s": s * 100, "v": v};
+        return {"h": h, "s": s * 100, "v": v * 100};
     }
     ,
-    
+    hsv2rgb: function(obj) {
+        // H: 0-360; S,V: 0-100; RGB: 0-255
+        var r, g, b;
+        var sfrac = obj.s / 100;
+        var vfrac = obj.v / 100;
+        
+        if(sfrac === 0){
+            var vbyte = Math.round(vfrac*255);
+            return { r: vbyte, g: vbyte, b: vbyte };
+        }
+        
+        var hdb60 = (obj.h % 360) / 60;
+        var sector = Math.floor(hdb60);
+        var fpart = hdb60 - sector;
+        var c = vfrac * (1 - sfrac);
+        var x1 = vfrac * (1 - sfrac * fpart);
+        var x2 = vfrac * (1 - sfrac * (1 - fpart));
+        switch(sector){
+            case 0:
+                r = vfrac; g = x2;    b = c;      break;
+            case 1:
+                r = x1;    g = vfrac; b = c;      break;
+            case 2:
+                r = c;     g = vfrac; b = x2;     break;
+            case 3:
+                r = c;     g = x1;    b = vfrac;  break;
+            case 4:
+                r = x2;    g = c;     b = vfrac;  break;
+            case 5:
+            default:
+                r = vfrac; g = c;     b = x1;     break;
+        }
+
+        return { "r": Math.round(255 * r), "g": Math.round(255 * g), "b": Math.round(255 * b) };
+    }
+    ,
     getVDevServices: function(vdev){
         var typeKey = ZWayServerPlatform.getVDevTypeKey(vdev);
         var services = [], service;
@@ -340,7 +381,7 @@ ZWayServerAccessory.prototype = {
         return null;
     }
     ,
-    configureCharacteristic: function(cx, vdev){
+    configureCharacteristic: function(cx, vdev, service){
         var accessory = this;
         
         // Add this combination to the maps...
@@ -414,6 +455,7 @@ ZWayServerAccessory.prototype = {
 
         if(cx instanceof Characteristic.Hue){
             cx.zway_getValueFromVDev = function(vdev){
+                debug("Derived value " + accessory.rgb2hsv(vdev.metrics.color).h + " for hue.");
                 return accessory.rgb2hsv(vdev.metrics.color).h;
             };
             cx.value = cx.zway_getValueFromVDev(vdev);
@@ -422,6 +464,18 @@ ZWayServerAccessory.prototype = {
                 this.getVDev(vdev).then(function(result){
                     debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
                     callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            cx.on('set', function(hue, callback){
+                var scx = service.getCharacteristic(Characteristic.Saturation);
+                var vcx = service.getCharacteristic(Characteristic.Brightness);
+                if(!scx || !vcx){
+                    debug("Hue without Saturation and Brightness is not supported! Cannot set value!")
+                    callback(true, cx.value);
+                }
+                var rgb = this.hsv2rgb({ h: hue, s: scx.value, v: vcx.value });
+                this.command(vdev, "exact", { red: rgb.r, green: rgb.g, blue: rgb.b }).then(function(result){
+                    callback();
                 });
             }.bind(this));
             
@@ -436,6 +490,7 @@ ZWayServerAccessory.prototype = {
 
         if(cx instanceof Characteristic.Saturation){
             cx.zway_getValueFromVDev = function(vdev){
+                debug("Derived value " + accessory.rgb2hsv(vdev.metrics.color).s + " for saturation.");
                 return accessory.rgb2hsv(vdev.metrics.color).s;
             };
             cx.value = cx.zway_getValueFromVDev(vdev);
@@ -444,6 +499,18 @@ ZWayServerAccessory.prototype = {
                 this.getVDev(vdev).then(function(result){
                     debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
                     callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            cx.on('set', function(saturation, callback){
+                var hcx = service.getCharacteristic(Characteristic.Hue);
+                var vcx = service.getCharacteristic(Characteristic.Brightness);
+                if(!hcx || !vcx){
+                    debug("Saturation without Hue and Brightness is not supported! Cannot set value!")
+                    callback(true, cx.value);
+                }
+                var rgb = this.hsv2rgb({ h: hcx.value, s: saturation, v: vcx.value });
+                this.command(vdev, "exact", { red: rgb.r, green: rgb.g, blue: rgb.b }).then(function(result){
+                    callback();
                 });
             }.bind(this));
             
@@ -666,14 +733,29 @@ ZWayServerAccessory.prototype = {
                 success = false;
                 debug("ERROR! Failed to configure required characteristic \"" + service.characteristics[i].displayName + "\"!");
             }
-            cx = this.configureCharacteristic(cx, vdev);
+            cx = this.configureCharacteristic(cx, vdev, service);
         }
         for(var i = 0; i < service.optionalCharacteristics.length; i++){
             var cx = service.optionalCharacteristics[i];
-            var vdev = this.getVDevForCharacteristic(cx);
+            var vdev = this.getVDevForCharacteristic(cx, vdev);
             if(!vdev) continue;
-            cx = this.configureCharacteristic(cx, vdev);
-            if(cx) service.addCharacteristic(cx);
+
+            //NOTE: Questionable logic, but if the vdev has already been used for the same 
+            // characteristic type elsewhere, lets not duplicate it just for the sake of an 
+            // optional characteristic. This eliminates the problem with RGB+W+W bulbs 
+            // having the HSV controls shown again, but might have unintended consequences...
+            var othercx, othercxs = this.platform.cxVDevMap[vdev.id];
+            if(othercxs) for(var j = 0; j < othercxs.length; j++) if(othercxs[j].UUID === cx.UUID) othercx = othercxs[j];
+            if(othercx)
+                continue;
+
+            cx = this.configureCharacteristic(cx, vdev, service);
+            try {
+                if(cx) service.addCharacteristic(cx);
+            }
+            catch (ex) {
+                debug('Adding Characteristic "' + cx.displayName + '" failed with message "' + ex.message + '". This may be expected.');
+            }
         }
         return success;
     }
@@ -736,7 +818,7 @@ ZWayServerAccessory.prototype = {
                         extraCxs = []; // to wipe out any already setup cxs.
                         break;
                     }
-                    this.configureCharacteristic(cx, vdev2);
+                    this.configureCharacteristic(cx, vdev2, service);
                     extraCxs.push(cx);
                 }
                 for(var j = 0; j < extraCxs.length; j++)
