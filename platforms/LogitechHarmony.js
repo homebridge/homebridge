@@ -163,9 +163,9 @@ LogitechHarmonyAccessory.prototype = {
     var self = this;
 
     if (this.isActivity) {
-      hub.getCurrentActivity().then(function (currentActivity) {
-        callback(currentActivity.id === self.id);
-      }).except(function (err) {
+      this.hub.getCurrentActivity().then(function (currentActivity) {
+        callback(currentActivity === self.id);
+      }).catch(function (err) {
         self.log('Unable to get current activity with error', err);
         callback(false);
       });
@@ -175,28 +175,23 @@ LogitechHarmonyAccessory.prototype = {
     }
   },
 
-  setPowerState: function (state, callback) {
+  setPowerState: function (state) {
     var self = this;
 
     if (this.isActivity) {
       this.log('Set activity ' + this.name + ' power state to ' + state);
 
-      // Activity id -1 is turn off all devices
-      var id = state ? this.id : -1;
-
-      this.hub.startActivity(id)
+      this.hub.startActivity(self.id)
         .then(function () {
           self.log('Finished setting activity ' + self.name + ' power state to ' + state);
-          callback();
         })
         .catch(function (err) {
           self.log('Failed setting activity ' + self.name + ' power state to ' + state + ' with error ' + err);
-          callback(err);
         });
     } else {
       // TODO: Support setting device power
       this.log('TODO: Support setting device power');
-      callback();
+      // callback();
     }
   },
 
@@ -284,7 +279,9 @@ LogitechHarmonyAccessory.prototype = {
             onUpdate: function (value) {
               self.setPowerState(value)
             },
-            onRead: self.getPowerState,
+            onRead: function(callback) {
+              self.getPowerState(callback)
+            },
             perms: ["pw","pr","ev"],
             format: "bool",
             initialValue: 0,
@@ -300,6 +297,5 @@ LogitechHarmonyAccessory.prototype = {
 
 };
 
-module.exports.accessory = LogitechHarmonyAccessory;
 module.exports.platform = LogitechHarmonyPlatform;
 
