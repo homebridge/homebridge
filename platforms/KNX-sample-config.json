@@ -8,7 +8,7 @@
 	"description": "This is an example configuration file for KNX platform shim",
 	"hint": "Always paste into jsonlint.com validation page before starting your homebridge, saves a lot of frustration",
 	"hint2": "Replace all group addresses by current addresses of your installation, these are arbitrary examples!",
-	"hint3": "For valid services and their characteristics have a look at the knxdevice.md file in folder accessories!",
+	"hint3": "For valid services and their characteristics have a look at the KNX.md file in folder platforms!",
 	"platforms": [
 		{
 			"platform": "KNX",
