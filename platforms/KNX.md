@@ -97,11 +97,25 @@ So the charcteristic section may look like:
 ````
 
 
+## reversal of values for characteristics
+In general, all DPT1 types can be reversed. If you need a 1 for "contact" of a contact senser, you can append an "R" to the group address.
+Likewise, all percentages of DPT5 can be reversed, if you need a 100% (=255) for window closed, append an "R" to the group address. Do not forget the listening addresses!
+ ````json
+    {
+        "type": "ContactSensor",
+        "description": "Sample ContactSensor with 1 as contact (0 is Apple's default)",
+        "name": "WindowContact1",
+        "ContactSensorState": {
+            "Listen": [
+                "1/1/100R"
+            ]
+        }
+    }
+````
 # Supported Services and their characteristics
-
 ## ContactSensor
--  ContactSensorState: DPT 1.002, 0 as contact **OR**
--  ContactSensorStateContact1: DPT 1.002, 1 as contact
+-  ContactSensorState: DPT 1.002, 0 as contact 
+-  ~~ContactSensorStateContact1: DPT 1.002, 1 as contact~~
 
 -  StatusActive: DPT 1.011, 1 as true
 -  StatusFault: DPT 1.011, 1 as true
@@ -142,10 +156,10 @@ So the charcteristic section may look like:
 -  CurrentAmbientLightLevel: DPT 9.004, 0 to 100000 Lux 
  
 ## LockMechanism (This is poorly mapped!)
--  LockCurrentState: DPT 1, 1 as secured **OR (but not both:)** 
--  LockCurrentStateSecured0: DPT 1, 0 as secured
--  LockTargetState: DPT 1, 1 as secured **OR**  
--  LockTargetStateSecured0: DPT 1, 0 as secured
+-  LockCurrentState: DPT 1, 1 as secured  
+-  ~~LockCurrentStateSecured0: DPT 1, 0 as secured~~
+-  LockTargetState: DPT 1, 1 as secured 
+-  ~~LockTargetStateSecured0: DPT 1, 0 as secured~~
 
 *ToDo here: correction of mappings, HomeKit reqires lock states UNSECURED=0, SECURED=1, JAMMED = 2, UNKNOWN=3*
 
@@ -181,7 +195,7 @@ So the charcteristic section may look like:
 ## WindowCovering
 -  CurrentPosition: DPT5 percentage
 -  TargetPosition: DPT5 percentage
--  PositionState: DPT5 value [listen only: 0 Closing, 1 Opening, 2 STopped]
+-  PositionState: DPT5 value [listen only: 0 Closing, 1 Opening, 2 Stopped]
 
 ### not yet supported
 -  HoldPosition
