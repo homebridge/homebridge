@@ -40,6 +40,7 @@
     "xmldoc": "0.1.x",
     "komponist" : "0.1.0",
     "yamaha-nodejs": "0.4.x",
-    "debug": "^2.2.0"
+    "debug": "^2.2.0",
+    "node-xmpp-client": "1.0.0-alpha23"
   }
 }
