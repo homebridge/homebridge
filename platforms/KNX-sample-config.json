@@ -61,13 +61,13 @@
 					"services": [
 						{
 							"type": "LockMechanism",
-							"description": "iOS8 Lock mechanism, Supports LockCurrentStateSecured0 OR LockCurrentState, LockTargetStateSecured0 OR LockTargetState, use depending if LOCKED is 0 or 1",
+							"description": "iOS8 Lock mechanism, Supports LockCurrentState, LockTargetState, append R to the addresses if LOCKED is 1",
 							"name": "Office Window Lock",
-							"LockCurrentStateSecured0": {
-								"Listen": "5/3/15"
+							"LockCurrentState": {
+								"Listen": "5/3/15R"
 							},
-							"LockTargetStateSecured0": {
-								"Listen": "5/3/15"
+							"LockTargetState": {
+								"Listen": "5/3/16R"
 							}
 						}
 					]
