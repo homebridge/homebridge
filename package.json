@@ -17,7 +17,7 @@
     "color": "0.10.x",
     "eibd": "^0.3.1",
     "elkington": "kevinohara80/elkington",
-    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#0030b35856e04ee2b42f0d05839feaa5c44cbd1f",
+    "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#4650e771f356a220868d873d16564a6be6603ff7",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "lifx-api": "^1.0.1",
