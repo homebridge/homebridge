@@ -82,16 +82,16 @@ So the charcteristic section may look like:
             "Listen": [
                 "1/1/63"
             ],
-            minValue: -18,
-            maxValue: 30
+            "minValue": -18,
+            "maxValue": 30
         },
         "TargetTemperature": {
             "Set": "1/1/62",
             "Listen": [
                 "1/1/64"
             ],
-            minValue: -4,
-            maxValue: 12
+            "minValue": -4,
+            "maxValue": 12
         }
     }
 ````
@@ -179,11 +179,11 @@ Likewise, all percentages of DPT5 can be reversed, if you need a 100% (=255) for
  -  On: DPT 1.001, 1 as on, 0 as off
 
 ## TemperatureSensor
--  CurrentTemperature: DPT9.001 in 캜 [listen only]
+-  CurrentTemperature: DPT9.001 in 째C [listen only]
   
 ## Thermostat
--  CurrentTemperature: DPT9.001 in 캜 [listen only], -40 to 80캜 if not overriden as shown above
--  TargetTemperature: DPT9.001, values 0..40캜 only, all others are ignored
+-  CurrentTemperature: DPT9.001 in 째C [listen only], -40 to 80째C if not overriden as shown above
+-  TargetTemperature: DPT9.001, values 0..40째C only, all others are ignored
 -  CurrentHeatingCoolingState: DPT20.102 HVAC, because of the incompatible mapping only off and heating (=auto) are shown, [listen only]
 -  TargetHeatingCoolingState: DPT20.102 HVAC, as above
 
