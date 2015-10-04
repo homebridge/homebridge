@@ -53,6 +53,14 @@ LogitechHarmonyPlatform.prototype = {
         .then(function (client) {
           self.log("Connected to Logitech Harmony remote hub");
 
+          // prevent connection from closing
+          setTimeout(function() {
+            setInterval(function() {
+              self.log("Sending command to prevent timeout");
+              client.getCurrentActivity();
+            }, 20000);
+          }, 5000);
+
           callback(null, client);
         });
     };
