@@ -567,7 +567,8 @@ console.log( result );
                          } else if( s.Attributes.model == 'HM-SEC-KEY' ) {
                            accessory = new FHEMAccessory(this.log, this.connection, s);
 
-                         } else if( s.Internals.TYPE == 'PRESENCE' ) {
+                         } else if( s.Internals.TYPE == 'PRESENCE'
+                                    || s.Internals.TYPE == 'ROOMMATE' ) {
                            accessory = new FHEMAccessory(this.log, this.connection, s);
 
                          } else if( s.Internals.TYPE == 'SONOSPLAYER' ) {
@@ -729,29 +730,32 @@ FHEMAccessory(log, connection, s) {
     this.mappings.blind = { reading: 'pct', cmd: 'pct' };
 
   } else if( genericType == 'window'
-           || s.Attributes.model == 'HM-SEC-WIN' ) {
+           || s.Attributes.model == 'HM-SEC-WIN' )
     this.mappings.window = { reading: 'level', cmd: 'level' };
 
-  } else if( genericType == 'lock'
-           || s.Attributes.model == 'HM-SEC-KEY' ) {
+  else if( genericType == 'lock'
+           || s.Attributes.model == 'HM-SEC-KEY' )
     this.mappings.lock = { reading: 'lock' };
 
-  } else if( genericType == 'thermostat'
-             || s.Attributes.subType == 'thermostat' ) {
+  else if( genericType == 'thermostat'
+             || s.Attributes.subType == 'thermostat' )
     s.isThermostat = true;
 
-  } else if( s.Internals.TYPE == 'CUL_FHTTK' ) {
+  else if( s.Internals.TYPE == 'CUL_FHTTK' )
     this.mappings.contact = { reading: 'Window' };
 
-  } else if( s.Internals.TYPE == 'MAX'
-             && s.Internals.type == 'ShutterContact' ) {
+  else if( s.Internals.TYPE == 'MAX'
+             && s.Internals.type == 'ShutterContact' )
     this.mappings.contact = { reading: 'state' };
 
-  } else if( s.Attributes.subType == 'threeStateSensor' ) {
+  else if( s.Attributes.subType == 'threeStateSensor' )
     this.mappings.contact = { reading: 'contact' };
 
-  } else if( s.Internals.TYPE == 'PRESENCE' )
+  else if( s.Internals.TYPE == 'PRESENCE' )
     this.mappings.occupancy = { reading: 'state' };
+
+  else if( s.Internals.TYPE == 'ROOMMATE' )
+    this.mappings.occupancy = { reading: 'presence' };
 
   else if( s.Attributes.model == 'fs20di' )
     s.isLight = true;
@@ -1065,6 +1069,12 @@ FHEMAccessory.prototype = {
         value = Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
       else
         value = Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW;
+
+    } else if( reading == 'presence' ) {
+      if( value == 'present' )
+        value = Characteristic.OccupancyDetected.OCCUPANCY_DETECTED;
+      else
+        value = Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED;
 
     } else if( reading == 'state' ) {
       if( value.match(/^set-/ ) )
