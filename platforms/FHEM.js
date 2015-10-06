@@ -15,6 +15,13 @@
 //
 // When you attempt to add a device, it will ask for a "PIN code".
 // The default code for all HomeBridge accessories is 031-45-154.
+//
+// Remember to set genericDeviceType attribute for your FHEM-devices. 
+// Requires definition of genericDeviceType attribute in fhem.cfg. 
+// Your fist line should contain: 
+//  attr global [..] genericDeviceType:ignore,switch,outlet,light,blind,thermostat 
+
+
 
 var Service = require("HAP-NodeJS").Service;
 var Characteristic = require("HAP-NodeJS").Characteristic;
@@ -375,9 +382,11 @@ FHEMPlatform.prototype = {
 
                          } else if( s.Attributes.subType == 'thermostat'
                                     || s.Attributes.subType == 'blindActuator'
-                                    || s.Attributes.subType == 'threeStateSensor' 
-                                    || s.Attributes.model == 'FSB61') { //RB - Adding FSB61
+                                    || s.Attributes.subType == 'threeStateSensor' ){
                            // that.log( s.Attributes.model + ' detected');
+                           accessory = new FHEMAccessory(that.log, that.connection, s);
+
+                         } else if( s.Attributes.model == 'FSB61' ) {
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
                          } else if( s.Attributes.model == 'HM-SEC-WIN' ) {
@@ -470,7 +479,7 @@ FHEMAccessory(log, connection, s) {
     this.mappings.sat = { reading: 'sat', cmd: 'sat', min: 0, max: max };
   }
 
-  //WindowCovering
+  //Blind
   if( match = s.PossibleSets.match(/[\^ ]position\b/) ) {
     this.mappings.position = { reading: 'position', cmd: 'position', min: 0, max: 100 };
   }
