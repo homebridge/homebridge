@@ -144,6 +144,16 @@ WeMoAccessory.prototype.getServices = function() {
     
     return [garageDoorService];
   }
+  else if (this.service == "Light") {
+    var lightbulbService = new Service.Lightbulb(this.name);
+    
+    lightbulbService
+      .getCharacteristic(Characteristic.On)
+      .on('get', this.getPowerOn.bind(this))
+      .on('set', this.setPowerOn.bind(this));
+    
+    return [lightbulbService];
+  }
   else if (this.service == "MotionSensor") {
     var motionSensorService = new Service.MotionSensor(this.name);
 

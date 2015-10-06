@@ -14,6 +14,9 @@ New 2015-09-18:
 New 2015-09-19:
 -  GarageDoorOpener Service
 -  MotionSensor Service
+New 2015-10-02:
+- Check for valid group addresses
+- new "R" flag allowed for Boolean addresses: 1/2/3R is the boolean not(1/2/3), i.e. 0 and 1 switched on read and write
  * 
  */
 var Service = require("HAP-NodeJS").Service;
@@ -24,6 +27,8 @@ var knxd_startMonitor = require('../platforms/KNX.js').startMonitor;
 
 var milliTimeout = 300; // used to block responses while swiping
 
+var colorOn = "\x1b[30;47m";
+var colorOff = "\x1b[0m";
 
 function KNXDevice(log, config) {
 	this.log = log;
@@ -115,6 +120,7 @@ KNXDevice.prototype = {
 			if (!groupAddress) {
 				return null;
 			}
+			this.log("[knxdevice:knxread] preparing knx request for "+groupAddress);
 			var knxdConnection = new knxd.Connection();
 			// this.log("DEBUG in knxread: created empty connection, trying to connect socket to "+this.knxd_ip+":"+this.knxd_port);
 			knxdConnection.socketRemote({ host: this.knxd_ip, port: this.knxd_port }, function() {
@@ -130,7 +136,7 @@ KNXDevice.prototype = {
 							if (err) {
 								this.log("[ERROR] knxread:sendAPDU: " + err);
 							} else {
-								this.log("knx request sent for "+groupAddress);
+								this.log("[knxdevice:knxread] knx request sent for "+groupAddress);
 							}
 						}.bind(this));
 					}
@@ -143,12 +149,12 @@ KNXDevice.prototype = {
 				// handle multiple addresses
 				for (var i = 0; i < groupAddresses.length; i++) {
 					if (groupAddresses[i]) { // do not bind empty addresses
-						this.knxread (groupAddresses[i]);
+						this.knxread (groupAddresses[i].match(/(\d*\/\d*\/\d*)/)[0]); // clean address
 					}
 				}
 			} else {
 				// it's only one
-				this.knxread (groupAddresses);
+				this.knxread (groupAddresses.match(/(\d*\/\d*\/\d*)/)[0]); // regex for cleaning address
 			}
 		},
 
@@ -158,38 +164,30 @@ KNXDevice.prototype = {
 		// boolean: get 0 or 1 from the bus, write boolean
 		knxregister_bool: function(addresses, characteristic) {
 			this.log("knx registering BOOLEAN " + addresses);
-			knxd_registerGA(addresses, function(val, src, dest, type){
+			knxd_registerGA(addresses, function(val, src, dest, type, reverse){
 				this.log("[" +this.name + "]: Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type + " for " + characteristic.displayName);
 //				iterate(characteristic);
-				characteristic.setValue(val ? 1 : 0, undefined, 'fromKNXBus');
+				
+				characteristic.setValue(val ? (reverse ? 0:1) : (reverse ? 1:0), undefined, 'fromKNXBus');
 			}.bind(this));
 		},
-		knxregister_boolReverse: function(addresses, characteristic) {
-			this.log("knx registering BOOLEAN " + addresses);
-			knxd_registerGA(addresses, function(val, src, dest, type){
-				this.log("[" +this.name + "]: Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type + " for " + characteristic.displayName);
-//				iterate(characteristic);
-				characteristic.setValue(val ? 0 : 1, undefined, 'fromKNXBus');
-			}.bind(this));
-		},
+//		knxregister_boolReverse: function(addresses, characteristic) {
+//			this.log("knx registering BOOLEAN REVERSE " + addresses);
+//			knxd_registerGA(addresses, function(val, src, dest, type, reverse){
+//				this.log("[" +this.name + "]: Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type + " for " + characteristic.displayName);
+////				iterate(characteristic);
+//				characteristic.setValue(val ? 0 : 1, undefined, 'fromKNXBus');
+//			}.bind(this));
+//		},
 		// percentage: get 0..255 from the bus, write 0..100 to characteristic
 		knxregister_percent: function(addresses, characteristic) {
 			this.log("knx registering PERCENT " + addresses);
-			knxd_registerGA(addresses, function(val, src, dest, type){
+			knxd_registerGA(addresses, function(val, src, dest, type, reverse){
 				this.log("[" +this.name + "]: Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
 				if (type !== "DPT5") {
 					this.log("[ERROR] Received value cannot be a percentage value");
 				} else {
-//					if (!characteristic.timeout) {
-//						if (characteristic.timeout < Date.now()) {
-							characteristic.setValue(Math.round(val/255*100), undefined, 'fromKNXBus');
-//						} else {
-//							this.log("Blackout time");
-//						}
-//					} else {
-//						characteristic.setValue(Math.round(val/255*100), undefined, 'fromKNXBus');
-//					} // todo get the boolean logic right into one OR expresssion
-
+					characteristic.setValue(Math.round(( reverse ? (255-val):val)/255*100), undefined, 'fromKNXBus');
 				}
 			}.bind(this));
 		},
@@ -200,7 +198,7 @@ KNXDevice.prototype = {
 			var validValue = true;
 			var hk_value = 0.0;
 			this.log("["+ this.name +"]:[" + characteristic.displayName+ "]:knx registering FLOAT " + addresses);
-			knxd_registerGA(addresses, function(val, src, dest, type){
+			knxd_registerGA(addresses, function(val, src, dest, type, reverse){
 				this.log("["+ this.name +"]:[" + characteristic.displayName+ "]: Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
 				// make hk_value compliant to properties
 				if (characteristic.props.minStep) {
@@ -227,10 +225,10 @@ KNXDevice.prototype = {
 		//integer
 		knxregister_int: function(addresses, characteristic) {
 			this.log("["+ this.name +"]:[" + characteristic.displayName+ "]:knx registering INT " + addresses);
-			knxd_registerGA(addresses, function(val, src, dest, type){
+			knxd_registerGA(addresses, function(val, src, dest, type, reverse){
 				this.log("["+ this.name +"]:[" + characteristic.displayName+ "]: Received value from bus:"+val+ " for " +dest+ " from "+src+" of type "+type+ " for " + characteristic.displayName);
 				if (val>=(characteristic.props.minValue || 0) && val<=(characteristic.props.maxValue || 255)) {
-					characteristic.setValue(val, undefined, 'fromKNXBus'); 
+					characteristic.setValue(reverse ? (255-val):val, undefined, 'fromKNXBus'); 
 				} else {
 					this.log("["+ this.name +"]:[" + characteristic.displayName+ "]: Value %s out of bounds %s...%s ",hk_value, (characteristic.props.minValue || 0), (characteristic.props.maxValue || 255));
 				}
@@ -294,39 +292,39 @@ KNXDevice.prototype = {
  *				}.bind(this));
  *  
  */
-		setBooleanState: function(value, callback, context, gaddress) {
+		setBooleanState: function(value, callback, context, gaddress, reverseflag) {
 			if (context === 'fromKNXBus') {
 //				this.log(gaddress + " event ping pong, exit!");
 				if (callback) {
 					callback();
 				}
 			} else {
-				var numericValue = 0;
+				var numericValue = reverseflag ? 1:0;
 				if (value) {
-					numericValue = 1; // need 0 or 1, not true or something
+					numericValue = reverseflag ? 0:1; // need 0 or 1, not true or something
 				}
-				this.log("["+ this.name +"]:Setting "+gaddress+" Boolean to %s", numericValue);
+				this.log("["+ this.name +"]:Setting "+gaddress+" " + reverseflag ? " (reverse)":""+ " Boolean to %s", numericValue);
 				this.knxwrite(callback, gaddress,'DPT1',numericValue);			
 			}
 
 		},
-		setBooleanReverseState: function(value, callback, context, gaddress) {
-			if (context === 'fromKNXBus') {
-//				this.log(gaddress + " event ping pong, exit!");
-				if (callback) {
-					callback();
-				}
-			} else {
-				var numericValue = 0;
-				if (!value) {
-					numericValue = 1; // need 0 or 1, not true or something
-				}
-				this.log("["+ this.name +"]:Setting "+gaddress+" Boolean to %s", numericValue);
-				this.knxwrite(callback, gaddress,'DPT1',numericValue);			
-			}
-
-		},
-		setPercentage: function(value, callback, context, gaddress) {
+//		setBooleanReverseState: function(value, callback, context, gaddress) {
+//			if (context === 'fromKNXBus') {
+////				this.log(gaddress + " event ping pong, exit!");
+//				if (callback) {
+//					callback();
+//				}
+//			} else {
+//				var numericValue = 0;
+//				if (!value) {
+//					numericValue = 1; // need 0 or 1, not true or something
+//				}
+//				this.log("["+ this.name +"]:Setting "+gaddress+" Boolean to %s", numericValue);
+//				this.knxwrite(callback, gaddress,'DPT1',numericValue);			
+//			}
+//
+//		},
+		setPercentage: function(value, callback, context, gaddress, reverseflag) {
 			if (context === 'fromKNXBus') {
 //				this.log(gaddress + "event ping pong, exit!");
 				if (callback) {
@@ -334,8 +332,11 @@ KNXDevice.prototype = {
 				}
 			} else {	  
 				var numericValue = 0;
-				if (value) {
-					numericValue = Math.round(255*value/100);  // convert 1..100 to 1..255 for KNX bus  
+				value = ( value>=0 ? (value<=100 ? value:100):0 ); //ensure range 0..100
+				if (reverseflag) {
+					numericValue = 255 - Math.round(255*value/100);  // convert 0..100 to 255..0 for KNX bus  
+				} else {
+					numericValue = Math.round(255*value/100);  // convert 0..100 to 0..255 for KNX bus  
 				}
 				this.log("["+ this.name +"]:Setting "+gaddress+" percentage to %s (%s)", value, numericValue);
 				this.knxwrite(callback, gaddress,'DPT5',numericValue);
@@ -350,7 +351,7 @@ KNXDevice.prototype = {
 			} else {	  
 				var numericValue = 0;
 				if (value && value>=0 && value<=255) {
-					numericValue = value;  // assure 1..255 for KNX bus  
+					numericValue = value;  // assure 0..255 for KNX bus  
 				}
 				this.log("["+ this.name +"]:Setting "+gaddress+" int to %s (%s)", value, numericValue);
 				this.knxwrite(callback, gaddress,'DPT5',numericValue);
@@ -411,27 +412,44 @@ KNXDevice.prototype = {
 /** bindCharacteristic
  *  initializes callbacks for 'set' events (from HK) and for KNX bus reads (to HK)
  */
-		bindCharacteristic: function(myService, characteristicType, valueType, config) {
+		bindCharacteristic: function(myService, characteristicType, valueType, config, defaultValue) {
 			var myCharacteristic = myService.getCharacteristic(characteristicType);
+			var setGA = "";
+			var setReverse = false;
 			if (myCharacteristic === undefined) {
 				throw new Error("unknown characteristics cannot be bound");
 			}
+			if (defaultValue) {
+				myCharacteristic.setValue(defaultValue);
+			}
 			if (config.Set) {
 				// can write
+				// extract address and Reverse flag
+				setGA = config.Set.match(/\d*\/\d*\/\d*/);
+				if (setGA===null) {
+					this.log(colorOn + "["+ this.name +"]:["+myCharacteristic.displayName+"] Error in group adress: ["+ config.Set +"] "+colorOff);
+					throw new Error("EINVGROUPADRESS - Invalid group address given");
+				} else {
+					setGA=setGA[0]; // first element of returned array is the group address
+				}
+					
+				setReverse = config.Set.match(/\d*\/\d*\/\d*(R)/) ? true:false;
+				
 				switch (valueType) {
 				case "Bool":
 					myCharacteristic.on('set', function(value, callback, context) {
-						this.setBooleanState(value, callback, context, config.Set);
+						this.setBooleanState(value, callback, context, setGA, setReverse); //NEW
 					}.bind(this));
 					break;
-				case "BoolReverse":
-					myCharacteristic.on('set', function(value, callback, context) {
-						this.setBooleanReverseState(value, callback, context, config.Set);
-					}.bind(this));
-					break;
+//				case "BoolReverse":
+//					this.log("["+ this.name +"]:["+myCharacteristic.displayName+"] \x1b[30;47m%s\x1b[0mWARNING in group adress: "+ config.Set +": Legacy BoolReverse used. Use " + config.Set +"R instead");
+//					myCharacteristic.on('set', function(value, callback, context) {
+//						this.setBooleanReverseState(value, callback, context, config.Set);
+//					}.bind(this));
+//					break;
 				case "Percent":
 					myCharacteristic.on('set', function(value, callback, context) {
-						this.setPercentage(value, callback, context, config.Set);
+						this.setPercentage(value, callback, context, setGA, setReverse);
 						myCharacteristic.timeout = Date.now()+milliTimeout;
 					}.bind(this));	
 					break;
@@ -451,7 +469,7 @@ KNXDevice.prototype = {
 					}.bind(this));
 					break;
 				default: {
-					this.log("[ERROR] unknown type passed");
+					this.log(colorOn + "[ERROR] unknown type passed: [" + valueType+"]"+ colorOff);
 					throw new Error("[ERROR] unknown type passed");
 					}
 				} 
@@ -463,9 +481,9 @@ KNXDevice.prototype = {
 				case "Bool":
 					this.knxregister_bool([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;				
-				case "BoolReverse":
-					this.knxregister_boolReverse([config.Set].concat(config.Listen || []), myCharacteristic);
-					break;
+//				case "BoolReverse":
+//					this.knxregister_boolReverse([config.Set].concat(config.Listen || []), myCharacteristic);
+//					break;
 				case "Percent":
 					this.knxregister_percent([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;
@@ -479,8 +497,8 @@ KNXDevice.prototype = {
 					this.knxregister_HVAC([config.Set].concat(config.Listen || []), myCharacteristic);
 					break;
 				default:
-					this.log("[ERROR] unknown type passed: ["+valueType+"]");
-				throw new Error("[ERROR] unknown type passed");
+					this.log(colorOn+ "[ERROR] unknown type passed: ["+valueType+"]"+colorOff);
+					throw new Error("[ERROR] unknown type passed");
 				} 
 				this.log("["+ this.name +"]:["+myCharacteristic.displayName+"]: Issuing read requests on the KNX bus...");
 				this.knxreadarray([config.Set].concat(config.Listen || []));
@@ -515,8 +533,8 @@ KNXDevice.prototype = {
 				this.log("["+ this.name +"]:ContactSensor ContactSensorState characteristic enabled");
 				this.bindCharacteristic(myService, Characteristic.ContactSensorState, "Bool", config.ContactSensorState);
 			} else if (config.ContactSensorStateContact1) {
-				this.log("["+ this.name +"]:ContactSensor ContactSensorStateContact1 characteristic enabled");
-				this.bindCharacteristic(myService, Characteristic.ContactSensorState, "BoolReverse", config.ContactSensorStateContact1);
+				this.log(colorOn+ "[ERROR] outdated type passed: [ContactSensorStateContact1]"+colorOff);
+				throw new Error("[ERROR] outdated type passed");
 			} 
 			//optionals
 			if (config.StatusActive) {
@@ -670,16 +688,16 @@ KNXDevice.prototype = {
 				this.bindCharacteristic(myService, Characteristic.LockCurrentState, "Bool", config.LockCurrentState);
 			} else if (config.LockCurrentStateSecured0) { 
 				// for reverse contacts Secured = 0
-				this.log("["+ this.name +"]:LockMechanism LockCurrentState characteristic enabled");
-				this.bindCharacteristic(myService, Characteristic.LockCurrentState, "BoolReverse", config.LockCurrentStateSecured0);
+				this.log(colorOn+ "[ERROR] outdated type passed: [LockCurrentStateSecured0]"+colorOff);
+				throw new Error("[ERROR] outdated type passed");
 			} 
 			//  LockTargetState
 			if (config.LockTargetState) {
 				this.log("["+ this.name +"]:LockMechanism LockTargetState characteristic enabled");
 				this.bindCharacteristic(myService, Characteristic.LockTargetState, "Bool", config.LockTargetState);
 			} else 	if (config.LockTargetStateSecured0) {
-				this.log("["+ this.name +"]:LockMechanism LockTargetState characteristic enabled");
-				this.bindCharacteristic(myService, Characteristic.LockTargetState, "BoolReverse", config.LockTargetStateSecured0);
+				this.log(colorOn+ "[ERROR] outdated type passed: [LockTargetStateSecured0]"+colorOff);
+				throw new Error("[ERROR] outdated type passed");
 			}
 
 			//iterate(myService);
@@ -887,7 +905,7 @@ KNXDevice.prototype = {
 			} 
 			if (config.PositionState) {
 				this.log("["+ this.name +"]:Window PositionState characteristic enabled");
-				this.bindCharacteristic(myService, Characteristic.PositionState, "Float", config.PositionState);
+				this.bindCharacteristic(myService, Characteristic.PositionState, "Int", config.PositionState);
 			} 
 			return myService;
 		},			
