@@ -86,7 +86,7 @@ function loadAccessories() {
         log("Initializing %s accessory...", accessoryType);
         
         var accessoryInstance = new accessoryConstructor(log, accessoryConfig);
-        var accessory = createAccessory(accessoryInstance, accessoryName);
+        var accessory = createAccessory(accessoryInstance, accessoryName, accessoryType, accessoryConfig.uuid_base);  //pass accessoryType for UUID generation, and optional parameter uuid_base which can be used instead of displayName for UUID generation
         
         // add it to the bridge
         bridge.addBridgedAccessory(accessory);
@@ -113,11 +113,11 @@ function loadPlatforms() {
         log("Initializing %s platform...", platformType);
 
         var platformInstance = new platformConstructor(log, platformConfig);
-        loadPlatformAccessories(platformInstance, log);
+        loadPlatformAccessories(platformInstance, log, platformType);
     }
 }
 
-function loadPlatformAccessories(platformInstance, log) {
+function loadPlatformAccessories(platformInstance, log, platformType) {
   asyncCalls++;
   platformInstance.accessories(once(function(foundAccessories){
       asyncCalls--;
@@ -129,7 +129,7 @@ function loadPlatformAccessories(platformInstance, log) {
           
           log("Initializing platform accessory '%s'...", accessoryName);
           
-          var accessory = createAccessory(accessoryInstance, accessoryName);
+          var accessory = createAccessory(accessoryInstance, accessoryName, platformType, accessoryInstance.uuid_base);
 
           // add it to the bridge
           bridge.addBridgedAccessory(accessory);
@@ -141,7 +141,7 @@ function loadPlatformAccessories(platformInstance, log) {
   }));
 }
 
-function createAccessory(accessoryInstance, displayName) {
+function createAccessory(accessoryInstance, displayName, accessoryType, uuid_base) {
   
   var services = accessoryInstance.getServices();
   
@@ -159,7 +159,7 @@ function createAccessory(accessoryInstance, displayName) {
     // The returned "services" for this accessory are simply an array of new-API-style
     // Service instances which we can add to a created HAP-NodeJS Accessory directly.
     
-    var accessoryUUID = uuid.generate(accessoryInstance.constructor.name + ":" + displayName);
+    var accessoryUUID = uuid.generate(accessoryType + ":" + (uuid_base || displayName));
     
     var accessory = new Accessory(displayName, accessoryUUID);
     
