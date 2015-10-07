@@ -1,154 +1,156 @@
 {
-    "bridge": {
-        "name": "Homebridge",
-        "username": "CC:22:3D:E3:CE:30",
-        "port": 51826,
-        "pin": "031-45-154"
-    },
-    "description": "This is an example configuration file for KNX platform shim",
-    "hint": "Always paste into jsonlint.com validation page before starting your homebridge, saves a lot of frustration",
-    "hint2": "Replace all group addresses by current addresses of your installation, these are arbitrary examples!",
-    "hint3": "For valid services and their characteristics have a look at the knxdevice.md file in folder accessories!",
-    "platforms": [
-        {
-            "platform": "KNX",
-            "name": "KNX",
-            "knxd_ip": "192.168.178.205",
-            "knxd_port": 6720,
-            "accessories": [
-                {
-                    "accessory_type": "knxdevice",
-                    "description": "Only generic type knxdevice is supported, all previous knx types have been merged into that.",
-                    "name": "Living Room North Lamp",
-                    "services": [
-                        {
-                            "type": "Lightbulb",
-                            "description": "iOS8 Lightbulb type, supports On (Switch) and Brightness",
-                            "name": "Living Room North Lamp",
-                            "On": {
-                                "Set": "1/1/6",
-                                "Listen": [
-                                    "1/1/63"
-                                ]
-                            },
-                            "Brightness": {
-                                "Set": "1/1/62",
-                                "Listen": [
-                                    "1/1/64"
-                                ]
-                            }
-                        }
-                    ],
-                    "services-description": "Services is an array, you CAN have multiple service types in one accessory, though it is not fully supported in many iOS HK apps, such as EVE and myTouchHome"
-                },
-                {
-                    "accessory_type": "knxdevice",
-                    "name": "Office Temperature",
-                    "description": "iOS8.4.1 TemperatureSensor type, supports CurrentTemperature",
-                    "services": [
-                        {
-                            "type": "TemperatureSensor",
-                            "name": "Raumtemperatur",
-                            "CurrentTemperature": {
-                                "Listen": "3/3/44"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "accessory_type": "knxdevice",
-                    "name": "Office Window Lock",
-                    "services": [
-                        {
-                            "type": "LockMechanism",
-                            "description": "iOS8 Lock mechanism, Supports LockCurrentStateSecured0 OR LockCurrentState, LockTargetStateSecured0 OR LockTargetState, use depending if LOCKED is 0 or 1",
-                            "name": "Office Window Lock",
-                            "LockCurrentStateSecured0": {
-                                "Listen": "5/3/15"
-                            },
-                            "LockTargetStateSecured0": {
-                                "Listen": "5/3/15"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "accessory_type": "knxdevice",
-                    "description": "sample device with multiple services. Multiple services of different types are widely supported",
-                    "name": "Office",
-                    "services": [
-                        {
-                            "type": "Lightbulb",
-                            "name": "Office Lamp",
-                            "On": {
-                                "Set": "1/3/5"
-                            }
-                        },
-                        {
-                            "type": "Thermostat",
-                            "description": "iOS8 Thermostat type, supports CurrentTemperature, TargetTemperature, CurrentHeatingCoolingState ",
-                            "name": "Raumtemperatur",
-                            "CurrentTemperature": {
-                                "Listen": "3/3/44"
-                            },
-                            "TargetTemperature": {
-                                "Set": "3/3/94"
-                            },
-                            "CurrentHeatingCoolingState": {
-                                "Listen": "3/3/64"
-                            }
-                        },
-                        {
-                            "type": "WindowCovering",
-                            "description": "iOS9 Window covering (blinds etc) type, still WIP",
-                            "name": "Blinds",
-                            "TargetPosition": {
-                                "Set": "1/2/3",
-                                "Listen": "1/2/4"
-                            },
-                            "CurrentPosition": {
-                                "Set": "1/3/1",
-                                "Listen": "1/3/2"
-                            },
-                            "PositionState": {
-                                "Listen": "2/7/1"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "accessory_type": "knxdevice",
-                    "description": "sample contact sensor device",
-                    "name": "Office Contact",
-                    "services": [
-                        {
-                            "type": "ContactSensor",
-                            "name": "Office Door",
-                            "ContactSensorState": {
-                                "Listen": "5/3/5"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "accessory_type": "knxdevice",
-                    "description": "sample garage door opener",
-                    "name": "Office Garage",
-                    "services": [
-                        {
-                            "type": "GarageDoorOpener",
-                            "name": "Office Garage Opener",
-                            "CurrentDoorState": {
-                                "Listen": "5/4/5"
-                            },
-                            "TargetDoorState": {
-                                "Listen": "5/4/6"
-                            }
-                        }
-                    ]
-                }
-            ]
-        }
-    ],
-    "accessories": []
+	"bridge": {
+		"name": "Homebridge",
+		"username": "CC:22:3D:E3:CE:30",
+		"port": 51826,
+		"pin": "031-45-154"
+	},
+	"description": "This is an example configuration file for KNX platform shim",
+	"hint": "Always paste into jsonlint.com validation page before starting your homebridge, saves a lot of frustration",
+	"hint2": "Replace all group addresses by current addresses of your installation, these are arbitrary examples!",
+	"hint3": "For valid services and their characteristics have a look at the KNX.md file in folder platforms!",
+	"platforms": [
+		{
+			"platform": "KNX",
+			"name": "KNX",
+			"knxd_ip": "192.168.178.205",
+			"knxd_port": 6720,
+			"accessories": [
+				{
+					"accessory_type": "knxdevice",
+					"description": "Only generic type knxdevice is supported, all previous knx types have been merged into that.",
+					"name": "Living Room North Lamp",
+					"services": [
+						{
+							"type": "Lightbulb",
+							"description": "iOS8 Lightbulb type, supports On (Switch) and Brightness",
+							"name": "Living Room North Lamp",
+							"On": {
+								"Set": "1/1/6",
+								"Listen": [
+									"1/1/63"
+								]
+							},
+							"Brightness": {
+								"Set": "1/1/62",
+								"Listen": [
+									"1/1/64"
+								]
+							}
+						}
+					],
+					"services-description": "Services is an array, you CAN have multiple service types in one accessory, though it is not fully supported in many iOS HK apps, such as EVE and myTouchHome"
+				},
+				{
+					"accessory_type": "knxdevice",
+					"name": "Office Temperature",
+					"description": "iOS8.4.1 TemperatureSensor type, supports CurrentTemperature",
+					"services": [
+						{
+							"type": "TemperatureSensor",
+							"name": "Raumtemperatur",
+							"CurrentTemperature": {
+								"Listen": "3/3/44"
+							}
+						}
+					]
+				},
+				{
+					"accessory_type": "knxdevice",
+					"name": "Office Window Lock",
+					"services": [
+						{
+							"type": "LockMechanism",
+							"description": "iOS8 Lock mechanism, Supports LockCurrentState, LockTargetState, append R to the addresses if LOCKED is 1",
+							"name": "Office Window Lock",
+							"LockCurrentState": {
+								"Listen": "5/3/15R"
+							},
+							"LockTargetState": {
+								"Listen": "5/3/16R"
+							}
+						}
+					]
+				},
+				{
+					"accessory_type": "knxdevice",
+					"description": "sample device with multiple services. Multiple services of different types are widely supported",
+					"name": "Office",
+					"services": [
+						{
+							"type": "Lightbulb",
+							"name": "Office Lamp",
+							"On": {
+								"Set": "1/3/5"
+							}
+						},
+						{
+							"type": "Thermostat",
+							"description": "iOS8 Thermostat type, supports CurrentTemperature, TargetTemperature, CurrentHeatingCoolingState ",
+							"name": "Raumtemperatur",
+							"CurrentTemperature": {
+								"Listen": "3/3/44"
+							},
+							"TargetTemperature": {
+								"Set": "3/3/94"
+							},
+							"CurrentHeatingCoolingState": {
+								"Listen": "3/3/64"
+							}
+						},
+						{
+							"type": "WindowCovering",
+							"description": "iOS9 Window covering (blinds etc) type, still WIP",
+							"name": "Blinds",
+							"TargetPosition": {
+								"Set": "1/2/3",
+								"Listen": "1/2/4"
+							},
+							"CurrentPosition": {
+								"Set": "1/3/1",
+								"Listen": "1/3/2"
+							},
+							"PositionState": {
+								"Listen": "2/7/1"
+							}
+						}
+					]
+				},
+				{
+					"accessory_type": "knxdevice",
+					"description": "sample contact sensor device",
+					"name": "Office Contact",
+					"services": [
+						{
+							"type": "ContactSensor",
+							"name": "Office Door",
+							"ContactSensorState": {
+								"Listen": "5/3/5"
+							}
+						}
+					]
+				},
+				{
+					"accessory_type": "knxdevice",
+					"description": "sample garage door opener",
+					"name": "Office Garage",
+					"services": [
+						{
+							"type": "GarageDoorOpener",
+							"name": "Office Garage Opener",
+							"CurrentDoorState": {
+								"Listen": "5/4/5"
+							},
+							"TargetDoorState": {
+								"Listen": "5/4/6"
+							}
+						}
+					]
+				}
+			]
+		}
+	],
+	"accessories": [
+		
+	]
 }
