@@ -727,7 +727,10 @@ FHEMAccessory(log, connection, s) {
   else if( genericType == 'blind'
            || s.Attributes.subType == 'blindActuator' ) {
     delete this.mappings.pct;
-    this.mappings.blind = { reading: 'pct', cmd: 'pct' };
+    if( s.PossibleSets.match(/[\^ ]position\b/) )
+      this.mappings.blind = { reading: 'position', cmd: 'position' };
+    else
+      this.mappings.blind = { reading: 'pct', cmd: 'pct' };
 
   } else if( genericType == 'window'
            || s.Attributes.model == 'HM-SEC-WIN' )
@@ -917,6 +920,8 @@ FHEMAccessory(log, connection, s) {
     this.serial = s.Internals.uniqueid;
   else if( this.type == 'SONOSPLAYER' )
     this.serial = s.Internals.UDN;
+  else if( this.type == 'EnOcean' )
+    this.serial = this.type + '.' + s.Internals.DEF;
 
   this.uuid_base = this.serial;
 
@@ -965,6 +970,9 @@ FHEMAccessory.prototype = {
       value = Math.round(value * 100 / (this.mappings.sat ? this.mappings.sat.max : 100) );
 
     } else if( reading == 'pct' ) {
+      value = parseInt( value );
+
+    } else if( reading == 'position' ) {
       value = parseInt( value );
 
     } else if(reading == 'motor') {
