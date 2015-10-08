@@ -44,7 +44,11 @@ NestPlatform.prototype = {
 
 function NestThermostatAccessory(log, name, device, deviceId) {
   // device info
-  this.name = name;
+  if (name) {
+    this.name = name;
+  } else {
+    this.name = "Nest";
+  }
   this.model = device.model_version;
   this.serial = device.serial_number;
   this.deviceId = deviceId;
