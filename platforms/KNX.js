@@ -116,8 +116,8 @@ function groupsocketlisten(opts, callback) {
 }
 
 
-var registerSingleGA = function registerSingleGA (groupAddress, callback) {
-	subscriptions.push({address: groupAddress, callback: callback });
+var registerSingleGA = function registerSingleGA (groupAddress, callback, reverse) {
+	subscriptions.push({address: groupAddress, callback: callback, reverse:reverse });
 }
 
 /*
@@ -143,7 +143,7 @@ var startMonitor = function startMonitor(opts) {  // using { host: name-ip, port
 				if (subscriptions[i].address === dest) {
 					// found one, notify
 					console.log('HIT: Write from '+src+' to '+dest+': '+val+' ['+type+']');
-					subscriptions[i].callback(val, src, dest, type);
+					subscriptions[i].callback(val, src, dest, type, subscriptions[i].reverse);
 				}
 			}
 		});
@@ -156,7 +156,7 @@ var startMonitor = function startMonitor(opts) {  // using { host: name-ip, port
 				if (subscriptions[i].address === dest) {
 					// found one, notify
 //					console.log('HIT: Response from '+src+' to '+dest+': '+val+' ['+type+']');
-					subscriptions[i].callback(val, src, dest, type);
+					subscriptions[i].callback(val, src, dest, type, subscriptions[i].reverse);
 				}
 			}
 
@@ -185,13 +185,16 @@ var registerGA = function (groupAddresses, callback) {
 	if (groupAddresses.constructor.toString().indexOf("Array") > -1) {
 		// handle multiple addresses
 		for (var i = 0; i < groupAddresses.length; i++) {
-			if (groupAddresses[i]) { // do not bind empty addresses
-				registerSingleGA (groupAddresses[i], callback);
+			if (groupAddresses[i] && groupAddresses[i].match(/(\d*\/\d*\/\d*)/)) { // do not bind empty addresses or invalid addresses
+				// clean the addresses
+				registerSingleGA (groupAddresses[i].match(/(\d*\/\d*\/\d*)/)[0], callback,groupAddresses[i].match(/\d*\/\d*\/\d*(R)/) ? true:false );
 			}
 		}
 	} else {
 		// it's only one
-		registerSingleGA (groupAddresses, callback);
+		if (groupAddresses.match(/(\d*\/\d*\/\d*)/)) {
+			registerSingleGA (groupAddresses.match(/(\d*\/\d*\/\d*)/)[0], callback, groupAddresses[i].match(/\d*\/\d*\/\d*(R)/) ? true:false);
+		}
 	}
 //	console.log("listeners now: " + subscriptions.length);
 };
