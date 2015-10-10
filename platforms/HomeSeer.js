@@ -3,6 +3,7 @@
 //
 // HomeSeer Platform Shim for HomeBridge
 // V0.1 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/07 - Initial version
+// V0.2 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/10 - occupancy sensor fix
 //
 //
 // Remember to add platform to config.json. 
@@ -320,7 +321,7 @@ HomeSeerAccessory.prototype = {
             }
         case "OccupancySensor": {
             var occupancySensorService = new Service.OccupancySensor();
-            motionSensorService
+            occupancySensorService
                 .getCharacteristic(Characteristic.OccupancyDetected)
                 .on('get', this.getPowerState.bind(this));
             services.push( occupancySensorService );
