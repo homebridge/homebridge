@@ -20,6 +20,7 @@
     "hap-nodejs": "git+https://github.com/KhaosT/HAP-NodeJS#4650e771f356a220868d873d16564a6be6603ff7",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
+    "isy-js": "",
     "lifx-api": "^1.0.1",
     "lifx": "git+https://github.com/magicmonkey/lifxjs.git",
     "mdns": "^2.2.4",
