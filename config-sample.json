@@ -24,6 +24,10 @@
             "token_secret" : "telldus token secret"
         },
         {
+            "platform" : "Telldus",
+            "name" : "Telldus"
+        },
+        {
             "platform": "Wink",
             "name": "Wink",
             "client_id": "YOUR_WINK_API_CLIENT_ID",
