@@ -31,24 +31,24 @@ function YamahaAVRPlatform(log, config){
 
 YamahaAVRPlatform.AudioVolume = function() {
   Characteristic.call(this, 'Audio Volume', '00001001-0000-1000-8000-135D67EC4377');
-  this.format = 'uint8';
-  this.unit = 'percentage';
-  this.maximumValue = 100;
-  this.minimumValue = 0;
-  this.stepValue = 1;
-  this.readable = true;
-  this.writable = true;
-  this.supportsEventNotification = true;
+  this.setProps({
+    format: Characteristic.Formats.UINT8,
+    unit: Characteristic.Units.PERCENTAGE,
+    maxValue: 100,
+    minValue: 0,
+    minStep: 1,
+    perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+  });
   this.value = this.getDefaultValue();
 };
 inherits(YamahaAVRPlatform.AudioVolume, Characteristic);
 
 YamahaAVRPlatform.Muting = function() {
   Characteristic.call(this, 'Muting', '00001002-0000-1000-8000-135D67EC4377');
-  this.format = 'bool';
-  this.readable = true;
-  this.writable = true;
-  this.supportsEventNotification = true;
+  this.setProps({
+    format: Characteristic.Formats.UINT8,
+    perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+  });
   this.value = this.getDefaultValue();
 };
 inherits(YamahaAVRPlatform.Muting, Characteristic);
