@@ -573,51 +573,30 @@ ISYElkAlarmPanelAccessory.prototype.identify = function(callback) {
 }
 
 ISYElkAlarmPanelAccessory.prototype.setAlarmTargetState = function(targetStateHK,callback) {
-	this.log("Sending command to set alarm panel state to: "+targetStateHK);
-	var targetState = this.translateHKToAlarmTargetState(targetState);
-	if(this.alarmTargetState != targetState) {
+	this.log("***** Sending command to set alarm panel state to: "+targetStateHK);
+	var targetState = this.translateHKToAlarmTargetState(targetStateHK);
+	this.log("***** Would send the target state of: "+targetState);
+	if(this.device.getAlarmMode() != targetState) {
 		this.device.sendSetAlarmModeCommand(targetState, function(result) {
 			callback();		
 		});
 	} else {
+		this.log("***** Redundant command, already in that state.");
 		callback();
 	}
 }
 
-//////  Current State
-
-/*
-ELKAlarmPanelDevice.prototype.ALARM_STATE_NOT_READY_TO_ARM = 0;
-ELKAlarmPanelDevice.prototype.ALARM_STATE_READY_TO_ARM = 1;
-ELKAlarmPanelDevice.prototype.ALARM_STATE_READY_TO_ARM_VIOLATION = 2;
-ELKAlarmPanelDevice.prototype.ALARM_STATE_ARMED_WITH_TIMER = 3;
-ELKAlarmPanelDevice.prototype.ALARM_STATE_ARMED_FULLY = 4;
-ELKAlarmPanelDevice.prototype.ALARM_STATE_FORCE_ARMED_VIOLATION = 5;
-ELKAlarmPanelDevice.prototype.ALARM_STATE_ARMED_WITH_BYPASS = 6;
-*/
-
-/*
-ELKAlarmPanelDevice.prototype.ALARM_TRIP_STATE_DISARMED = 0;
-ELKAlarmPanelDevice.prototype.ALARM_TRIP_STATE_EXIT_DELAY = 1;
-ELKAlarmPanelDevice.prototype.ALARM_TRIP_STATE_TRIPPED = 2;
-*/
-
-/*
-Characteristic.SecuritySystemCurrentState.STAY_ARM = 0;
-Characteristic.SecuritySystemCurrentState.AWAY_ARM = 1;
-Characteristic.SecuritySystemCurrentState.NIGHT_ARM = 2;
-Characteristic.SecuritySystemCurrentState.DISARMED = 3;
-Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED = 4;
-*/
-
 ISYElkAlarmPanelAccessory.prototype.translateAlarmCurrentStateToHK = function() {
 	var tripState = this.device.getAlarmTripState();
-	if(tripState == this.device.ALARM_TRIP_STATE_DISARMED || tripState == this.device.ALARM_TRIP_STATE_EXIT_DELAY) {
-		return Characteristic.SecuritySystemCurrentState.DISARMED;
-	} else if(tripState ==this.device.ALARM_TRIP_STATE_TRIPPED) {
-		return Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED;
+	var sourceAlarmState = this.device.getAlarmState();
+	
+	if(tripState >= this.device.ALARM_TRIP_STATE_TRIPPED) {
+		return Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED;		
+	} else if(sourceAlarmState == this.device.ALARM_STATE_NOT_READY_TO_ARM || 
+	    sourceAlarmState == this.device.ALARM_STATE_READY_TO_ARM || 
+	    sourceAlarmState == this.device.ALARM_STATE_READY_TO_ARM_VIOLATION) {
+		return Characteristic.SecuritySystemCurrentState.DISARMED;	   
 	} else {
-		var sourceAlarmState = this.device.getAlarmMode();
 		if(sourceAlarmState == this.device.ALARM_MODE_STAY || sourceAlarmState == this.device.ALARM_MODE_STAY_INSTANT ) {
 			return Characteristic.SecuritySystemCurrentState.STAY_ARM;
 		} else if(sourceAlarmState == this.device.ALARM_MODE_AWAY || sourceAlarmState == this.device.ALARM_MODE_VACATION) {
@@ -625,30 +604,11 @@ ISYElkAlarmPanelAccessory.prototype.translateAlarmCurrentStateToHK = function() 
 		} else if(sourceAlarmState == this.device.ALARM_MODE_NIGHT || sourceAlarmState == this.device.ALARM_MODE_NIGHT_INSTANT) {
 			return Characteristic.SecuritySystemCurrentState.NIGHT_ARM;
 		} else {
-			return Characteristic.SecuritySystemCurrentState.DISARM;
+			this.log("***** Setting to disarmed because sourceAlarmState is "+sourceAlarmState);
+			return Characteristic.SecuritySystemCurrentState.DISARMED;
 		}
 	}
 }
-
-////// Target Mode
-
-/*
-ELKAlarmPanelDevice.prototype.ALARM_MODE_DISARMED = 0;
-ELKAlarmPanelDevice.prototype.ALARM_MODE_AWAY = 1;
-ELKAlarmPanelDevice.prototype.ALARM_MODE_STAY = 2;
-ELKAlarmPanelDevice.prototype.ALARM_MODE_STAY_INSTANT = 3;
-ELKAlarmPanelDevice.prototype.ALARM_MODE_NIGHT = 4;
-ELKAlarmPanelDevice.prototype.ALARM_MODE_NIGHT_INSTANT = 5;
-ELKAlarmPanelDevice.prototype.ALARM_MODE_VACATION = 6;
-*/
-
-/*
-Characteristic.SecuritySystemTargetState.STAY_ARM = 0;
-Characteristic.SecuritySystemTargetState.AWAY_ARM = 1;
-Characteristic.SecuritySystemTargetState.NIGHT_ARM = 2;
-Characteristic.SecuritySystemTargetState.DISARM = 3;
-*/
-
 
 ISYElkAlarmPanelAccessory.prototype.translateAlarmTargetStateToHK = function() {
 	var sourceAlarmState = this.device.getAlarmMode();
@@ -669,9 +629,9 @@ ISYElkAlarmPanelAccessory.prototype.translateHKToAlarmTargetState = function(sta
 	} else if(state == Characteristic.SecuritySystemTargetState.AWAY_ARM) {
 		return this.device.ALARM_MODE_AWAY;
 	} else if(state == Characteristic.SecuritySystemTargetState.NIGHT_ARM) {
-		return this.device.NIGHT_ARM;
+		return this.device.ALARM_MODE_NIGHT;
 	} else {
-		return this.device.DISARM;
+		return this.device.ALARM_MODE_DISARMED;
 	}
 }
 
@@ -684,6 +644,8 @@ ISYElkAlarmPanelAccessory.prototype.getAlarmCurrentState = function(callback) {
 }
 
 ISYElkAlarmPanelAccessory.prototype.handleExternalChange = function() {
+	this.log("***** Source device. Currenty state locally -"+this.device.getAlarmStatusAsText());
+	this.log("***** Got alarm change notification. Setting HK target state to: "+this.translateAlarmTargetStateToHK()+" Setting HK Current state to: "+this.translateAlarmCurrentStateToHK());
 	this.alarmPanelService
 		.setCharacteristic(Characteristic.SecuritySystemTargetState, this.translateAlarmTargetStateToHK());
 	this.alarmPanelService
@@ -724,3 +686,4 @@ module.exports.accessory = ISYLightAccessory;
 module.exports.accessory = ISYLockAccessory;
 module.exports.accessory = ISYOutletAccessory;
 module.exports.accessory = ISYDoorWindowSensorAccessory;
+module.exports.accessory = ISYElkAlarmPanelAccessory;
