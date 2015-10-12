@@ -505,7 +505,7 @@ HomeSeerAccessory.prototype = {
             }
         case "OccupancySensor": {
             var occupancySensorService = new Service.OccupancySensor();
-            motionSensorService
+            occupancySensorService
                 .getCharacteristic(Characteristic.OccupancyDetected)
                 .on('get', this.getPowerState.bind(this));
             services.push( occupancySensorService );
