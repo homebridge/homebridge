@@ -9,7 +9,7 @@
 // V0.3 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/11
 // - Added TemperatureUnit=F|C option to temperature sensors
 // - Added negative temperature support to temperature sensors
-// V0.4 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/11
+// V0.4 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/12
 // - Added thermostat support
 //
 //
