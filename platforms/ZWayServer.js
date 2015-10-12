@@ -83,7 +83,20 @@ ZWayServerPlatform.prototype = {
         return deferred.promise;
     }
     ,
-
+    getTagValue: function(vdev, tagStem){
+        if(!(vdev.tags && vdev.tags.length > 0)) return false;
+        var tagStem = "Homebridge." + tagStem;
+        if(vdev.tags.indexOf(tagStem) >= 0) return true;
+        var tags = vdev.tags, l = tags.length, tag;
+        for(var i = 0; i < l; i++){
+            tag = tags[i];
+            if(tag.indexOf(tagStem + ":") === 0){
+                return tag.substr(tagStem.length + 1);
+            }
+        }
+        return false;
+    }
+    ,
     accessories: function(callback) {
         debug("Fetching Z-Way devices...");
 
@@ -110,12 +123,30 @@ ZWayServerPlatform.prototype = {
             var groupedDevices = {};
             for(var i = 0; i < devices.length; i++){
                 var vdev = devices[i];
-                if(vdev.tags.indexOf("Homebridge:Skip") >= 0) { debug("Tag says skip!"); continue; }
-                if(this.opt_in && vdev.tags.indexOf("Homebridge:Include") < 0) continue;
-                var gdid = vdev.id.replace(/^(.*?)_zway_(\d+-\d+)-\d.*/, '$1_$2');
+                if(this.getTagValue("Skip")) { debug("Tag says skip!"); continue; }
+                if(this.opt_in && !this.getTagValue(vdev, "Include")) continue;
+                
+                var gdid = this.getTagValue(vdev, "Accessory.Id");
+                if(!gdid){
+                    gdid = vdev.id.replace(/^(.*?)_zway_(\d+-\d+)-\d.*/, '$1_$2');
+                }
+                
                 var gd = groupedDevices[gdid] || (groupedDevices[gdid] = {devices: [], types: {}, extras: {}, primary: undefined});
                 gd.devices.push(vdev);
                 var tk = ZWayServerPlatform.getVDevTypeKey(vdev);
+                
+                // If this is explicitly set as primary, set it now...
+                if(this.getTagValue(vdev, "IsPrimary")){
+                    // everybody out of the way! Can't be in "extras" if you're the primary...
+                    if(gd.types[tk] !== undefined){
+                        gd.extras[tk] = gd.extras[tk] || [];
+                        gd.extras[tk].push(gd.types[tk]);
+                        delete gd.types[tk]; // clear the way for this one to be set here below...
+                    }
+                    gd.primary = gd.devices.length - 1;
+                    //gd.types[tk] = gd.primary;
+                }
+                
                 if(gd.types[tk] === undefined){
                     gd.types[tk] = gd.devices.length - 1;
                 } else {
@@ -124,7 +155,7 @@ ZWayServerPlatform.prototype = {
                 }
                 if(tk !== vdev.deviceType) gd.types[vdev.deviceType] = gd.devices.length - 1; // also include the deviceType only as a possibility
             }
-            //TODO: Make a second pass, re-splitting any devices that don't make sense together
+            
             for(var gdid in groupedDevices) {
                 if(!groupedDevices.hasOwnProperty(gdid)) continue;
                 
@@ -136,12 +167,17 @@ ZWayServerPlatform.prototype = {
                 }
                 
                 var accessory = null;
-                for(var ti = 0; ti < primaryDeviceClasses.length; ti++){
+                if(gd.primary !== undefined){
+                    var pd = gd.devices[gd.primary];
+                    var name = pd.metrics && pd.metrics.title ? pd.metrics.title : pd.id;
+                    accessory = new ZWayServerAccessory(name, gd, that);
+                }
+                else for(var ti = 0; ti < primaryDeviceClasses.length; ti++){
                     if(gd.types[primaryDeviceClasses[ti]] !== undefined){
                         gd.primary = gd.types[primaryDeviceClasses[ti]];
                         var pd = gd.devices[gd.primary];
                         var name = pd.metrics && pd.metrics.title ? pd.metrics.title : pd.id;
-                        debug("Using primary device with type " + primaryDeviceClasses[ti] + ", " + name + " (" + pd.id + ") as primary.");
+                        //debug("Using primary device with type " + primaryDeviceClasses[ti] + ", " + name + " (" + pd.id + ") as primary.");
                         accessory = new ZWayServerAccessory(name, gd, that);
                         break;
                     }
@@ -153,7 +189,6 @@ ZWayServerPlatform.prototype = {
                     foundAccessories.push(accessory);
                 
             }
-//foundAccessories = foundAccessories.slice(0, 10); // Limit to a few devices for testing...
             callback(foundAccessories);
             
             // Start the polling process...
@@ -302,8 +337,13 @@ ZWayServerAccessory.prototype = {
             case "switchBinary":
                 services.push(new Service.Switch(vdev.metrics.title, vdev.id));
                 break;
+            case "switchRGBW":
             case "switchMultilevel":
-                services.push(new Service.Lightbulb(vdev.metrics.title, vdev.id));
+                if(this.platform.getTagValue(vdev, "Service.Type") === "Switch"){
+                    services.push(new Service.Switch(vdev.metrics.title, vdev.id));
+                } else {
+                    services.push(new Service.Lightbulb(vdev.metrics.title, vdev.id));
+                }
                 break;
             case "sensorBinary.Door/Window":
                 services.push(new Service.GarageDoorOpener(vdev.metrics.title, vdev.id));
@@ -400,6 +440,12 @@ ZWayServerAccessory.prototype = {
             });
             cx.writable = false;
             return cx;
+        }
+        
+        // We don't want to override "Name"'s name...so we just move this below that block.
+        var descOverride = this.platform.getTagValue(vdev, "Characteristic.Description");
+        if(descOverride){
+            cx.displayName = descOverride;
         }
         
         if(cx instanceof Characteristic.On){
@@ -763,22 +809,29 @@ ZWayServerAccessory.prototype = {
     getServices: function() {
         var that = this;
         
+        var vdevPrimary = this.devDesc.devices[this.devDesc.primary];
+        var accId = this.platform.getTagValue(vdevPrimary, "Accessory.Id");
+        if(!accId){
+            accId = "VDev-" + vdevPrimary.h; //FIXME: Is this valid?
+        }
+        
         var informationService = new Service.AccessoryInformation();
     
         informationService
                 .setCharacteristic(Characteristic.Name, this.name)
                 .setCharacteristic(Characteristic.Manufacturer, "Z-Wave.me")
                 .setCharacteristic(Characteristic.Model, "Virtual Device (VDev version 1)")
-                .setCharacteristic(Characteristic.SerialNumber, "VDev-" + this.devDesc.devices[this.devDesc.primary].h) //FIXME: Is this valid?);
+                .setCharacteristic(Characteristic.SerialNumber, accId);
 
         var services = [informationService];
     
-        services = services.concat(this.getVDevServices(this.devDesc.devices[this.devDesc.primary]));
+        services = services.concat(this.getVDevServices(vdevPrimary));
         
         // Any extra switchMultilevels? Could be a RGBW+W bulb, add them as additional services...
         if(this.devDesc.extras["switchMultilevel"]) for(var i = 0; i < this.devDesc.extras["switchMultilevel"].length; i++){
             var xvdev = this.devDesc.devices[this.devDesc.extras["switchMultilevel"][i]];
-            services = services.concat(this.getVDevServices(xvdev));
+            var xservice = this.getVDevServices(xvdev);
+            services = services.concat(xservice);
         }
 
         if(this.platform.splitServices){
