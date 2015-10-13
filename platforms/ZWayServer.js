@@ -131,8 +131,11 @@ ZWayServerPlatform.prototype = {
                     gdid = vdev.id.replace(/^(.*?)_zway_(\d+-\d+)-\d.*/, '$1_$2');
                 }
                 
-                var gd = groupedDevices[gdid] || (groupedDevices[gdid] = {devices: [], types: {}, extras: {}, primary: undefined});
+                var gd = groupedDevices[gdid] || (groupedDevices[gdid] = { devices: [], types: {}, extras: {}, primary: undefined, cxmap: {} });
+                
                 gd.devices.push(vdev);
+                var vdevIndex = gd.devices.length - 1;
+                
                 var tk = ZWayServerPlatform.getVDevTypeKey(vdev);
                 
                 // If this is explicitly set as primary, set it now...
@@ -143,17 +146,24 @@ ZWayServerPlatform.prototype = {
                         gd.extras[tk].push(gd.types[tk]);
                         delete gd.types[tk]; // clear the way for this one to be set here below...
                     }
-                    gd.primary = gd.devices.length - 1;
+                    gd.primary = vdevIndex;
                     //gd.types[tk] = gd.primary;
                 }
                 
                 if(gd.types[tk] === undefined){
-                    gd.types[tk] = gd.devices.length - 1;
+                    gd.types[tk] = vdevIndex;
                 } else {
                     gd.extras[tk] = gd.extras[tk] || [];
-                    gd.extras[tk].push(gd.devices.length - 1);
+                    gd.extras[tk].push(vdevIndex);
                 }
-                if(tk !== vdev.deviceType) gd.types[vdev.deviceType] = gd.devices.length - 1; // also include the deviceType only as a possibility
+                if(tk !== vdev.deviceType) gd.types[vdev.deviceType] = vdevIndex; // also include the deviceType only as a possibility
+                
+                // Create a map entry when Homebridge.Characteristic.Type is set...
+                var ctype = this.getTagValue(vdev, "Characteristic.Type");
+                if(ctype && Characteristic[ctype]){
+                    var cx = new Characteristic[ctype]();
+                    gd.cxmap[cx.UUID] = vdevIndex;
+                }
             }
             
             for(var gdid in groupedDevices) {
@@ -357,6 +367,11 @@ ZWayServerAccessory.prototype = {
             case "sensorMultilevel.Luminiscence":
                 services.push(new Service.LightSensor(vdev.metrics.title, vdev.id));
                 break;
+            case "sensorBinary":
+                var stype = this.platform.getTagValue(vdev, "Service.Type");
+                if(stype === "MotionSensor"){
+                    services.push(new Service.MotionSensor(vdev.metrics.title, vdev.id));
+                }
         }
         
         var validServices =[];
@@ -377,6 +392,12 @@ ZWayServerAccessory.prototype = {
     }
     ,
     getVDevForCharacteristic: function(cx, vdevPreferred){
+        
+        // If we know which vdev should be used for this Characteristic, we're done!
+        if(this.devDesc.cxmap[cx.UUID] !== undefined){ 
+           return this.devDesc.devices[this.devDesc.cxmap[cx.UUID]];
+        }
+
         var map = this.uuidToTypeKeyMap;
         if(!map){
             this.uuidToTypeKeyMap = map = {};
@@ -399,7 +420,7 @@ ZWayServerAccessory.prototype = {
         }
         
         if(cx instanceof Characteristic.Name) return vdevPreferred;
-
+        
         // Special case!: If cx is a CurrentTemperature, ignore the preferred device...we want the sensor if available!
         if(cx instanceof Characteristic.CurrentTemperature) vdevPreferred = null;
         //
@@ -438,7 +459,6 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, accessory.name);
             });
-            cx.writable = false;
             return cx;
         }
         
@@ -525,12 +545,6 @@ ZWayServerAccessory.prototype = {
                 });
             }.bind(this));
             
-            cx.writeable = false;
-            //cx.on('set', function(level, callback){
-            //    this.command(vdev, "exact", {level: "on", "color.r": 255, "color.g": 0, "color.b": 0}).then(function(result){
-            //        callback();
-            //    });
-            //}.bind(this));
             return cx;
         }
 
@@ -560,12 +574,6 @@ ZWayServerAccessory.prototype = {
                 });
             }.bind(this));
             
-            cx.writeable = false;
-            //cx.on('set', function(level, callback){
-            //    this.command(vdev, "exact", {level: "on", "color.r": 255, "color.g": 0, "color.b": 0}).then(function(result){
-            //        callback();
-            //    });
-            //}.bind(this));
             return cx;
         }
 
@@ -581,8 +589,10 @@ ZWayServerAccessory.prototype = {
                     callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
-            cx.minimumValue = vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : -40;
-            cx.maximumValue = vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 999;
+            cx.setProps({
+                minValue: vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : -40,
+                maxValue: vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 999
+            });
             return cx;
         }
 
@@ -604,8 +614,10 @@ ZWayServerAccessory.prototype = {
                     callback();
                 });
             }.bind(this));
-            cx.minimumValue = vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : 5;
-            cx.maximumValue = vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 40;
+            cx.setProps({
+                minValue: vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : 5,
+                maxValue: vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 40
+            });
             return cx;
         }
 
@@ -619,7 +631,9 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TemperatureDisplayUnits.CELSIUS);
             });
-            cx.writable = false;
+            cx.setProps({
+                perms: [Characteristic.Perms.READ]
+            });
             return cx;
         }
         
@@ -647,7 +661,6 @@ ZWayServerAccessory.prototype = {
                 callback(false, Characteristic.TargetHeatingCoolingState.HEAT);
             });
             // Hmm... apparently if this is not setable, we can't add a thermostat change to a scene. So, make it writable but a no-op.
-            cx.writable = true;
             cx.on('set', function(newValue, callback){
                 debug("WARN: Set of TargetHeatingCoolingState not yet implemented, resetting to HEAT!")
                 callback(undefined, Characteristic.TargetHeatingCoolingState.HEAT);
@@ -682,8 +695,9 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TargetDoorState.CLOSED);
             });
-            //cx.readable = false;
-            cx.writable = false;
+            cx.setProps({
+                perms: [Characteristic.Perms.READ]
+            });
         }
         
         if(cx instanceof Characteristic.ObstructionDetected){
@@ -696,8 +710,6 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, false);
             });
-            //cx.readable = false;
-            cx.writable = false;
         }
         
         if(cx instanceof Characteristic.BatteryLevel){
@@ -738,8 +750,6 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.ChargingState.NOT_CHARGING);
             });
-            //cx.readable = false;
-            cx.writable = false;
         }
      
         if(cx instanceof Characteristic.CurrentAmbientLightLevel){
@@ -748,8 +758,8 @@ ZWayServerAccessory.prototype = {
                     // Completely unscientific guess, based on test-fit data and Wikipedia real-world lux values.
                     // This will probably change!
                     var lux = 0.0005 * (vdev.metrics.level^3.6);
-                    if(lux < cx.minimumValue) return cx.minimumValue;
-                    if(lux > cx.maximumValue) return cx.maximumValue;
+                    // Bounds checking now done upstream!
+                    //if(lux < cx.minimumValue) return cx.minimumValue; if(lux > cx.maximumValue) return cx.maximumValue;
                     return lux;
                 } else {
                     return vdev.metrics.level;
@@ -768,6 +778,43 @@ ZWayServerAccessory.prototype = {
             });
             return cx;
         }
+        
+        if(cx instanceof Characteristic.MotionDetected){
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level === "off" ? false : true;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            cx.on('change', function(ev){
+                debug("Device " + vdev.metrics.title + ", characteristic " + cx.displayName + " changed from " + ev.oldValue + " to " + ev.newValue);
+            });
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.StatusTampered){
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level === "off" ? Characteristic.StatusTampered.NOT_TAMPERED : Characteristic.StatusTampered.TAMPERED;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            cx.on('change', function(ev){
+                debug("Device " + vdev.metrics.title + ", characteristic " + cx.displayName + " changed from " + ev.oldValue + " to " + ev.newValue);
+            });
+            return cx;
+        }
+
     }
     ,
     configureService: function(service, vdev){
