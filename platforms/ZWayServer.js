@@ -459,7 +459,6 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, accessory.name);
             });
-            cx.writable = false;
             return cx;
         }
         
@@ -546,12 +545,6 @@ ZWayServerAccessory.prototype = {
                 });
             }.bind(this));
             
-            cx.writeable = false;
-            //cx.on('set', function(level, callback){
-            //    this.command(vdev, "exact", {level: "on", "color.r": 255, "color.g": 0, "color.b": 0}).then(function(result){
-            //        callback();
-            //    });
-            //}.bind(this));
             return cx;
         }
 
@@ -581,12 +574,6 @@ ZWayServerAccessory.prototype = {
                 });
             }.bind(this));
             
-            cx.writeable = false;
-            //cx.on('set', function(level, callback){
-            //    this.command(vdev, "exact", {level: "on", "color.r": 255, "color.g": 0, "color.b": 0}).then(function(result){
-            //        callback();
-            //    });
-            //}.bind(this));
             return cx;
         }
 
@@ -602,8 +589,10 @@ ZWayServerAccessory.prototype = {
                     callback(false, cx.zway_getValueFromVDev(result.data));
                 });
             }.bind(this));
-            cx.minimumValue = vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : -40;
-            cx.maximumValue = vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 999;
+            cx.setProps({
+                minValue: vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : -40,
+                maxValue: vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 999
+            });
             return cx;
         }
 
@@ -625,8 +614,10 @@ ZWayServerAccessory.prototype = {
                     callback();
                 });
             }.bind(this));
-            cx.minimumValue = vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : 5;
-            cx.maximumValue = vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 40;
+            cx.setProps({
+                minValue: vdev.metrics && vdev.metrics.min !== undefined ? vdev.metrics.min : 5,
+                maxValue: vdev.metrics && vdev.metrics.max !== undefined ? vdev.metrics.max : 40
+            });
             return cx;
         }
 
@@ -640,7 +631,9 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TemperatureDisplayUnits.CELSIUS);
             });
-            cx.writable = false;
+            cx.setProps({
+                perms: [Characteristic.Perms.READ]
+            });
             return cx;
         }
         
@@ -668,7 +661,6 @@ ZWayServerAccessory.prototype = {
                 callback(false, Characteristic.TargetHeatingCoolingState.HEAT);
             });
             // Hmm... apparently if this is not setable, we can't add a thermostat change to a scene. So, make it writable but a no-op.
-            cx.writable = true;
             cx.on('set', function(newValue, callback){
                 debug("WARN: Set of TargetHeatingCoolingState not yet implemented, resetting to HEAT!")
                 callback(undefined, Characteristic.TargetHeatingCoolingState.HEAT);
@@ -703,8 +695,9 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.TargetDoorState.CLOSED);
             });
-            //cx.readable = false;
-            cx.writable = false;
+            cx.setProps({
+                perms: [Characteristic.Perms.READ]
+            });
         }
         
         if(cx instanceof Characteristic.ObstructionDetected){
@@ -717,8 +710,6 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, false);
             });
-            //cx.readable = false;
-            cx.writable = false;
         }
         
         if(cx instanceof Characteristic.BatteryLevel){
@@ -759,8 +750,6 @@ ZWayServerAccessory.prototype = {
                 debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
                 callback(false, Characteristic.ChargingState.NOT_CHARGING);
             });
-            //cx.readable = false;
-            cx.writable = false;
         }
      
         if(cx instanceof Characteristic.CurrentAmbientLightLevel){
@@ -769,8 +758,8 @@ ZWayServerAccessory.prototype = {
                     // Completely unscientific guess, based on test-fit data and Wikipedia real-world lux values.
                     // This will probably change!
                     var lux = 0.0005 * (vdev.metrics.level^3.6);
-                    if(lux < cx.minimumValue) return cx.minimumValue;
-                    if(lux > cx.maximumValue) return cx.maximumValue;
+                    // Bounds checking now done upstream!
+                    //if(lux < cx.minimumValue) return cx.minimumValue; if(lux > cx.maximumValue) return cx.maximumValue;
                     return lux;
                 } else {
                     return vdev.metrics.level;
