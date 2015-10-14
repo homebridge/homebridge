@@ -17,6 +17,13 @@
 // - Added Battery support
 // - Added low battery support for all sensors
 // - Added HomeSeer event support (using HomeKit switches...)
+// V0.7 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/13
+// - You can add multiple HomeKit devices for the same HomeSeer device reference
+// - Added CarbonMonoxide sensor
+// - Added CarbonDioxide sensor
+// - Added onValues option to all binary sensors
+// V0.8 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/14
+// - Added uuid_base parameter to all accessories
 //
 //
 // Remember to add platform to config.json. 
@@ -35,7 +42,8 @@
 //            {
 //               "eventGroup":"My Group",       // Required - The HomeSeer event group
 //               "eventName":"My Event",        // Required - The HomeSeer event name
-//               "name":"Test"                  // Optional - HomeSeer event name is the default
+//               "name":"Test",                 // Optional - HomeSeer event name is the default
+//               "uuid_base":"SomeUniqueId"     // Optional - HomeKit identifier will be derived from this parameter instead of the name
 //            }
 //         ],
 //
@@ -46,7 +54,8 @@
 //              "name":"My Light",              // Optional - HomeSeer device name is the default
 //              "offValue":"0",                 // Optional - 0 is the default
 //              "onValue":"100",                // Optional - 100 is the default
-//              "can_dim":true                  // Optional - true is the default - false for a non dimmable lightbulb
+//              "can_dim":true,                 // Optional - true is the default - false for a non dimmable lightbulb
+//              "uuid_base":"SomeUniqueId2"     // Optional - HomeKit identifier will be derived from this parameter instead of the name
 //            },
 //            {
 //              "ref":9                         // This is a dimmable Lightbulb by default
@@ -64,6 +73,22 @@
 //              "batteryThreshold":15           // Optional - If sensor battery level is below this value, the HomeKit LowBattery characteristic is set to 1. Default is 10
 //            },
 //            {
+//              "ref":34,                       // Required - HomeSeer Device Reference for your sensor
+//              "type":"SmokeSensor",           // Required for a smoke sensor
+//              "name":"Kichen smoke detector", // Optional - HomeSeer device name is the default
+//              "batteryRef":35,                // Optional - HomeSeer device reference for the sensor battery level
+//              "batteryThreshold":15,          // Optional - If sensor battery level is below this value, the HomeKit LowBattery characteristic is set to 1. Default is 10
+//              "onValues":[1,1.255]            // Optional - List of all HomeSeer values triggering a "ON" sensor state - Default is any value different than 0
+//            },
+//            {
+//              "ref":34,                       // Required - HomeSeer Device Reference for your sensor (Here it's the same device as the SmokeSensor above)
+//              "type":"CarbonMonoxideSensor",  // Required for a carbon monoxide sensor
+//              "name":"Kichen CO detector",    // Optional - HomeSeer device name is the default
+//              "batteryRef":35,                // Optional - HomeSeer device reference for the sensor battery level
+//              "batteryThreshold":15,          // Optional - If sensor battery level is below this value, the HomeKit LowBattery characteristic is set to 1. Default is 10
+//              "onValues":[2,2.255]            // Optional - List of all HomeSeer values triggering a "ON" sensor state - Default is any value different than 0
+//            },
+//            {
 //              "ref":113,                      // Required - HomeSeer Device Reference of the Current Temperature Device
 //              "type":"Thermostat",            // Required for a Thermostat
 //              "name":"Température Salon",     // Optional - HomeSeer device name is the default
@@ -76,10 +101,10 @@
 //              "stateCoolValues":[2],          // Required - List of the HomeSeer device values for a HomeKit state=COOL
 //              "stateAutoValues":[3],          // Required - List of the HomeSeer device values for a HomeKit state=AUTO
 //              "controlRef":168,               // Required - HomeSeer device reference for your thermostat mode control (It can be the same as stateRef for some thermostats)
-//              "controlOffValue":0,            // Required - Value for OFF
-//              "controlHeatValue":1,           // Required - Value for HEAT
-//              "controlCoolValue":2,           // Required - Value for COOL
-//              "controlAutoValue":3,           // Required - Value for AUTO
+//              "controlOffValue":0,            // Required - HomeSeer device control value for OFF
+//              "controlHeatValue":1,           // Required - HomeSeer device control value for HEAT
+//              "controlCoolValue":2,           // Required - HomeSeer device control value for COOL
+//              "controlAutoValue":3,           // Required - HomeSeer device control value for AUTO
 //              "coolingThresholdRef":169,      // Optional - Not-implemented-yet - HomeSeer device reference for your thermostat cooling threshold
 //              "heatingThresholdRef":170       // Optional - Not-implemented-yet - HomeSeer device reference for your thermostat heating threshold               
 //            },
@@ -95,20 +120,22 @@
 //
 //
 // SUPORTED TYPES:
-// - Lightbulb         (can_dim, onValue, offValue options)
-// - Fan               (onValue, offValue options)
-// - Switch            (onValue, offValue options)
-// - Outlet            (onValue, offValue options)
-// - Thermostat        (temperatureUnit, setPoint, state, control options)
-// - TemperatureSensor (temperatureUnit=C|F)
-// - ContactSensor     (0=no contact, 1=contact - batteryRef, batteryThreshold option)
-// - MotionSensor      (0=no motion, 1=motion  - batteryRef, batteryThreshold option)
-// - LeakSensor        (0=no leak, 1=leak  - batteryRef, batteryThreshold option)
-// - LightSensor       (HomeSeer device value in Lux  - batteryRef, batteryThreshold option)
-// - HumiditySensor    (HomeSeer device value in %  - batteryRef, batteryThreshold option)
-// - OccupancySensor   (0=no occupancy, 1=occupancy  - batteryRef, batteryThreshold option)
-// - SmokeSensor       (0=no smoke, 1=smoke  - batteryRef, batteryThreshold option)
-// - Battery           (batteryThreshold option)
+// - Lightbulb              (can_dim, onValue, offValue options)
+// - Fan                    (onValue, offValue options)
+// - Switch                 (onValue, offValue options)
+// - Outlet                 (onValue, offValue options)
+// - Thermostat             (temperatureUnit, setPoint, state, control options)
+// - TemperatureSensor      (temperatureUnit=C|F)
+// - HumiditySensor         (HomeSeer device value in %  - batteryRef, batteryThreshold options)
+// - LightSensor            (HomeSeer device value in Lux  - batteryRef, batteryThreshold options)
+// - ContactSensor          (onValues, batteryRef, batteryThreshold options)
+// - MotionSensor           (onValues, batteryRef, batteryThreshold options)
+// - LeakSensor             (onValues, batteryRef, batteryThreshold options)
+// - OccupancySensor        (onValues, batteryRef, batteryThreshold options)
+// - SmokeSensor            (onValues, batteryRef, batteryThreshold options)
+// - CarbonMonoxideSensor   (onValues, batteryRef, batteryThreshold options)
+// - CarbonDioxideSensor    (onValues, batteryRef, batteryThreshold options)
+// - Battery                (batteryThreshold option)
 // - Door
 
 
@@ -163,9 +190,14 @@ HomeSeerPlatform.prototype = {
             else {
                 this.log('HomeSeer status function succeeded!');
                 var response = JSON.parse( body );
-                for( var i=0; i<response.Devices.length; i++ ) {
-                    var accessory = new HomeSeerAccessory( that.log, that.config, response.Devices[i] );
-                    foundAccessories.push( accessory );
+                for( var i=0; i<this.config.accessories.length; i++ ) {
+                    for( var j=0; j<response.Devices.length; j++ ) {
+                        if( this.config.accessories[i].ref == response.Devices[j].ref ) {
+                            var accessory = new HomeSeerAccessory( that.log, that.config, this.config.accessories[i], response.Devices[j] );
+                            foundAccessories.push( accessory );
+                            break;
+                        }
+                    }
                 }
                 callback( foundAccessories );
             }
@@ -173,28 +205,24 @@ HomeSeerPlatform.prototype = {
     }
 }
 
-function HomeSeerAccessory(log, platformConfig, status ) {
+function HomeSeerAccessory(log, platformConfig, accessoryConfig, status ) {
     this.log = log;
+    this.config = accessoryConfig;
     this.ref = status.ref;
     this.name = status.name
     this.model = status.device_type_string;
-    this.onValue = "100";
-    this.offValue = "0";
+    this.onValue = 100;
+    this.offValue = 0;
 
     this.access_url = platformConfig["host"] + "/JSON?";
     this.control_url = this.access_url + "request=controldevicebyvalue&ref=" + this.ref + "&value=";
     this.status_url = this.access_url + "request=getstatus&ref=" + this.ref;
 
-    for( var i=0; i<platformConfig.accessories.length; i++ ) {
-        if( platformConfig.accessories[i].ref == this.ref )
-        {
-            this.config = platformConfig.accessories[i];
-            break;
-        }
-    }
-
     if( this.config.name )
         this.name = this.config.name;
+
+    if( this.config.uuid_base )
+        this.uuid_base = this.config.uuid_base;
 
     if( this.config.onValue )
         this.onValue = this.config.onValue;
@@ -250,6 +278,35 @@ HomeSeerAccessory.prototype = {
                     callback( null, 0 );
                 else
                     callback( null, 1 );
+            }
+        }.bind(this));
+    },
+
+    getBinarySensorState: function(callback) {
+        var url = this.status_url;
+
+        httpRequest(url, 'GET', function(error, response, body) {
+            if (error) {
+                this.log('HomeSeer get binary sensor state function failed: %s', error.message);
+                callback( error, 0 );
+            }
+            else {
+                var status = JSON.parse( body );
+                var value = status.Devices[0].value;
+	
+                this.log('HomeSeer get binary sensor state function succeeded: value=' + value );
+                if( this.config.onValues ) {
+                    if( this.config.onValues.indexOf(value) != -1 )
+                        callback( null, 1 );
+                    else
+                        callback( null, 0 );                    
+                }
+                else {
+                    if( value != 0 )
+                        callback( null, 1 );
+                    else
+                        callback( null, 0 );
+                }        
             }
         }.bind(this));
     },
@@ -534,11 +591,37 @@ HomeSeerAccessory.prototype = {
             services.push( temperatureSensorService );
             break;
             }
+        case "CarbonMonoxideSensor": {
+            var carbonMonoxideSensorService = new Service.CarbonMonoxideSensor();
+            carbonMonoxideSensorService
+                .getCharacteristic(Characteristic.CarbonMonoxideDetected)
+                .on('get', this.getBinarySensorState.bind(this));
+            if( this.config.batteryRef ) {
+                carbonMonoxideSensorService
+                    .addCharacteristic(new Characteristic.StatusLowBattery())
+                    .on('get', this.getLowBatteryStatus.bind(this));
+            }
+            services.push( carbonMonoxideSensorService );
+            break;
+            }
+        case "CarbonDioxideSensor": {
+            var carbonDioxideSensorService = new Service.CarbonDioxideSensor();
+            carbonDioxideSensorService
+                .getCharacteristic(Characteristic.CarbonDioxideDetected)
+                .on('get', this.getBinarySensorState.bind(this));
+            if( this.config.batteryRef ) {
+                carbonDioxideSensorService
+                    .addCharacteristic(new Characteristic.StatusLowBattery())
+                    .on('get', this.getLowBatteryStatus.bind(this));
+            }
+            services.push( carbonDioxideSensorService );
+            break;
+            }
         case "ContactSensor": {
             var contactSensorService = new Service.ContactSensor();
             contactSensorService
                 .getCharacteristic(Characteristic.ContactSensorState)
-                .on('get', this.getPowerState.bind(this));
+                .on('get', this.getBinarySensorState.bind(this));
             if( this.config.batteryRef ) {
                 contactSensorService
                     .addCharacteristic(new Characteristic.StatusLowBattery())
@@ -551,7 +634,7 @@ HomeSeerAccessory.prototype = {
             var motionSensorService = new Service.MotionSensor();
             motionSensorService
                 .getCharacteristic(Characteristic.MotionDetected)
-                .on('get', this.getPowerState.bind(this));
+                .on('get', this.getBinarySensorState.bind(this));
             if( this.config.batteryRef ) {
                 motionSensorService
                     .addCharacteristic(new Characteristic.StatusLowBattery())
@@ -564,13 +647,39 @@ HomeSeerAccessory.prototype = {
             var leakSensorService = new Service.LeakSensor();
             leakSensorService
                 .getCharacteristic(Characteristic.LeakDetected)
-                .on('get', this.getPowerState.bind(this));
+                .on('get', this.getBinarySensorState.bind(this));
             if( this.config.batteryRef ) {
                 leakSensorService
                     .addCharacteristic(new Characteristic.StatusLowBattery())
                     .on('get', this.getLowBatteryStatus.bind(this));
             }
             services.push( leakSensorService );
+            break;
+            }
+        case "OccupancySensor": {
+            var occupancySensorService = new Service.OccupancySensor();
+            occupancySensorService
+                .getCharacteristic(Characteristic.OccupancyDetected)
+                .on('get', this.getBinarySensorState.bind(this));
+            if( this.config.batteryRef ) {
+                occupancySensorService
+                    .addCharacteristic(new Characteristic.StatusLowBattery())
+                    .on('get', this.getLowBatteryStatus.bind(this));
+            }
+            services.push( occupancySensorService );
+            break;
+            }
+        case "SmokeSensor": {
+            var smokeSensorService = new Service.SmokeSensor();
+            smokeSensorService
+                .getCharacteristic(Characteristic.SmokeDetected)
+                .on('get', this.getBinarySensorState.bind(this));
+            if( this.config.batteryRef ) {
+                temperatureSensorService
+                    .addCharacteristic(new Characteristic.StatusLowBattery())
+                    .on('get', this.getLowBatteryStatus.bind(this));
+            }
+            services.push( smokeSensorService );
             break;
             }
         case "LightSensor": {
@@ -597,32 +706,6 @@ HomeSeerAccessory.prototype = {
                     .on('get', this.getLowBatteryStatus.bind(this));
             }
             services.push( humiditySensorService );
-            break;
-            }
-        case "OccupancySensor": {
-            var occupancySensorService = new Service.OccupancySensor();
-            occupancySensorService
-                .getCharacteristic(Characteristic.OccupancyDetected)
-                .on('get', this.getPowerState.bind(this));
-            if( this.config.batteryRef ) {
-                occupancySensorService
-                    .addCharacteristic(new Characteristic.StatusLowBattery())
-                    .on('get', this.getLowBatteryStatus.bind(this));
-            }
-            services.push( occupancySensorService );
-            break;
-            }
-        case "SmokeSensor": {
-            var smokeSensorService = new Service.SmokeSensor();
-            smokeSensorService
-                .getCharacteristic(Characteristic.SmokeDetected)
-                .on('get', this.getPowerState.bind(this));
-            if( this.config.batteryRef ) {
-                temperatureSensorService
-                    .addCharacteristic(new Characteristic.StatusLowBattery())
-                    .on('get', this.getLowBatteryStatus.bind(this));
-            }
-            services.push( smokeSensorService );
             break;
             }
         case "Door": {
@@ -708,6 +791,9 @@ function HomeSeerEvent(log, platformConfig, eventConfig ) {
 
     if( this.config.name )
         this.name = this.config.name;
+
+    if( this.config.uuid_base )
+        this.uuid_base = this.config.uuid_base;
 }
 
 HomeSeerEvent.prototype = {
