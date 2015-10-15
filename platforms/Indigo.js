@@ -1,3 +1,24 @@
+// Indigo Platform Shim for HomeBridge
+// Written by Mike Riccio (https://github.com/webdeck)
+// Based on many of the other HomeBridge plartform modules
+// See http://www.indigodomo.com/ for more info on Indigo
+//
+// Remember to add platform to config.json. Example:
+// "platforms": [
+//     {
+//         "platform": "Indigo",            // required
+//         "name": "Indigo",                // required
+//         "host": "127.0.0.1", 			// required
+//         "port": "8176", 					// required
+//		   "username": "username",			// optional
+//		   "password": "password" 			// optional
+//     }
+// ],
+//
+// When you attempt to add a device, it will ask for a "PIN code".
+// The default code for all HomeBridge accessories is 031-45-154.
+//
+
 var types = require("HAP-NodeJS/accessories/types.js");
 var Characteristic = require("HAP-NodeJS").Characteristic;
 var request = require('request');
