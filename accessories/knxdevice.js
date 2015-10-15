@@ -17,6 +17,8 @@ New 2015-09-19:
 New 2015-10-02:
 - Check for valid group addresses
 - new "R" flag allowed for Boolean addresses: 1/2/3R is the boolean not(1/2/3), i.e. 0 and 1 switched on read and write
+New 2015-10-07:
+- Accept uuid_base parameter from config.json to use as unique identifier in UUIDs instead of name (optional)
  * 
  */
 var Service = require("HAP-NodeJS").Service;
@@ -37,6 +39,9 @@ function KNXDevice(log, config) {
 	log("Accessory constructor called");
 	if (config.name) {
 		this.name = config.name;
+	}
+	if (config.uuid_base) {
+		this.uuid_base = config.uuid_base;
 	}
 	if (config.knxd_ip){
 		this.knxd_ip = config.knxd_ip;
