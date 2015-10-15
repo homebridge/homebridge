@@ -154,6 +154,24 @@
             "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
         },
         {
+            "accessory": "HomeMaticWindow",
+            "name": "Contact",
+            "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
+            "ccu_id": "The XMP-API id of your HomeMatic device (type HM-Sec-RHS)",
+            "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
+        },
+        {
+            "accessory": "HomeMaticThermo",
+            "name": "Contact",
+            "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
+            "ccu_id_TargetTemp": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+			"ccu_id_CurrentTemp": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+			"ccu_id_ControlMode": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+			"ccu_id_ManuMode": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+			"ccu_id_AutoMode": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+            "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
+        },
+        {
             "accessory": "X10",
             "name": "Lamp",
             "ip_address": "localhost:3000",
