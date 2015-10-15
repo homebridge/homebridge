@@ -8,10 +8,10 @@
 //     {
 //         "platform": "Indigo",            // required
 //         "name": "Indigo",                // required
-//         "host": "127.0.0.1", 			// required
-//         "port": "8176", 					// required
-//		   "username": "username",			// optional
-//		   "password": "password" 			// optional
+//         "host": "127.0.0.1",             // required
+//         "port": "8176",                  // required
+//         "username": "username",          // optional
+//         "password": "password"           // optional
 //     }
 // ],
 //
@@ -28,19 +28,19 @@ var async = require('async');
 function IndigoPlatform(log, config) {
     this.log = log;
 
-	this.baseURL = "http://" + config["host"] + ":" + config["port"];
+    this.baseURL = "http://" + config["host"] + ":" + config["port"];
 
-	if (config["username"] && config["password"]) {
-		this.auth = {
-			'user': config["username"],
-			'pass': config["password"],
-			'sendImmediately': false
-		};
-	}
+    if (config["username"] && config["password"]) {
+        this.auth = {
+            'user': config["username"],
+            'pass': config["password"],
+            'sendImmediately': false
+        };
+    }
 }
 
 IndigoPlatform.prototype = {
-    accessories: function(callback) {	
+    accessories: function(callback) {   
         var that = this;
         this.log("Discovering Indigo Devices.");
 
@@ -48,11 +48,11 @@ IndigoPlatform.prototype = {
             url: this.baseURL + "/devices.json/",
             method: 'GET'
         };
-		if (this.auth) {
-			options['auth'] = this.auth;
-		}
+        if (this.auth) {
+            options['auth'] = this.auth;
+        }
         this.foundAccessories = [];
-		this.callback = callback;
+        this.callback = callback;
 
         request(options, function(error, response, body) {
             if (error) {
@@ -61,73 +61,73 @@ IndigoPlatform.prototype = {
                 return error;
             }
 
-			// Cheesy hack because response may have an extra comma at the start of the array, which is invalid
-			var firstComma = body.indexOf(",");
-			if (firstComma < 10) {
-				body = "[" + body.substr(firstComma + 1);
-			}
+            // Cheesy hack because response may have an extra comma at the start of the array, which is invalid
+            var firstComma = body.indexOf(",");
+            if (firstComma < 10) {
+                body = "[" + body.substr(firstComma + 1);
+            }
 
-			var json = JSON.parse(body);
-			async.each(json, function(item, asyncCallback) {
-				var deviceURL = that.baseURL + item.restURL;
-				var deviceOptions = {
-				  url: deviceURL,
-				  method: 'GET'
-				};
-				if (that.auth) {
-					deviceOptions['auth'] = that.auth;
-				}
+            var json = JSON.parse(body);
+            async.each(json, function(item, asyncCallback) {
+                var deviceURL = that.baseURL + item.restURL;
+                var deviceOptions = {
+                  url: deviceURL,
+                  method: 'GET'
+                };
+                if (that.auth) {
+                    deviceOptions['auth'] = that.auth;
+                }
 
-				request(deviceOptions, function(deviceError, deviceResponse, deviceBody) {
-					if (deviceError) {
-						asyncCallback(deviceError);
-					}
+                request(deviceOptions, function(deviceError, deviceResponse, deviceBody) {
+                    if (deviceError) {
+                        asyncCallback(deviceError);
+                    }
 
-					var deviceJson = JSON.parse(deviceBody);
-					that.log("Discovered " + deviceJson.type + ": " + deviceJson.name);
-					that.foundAccessories.push(
-					   new IndigoAccessory(that.log, that.auth, deviceURL, deviceJson));
-					asyncCallback();
-				});
-			}, function(asyncError) {
-				// This will be called after all the requests complete
-				if (asyncError) {
-					console.trace("Requesting Indigo device info.");
-					that.log(asyncError);
-				} else {
-					that.callback(that.foundAccessories.sort(function (a,b) {
-						return (a.name > b.name) - (a.name < b.name);
-					}));
-				}
-			});
-		});
-	}
+                    var deviceJson = JSON.parse(deviceBody);
+                    that.log("Discovered " + deviceJson.type + ": " + deviceJson.name);
+                    that.foundAccessories.push(
+                       new IndigoAccessory(that.log, that.auth, deviceURL, deviceJson));
+                    asyncCallback();
+                });
+            }, function(asyncError) {
+                // This will be called after all the requests complete
+                if (asyncError) {
+                    console.trace("Requesting Indigo device info.");
+                    that.log(asyncError);
+                } else {
+                    that.callback(that.foundAccessories.sort(function (a,b) {
+                        return (a.name > b.name) - (a.name < b.name);
+                    }));
+                }
+            });
+        });
+    }
 }
 
 
 function IndigoAccessory(log, auth, deviceURL, json) {
     this.log = log;
-	this.auth = auth;
+    this.auth = auth;
     this.deviceURL = deviceURL;
 
-	for (var prop in json) {
-		if (json.hasOwnProperty(prop)) {
-			this[prop] = json[prop];
-		}
-	}
+    for (var prop in json) {
+        if (json.hasOwnProperty(prop)) {
+            this[prop] = json[prop];
+        }
+    }
 }
 
 IndigoAccessory.prototype = {
     getStatus: function(callback) {
-		var that = this;
+        var that = this;
 
         var options = {
-		    url: this.deviceURL,
+            url: this.deviceURL,
             method: 'GET'
         };
-		if (this.auth) {
-			options['auth'] = this.auth;
-		}
+        if (this.auth) {
+            options['auth'] = this.auth;
+        }
 
         request(options, function(error, response, body) {
             if (error) {
@@ -136,22 +136,22 @@ IndigoAccessory.prototype = {
                 return error;
             }
 
-			that.log("getStatus of " + that.name + ": " + body);
-			callback(JSON.parse(body));
+            that.log("getStatus of " + that.name + ": " + body);
+            callback(JSON.parse(body));
         });
     },
 
     updateStatus: function(params) {
-		var that = this;
+        var that = this;
         var options = {
-		    url: this.deviceURL + "?" + params,
+            url: this.deviceURL + "?" + params,
             method: 'PUT'
         };
-		if (this.auth) {
-			options['auth'] = this.auth;
-		}
+        if (this.auth) {
+            options['auth'] = this.auth;
+        }
 
-		this.log("updateStatus of " + that.name + ": " + params);
+        this.log("updateStatus of " + that.name + ": " + params);
         request(options, function(error, response, body) {
             if (error) {
                 console.trace("Updating Device Status.");
@@ -162,101 +162,101 @@ IndigoAccessory.prototype = {
     },
 
     query: function(prop, callback) {
-		this.getStatus(function(json) {
-			callback(json[prop]);
-		});
+        this.getStatus(function(json) {
+            callback(json[prop]);
+        });
     },
 
-	turnOn: function() {
-		if (this.typeSupportsOnOff) {
-			this.updateStatus("isOn=1");
-		}
-	},
-	
-	turnOff: function() {
-		if (this.typeSupportsOnOff) {
-			this.updateStatus("isOn=0");
-		}
-	},
+    turnOn: function() {
+        if (this.typeSupportsOnOff) {
+            this.updateStatus("isOn=1");
+        }
+    },
+    
+    turnOff: function() {
+        if (this.typeSupportsOnOff) {
+            this.updateStatus("isOn=0");
+        }
+    },
 
-	setBrightness: function(brightness) {
-		if (this.typeSupportsDim && brightness >= 0 && brightness <= 100) {
-			this.updateStatus("brightness=" + brightness);
-		}
-	},
-	
-	setSpeedIndex: function(speedIndex) {
-		if (this.typeSupportsSpeedControl && speedIndex >= 0 && speedIndex <= 3) {
-			this.updateStatus("speedIndex=" + speedIndex);
-		}
-	},
-	
+    setBrightness: function(brightness) {
+        if (this.typeSupportsDim && brightness >= 0 && brightness <= 100) {
+            this.updateStatus("brightness=" + brightness);
+        }
+    },
+    
+    setSpeedIndex: function(speedIndex) {
+        if (this.typeSupportsSpeedControl && speedIndex >= 0 && speedIndex <= 3) {
+            this.updateStatus("speedIndex=" + speedIndex);
+        }
+    },
+    
     getCurrentHeatingCooling: function(callback) {
-		this.getStatus(function(json) {
-			var mode = 0;
-			if (json["hvacOperatonModeIsHeat"]) {
-				mode = 1;
-			}
-			else if (json["hvacOperationModeIsCool"]) {
-				mode = 2;
-			}
-			else if (json["hvacOperationModeIsAuto"]) {
-				mode = 3;
-			}
-			callback(mode);
-		});
+        this.getStatus(function(json) {
+            var mode = 0;
+            if (json["hvacOperatonModeIsHeat"]) {
+                mode = 1;
+            }
+            else if (json["hvacOperationModeIsCool"]) {
+                mode = 2;
+            }
+            else if (json["hvacOperationModeIsAuto"]) {
+                mode = 3;
+            }
+            callback(mode);
+        });
     },
 
     setTargetHeatingCooling: function(mode) {
-		if (mode == 0) {
-			param = "Off";
-		}
-		else if (mode == 1) {
-			param = "Heat";
-		}
-		else if (mode == 2) {
-			param = "Cool";
-		}
-		else if (mode == 3) {
-			param = "Auto";
-		}
+        if (mode == 0) {
+            param = "Off";
+        }
+        else if (mode == 1) {
+            param = "Heat";
+        }
+        else if (mode == 2) {
+            param = "Cool";
+        }
+        else if (mode == 3) {
+            param = "Auto";
+        }
 
-		if (param) {
-			this.updateStatus("hvacOperationModeIs" + param + "=true");
-		}
+        if (param) {
+            this.updateStatus("hvacOperationModeIs" + param + "=true");
+        }
     },
 
     getTargetTemperature: function(callback) {
-		this.getStatus(function(json) {
-			var result;
-			if (json["hvacOperatonModeIsHeat"]) {
-				result = json["setpointHeat"];
-			}
-			else if (json["hvacOperationModeIsCool"]) {
-				result = json["setpointCool"];
-			}
-			else {
-				result = (json["setpointHeat"] + json["setpointCool"]) / 2;
-			}
-			callback(result);
-		});
+        this.getStatus(function(json) {
+            var result;
+            if (json["hvacOperatonModeIsHeat"]) {
+                result = json["setpointHeat"];
+            }
+            else if (json["hvacOperationModeIsCool"]) {
+                result = json["setpointCool"];
+            }
+            else {
+                result = (json["setpointHeat"] + json["setpointCool"]) / 2;
+            }
+            callback(result);
+        });
     },
 
     setTargetTemperature: function(temperature) {
-		var that = this;
-		this.getStatus(function(json) {
-			if (json["hvacOperatonModeIsHeat"]) {
-				that.updateStatus("setpointHeat=" + temperature);
-			}
-			else if (json["hvacOperationModeIsCool"]) {
-				that.updateStatus("setpointCool=" + temperature);
-			}
-			else {
-				var cool = temperature + 5;
-				var heat = temperature - 5;
-				that.updateStatus("setpointCool=" + cool + "&setpointHeat=" + heat);
-			}
-		});
+        var that = this;
+        this.getStatus(function(json) {
+            if (json["hvacOperatonModeIsHeat"]) {
+                that.updateStatus("setpointHeat=" + temperature);
+            }
+            else if (json["hvacOperationModeIsCool"]) {
+                that.updateStatus("setpointCool=" + temperature);
+            }
+            else {
+                var cool = temperature + 5;
+                var heat = temperature - 5;
+                that.updateStatus("setpointCool=" + cool + "&setpointHeat=" + heat);
+            }
+        });
     },
 
     informationCharacteristics: function() {
@@ -316,7 +316,7 @@ IndigoAccessory.prototype = {
   },
 
   controlCharacteristics: function(that) {
-	var cTypes = [{
+    var cTypes = [{
         cType: types.NAME_CTYPE,
         onUpdate: null,
         perms: [Characteristic.Perms.READ],
@@ -326,15 +326,15 @@ IndigoAccessory.prototype = {
         supportBonjour: false,
         manfDescription: "Name of the accessory",
         designedMaxLength: 255
-	}];
+    }];
 
 /*    if (that.typeSupportsOnOff)
-	  { */
+      { */
         cTypes.push({
             cType: types.POWER_STATE_CTYPE,
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.BOOL,
-			initialValue: (that.isOn) ? 1 : 0,
+            initialValue: (that.isOn) ? 1 : 0,
             supportEvents: true,
             supportBonjour: false,
             manfDescription: "Change the power state",
@@ -347,14 +347,14 @@ IndigoAccessory.prototype = {
                 }
             },
             onRead: function(callback) {
-				that.query("isOn", function(isOn) {
-					callback((isOn) ? 1 : 0);
-				});
+                that.query("isOn", function(isOn) {
+                    callback((isOn) ? 1 : 0);
+                });
             }
         });
-//	}
-	if (that.typeSupportsDim)
-	{
+//  }
+    if (that.typeSupportsDim)
+    {
         cTypes.push({
             cType: types.BRIGHTNESS_CTYPE,
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
@@ -368,10 +368,10 @@ IndigoAccessory.prototype = {
             designedMinStep: 1,
             unit: Characteristic.Units.PERCENTAGE,
             onUpdate: function(value) {
-				that.setBrightness(value);
+                that.setBrightness(value);
             },
             onRead: function(callback) {
-				that.query("brightness", callback);
+                that.query("brightness", callback);
             }
         });
     }
@@ -386,11 +386,11 @@ IndigoAccessory.prototype = {
             supportBonjour: false,
             manfDescription: "Change the speed of the fan",
             designedMaxLength: 1,
-			designedMinValue: 0,
-			designedMaxValue: 3,
-			designedMinStep: 1,    
+            designedMinValue: 0,
+            designedMaxValue: 3,
+            designedMinStep: 1,    
             onUpdate: function(value) {
-				that.setSpeedIndex(value);
+                that.setSpeedIndex(value);
             },
             onRead: function(callback) {
                 that.query("speedIndex", callback);
@@ -400,44 +400,44 @@ IndigoAccessory.prototype = {
     if (that.typeSupportsHVAC)
     {
         cTypes.push({
-			cType: types.CURRENTHEATINGCOOLING_CTYPE,
-			perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
-			format: Characteristic.Formats.INT,
-			initialValue: 0,
-			supportEvents: true,
-			supportBonjour: false,
-			manfDescription: "Current Mode",
-			designedMaxLength: 1,
-			designedMinValue: 0,
-			designedMaxValue: 3,
-			designedMinStep: 1,    
-			onUpdate: null,
-			onRead: function(callback) {
-				that.getCurrentHeatingCooling(callback);
-			}
+            cType: types.CURRENTHEATINGCOOLING_CTYPE,
+            perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
+            format: Characteristic.Formats.INT,
+            initialValue: 0,
+            supportEvents: true,
+            supportBonjour: false,
+            manfDescription: "Current Mode",
+            designedMaxLength: 1,
+            designedMinValue: 0,
+            designedMaxValue: 3,
+            designedMinStep: 1,    
+            onUpdate: null,
+            onRead: function(callback) {
+                that.getCurrentHeatingCooling(callback);
+            }
         });
         cTypes.push({
-			cType: types.TARGETHEATINGCOOLING_CTYPE,
-			perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
-			format: Characteristic.Formats.INT,
-			initialValue: 0,
-			supportEvents: true,
-			supportBonjour: false,
-			manfDescription: "Target Mode",
-			designedMaxLength: 1,
-			designedMinValue: 0,
-			designedMaxValue: 3,
-			designedMinStep: 1,    
-			onUpdate: function(value) {
-				that.setTargetHeatingCooling(value);
-			},
-			onRead: function(callback) {
-				that.getCurrentHeatingCooling(callback);
-			}
+            cType: types.TARGETHEATINGCOOLING_CTYPE,
+            perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
+            format: Characteristic.Formats.INT,
+            initialValue: 0,
+            supportEvents: true,
+            supportBonjour: false,
+            manfDescription: "Target Mode",
+            designedMaxLength: 1,
+            designedMinValue: 0,
+            designedMaxValue: 3,
+            designedMinStep: 1,    
+            onUpdate: function(value) {
+                that.setTargetHeatingCooling(value);
+            },
+            onRead: function(callback) {
+                that.getCurrentHeatingCooling(callback);
+            }
         });
         cTypes.push({
-			cType: types.CURRENT_TEMPERATURE_CTYPE,
-			perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
+            cType: types.CURRENT_TEMPERATURE_CTYPE,
+            perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
             designedMinValue: 0,
             designedMaxValue: 110,
@@ -446,11 +446,11 @@ IndigoAccessory.prototype = {
             supportEvents: true,
             supportBonjour: false,
             manfDescription: "Current Temperature",
-			unit: Characteristic.Units.FAHRENHEIT,
-			onUpdate: null,
+            unit: Characteristic.Units.FAHRENHEIT,
+            onUpdate: null,
             onRead: function(callback) {
                 that.query("displayRawState", callback);
-			}
+            }
         });
         cTypes.push({
             cType: types.TARGET_TEMPERATURE_CTYPE, 
@@ -463,12 +463,12 @@ IndigoAccessory.prototype = {
             supportEvents: true,
             supportBonjour: false,
             manfDescription: "Target Temperature",
-			unit: Characteristic.Units.FAHRENHEIT,
-			onUpdate: function(value) {
+            unit: Characteristic.Units.FAHRENHEIT,
+            onUpdate: function(value) {
                 that.setTargetTemperature(value);
             },
             onRead: function(callback) {
-				that.getTargetTemperature(callback);
+                that.getTargetTemperature(callback);
             }
         });
         cTypes.push({
@@ -479,9 +479,9 @@ IndigoAccessory.prototype = {
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "Unit",
-			onUpdate: null,
+            onUpdate: null,
             onRead: function(callback) {
-				callback(Characteristic.Units.FAHRENHEIT);
+                callback(Characteristic.Units.FAHRENHEIT);
             }
         });
     }
@@ -490,13 +490,13 @@ IndigoAccessory.prototype = {
   },
 
   sType: function() {
-	if (this.typeSupportsHVAC) {
-		return types.THERMOSTAT_STYPE;
-	} else if (this.typeSupportsDim) {
+    if (this.typeSupportsHVAC) {
+        return types.THERMOSTAT_STYPE;
+    } else if (this.typeSupportsDim) {
         return types.LIGHTBULB_STYPE;
     } else if (this.typeSupportsSpeedControl) {
         return types.FAN_STYPE;
-	} else if (this.typeSupportsOnOff) {
+    } else if (this.typeSupportsOnOff) {
         return types.SWITCH_STYPE;
     }
 
@@ -504,7 +504,7 @@ IndigoAccessory.prototype = {
   },
 
   getServices: function() {
-	var that = this;
+    var that = this;
     var services = [{
       sType: types.ACCESSORY_INFORMATION_STYPE,
       characteristics: that.informationCharacteristics(),
