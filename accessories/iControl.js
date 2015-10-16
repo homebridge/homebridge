@@ -1,6 +1,6 @@
 var iControl = require('node-icontrol').iControl;
-var Service = require('HAP-NodeJS').Service;
-var Characteristic = require('HAP-NodeJS').Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 
 module.exports = {
   accessory: iControlAccessory
