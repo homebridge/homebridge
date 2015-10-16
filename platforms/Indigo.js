@@ -80,14 +80,16 @@ IndigoPlatform.prototype = {
 
                 request(deviceOptions, function(deviceError, deviceResponse, deviceBody) {
                     if (deviceError) {
-                        asyncCallback(deviceError);
+                        console.trace("Requesting Indigo device info: " + deviceURL + "\nError: " + deviceError + "\nResponse: " + deviceBody);
+                        asyncCallback(deviceError)
                     }
-
-                    var deviceJson = JSON.parse(deviceBody);
-                    that.log("Discovered " + deviceJson.type + ": " + deviceJson.name);
-                    that.foundAccessories.push(
-                       new IndigoAccessory(that.log, that.auth, deviceURL, deviceJson));
-                    asyncCallback();
+                    else {
+                        var deviceJson = JSON.parse(deviceBody);
+                        that.log("Discovered " + deviceJson.type + ": " + deviceJson.name);
+                        that.foundAccessories.push(
+                            new IndigoAccessory(that.log, that.auth, deviceURL, deviceJson));
+                        asyncCallback();
+                    }
                 });
             }, function(asyncError) {
                 // This will be called after all the requests complete
