@@ -1,29 +1,34 @@
 'use strict';
 
 //
-// HomeSeer Platform Shim for HomeBridge
-// V0.1 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/07
+// HomeSeer Platform Shim for HomeBridge by Jean-Michel Joudrier - (stipus at stipus dot com)
+// V0.1 - 2015/10/07
 // - Initial version
-// V0.2 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/10
+// V0.2 - 2015/10/10
 // - Occupancy sensor fix
-// V0.3 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/11
+// V0.3 - 2015/10/11
 // - Added TemperatureUnit=F|C option to temperature sensors
 // - Added negative temperature support to temperature sensors
-// V0.4 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/12
+// V0.4 - 2015/10/12
 // - Added thermostat support
-// V0.5 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/12
+// V0.5 - 2015/10/12
 // - Added Humidity sensor support
-// V0.6 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/12
+// V0.6 - 2015/10/12
 // - Added Battery support
 // - Added low battery support for all sensors
 // - Added HomeSeer event support (using HomeKit switches...)
-// V0.7 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/13
+// V0.7 - 2015/10/13
 // - You can add multiple HomeKit devices for the same HomeSeer device reference
 // - Added CarbonMonoxide sensor
 // - Added CarbonDioxide sensor
 // - Added onValues option to all binary sensors
-// V0.8 - Jean-Michel Joudrier (stipus at stipus dot com) - 2015/10/14
+// V0.8 - 2015/10/14
 // - Added uuid_base parameter to all accessories
+// V0.9 - 2015/10/16
+// - Smoke sensor battery fix
+// - Added offEventGroup && offEventName to events (turn <event> on launches one HS event. turn <event> off can launch another HS event)
+// - Added GarageDoorOpener support
+// - Added Lock support
 //
 //
 // Remember to add platform to config.json. 
@@ -41,7 +46,9 @@
 //         "events":[                           // Optional - List of Events - Currently they are imported into HomeKit as switches
 //            {
 //               "eventGroup":"My Group",       // Required - The HomeSeer event group
-//               "eventName":"My Event",        // Required - The HomeSeer event name
+//               "eventName":"My On Event",     // Required - The HomeSeer event name
+//               "offEventGroup":"My Group",    // Optional - The HomeSeer event group for turn-off <event>
+//               "offEventName":"My Off Event", // Optional - The HomeSeer event name for turn-off <event>
 //               "name":"Test",                 // Optional - HomeSeer event name is the default
 //               "uuid_base":"SomeUniqueId"     // Optional - HomeKit identifier will be derived from this parameter instead of the name
 //            }
@@ -55,7 +62,7 @@
 //              "offValue":"0",                 // Optional - 0 is the default
 //              "onValue":"100",                // Optional - 100 is the default
 //              "can_dim":true,                 // Optional - true is the default - false for a non dimmable lightbulb
-//              "uuid_base":"SomeUniqueId2"     // Optional - HomeKit identifier will be derived from this parameter instead of the name
+//              "uuid_base":"SomeUniqueId2"     // Optional - HomeKit identifier will be derived from this parameter instead of the name. You SHOULD add this parameter to all accessories !
 //            },
 //            {
 //              "ref":9                         // This is a dimmable Lightbulb by default
@@ -109,6 +116,38 @@
 //              "heatingThresholdRef":170       // Optional - Not-implemented-yet - HomeSeer device reference for your thermostat heating threshold               
 //            },
 //            {
+//              "ref":200,                      // Required - HomeSeer Device Reference of a garage door opener
+//              "type":"GarageDoorOpener",      // Required for a Garage Door Opener
+//              "name":"Garage Door",           // Optional - HomeSeer device name is the default
+//              "stateRef":201,                 // Required - HomeSeer device reference for your garage door opener current state (can be the same as ref)
+//              "stateOpenValues":[0],          // Required - List of the HomeSeer device values for a HomeKit state=OPEN
+//              "stateClosedValues":[1],        // Required - List of the HomeSeer device values for a HomeKit state=CLOSED
+//              "stateOpeningValues":[2],       // Optional - List of the HomeSeer device values for a HomeKit state=OPENING
+//              "stateClosingValues":[3],       // Optional - List of the HomeSeer device values for a HomeKit state=CLOSING
+//              "stateStoppedValues":[4],       // Optional - List of the HomeSeer device values for a HomeKit state=STOPPED
+//              "controlRef":201,               // Required - HomeSeer device reference for your garage door opener control (can be the same as ref and stateRef)
+//              "controlOpenValue":0,           // Required - HomeSeer device control value for OPEN
+//              "controlCloseValue":1,          // Required - HomeSeer device control value for CLOSE
+//              "obstructionRef":201,           // Optional - HomeSeer device reference for your garage door opener obstruction state (can be the same as ref)
+//              "obstructionValues":[5],        // Optional - List of the HomeSeer device values for a HomeKit obstruction state=OBSTRUCTION
+//              "lockRef":202,                  // Optional - HomeSeer device reference for your garage door lock (can be the same as ref)
+//              "lockUnsecuredValues":[0],      // Optional - List of the HomeSeer device values for a HomeKit lock state=UNSECURED
+//              "lockSecuredValues":[1],        // Optional - List of the HomeSeer device values for a HomeKit lock state=SECURED
+//              "lockJammedValues":[2],         // Optional - List of the HomeSeer device values for a HomeKit lock state=JAMMED
+//              "unlockValue":0,                // Optional - HomeSeer device control value to unlock the garage door opener
+//              "lockValue":1                   // Optional - HomeSeer device control value to lock the garage door opener
+//            },
+//            {
+//              "ref":210,                      // Required - HomeSeer Device Reference of a Lock
+//              "type":"Lock",                  // Required for a Lock
+//              "name":"Main Door Lock",        // Optional - HomeSeer device name is the default
+//              "lockUnsecuredValues":[0],      // Required - List of the HomeSeer device values for a HomeKit lock state=UNSECURED
+//              "lockSecuredValues":[1],        // Required - List of the HomeSeer device values for a HomeKit lock state=SECURED
+//              "lockJammedValues":[2],         // Optional - List of the HomeSeer device values for a HomeKit lock state=JAMMED
+//              "unlockValue":0,                // Required - HomeSeer device control value to unlock
+//              "lockValue":1                   // Required - HomeSeer device control value to lock
+//            },
+//            {
 //              "ref":115,                      // Required - HomeSeer Device Reference for a device holding battery level (0-100)
 //              "type":"Battery",               // Required for a Battery
 //              "name":"Roomba battery",        // Optional - HomeSeer device name is the default
@@ -136,6 +175,8 @@
 // - CarbonMonoxideSensor   (onValues, batteryRef, batteryThreshold options)
 // - CarbonDioxideSensor    (onValues, batteryRef, batteryThreshold options)
 // - Battery                (batteryThreshold option)
+// - GarageDoorOpener       (state, control, obstruction, lock options)
+// - Lock                   (unsecured, secured, jammed options)
 // - Door
 
 
@@ -520,6 +561,143 @@ HomeSeerAccessory.prototype = {
         }.bind(this));
     },
 
+    getCurrentDoorState: function(callback) {
+        var ref = this.config.stateRef;
+        var url = this.access_url + "request=getstatus&ref=" + ref;
+
+        httpRequest(url, 'GET', function(error, response, body) {
+            if (error) {
+                this.log('HomeSeer get current door state function failed: %s', error.message);
+                callback( error, 0 );
+            }
+            else {
+                var status = JSON.parse( body );
+                var value = status.Devices[0].value;
+	
+                this.log('HomeSeer get target door state function succeeded: value=' + value );
+                if( this.config.stateOpenValues.indexOf(value) != -1 )
+                    callback( null, 0 );
+                else if( this.config.stateClosedValues.indexOf(value) != -1 )
+                    callback( null, 1 );
+                else if( this.config.stateOpeningValues && this.config.stateOpeningValues.indexOf(value) != -1 )
+                    callback( null, 2 );
+                else if( this.config.stateClosingValues && this.config.stateClosingValues.indexOf(value) != -1 )
+                    callback( null, 3 );
+                else if( this.config.stateStoppedValues && this.config.stateStoppedValues.indexOf(value) != -1 )
+                    callback( null, 4 );
+                else {
+                    this.log( "Error: value for current door state not in stateO0penValues, stateClosedValues, stateOpeningValues, stateClosingValues, stateStoppedValues" );
+                    callback( null, 0 );                
+                }
+            }
+        }.bind(this));
+    },
+
+    setTargetDoorState: function(state, callback) {
+        this.log("Setting target door state state to %s", state);
+
+        var ref = this.config.controlRef;
+        var value = 0;
+        if( state == 0 )
+            value = this.config.controlOpenValue;
+        else if( state == 1 )
+            value = this.config.controlCloseValue;
+
+        var url = this.access_url + "request=controldevicebyvalue&ref=" + ref + "&value=" + value;
+        httpRequest(url, 'GET', function(error, response, body) {
+            if (error) {
+                this.log('HomeSeer set target door state function failed: %s', error.message);
+                callback(error);
+            }
+            else {
+                this.log('HomeSeer set target door state function succeeded!');
+                callback();
+            }
+        }.bind(this));
+    },
+
+    getObstructionDetected: function(callback) {
+        if( this.config.obstructionRef ) {
+            var ref = this.config.obstructionRef;
+            var url = this.access_url + "request=getstatus&ref=" + ref;
+
+            httpRequest(url, 'GET', function(error, response, body) {
+                if (error) {
+                    this.log('HomeSeer get obstruction detected function failed: %s', error.message);
+                    callback( error, 0 );
+                }
+                else {
+                    var status = JSON.parse( body );
+                    var value = status.Devices[0].value;
+	
+                    this.log('HomeSeer get obstruction detected function succeeded: value=' + value );
+                    if( this.config.obstructionValues && this.config.obstructionValues.indexOf(value) != -1 )
+                        callback( null, 1 );
+                    else {
+                        callback( null, 0 );                
+                    }
+                }
+            }.bind(this));
+        }
+        else {       
+            callback( null, 0 );                
+        }
+    },
+
+    getLockCurrentState: function(callback) {
+        var ref = this.config.lockRef;
+        var url = this.access_url + "request=getstatus&ref=" + ref;
+
+        httpRequest(url, 'GET', function(error, response, body) {
+            if (error) {
+                this.log('HomeSeer get lock current state function failed: %s', error.message);
+                callback( error, 3 );
+            }
+            else {
+                var status = JSON.parse( body );
+                var value = status.Devices[0].value;
+	
+                this.log('HomeSeer get lock current state function succeeded: value=' + value );
+                if( this.config.lockUnsecuredValues && this.config.lockUnsecuredValues.indexOf(value) != -1 )
+                    callback( null, 0 );
+                else if( this.config.lockSecuredValues && this.config.lockSecuredValues.indexOf(value) != -1 )
+                    callback( null, 1 );
+                else if( this.config.lockJammedValues && this.config.lockJammedValues.indexOf(value) != -1 )
+                    callback( null, 2 );
+                else {
+                    callback( null, 3 );                
+                }
+            }
+        }.bind(this));
+    },
+
+    setLockTargetState: function(state, callback) {
+        this.log("Setting target lock state state to %s", state);
+
+        var ref = this.config.lockRef;
+        var value = 0;
+        if( state == 0 && this.config.unlockValue )
+            value = this.config.unlockValue;
+        else if( state == 1 && this.config.lockValue )
+            value = this.config.lockValue;
+
+        var url = this.access_url + "request=controldevicebyvalue&ref=" + ref + "&value=" + value;
+        httpRequest(url, 'GET', function(error, response, body) {
+            if (error) {
+                this.log('HomeSeer set target lock state function failed: %s', error.message);
+                callback(error);
+            }
+            else {
+                this.log('HomeSeer set target lock state function succeeded!');
+                callback();
+            }
+        }.bind(this));
+    },
+
+    getPositionState: function(callback) {
+        callback( null, 2 );  // Temporarily return STOPPED. TODO: full door support
+    },
+
     getServices: function() {
         var services = []
 
@@ -675,7 +853,7 @@ HomeSeerAccessory.prototype = {
                 .getCharacteristic(Characteristic.SmokeDetected)
                 .on('get', this.getBinarySensorState.bind(this));
             if( this.config.batteryRef ) {
-                temperatureSensorService
+                smokeSensorService
                     .addCharacteristic(new Characteristic.StatusLowBattery())
                     .on('get', this.getLowBatteryStatus.bind(this));
             }
@@ -716,6 +894,9 @@ HomeSeerAccessory.prototype = {
             doorService
                 .getCharacteristic(Characteristic.TargetPosition)
                 .on('set', this.setValue.bind(this));
+            doorService
+                .getCharacteristic(Characteristic.PositionState)
+                .on('get', this.getPositionState.bind(this));
             services.push( doorService );
             break;
             }
@@ -759,6 +940,41 @@ HomeSeerAccessory.prototype = {
             services.push( thermostatService );
             break;
             }
+        case "GarageDoorOpener": {
+            var garageDoorOpenerService = new Service.GarageDoorOpener();
+            garageDoorOpenerService
+                .getCharacteristic(Characteristic.CurrentDoorState)
+                .on('get', this.getCurrentDoorState.bind(this));
+            garageDoorOpenerService
+                .getCharacteristic(Characteristic.TargetDoorState)
+                .on('set', this.setTargetDoorState.bind(this));
+            garageDoorOpenerService
+                .getCharacteristic(Characteristic.ObstructionDetected)
+                .on('get', this.getObstructionDetected.bind(this));
+            if( this.config.lockRef ) {
+                garageDoorOpenerService
+                    .addCharacteristic(new Characteristic.LockCurrentState())
+                    .on('get', this.getLockCurrentState.bind(this));
+                garageDoorOpenerService
+                    .addCharacteristic(new Characteristic.LockTargetState())
+                    .on('set', this.setLockTargetState.bind(this));
+            }
+            services.push( garageDoorOpenerService );
+            break;
+            }
+        case "Lock": {
+            this.config.lockRef = this.ref;
+            var lockService = new Service.LockMechanism();
+            lockService
+                .getCharacteristic(Characteristic.LockCurrentState)
+                .on('get', this.getLockCurrentState.bind(this));
+            lockService
+                .getCharacteristic(Characteristic.LockTargetState)
+                .on('set', this.setLockTargetState.bind(this));
+            services.push( lockService );
+            break;
+            }
+
         default:{
             var lightbulbService = new Service.Lightbulb();
             lightbulbService
@@ -787,7 +1003,11 @@ function HomeSeerEvent(log, platformConfig, eventConfig ) {
     this.model = "HomeSeer Event";
 
     this.access_url = platformConfig["host"] + "/JSON?";
-    this.launch_url = this.access_url + "request=runevent&group=" + encodeURIComponent(this.config.eventGroup) + "&name=" + encodeURIComponent(this.config.eventName);
+    this.on_url = this.access_url + "request=runevent&group=" + encodeURIComponent(this.config.eventGroup) + "&name=" + encodeURIComponent(this.config.eventName);
+
+    if( this.config.offEventGroup && this.config.offEventName ) {
+        this.off_url = this.access_url + "request=runevent&group=" + encodeURIComponent(this.config.offEventGroup) + "&name=" + encodeURIComponent(this.config.offEventName);
+    }
 
     if( this.config.name )
         this.name = this.config.name;
@@ -805,7 +1025,12 @@ HomeSeerEvent.prototype = {
     launchEvent: function(value, callback) {
         this.log("Setting event value to %s", value);
 
-        httpRequest(this.launch_url, 'GET', function(error, response, body) {
+        var url = this.on_url;
+        if( value == 0 && this.off_url ) {
+            url = this.off_url;
+        }
+
+        httpRequest(url, 'GET', function(error, response, body) {
             if (error) {
                 this.log('HomeSeer run event function failed: %s', error.message);
                 callback(error);
