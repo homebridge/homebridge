@@ -21,8 +21,8 @@ New 2015-10-07:
 - Accept uuid_base parameter from config.json to use as unique identifier in UUIDs instead of name (optional)
  * 
  */
-var Service = require("HAP-NodeJS").Service;
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 var knxd = require("eibd");
 var knxd_registerGA = require('../platforms/KNX.js').registerGA;
 var knxd_startMonitor = require('../platforms/KNX.js').startMonitor;

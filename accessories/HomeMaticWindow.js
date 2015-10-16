@@ -1,5 +1,5 @@
 var types = require("HAP-NodeJS/accessories/types.js");
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var Characteristic = require("hap-nodejs").Characteristic;
 var request = require("request");
 
 function HomeMaticWindow(log, config) {
