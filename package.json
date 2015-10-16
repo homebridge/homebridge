@@ -24,7 +24,7 @@
     "lifx": "git+https://github.com/magicmonkey/lifxjs.git",
     "mdns": "^2.2.4",
     "node-hue-api": "^1.0.5",
-    "node-icontrol": "^0.1.4",
+    "node-icontrol": "^0.1.5",
     "node-milight-promise": "0.0.x",
     "node-persist": "0.0.x",
     "q": "1.4.x",
