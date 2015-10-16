@@ -226,34 +226,42 @@ IndigoAccessory.prototype = {
         }
     },
 
+    // Note: HomeKit wants all temperature values to be in celsius
+    getCurrentTemperature: function(callback) {
+        this.query("displayRawState", function(temperature) {
+            callback((temperature - 32.0) * 5.0 / 9.0);
+        });
+    },
+
     getTargetTemperature: function(callback) {
         this.getStatus(function(json) {
-            var result;
+            var temperature;
             if (json["hvacOperatonModeIsHeat"]) {
-                result = json["setpointHeat"];
+                temperature = json["setpointHeat"];
             }
             else if (json["hvacOperationModeIsCool"]) {
-                result = json["setpointCool"];
+                temperature = json["setpointCool"];
             }
             else {
-                result = (json["setpointHeat"] + json["setpointCool"]) / 2;
+                temperature = (json["setpointHeat"] + json["setpointCool"]) / 2.0;
             }
-            callback(result);
+            callback((temperature - 32.0) * 5.0 / 9.0);
         });
     },
 
     setTargetTemperature: function(temperature) {
         var that = this;
+        var t = (temperature * 9.0 / 5.0) + 32.0;
         this.getStatus(function(json) {
             if (json["hvacOperatonModeIsHeat"]) {
-                that.updateStatus("setpointHeat=" + temperature);
+                that.updateStatus("setpointHeat=" + t);
             }
             else if (json["hvacOperationModeIsCool"]) {
-                that.updateStatus("setpointCool=" + temperature);
+                that.updateStatus("setpointCool=" + t);
             }
             else {
-                var cool = temperature + 5;
-                var heat = temperature - 5;
+                var cool = t + 5;
+                var heat = t - 5;
                 that.updateStatus("setpointCool=" + cool + "&setpointHeat=" + heat);
             }
         });
@@ -328,39 +336,36 @@ IndigoAccessory.prototype = {
         designedMaxLength: 255
     }];
 
-/*    if (that.typeSupportsOnOff)
-      { */
-        cTypes.push({
-            cType: types.POWER_STATE_CTYPE,
-            perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
-            format: Characteristic.Formats.BOOL,
-            initialValue: (that.isOn) ? 1 : 0,
-            supportEvents: true,
-            supportBonjour: false,
-            manfDescription: "Change the power state",
-            designedMaxLength: 1,
-            onUpdate: function(value) {
-                if (value == 0) {
-                    that.turnOff();
-                } else {
-                    that.turnOn();
-                }
-            },
-            onRead: function(callback) {
-                that.query("isOn", function(isOn) {
-                    callback((isOn) ? 1 : 0);
-                });
+    cTypes.push({
+        cType: types.POWER_STATE_CTYPE,
+        perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
+        format: Characteristic.Formats.BOOL,
+        initialValue: (that.isOn) ? 1 : 0,
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Change the power state",
+        designedMaxLength: 1,
+        onUpdate: function(value) {
+            if (value == 0) {
+                that.turnOff();
+            } else {
+                that.turnOn();
             }
-        });
-//  }
-    if (that.typeSupportsDim)
-    {
+        },
+        onRead: function(callback) {
+            that.query("isOn", function(isOn) {
+                callback((isOn) ? 1 : 0);
+            });
+        }
+    });
+
+    if (that.typeSupportsDim) {
         cTypes.push({
             cType: types.BRIGHTNESS_CTYPE,
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
             initialValue:  that.brightness,
-            supportEvents: true,
+            supportEvents: false,
             supportBonjour: false,
             manfDescription: "Adjust Brightness of Light",
             designedMinValue: 0,
@@ -375,14 +380,14 @@ IndigoAccessory.prototype = {
             }
         });
     }
-    if (that.typeSupportsSpeedControl)
-    {
+
+    if (that.typeSupportsSpeedControl) {
         cTypes.push({
             cType: types.ROTATION_SPEED_CTYPE,
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
             initialValue: 0,
-            supportEvents: true,
+            supportEvents: false,
             supportBonjour: false,
             manfDescription: "Change the speed of the fan",
             designedMaxLength: 1,
@@ -397,14 +402,14 @@ IndigoAccessory.prototype = {
             }
         });
     }
-    if (that.typeSupportsHVAC)
-    {
+
+    if (that.typeSupportsHVAC) {
         cTypes.push({
             cType: types.CURRENTHEATINGCOOLING_CTYPE,
             perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
             initialValue: 0,
-            supportEvents: true,
+            supportEvents: false,
             supportBonjour: false,
             manfDescription: "Current Mode",
             designedMaxLength: 1,
@@ -416,12 +421,13 @@ IndigoAccessory.prototype = {
                 that.getCurrentHeatingCooling(callback);
             }
         });
+
         cTypes.push({
             cType: types.TARGETHEATINGCOOLING_CTYPE,
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
             initialValue: 0,
-            supportEvents: true,
+            supportEvents: false,
             supportBonjour: false,
             manfDescription: "Target Mode",
             designedMaxLength: 1,
@@ -435,6 +441,7 @@ IndigoAccessory.prototype = {
                 that.getCurrentHeatingCooling(callback);
             }
         });
+
         cTypes.push({
             cType: types.CURRENT_TEMPERATURE_CTYPE,
             perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
@@ -443,15 +450,16 @@ IndigoAccessory.prototype = {
             designedMaxValue: 110,
             designedMinStep: 1,
             initialValue: 0,
-            supportEvents: true,
+            supportEvents: false,
             supportBonjour: false,
             manfDescription: "Current Temperature",
             unit: Characteristic.Units.FAHRENHEIT,
             onUpdate: null,
             onRead: function(callback) {
-                that.query("displayRawState", callback);
+                that.getCurrentTemperature(callback);
             }
         });
+
         cTypes.push({
             cType: types.TARGET_TEMPERATURE_CTYPE, 
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
@@ -460,7 +468,7 @@ IndigoAccessory.prototype = {
             designedMaxValue: 110,
             designedMinStep: 1,
             initialValue: 0,
-            supportEvents: true,
+            supportEvents: false,
             supportBonjour: false,
             manfDescription: "Target Temperature",
             unit: Characteristic.Units.FAHRENHEIT,
@@ -471,6 +479,7 @@ IndigoAccessory.prototype = {
                 that.getTargetTemperature(callback);
             }
         });
+
         cTypes.push({
             cType: types.TEMPERATURE_UNITS_CTYPE, 
             perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
