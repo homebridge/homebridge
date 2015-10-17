@@ -430,10 +430,10 @@ IndigoAccessory.prototype = {
             cType: types.CURRENT_TEMPERATURE_CTYPE,
             perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
-            designedMinValue: 0,
-            designedMaxValue: 110,
+            designedMinValue: 16,
+            designedMaxValue: 38,
             designedMinStep: 1,
-            initialValue: 0,
+            initialValue: 20,
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "Current Temperature",
@@ -448,10 +448,10 @@ IndigoAccessory.prototype = {
             cType: types.TARGET_TEMPERATURE_CTYPE, 
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
-            designedMinValue: 0,
-            designedMaxValue: 110,
+            designedMinValue: 16,
+            designedMaxValue: 38,
             designedMinStep: 1,
-            initialValue: 0,
+            initialValue: 20,
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "Target Temperature",
@@ -468,13 +468,13 @@ IndigoAccessory.prototype = {
             cType: types.TEMPERATURE_UNITS_CTYPE, 
             perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
-            initialValue: Characteristic.Units.FAHRENHEIT,
+            initialValue: 1,
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "Unit",
             onUpdate: null,
             onRead: function(callback) {
-                callback(Characteristic.Units.FAHRENHEIT);
+                callback(1);
             }
         });
     }
