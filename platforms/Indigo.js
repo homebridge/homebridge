@@ -19,8 +19,8 @@
 // The default code for all HomeBridge accessories is 031-45-154.
 //
 
-var types = require("HAP-NodeJS/accessories/types.js");
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var types = require("hap-nodejs/accessories/types.js");
+var Characteristic = require("hap-nodejs").Characteristic;
 var request = require('request');
 var async = require('async');
 
@@ -96,11 +96,11 @@ IndigoPlatform.prototype = {
                 if (asyncError) {
                     console.trace("Requesting Indigo device info.");
                     that.log(asyncError);
-                } else {
-                    that.callback(that.foundAccessories.sort(function (a,b) {
-                        return (a.name > b.name) - (a.name < b.name);
-                    }));
                 }
+
+                that.callback(that.foundAccessories.sort(function (a,b) {
+                    return (a.name > b.name) - (a.name < b.name);
+                }));
             });
         });
     }
@@ -326,6 +326,8 @@ IndigoAccessory.prototype = {
   },
 
   controlCharacteristics: function(that) {
+    var hasAType = false;
+
     var cTypes = [{
         cType: types.NAME_CTYPE,
         onUpdate: null,
@@ -338,30 +340,8 @@ IndigoAccessory.prototype = {
         designedMaxLength: 255
     }];
 
-    cTypes.push({
-        cType: types.POWER_STATE_CTYPE,
-        perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
-        format: Characteristic.Formats.BOOL,
-        initialValue: (that.isOn) ? 1 : 0,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Change the power state",
-        designedMaxLength: 1,
-        onUpdate: function(value) {
-            if (value == 0) {
-                that.turnOff();
-            } else {
-                that.turnOn();
-            }
-        },
-        onRead: function(callback) {
-            that.query("isOn", function(isOn) {
-                callback((isOn) ? 1 : 0);
-            });
-        }
-    });
-
     if (that.typeSupportsDim) {
+        hasAType = true;
         cTypes.push({
             cType: types.BRIGHTNESS_CTYPE,
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
@@ -384,6 +364,7 @@ IndigoAccessory.prototype = {
     }
 
     if (that.typeSupportsSpeedControl) {
+        hasAType = true;
         cTypes.push({
             cType: types.ROTATION_SPEED_CTYPE,
             perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
@@ -406,6 +387,7 @@ IndigoAccessory.prototype = {
     }
 
     if (that.typeSupportsHVAC) {
+        hasAType = true;
         cTypes.push({
             cType: types.CURRENTHEATINGCOOLING_CTYPE,
             perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
@@ -486,13 +468,38 @@ IndigoAccessory.prototype = {
             cType: types.TEMPERATURE_UNITS_CTYPE, 
             perms: [Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
             format: Characteristic.Formats.INT,
-            initialValue: 1,
+            initialValue: Characteristic.Units.FAHRENHEIT,
             supportEvents: false,
             supportBonjour: false,
             manfDescription: "Unit",
             onUpdate: null,
             onRead: function(callback) {
                 callback(Characteristic.Units.FAHRENHEIT);
+            }
+        });
+    }
+
+    if (that.typeSupportsOnOff || !hasAType) {
+        cTypes.push({
+            cType: types.POWER_STATE_CTYPE,
+            perms: [Characteristic.Perms.WRITE,Characteristic.Perms.READ,Characteristic.Perms.NOTIFY],
+            format: Characteristic.Formats.BOOL,
+            initialValue: (that.isOn) ? 1 : 0,
+            supportEvents: false,
+            supportBonjour: false,
+            manfDescription: "Change the power state",
+            designedMaxLength: 1,
+            onUpdate: function(value) {
+                if (value == 0) {
+                    that.turnOff();
+                } else {
+                    that.turnOn();
+                }
+            },
+            onRead: function(callback) {
+                that.query("isOn", function(isOn) {
+                    callback((isOn) ? 1 : 0);
+                });
             }
         });
     }
