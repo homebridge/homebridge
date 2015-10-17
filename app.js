@@ -8,7 +8,7 @@ var Accessory = require("hap-nodejs").Accessory;
 var Service = require("hap-nodejs").Service;
 var Characteristic = require("hap-nodejs").Characteristic;
 var accessoryLoader = require("hap-nodejs").AccessoryLoader;
-var once = require('HAP-NodeJS/lib/util/once').once;
+var once = require("hap-nodejs").once;
 
 console.log("Starting HomeBridge server...");
 
