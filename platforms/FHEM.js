@@ -60,7 +60,7 @@ FHEM_update(inform_id, value, no_update) {
     var date = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
     console.log("  " + date + " caching: " + inform_id + ": " + value + " as " + typeof(value) );
 
-    if( !no_update )
+    if( !no_update && subscription.characteristic )
       subscription.characteristic.setValue(value, undefined, 'fromFHEM');
   }
 }
@@ -564,7 +564,7 @@ console.log( result );
                          } else if( s.Attributes.model == 'HM-SEC-WIN' ) {
                            accessory = new FHEMAccessory(this.log, this.connection, s);
 
-                         } else if( s.Attributes.model == 'HM-SEC-KEY' ) {
+                         } else if( s.Attributes.model && s.Attributes.model.match(/^HM-SEC-KEY/) ) {
                            accessory = new FHEMAccessory(this.log, this.connection, s);
 
                          } else if( s.Internals.TYPE == 'PRESENCE'
@@ -718,6 +718,9 @@ FHEMAccessory(log, connection, s) {
   if( genericType == 'switch' )
     s.isSwitch = true;
 
+  else if( genericType == 'outlet' )
+    s.isOutlet = true;
+
   else if( genericType == 'garage' )
     this.mappings.garage = { cmdOpen: 'on', cmdClose: 'off' };
 
@@ -737,8 +740,8 @@ FHEMAccessory(log, connection, s) {
     this.mappings.window = { reading: 'level', cmd: 'level' };
 
   else if( genericType == 'lock'
-           || s.Attributes.model == 'HM-SEC-KEY' )
-    this.mappings.lock = { reading: 'lock' };
+           || ( s.Attributes.model && s.Attributes.model.match(/^HM-SEC-KEY/ ) ) )
+    this.mappings.lock = { reading: 'lock', cmdLock: 'lock', cmdUnlock: 'unlock' };
 
   else if( genericType == 'thermostat'
              || s.Attributes.subType == 'thermostat' )
@@ -855,6 +858,8 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' is dimable [0-'+ s.pctMax +']' );
   else if( s.isLight )
     log( s.Internals.NAME + ' is light' );
+  else if( s.isOutlet )
+    log( s.Internals.NAME + ' is outlet' );
   else if( this.mappings.onOff || s.isSwitch )
     log( s.Internals.NAME + ' is switchable' );
   else if( !this.mappings )
@@ -930,6 +935,7 @@ FHEMAccessory(log, connection, s) {
 
   this.isLight           = s.isLight;
   this.isSwitch          = s.isSwitch;
+  this.isOutlet          = s.isOutlet;
 
 //log( util.inspect(s.Readings) );
 
@@ -1104,6 +1110,10 @@ FHEMAccessory.prototype = {
         value = Characteristic.OccupancyDetected.OCCUPANCY_DETECTED;
       else if( value == 'absent' )
         value = Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED;
+      else if( value == 'locked' )
+        value = Characteristic.LockCurrentState.SECURED;
+      else if( value == 'unlocked' )
+        value = Characteristic.LockCurrentState.UNSECURED;
       else if( value == '000000' )
         value = 0;
       else if( value.match( /^[A-D]0$/ ) ) //FIXME: not necessary any more. handled by event_map now.
@@ -1293,7 +1303,7 @@ FHEMAccessory.prototype = {
       query_reading = 'state';
 
     } else if( reading == 'lock' && this.mappings.lock ) {
-      query_reading = 'state';
+      //query_reading = 'state';
 
     }
 
@@ -1374,16 +1384,24 @@ FHEMAccessory.prototype = {
   },
 
   createDeviceService: function(subtype) {
-    var name = this.alias + ' (' + this.name + ')';
+    //var name = this.alias + ' (' + this.name + ')';
+    var name = this.alias;
     if( subtype )
-      name = subtype + ' (' + this.name + ')';
+      //name = subtype + ' (' + this.name + ')';
+      name = subtype + ' (' + this.alias + ')';
 
     if( this.isSwitch ) {
       this.log("  switch service for " + this.name)
       return new Service.Switch(name);
+    } else if( this.isOutlet ) {
+      this.log("  outlet service for " + this.name)
+      return new Service.Outlet(name);
     } else if( this.mappings.garage ) {
       this.log("  garage door opener service for " + this.name)
       return new Service.GarageDoorOpener(name);
+    } else if( this.mappings.lock ) {
+      this.log("  lock mechanism service for " + this.name)
+      return new Service.LockMechanism(name);
     } else if( this.mappings.window ) {
       this.log("  window service for " + this.name)
       return new Service.Window(name);
@@ -1476,7 +1494,7 @@ FHEMAccessory.prototype = {
           var controlService = this.createDeviceService(activity);
           services.push( controlService );
 
-          this.log("      power characteristic for " + this.name + ' ' + activity);
+          this.log("      on characteristic for " + this.name + ' ' + activity);
 
           var characteristic = controlService.getCharacteristic(Characteristic.On);
 
@@ -1528,7 +1546,7 @@ FHEMAccessory.prototype = {
     services.push( controlService );
 
     if( this.mappings.onOff ) {
-      this.log("    power characteristic for " + this.name)
+      this.log("    on characteristic for " + this.name)
 
       var characteristic = controlService.getCharacteristic(Characteristic.On);
 
@@ -1815,6 +1833,37 @@ FHEMAccessory.prototype = {
         .on('get', function(callback) {
                      if( this.mappings.direction )
                        this.query(this.mappings.direction.reading, callback);
+                   }.bind(this) );
+    }
+
+    if( this.mappings.lock ) {
+      this.log("    lock current state characteristic for " + this.name)
+
+      var characteristic = controlService.getCharacteristic(Characteristic.LockCurrentState);
+
+      //FHEM_subscribe(characteristic, this.name+'-state', this);
+      FHEM_subscribe(characteristic, this.mappings.lock.informId, this);
+      characteristic.value = FHEM_cached[this.mappings.lock.informId];
+
+      characteristic
+        .on('get', function(callback) {
+                     this.query(this.mappings.lock.reading, callback);
+                   }.bind(this) );
+
+      this.log("    lock target state characteristic for " + this.name)
+
+      var characteristic = controlService.getCharacteristic(Characteristic.LockTargetState);
+
+      characteristic.value = FHEM_cached[this.mappings.lock.informId];
+
+      characteristic
+        .on('set', function(value, callback, context) {
+                     if( context !== 'fromFHEM' )
+                       this.command( 'set', value == Characteristic.LockTargetState.UNSECURED ? this.mappings.lock.cmdUnlock : this.mappings.lock.cmdLock );
+                     callback();
+                   }.bind(this) )
+        .on('get', function(callback) {
+                     this.query(this.mappings.lock.reading, callback);
                    }.bind(this) );
     }
 
