@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
+    "async": "^1.4.2",
     "carwingsjs": "0.0.x",
     "chokidar": "^1.0.5",
     "color": "0.10.x",
