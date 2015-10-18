@@ -49,10 +49,12 @@
 		{ "nameContains": "Remote", "lastAddressDigit": "", "address": "" } - Ignore all devices which have the word Remote in their name
 		{ "nameContains": "", "lastAddressDigit": "", "address": "15 5 3 2"} - Ignore the device with an ISY address of 15 5 3 2.
 */
-var types = require("HAP-NodeJS/accessories/types.js");
+
+
+var types = require("hap-nodejs/accessories/types.js");
 var isy = require('isy-js');
-var Service = require("HAP-NodeJS").Service;
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 var inherits = require('util').inherits;
 
 // Global device map. Needed to map incoming notifications to the corresponding HomeKit device for update.
@@ -148,13 +150,21 @@ ISYPlatform.prototype.accessories = function(callback) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
+// BASE FOR ALL DEVICES
+
+function ISYAccessoryBaseSetup(accessory,log,device) {
+	accessory.log = log;
+	accessory.device = device;
+	accessory.address = device.address;
+	accessory.name = device.name;	
+	accessory.uuid_base = device.isy.address+":"+device.address;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
 // FANS
 
 function ISYFanAccessory(log,device) {
-	this.log = log;
-	this.device = device;
-	this.address = device.address;
-	this.name = device.name;
+	ISYAccessoryBaseSetup(this,log,device);
 }
 
 ISYFanAccessory.prototype.identify = function(callback) {
@@ -276,10 +286,7 @@ ISYFanAccessory.prototype.getServices = function() {
 // OUTLETS
 
 function ISYOutletAccessory(log,device) {
-	this.log = log;	
-	this.device = device;
-	this.address = device.address;
-	this.name = device.name;
+	ISYAccessoryBaseSetup(this,log,device);
 }
 
 ISYOutletAccessory.prototype.identify = function(callback) {
@@ -343,10 +350,7 @@ ISYOutletAccessory.prototype.getServices = function() {
 // LOCKS
 
 function ISYLockAccessory(log,device) {
-	this.log = log;	
-	this.device = device;
-	this.address = device.address;
-	this.name = device.name;
+	ISYAccessoryBaseSetup(this,log,device);
 }
 
 ISYLockAccessory.prototype.identify = function(callback) {
@@ -416,10 +420,7 @@ ISYLockAccessory.prototype.getServices = function() {
 // LIGHTS
 
 function ISYLightAccessory(log,device) {
-	this.log = log;	
-	this.device = device;
-	this.address = device.address;
-	this.name = device.name;
+	ISYAccessoryBaseSetup(this,log,device);
 	this.dimmable = (this.device.deviceType == "DimmableLight");
 }
 
@@ -513,10 +514,7 @@ ISYLightAccessory.prototype.getServices = function() {
 // CONTACT SENSOR
 
 function ISYDoorWindowSensorAccessory(log,device) {
-	this.log = log;	
-	this.device = device;
-	this.address = device.address;
-	this.name = device.name;
+	ISYAccessoryBaseSetup(this,log,device);
 	this.doorWindowState = false;
 }
 
@@ -562,10 +560,7 @@ ISYDoorWindowSensorAccessory.prototype.getServices = function() {
 // ELK SENSOR PANEL
 
 function ISYElkAlarmPanelAccessory(log,device) {
-	this.log = log;	
-	this.device = device;
-	this.address = device.address;
-	this.name = device.name;
+	ISYAccessoryBaseSetup(this,log,device);
 }
 
 ISYElkAlarmPanelAccessory.prototype.identify = function(callback) {
