@@ -2,7 +2,7 @@
  *  based on Sonos platform
  */
 'use strict';
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 //var hardware = require('myHardwareSupport'); //require any additional hardware packages
 var knxd = require('eibd');
 

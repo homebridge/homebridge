@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var Characteristic = require("hap-nodejs").Characteristic;
 var request = require("request");
 

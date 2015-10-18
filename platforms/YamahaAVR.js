@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var inherits = require('util').inherits;
 var debug = require('debug')('YamahaAVR');
 var Service = require("hap-nodejs").Service;
