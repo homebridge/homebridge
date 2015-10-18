@@ -15,6 +15,13 @@
 //
 // When you attempt to add a device, it will ask for a "PIN code".
 // The default code for all HomeBridge accessories is 031-45-154.
+//
+// Remember to set genericDeviceType attribute for your FHEM-devices. 
+// Requires definition of genericDeviceType attribute in fhem.cfg. 
+// Your fist line should contain: 
+//  attr global [..] genericDeviceType:ignore,switch,outlet,light,blind,thermostat 
+
+
 
 var Service = require("hap-nodejs").Service;
 var Characteristic = require("hap-nodejs").Characteristic;
@@ -358,6 +365,7 @@ FHEMPlatform.prototype = {
 
                          } else if( s.Attributes.genericDisplayType
                                     || s.Attributes.genericDeviceType ) {
+                           that.log( "Found genericDeviceType [" + s.Attributes.genericDeviceType + '] - ' + s.Internals.NAME);
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
                          } else if( s.PossibleSets.match(/[\^ ]on\b/)
@@ -367,10 +375,10 @@ FHEMPlatform.prototype = {
                          } else if( s.PossibleSets.match(/[\^ ]Volume\b/) ) { //FIXME: use sets [Pp]lay/[Pp]ause/[Ss]top
                            that.log( s.Internals.NAME + ' has volume');
                            accessory = new FHEMAccessory(that.log, that.connection, s);
-
+                         
                          } else if( s.Attributes.subType == 'thermostat'
                                     || s.Attributes.subType == 'blindActuator'
-                                    || s.Attributes.subType == 'threeStateSensor' ) {
+                                    || s.Attributes.subType == 'threeStateSensor' ){
                            accessory = new FHEMAccessory(that.log, that.connection, s);
 
                          } else if( s.Attributes.model == 'HM-SEC-WIN' ) {
@@ -418,9 +426,12 @@ FHEMPlatform.prototype = {
 
 function
 FHEMAccessory(log, connection, s) {
-//log( 'sets: ' + s.PossibleSets );
-//log("got json: " + util.inspect(s) );
-//log("got json: " + util.inspect(s.Internals) );
+
+
+// log( 'sets: ' + s.PossibleSets );
+// log("Attributes: " + util.inspect(s.Attributes) );
+// log("Internals: " + util.inspect(s.Internals) );
+// log("Readings: " + util.inspect(s.Readings) );
 
   if( !(this instanceof FHEMAccessory) )
     return new FHEMAccessory(log, connection, s);
@@ -459,6 +470,15 @@ FHEMAccessory(log, connection, s) {
       max = match[2];
     this.mappings.sat = { reading: 'sat', cmd: 'sat', min: 0, max: max };
   }
+
+  //Blind
+  if( match = s.PossibleSets.match(/[\^ ]position\b/) ) {
+    this.mappings.position = { reading: 'position', cmd: 'position', min: 0, max: 100 };
+  }
+  if( match = s.PossibleSets.match(/[\^ ]opens\b/) ) {
+    this.mappings.state = { reading: 'state' };
+  }
+
 
   if( s.PossibleSets.match(/[\^ ]rgb\b/) ) {
     s.isLight = true;
@@ -512,7 +532,13 @@ FHEMAccessory(log, connection, s) {
   else if( genericType == 'blind'
            || s.Attributes.subType == 'blindActuator' ) {
     delete this.mappings.pct;
-    this.mappings.blind = { reading: 'pct', cmd: 'pct' };
+    //Check if blind uses position
+    if( this.mappings.position) {
+      this.mappings.blind = { reading: 'position', cmd: 'position' };
+    } else {
+      this.mappings.blind = { reading: 'pct', cmd: 'pct' };
+    }
+      
 
   } else if( genericType == 'window'
            || s.Attributes.model == 'HM-SEC-WIN' ) {
@@ -579,6 +605,8 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' is lock ['+ this.mappings.lock.reading +']' );
   else if( this.mappings.window )
     log( s.Internals.NAME + ' is window' );
+  else if( this.mappings.windowCovering )
+    log( s.Internals.NAME + ' is windowCovering' );
   else if( this.mappings.blind )
     log( s.Internals.NAME + ' is blind ['+ this.mappings.blind.reading +']' );
   else if( this.mappings.thermostat )
@@ -617,18 +645,25 @@ FHEMAccessory(log, connection, s) {
     log( s.Internals.NAME + ' has motor' );
   if( this.mappings.direction )
     log( s.Internals.NAME + ' has direction' );
+  if( this.mappings.position )
+    log( s.Internals.NAME + ' has position [0-' + this.mappings.position.max +']');
+  if( this.mappings.state )
+    log( s.Internals.NAME + ' has state');
 
-//log( util.inspect(s) );
+
+
+// log( util.inspect(s) );
 
   // device info
-  this.name		= s.Internals.NAME;
-  this.alias		= s.Attributes.alias ? s.Attributes.alias : s.Internals.NAME;
-  this.device		= s.Internals.NAME;
+  this.name   = s.Internals.NAME;
+  this.alias    = s.Attributes.alias ? s.Attributes.alias : s.Internals.NAME;
+  this.device   = s.Internals.NAME;
   this.type             = s.Internals.TYPE;
   this.model            = s.Readings.model ? s.Readings.model.Value
                                            : (s.Attributes.model ? s.Attributes.model
                                                                  : ( s.Internals.model ? s.Internals.model : '<unknown>' ) );
   this.PossibleSets     = s.PossibleSets;
+
 
   if( this.type == 'CUL_HM' ) {
     this.serial = s.Internals.DEF;
@@ -646,6 +681,8 @@ FHEMAccessory(log, connection, s) {
     this.serial = s.Internals.uniqueid;
   else if( this.type == 'SONOSPLAYER' )
     this.serial = s.Internals.UDN;
+  else if( this.type == 'EnOcean' )
+    this.serial = s.Internals.DEF;
 
   this.hasDim   = s.hasDim;
   this.pctMax   = s.pctMax;
@@ -657,6 +694,7 @@ FHEMAccessory(log, connection, s) {
 
   if( this.mappings.blind || this.mappings.door || this.mappings.garage || this.mappings.window || this.mappings.thermostat )
     delete this.mappings.onOff;
+
 
   var that = this;
   Object.keys(this.mappings).forEach(function(key) {
@@ -702,6 +740,18 @@ FHEMAccessory.prototype = {
         value = Characteristic.PositionState.DECREASING;
       else
         value = Characteristic.PositionState.STOPPED;
+
+    //FIXME: Doesn't really work as FHEM sets state to STOP...
+    } else if(reading == 'state') {
+      if( value.match(/^opens/))
+        value = Characteristic.PositionState.INCREASING;
+      else if( value.match(/^closes/))
+        value = Characteristic.PositionState.DECREASING;
+      else
+        value = Characteristic.PositionState.STOPPED;
+    } else if(reading == 'position') {
+        value = parseInt( value );
+
 
     } else if(reading == 'direction') {
       if( value.match(/^opening/))
@@ -766,8 +816,11 @@ FHEMAccessory.prototype = {
         Characteristic.AirQuality.UNKNOWN;
 
     } else if( reading == 'state' ) {
-      if( value.match(/^set-/ ) )
+      if( value.match(/^set-/ ) ){
+        this.log("----> reading is state");
         return undefined;
+      }
+        
 
       if( this.event_map != undefined ) {
         var mapped = this.event_map[value];
@@ -874,9 +927,11 @@ FHEMAccessory.prototype = {
           value = 'lock';
 
         cmd = "set " + this.device + " " + this.mappings.window.cmd + " " + value;
-
-      } else if( this.mappings.blind )
+   
+      } else if( this.mappings.blind ){
         cmd = "set " + this.device + " " + this.mappings.blind.cmd + " " + value;
+        this.log("---->cmd: " + cmd);
+      }
 
       else
         this.log(this.name + " Unhandled command! cmd=" + c + ", value=" + value);
@@ -1032,7 +1087,8 @@ FHEMAccessory.prototype = {
   },
 
   createDeviceService: function() {
-    var name = this.alias + 'xxx';
+    var name = "FHEM:" + this.alias ;
+
 
     if( this.isSwitch ) {
       this.log("  switch service for " + this.name)
@@ -1043,9 +1099,12 @@ FHEMAccessory.prototype = {
     } else if( this.mappings.window ) {
       this.log("  window service for " + this.name)
       return new Service.Window(name);
+    } else if( this.mappings.windowCovering ) {
+      this.log("  windowCovering service for " + this.name)
+      return new Service.WindowCovering(name);
     } else if( this.mappings.blind ) {
       this.log("  window covering service for " + this.name)
-      return new Service.WindowCovering(name);
+      return new Service.WindowCovering(name);  //FIXME: Is there a blind service?
     } else if( this.mappings.thermostat ) {
       this.log("  thermostat service for " + this.name)
       return new Service.Thermostat(name);
@@ -1068,8 +1127,9 @@ FHEMAccessory.prototype = {
       this.log("  humidity sensor service for " + this.name)
       return new Service.AirQualitySensor(name);
     }
+    
 
-    this.log("  switch service for " + this.name)
+    this.log("  No match: adding switch service for " + this.name)
     return new Service.Switch(name);
   },
 
@@ -1287,6 +1347,7 @@ FHEMAccessory.prototype = {
 
     }
 
+    //BLIND - CONTROL
     if( this.mappings.blind ) {
       this.log("    current position characteristic for " + this.name)
 
@@ -1298,6 +1359,7 @@ FHEMAccessory.prototype = {
       characteristic
         .on('get', function(callback) {
                      that.query(that.mappings.blind.reading, callback);
+                     // this.log("get of CurrentPosition");
                    }.bind(this) );
 
 
@@ -1309,12 +1371,14 @@ FHEMAccessory.prototype = {
 
       characteristic
         .on('set', function(value, callback, context) {
-                     if( context !== 'fromFhem' )
+                    // this.log("[TargetPosition] context=" + context);
+                    if( context !== 'fromFhem' )
                        that.delayed('targetPosition', value, 1500);
-                     callback();
+                    callback();
                    }.bind(this) )
         .on('get', function(callback) {
                      that.query(that.mappings.blind.reading, callback);
+                     // this.log("get of targetPosition");
                    }.bind(this) );
 
 
@@ -1330,11 +1394,12 @@ FHEMAccessory.prototype = {
         .on('get', function(callback) {
                      if( that.mappings.motor )
                        that.query(that.mappings.motor.reading, callback);
+                       // this.log("get of PositionState");
                    }.bind(this) );
 
     }
 
-    if( this.mappings.window ) {
+    if( this.mappings.window) {
       this.log("    current position characteristic for " + this.name)
 
       var characteristic = controlService.getCharacteristic(Characteristic.CurrentPosition);
@@ -1382,6 +1447,8 @@ FHEMAccessory.prototype = {
 
     }
 
+
+    
     if( this.mappings.garage ) {
       this.log("    current door state characteristic for " + this.name)
 
