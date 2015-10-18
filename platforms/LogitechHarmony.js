@@ -63,7 +63,7 @@ LogitechHarmonyPlatform.prototype = {
           setTimeout(function() {
             setInterval(function() {
               self.log("Sending command to prevent timeout");
-              client.getCurrentActivity();
+              client.getCurrentActivity().then(self.updateCurrentActivity.bind(self));
             }, 20000);
           }, 5000);
 
@@ -97,6 +97,13 @@ LogitechHarmonyPlatform.prototype = {
 
     // Start looking for hubs
     discover.start();
+  },
+
+  updateCurrentActivity: function(currentActivity) {
+    var actAccessories = this.activityAccessories;
+    if (actAccessories instanceof Array) {
+      actAccessories.map(function(a) { a.updateActivityState(currentActivity); });
+    }
   },
 
   accessories: function (callback) {
@@ -142,30 +149,36 @@ LogitechHarmonyPlatform.prototype = {
         .then(function (activities) {
           self.log("Found activities: \n" + activities.map(function (a) { return "\t" + a.label; }).join("\n"));
 
-          var sArray = sortByKey(activities, "label");
-
-          sArray.map(function(s) {
-            var accessory = new LogitechHarmonyActivityAccessory(self.log, hub, s);
-            // TODO: Update the initial power state
-            foundAccessories.push(accessory);
+          hub.getCurrentActivity().then(function (currentActivity) {
+            var actAccessories = [];
+            var sArray = sortByKey(activities, "label");
+            sArray.map(function(s) {
+              var accessory = new LogitechHarmonyActivityAccessory(self.log, hub, s, self.updateCurrentActivity.bind(self));
+              accessory.updateActivityState(currentActivity);
+              actAccessories.push(accessory);
+              foundAccessories.push(accessory);
+            });
+            self.activityAccessories = actAccessories;
+            callback(foundAccessories);
+          }).catch(function (err) {
+            self.log('Unable to get current activity with error', err);
+            callback(false);
           });
-
-          callback(foundAccessories);
         });
     };
-
   }
-
 };
 
-
-function LogitechHarmonyActivityAccessory (log, hub, details) {
+function LogitechHarmonyActivityAccessory (log, hub, details, updateCurrentActivity) {
   this.log = log;
   this.hub = hub;
   this.details = details;
   this.id = details.id;
   this.name = details.label;
+  this.isOn = false;
+  this.updateCurrentActivity = updateCurrentActivity;
   Accessory.call(this, this.name, uuid.generate(this.id));
+  var self = this;
 
   this.getService(Service.AccessoryInformation)
       .setCharacteristic(Characteristic.Manufacturer, "Logitech")
@@ -175,8 +188,12 @@ function LogitechHarmonyActivityAccessory (log, hub, details) {
 
   this.addService(Service.Switch)
       .getCharacteristic(Characteristic.On)
-      .on('get', this.getPowerState)
-      .on('set', this.setPowerState);
+      .on('get', function(callback) {
+        // Refreshed automatically by platform
+        callback(null, self.isOn);
+      })
+      .on('set', this.setPowerState.bind(this));
+
 };
 inherits(LogitechHarmonyActivityAccessory, Accessory);
 LogitechHarmonyActivityAccessory.prototype.parent = Accessory.prototype;
@@ -184,31 +201,32 @@ LogitechHarmonyActivityAccessory.prototype.getServices = function() {
   return this.services;
 };
 
-  // TODO: Somehow make this event driven so that it tells the user what activity is on
-  LogitechHarmonyActivityAccessory.prototype.getPowerState = function (callback) {
-    var self = this;
+LogitechHarmonyActivityAccessory.prototype.updateActivityState = function (currentActivity) {
+  this.isOn = (currentActivity === this.id);
+  // Force get to trigger 'change' if needed
+  this.getService(Service.Switch)
+      .getCharacteristic(Characteristic.On)
+      .getValue();
+};
 
-      this.hub.getCurrentActivity().then(function (currentActivity) {
-        callback(currentActivity === self.id);
-      }).catch(function (err) {
-        self.log('Unable to get current activity with error', err);
-        callback(false);
-      });
-  };
+LogitechHarmonyActivityAccessory.prototype.setPowerState = function (state, callback) {
 
-  LogitechHarmonyActivityAccessory.prototype.setPowerState = function (state) {
-    var self = this;
+  var self = this;
 
-      this.log('Set activity ' + this.name + ' power state to ' + state);
+  this.log('Set activity ' + this.name + ' power state to ' + state);
 
-      this.hub.startActivity(self.id)
-        .then(function () {
-          self.log('Finished setting activity ' + self.name + ' power state to ' + state);
-        })
-        .catch(function (err) {
-          self.log('Failed setting activity ' + self.name + ' power state to ' + state + ' with error ' + err);
-        });
-  };
+  var nextActivity = self.id;
+  this.hub.startActivity(nextActivity)
+    .then(function () {
+      self.log('Finished setting activity ' + self.name + ' power state to ' + state);
+        self.updateCurrentActivity(nextActivity);
+        if (callback) callback(null, state);
+    })
+    .catch(function (err) {
+      self.log('Failed setting activity ' + self.name + ' power state to ' + state + ' with error ' + err);
+        if (callback) callback(err);
+    });
+};
 
 module.exports.platform = LogitechHarmonyPlatform;
 
