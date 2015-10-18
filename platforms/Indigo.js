@@ -68,7 +68,7 @@ IndigoPlatform.prototype = {
             }
 
             var json = JSON.parse(body);
-            async.each(json, function(item, asyncCallback) {
+            async.eachSeries(json, function(item, asyncCallback) {
                 var deviceURL = that.baseURL + item.restURL;
                 var deviceOptions = {
                   url: deviceURL,
@@ -81,15 +81,19 @@ IndigoPlatform.prototype = {
                 request(deviceOptions, function(deviceError, deviceResponse, deviceBody) {
                     if (deviceError) {
                         console.trace("Requesting Indigo device info: " + deviceURL + "\nError: " + deviceError + "\nResponse: " + deviceBody);
-                        asyncCallback(deviceError)
                     }
                     else {
-                        var deviceJson = JSON.parse(deviceBody);
-                        that.log("Discovered " + deviceJson.type + ": " + deviceJson.name);
-                        that.foundAccessories.push(
-                            new IndigoAccessory(that.log, that.auth, deviceURL, deviceJson));
-                        asyncCallback();
+                        try {
+                            var deviceJson = JSON.parse(deviceBody);
+                            that.log("Discovered " + deviceJson.type + ": " + deviceJson.name);
+                            that.foundAccessories.push(
+                                new IndigoAccessory(that.log, that.auth, deviceURL, deviceJson));
+                        }
+                        catch (e) {
+                            that.log("Error parsing Indigo device info: " + deviceURL + "\nException: " + e + "\nResponse: " + deviceBody);
+                        }
                     }
+                    asyncCallback();
                 });
             }, function(asyncError) {
                 // This will be called after all the requests complete
@@ -135,11 +139,18 @@ IndigoAccessory.prototype = {
             if (error) {
                 console.trace("Requesting Device Status.");
                 that.log(error);
-                return error;
             }
-
-            that.log("getStatus of " + that.name + ": " + body);
-            callback(JSON.parse(body));
+            else {
+                that.log("getStatus of " + that.name + ": " + body);
+                try {
+                    var json = JSON.parse(body);
+                    callback(json);
+                }
+                catch (e) {
+                    console.trace("Requesting Device Status.");
+                    that.log("Exception: " + e + "\nResponse: " + body);
+                }
+            }
         });
     },
 
