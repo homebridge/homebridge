@@ -24,6 +24,12 @@ var harmony = require('harmonyhubjs-client');
 
 var _harmonyHubPort = 61991;
 
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
+var Accessory = require("hap-nodejs").Accessory;
+var uuid = require("hap-nodejs").uuid;
+var inherits = require('util').inherits;
+
 
 function sortByKey (array, key) {
   return array.sort(function(a, b) {
@@ -119,7 +125,7 @@ LogitechHarmonyPlatform.prototype = {
           var sArray = sortByKey(json['result'],"Name");
 
           sArray.map(function(s) {
-            accessory = new LogitechHarmonyAccessory(self.log, self.server, self.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
+            accessory = new LogitechHarmonyActivityAccessory(self.log, self.server, self.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
             foundAccessories.push(accessory);
           });
 
@@ -139,7 +145,7 @@ LogitechHarmonyPlatform.prototype = {
           var sArray = sortByKey(activities, "label");
 
           sArray.map(function(s) {
-            var accessory = new LogitechHarmonyAccessory(self.log, hub, s, true);
+            var accessory = new LogitechHarmonyActivityAccessory(self.log, hub, s);
             // TODO: Update the initial power state
             foundAccessories.push(accessory);
           });
@@ -153,40 +159,46 @@ LogitechHarmonyPlatform.prototype = {
 };
 
 
-function LogitechHarmonyAccessory (log, hub, details, isActivity) {
+function LogitechHarmonyActivityAccessory (log, hub, details) {
   this.log = log;
   this.hub = hub;
   this.details = details;
   this.id = details.id;
   this.name = details.label;
-  this.isActivity = isActivity;
-  this.isActivityActive = false;
+  Accessory.call(this, this.name, uuid.generate(this.id));
+
+  this.getService(Service.AccessoryInformation)
+      .setCharacteristic(Characteristic.Manufacturer, "Logitech")
+      .setCharacteristic(Characteristic.Model, "Harmony")
+      // TODO: Add hub unique id to this for people with multiple hubs so that it is really a guid.
+      .setCharacteristic(Characteristic.SerialNumber, this.id);
+
+  this.addService(Service.Switch)
+      .getCharacteristic(Characteristic.On)
+      .on('get', this.getPowerState)
+      .on('set', this.setPowerState);
+};
+inherits(LogitechHarmonyActivityAccessory, Accessory);
+LogitechHarmonyActivityAccessory.prototype.parent = Accessory.prototype;
+LogitechHarmonyActivityAccessory.prototype.getServices = function() {
+  return this.services;
 };
 
-
-LogitechHarmonyAccessory.prototype = {
-
   // TODO: Somehow make this event driven so that it tells the user what activity is on
-  getPowerState: function (callback) {
+  LogitechHarmonyActivityAccessory.prototype.getPowerState = function (callback) {
     var self = this;
 
-    if (this.isActivity) {
       this.hub.getCurrentActivity().then(function (currentActivity) {
         callback(currentActivity === self.id);
       }).catch(function (err) {
         self.log('Unable to get current activity with error', err);
         callback(false);
       });
-    } else {
-      // TODO: Support onRead for devices
-      this.log('TODO: Support onRead for devices');
-    }
-  },
+  };
 
-  setPowerState: function (state) {
+  LogitechHarmonyActivityAccessory.prototype.setPowerState = function (state) {
     var self = this;
 
-    if (this.isActivity) {
       this.log('Set activity ' + this.name + ' power state to ' + state);
 
       this.hub.startActivity(self.id)
@@ -196,114 +208,7 @@ LogitechHarmonyAccessory.prototype = {
         .catch(function (err) {
           self.log('Failed setting activity ' + self.name + ' power state to ' + state + ' with error ' + err);
         });
-    } else {
-      // TODO: Support setting device power
-      this.log('TODO: Support setting device power');
-      // callback();
-    }
-  },
-
-  getServices: function () {
-    var self = this;
-
-    return [
-      {
-        sType: types.ACCESSORY_INFORMATION_STYPE,
-        characteristics: [
-          {
-            cType: types.NAME_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: self.name,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Name of the accessory",
-            designedMaxLength: 255
-          },
-          {
-            cType: types.MANUFACTURER_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: "Logitech",
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Manufacturer",
-            designedMaxLength: 255
-          },
-          {
-            cType: types.MODEL_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: "Harmony",
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Model",
-            designedMaxLength: 255
-          },
-          {
-            cType: types.SERIAL_NUMBER_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            // TODO: Add hub unique id to this for people with multiple hubs so that it is really a guid.
-            initialValue: self.id,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "SN",
-            designedMaxLength: 255
-          },
-          {
-            cType: types.IDENTIFY_CTYPE,
-            onUpdate: null,
-            perms: ["pw"],
-            format: "bool",
-            initialValue: false,
-            supportEvents: false,
-            supportBonjour: false,
-            manfDescription: "Identify Accessory",
-            designedMaxLength: 1
-          }
-        ]
-      },
-      {
-        sType: types.SWITCH_STYPE,
-        characteristics: [
-          {
-            cType: types.NAME_CTYPE,
-            onUpdate: null,
-            perms: ["pr"],
-            format: "string",
-            initialValue: self.name,
-            supportEvents: true,
-            supportBonjour: false,
-            manfDescription: "Name of service",
-            designedMaxLength: 255
-          },
-          {
-            cType: types.POWER_STATE_CTYPE,
-            onUpdate: function (value) {
-              self.setPowerState(value)
-            },
-            onRead: function(callback) {
-              self.getPowerState(callback)
-            },
-            perms: ["pw","pr","ev"],
-            format: "bool",
-            initialValue: 0,
-            supportEvents: true,
-            supportBonjour: false,
-            manfDescription: "Change the power state",
-            designedMaxLength: 1
-          }
-        ]
-      }
-    ];
-  }
-
-};
+  };
 
 module.exports.platform = LogitechHarmonyPlatform;
 
