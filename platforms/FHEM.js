@@ -19,7 +19,7 @@
 var Service = require("hap-nodejs").Service;
 var Characteristic = require("hap-nodejs").Characteristic;
 
-var types = require('HAP-NodeJS/accessories/types.js');
+var types = require('hap-nodejs/accessories/types.js');
 
 var util = require('util');
 
