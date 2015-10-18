@@ -6,11 +6,3 @@
 node_modules/
 npm-debug.log
 .node-version
-
-# Intellij
-.idea/
-*.iml
-
-# HomeBridge
-config.json
-persist/

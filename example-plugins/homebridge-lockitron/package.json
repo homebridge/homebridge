@@ -1,0 +1,15 @@
+{
+  "name": "plugin-lockitron",
+  "version": "0.0.1",
+  "description": "Lockitron plugin for homebridge: https://github.com/nfarina/homebridge",
+  "license": "ISC",
+  "keywords": [
+    "homebridge-plugin"
+  ],
+  "peerDepdendencies": {
+    "homebridge": ">=0.2.0"
+  },
+  "dependencies": {
+    "request": "^2.65.0"
+  }
+}

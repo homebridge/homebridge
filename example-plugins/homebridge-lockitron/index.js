@@ -3,7 +3,9 @@ var Characteristic = require("hap-nodejs").Characteristic;
 var request = require("request");
 
 module.exports = {
-  accessory: LockitronAccessory
+  accessories: {
+    Lockitron: LockitronAccessory
+  }
 }
 
 function LockitronAccessory(log, config) {
