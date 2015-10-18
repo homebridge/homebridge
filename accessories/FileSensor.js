@@ -1,5 +1,5 @@
-var Service = require("HAP-NodeJS").Service;
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 var chokidar = require("chokidar");
 var debug = require("debug")("FileSensorAccessory");
 var crypto = require("crypto");
