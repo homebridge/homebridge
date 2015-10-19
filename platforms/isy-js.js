@@ -195,13 +195,13 @@ ISYFanAccessory.prototype.identify = function(callback) {
 // Homekit doesn't have steps for the fan speed and needs to have a value from 0 to 100. We 
 // split the range into 4 steps and map them to the 4 isy-js levels. 
 ISYFanAccessory.prototype.translateFanSpeedToHK = function(fanSpeed) {
-	if(fanSpeed == this.device.isy.ISYFanDevice.FAN_OFF) {
+	if(fanSpeed == this.device.FAN_LEVEL_OFF) {
 		return 0;
-	} else if(fanSpeed == this.device.isy.ISYFanDevice.FAN_LOW) {
+	} else if(fanSpeed == this.device.FAN_LEVEL_LOW) {
 		return 32;
-	} else if(fanSpeed == this.device.isy.ISYFanDevice.FAN_MEDIUM) {
+	} else if(fanSpeed == this.device.FAN_LEVEL_MEDIUM) {
 		return 67;
-	} else if(fanSpeed == this.device.isy.ISYFanDevice.FAN_HIGH) {
+	} else if(fanSpeed == this.device.FAN_LEVEL_HIGH) {
 		return 100;
 	} else {
 		ISYJSDebugMessage(this,"!!!! ERROR: Unknown fan speed: "+fanSpeed);
@@ -213,16 +213,16 @@ ISYFanAccessory.prototype.translateFanSpeedToHK = function(fanSpeed) {
 // to the four isy-js fan speed levels. 
 ISYFanAccessory.prototype.translateHKToFanSpeed = function(fanStateHK) {
 	if(fanStateHK == 0) {
-		return this.device.isy.ISYFanDevice.FAN_OFF;
+		return this.device.FAN_LEVEL_OFF;
 	} else if(fanStateHK > 0 && fanStateHK <=32) {
-		return this.device.isy.ISYFanDevice.FAN_LOW;
-	} else if(fanStateHK > 33 && fanStateHK <= 67) {
-		return this.device.isy.ISYFanDevice.FAN_MEDIUM;
+		return this.device.FAN_LEVEL_LOW;
+	} else if(fanStateHK >= 33 && fanStateHK <= 67) {
+		return this.device.FAN_LEVEL_MEDIUM;
 	} else if(fanStateHK > 67) {
-		return this.device.isy.ISYFanDevice.FAN_HIGH;
+		return this.device.FAN_LEVEL_HIGH;
 	} else {
 		ISYJSDebugMessage(this,"ERROR: Unknown fan state!");
-		return this.device.isy.ISYFanDevice.FAN_OFF;
+		return this.device.FAN_LEVEL_OFF;
 	}
 }
 
@@ -259,9 +259,9 @@ ISYFanAccessory.prototype.getFanOnState = function(callback) {
 ISYFanAccessory.prototype.setFanOnState = function(onState,callback) {
 	if(onState != this.getIsFanOn()) {
 		if(onState) {
-			this.setFanRotationSpeed(this.translateFanSpeedToHK(this.device.isy.ISYFanDevice.FAN_MEDIUM), callback);
+			this.setFanRotationSpeed(this.translateFanSpeedToHK(this.device.FAN_LEVEL_MEDIUM), callback);
 		} else {
-			this.setFanRotationSpeed(this.translateFanSpeedToHK(this.device.isy.ISYFanDevice.FAN_OFF), callback);
+			this.setFanRotationSpeed(this.translateFanSpeedToHK(this.device.FAN_LEVEL_OFF), callback);
 		}
 	} else {
 		ISYJSDebugMessage(this,"Fan command does not change actual state");
