@@ -48,6 +48,8 @@
 		{ "nameContains": "Keypad", "lastAddressDigit": "2", "address": "" } - Ignore all devices which have the word Keypad in their name and whose last address digit is 2.
 		{ "nameContains": "Remote", "lastAddressDigit": "", "address": "" } - Ignore all devices which have the word Remote in their name
 		{ "nameContains": "", "lastAddressDigit": "", "address": "15 5 3 2"} - Ignore the device with an ISY address of 15 5 3 2.
+		
+ TODOS: Implement identify functions (beep perhaps?) and more device types.
 */
 
 
@@ -60,6 +62,9 @@ var inherits = require('util').inherits;
 // Global device map. Needed to map incoming notifications to the corresponding HomeKit device for update.
 var deviceMap = {};
 
+// This function responds to changes in devices from the isy-js library. Uses the global device map to update
+// the state.
+// TODO: Move this to a member function of the ISYPlatform object so we don't need a global map.
 function ISYChangeHandler(isy,device) {
 	var deviceToUpdate = deviceMap[device.address];
 	if(deviceToUpdate != null) {
@@ -67,6 +72,7 @@ function ISYChangeHandler(isy,device) {
 	}
 }
 
+// Helper function to have ISYJSDEBUG control if debug output appears
 function ISYJSDebugMessage(isy,message) {
 	if(process.env.ISYJSDEBUG != undefined) {
 		isy.log(message);
@@ -76,6 +82,7 @@ function ISYJSDebugMessage(isy,message) {
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // PLATFORM
 
+// Construct the ISY platform. log = Logger, config = homebridge cofnig
 function ISYPlatform(log,config) {
 	this.log = log;
 	this.config = config;
@@ -86,6 +93,7 @@ function ISYPlatform(log,config) {
 	this.isy = new isy.ISY(this.host, this.username,this.password, config.elkEnabled, ISYChangeHandler);
 }
 
+// Checks the device against the configuration to see if it should be ignored. 
 ISYPlatform.prototype.shouldIgnore = function(device) {
 	var deviceAddress = device.address;
 	var deviceName = device.name;		
@@ -113,6 +121,7 @@ ISYPlatform.prototype.shouldIgnore = function(device) {
 	return false;	
 }
 
+// Calls the isy-js library, retrieves the list of devices, and maps them to appropriate ISYXXXXAccessory devices.
 ISYPlatform.prototype.accessories = function(callback) {
 	var that = this;
 	this.isy.initialize(function() {
@@ -139,6 +148,7 @@ ISYPlatform.prototype.accessories = function(callback) {
 					homeKitDevice = new ISYElkAlarmPanelAccessory(that.log,device);
 				}
 				if(homeKitDevice != null) {
+					// Make sure the device is address to the global map
 					deviceMap[device.address] = homeKitDevice;
 					results.push(homeKitDevice);
 				}
@@ -158,6 +168,7 @@ ISYPlatform.prototype.accessories = function(callback) {
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // BASE FOR ALL DEVICES
 
+// Provides common constructor tasks
 function ISYAccessoryBaseSetup(accessory,log,device) {
 	accessory.log = log;
 	accessory.device = device;
@@ -167,8 +178,10 @@ function ISYAccessoryBaseSetup(accessory,log,device) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-// FANS
+// FANS - ISYFanAccessory 
+// Implemetnts the fan service for an isy fan device. 
 
+// Constructs a fan accessory object. device is the isy-js device object and log is the logger. 
 function ISYFanAccessory(log,device) {
 	ISYAccessoryBaseSetup(this,log,device);
 }
@@ -178,14 +191,17 @@ ISYFanAccessory.prototype.identify = function(callback) {
 	callback();
 }
 
+// Translates the fan speed as an isy-js string into the corresponding homekit constant level.
+// Homekit doesn't have steps for the fan speed and needs to have a value from 0 to 100. We 
+// split the range into 4 steps and map them to the 4 isy-js levels. 
 ISYFanAccessory.prototype.translateFanSpeedToHK = function(fanSpeed) {
-	if(fanSpeed == "Off") {
+	if(fanSpeed == this.device.isy.ISYFanDevice.FAN_OFF) {
 		return 0;
-	} else if(fanSpeed == "Low") {
+	} else if(fanSpeed == this.device.isy.ISYFanDevice.FAN_LOW) {
 		return 32;
-	} else if(fanSpeed == "Medium") {
+	} else if(fanSpeed == this.device.isy.ISYFanDevice.FAN_MEDIUM) {
 		return 67;
-	} else if(fanSpeed == "High") {
+	} else if(fanSpeed == this.device.isy.ISYFanDevice.FAN_HIGH) {
 		return 100;
 	} else {
 		ISYJSDebugMessage(this,"!!!! ERROR: Unknown fan speed: "+fanSpeed);
@@ -193,25 +209,29 @@ ISYFanAccessory.prototype.translateFanSpeedToHK = function(fanSpeed) {
 	}
 }
 
+// Translates the fan level from homebridge into the isy-js level. Maps from the 0-100
+// to the four isy-js fan speed levels. 
 ISYFanAccessory.prototype.translateHKToFanSpeed = function(fanStateHK) {
 	if(fanStateHK == 0) {
-		return "Off";
+		return this.device.isy.ISYFanDevice.FAN_OFF;
 	} else if(fanStateHK > 0 && fanStateHK <=32) {
-		return "Low";
+		return this.device.isy.ISYFanDevice.FAN_LOW;
 	} else if(fanStateHK > 33 && fanStateHK <= 67) {
-		return "Medium";
+		return this.device.isy.ISYFanDevice.FAN_MEDIUM;
 	} else if(fanStateHK > 67) {
-		return "High";
+		return this.device.isy.ISYFanDevice.FAN_HIGH;
 	} else {
 		ISYJSDebugMessage(this,"ERROR: Unknown fan state!");
-		return "Off";
+		return this.device.isy.ISYFanDevice.FAN_OFF;
 	}
 }
 
+// Returns the current state of the fan from the isy-js level to the 0-100 level of HK.
 ISYFanAccessory.prototype.getFanRotationSpeed = function(callback) {
 	callback(null,this.translateFanSpeedToHK(this.device.getCurrentFanState()));
 }
 
+// Sets the current state of the fan from the 0-100 level of HK to the isy-js level.
 ISYFanAccessory.prototype.setFanRotationSpeed = function(fanStateHK,callback) {
 	var newFanState = this.translateHKToFanSpeed(fanStateHK);
 	ISYJSDebugMessage(this,"Sending command to set fan state to: "+newFanState);
@@ -225,21 +245,23 @@ ISYFanAccessory.prototype.setFanRotationSpeed = function(fanStateHK,callback) {
 	}
 }
 
-
+// Returns true if the fan is on
 ISYFanAccessory.prototype.getIsFanOn = function() {
 	return (this.device.getCurrentFanState() != "Off");
 }
 
+// Returns the state of the fan to the homebridge system for the On characteristic
 ISYFanAccessory.prototype.getFanOnState = function(callback) {
 	callback(null,this.getIsFanOn());
 }
 
+// Sets the fan state based on the value of the On characteristic. Default to Medium for on. 
 ISYFanAccessory.prototype.setFanOnState = function(onState,callback) {
 	if(onState != this.getIsFanOn()) {
 		if(onState) {
-			this.setFanRotationSpeed(this.translateFanSpeedToHK("Medium"), callback);
+			this.setFanRotationSpeed(this.translateFanSpeedToHK(this.device.isy.ISYFanDevice.FAN_MEDIUM), callback);
 		} else {
-			this.setFanRotationSpeed(this.translateFanSpeedToHK("Off"), callback);
+			this.setFanRotationSpeed(this.translateFanSpeedToHK(this.device.isy.ISYFanDevice.FAN_OFF), callback);
 		}
 	} else {
 		ISYJSDebugMessage(this,"Fan command does not change actual state");
@@ -247,7 +269,7 @@ ISYFanAccessory.prototype.setFanOnState = function(onState,callback) {
 	} 
 }
 
-
+// Mirrors change in the state of the underlying isj-js device object.
 ISYFanAccessory.prototype.handleExternalChange = function() {
 	this.fanService
 		.setCharacteristic(Characteristic.On, this.getIsFanOn());
@@ -256,6 +278,7 @@ ISYFanAccessory.prototype.handleExternalChange = function() {
 		.setCharacteristic(Characteristic.RotationSpeed, this.translateFanSpeedToHK(this.device.getCurrentFanState()));		
 }
 
+// Returns the services supported by the fan device. 
 ISYFanAccessory.prototype.getServices = function() {
 	var informationService = new Service.AccessoryInformation();
 	
@@ -289,17 +312,21 @@ ISYFanAccessory.prototype.getServices = function() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-// OUTLETS
+// OUTLETS - ISYOutletAccessory
+// Implements the Outlet service for ISY devices.
 
+// Constructs an outlet. log = HomeBridge logger, device = isy-js device to wrap
 function ISYOutletAccessory(log,device) {
 	ISYAccessoryBaseSetup(this,log,device);
 }
 
+// Handles the identify command
 ISYOutletAccessory.prototype.identify = function(callback) {
 	// Do the identify action
 	callback();
 }
 
+// Handles a request to set the outlet state. Ignores redundant sets based on current states.
 ISYOutletAccessory.prototype.setOutletState = function(outletState,callback) {
 	ISYJSDebugMessage(this,"Sending command to set outlet state to: "+outletState);
 	if(outletState != this.device.getCurrentOutletState()) {
@@ -311,19 +338,24 @@ ISYOutletAccessory.prototype.setOutletState = function(outletState,callback) {
 	}
 }
 
+// Handles a request to get the current outlet state based on underlying isy-js device object.
 ISYOutletAccessory.prototype.getOutletState = function(callback) {
 	callback(null,this.device.getCurrentOutletState());
 }
 
+// Handles a request to get the current in use state of the outlet. We set this to true always as
+// there is no way to deterine this through the isy.
 ISYOutletAccessory.prototype.getOutletInUseState = function(callback) {
 	callback(null, true);
 }
 
+// Mirrors change in the state of the underlying isj-js device object.
 ISYOutletAccessory.prototype.handleExternalChange = function() {
 	this.outletService
 		.setCharacteristic(Characteristic.On, this.device.getCurrentOutletState());
 }
 
+// Returns the set of services supported by this object.
 ISYOutletAccessory.prototype.getServices = function() {
 	var informationService = new Service.AccessoryInformation();
 	
@@ -353,16 +385,20 @@ ISYOutletAccessory.prototype.getServices = function() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-// LOCKS
+// LOCKS - ISYLockAccessory
+// Implements the lock service for isy-js devices. 
 
+// Constructs a lock accessory. log = homebridge logger, device = isy-js device object being wrapped
 function ISYLockAccessory(log,device) {
 	ISYAccessoryBaseSetup(this,log,device);
 }
 
+// Handles an identify request
 ISYLockAccessory.prototype.identify = function(callback) {
 	callback();
 }
 
+// Handles a set to the target lock state. Will ignore redundant commands.
 ISYLockAccessory.prototype.setTargetLockState = function(lockState,callback) {
 	ISYJSDebugMessage(this,"Sending command to set lock state to: "+lockState);
 	if(lockState != this.getDeviceCurrentStateAsHK()) {
@@ -375,18 +411,22 @@ ISYLockAccessory.prototype.setTargetLockState = function(lockState,callback) {
 	}
 }
 
+// Translates underlying lock state into the corresponding homekit state
 ISYLockAccessory.prototype.getDeviceCurrentStateAsHK = function() {
 	return (this.device.getCurrentLockState() ? 1 : 0);
 }
 
+// Handles request to get the current lock state for homekit
 ISYLockAccessory.prototype.getLockCurrentState = function(callback) {
 	callback(null, this.getDeviceCurrentStateAsHK());
 }
 
+// Handles request to get the target lock state for homekit
 ISYLockAccessory.prototype.getTargetLockState = function(callback) {
 	this.getLockCurrentState(callback);
 }
 
+// Mirrors change in the state of the underlying isj-js device object.
 ISYLockAccessory.prototype.handleExternalChange = function() {
 	this.lockService
 		.setCharacteristic(Characteristic.LockTargetState, this.getDeviceCurrentStateAsHK());
@@ -394,6 +434,7 @@ ISYLockAccessory.prototype.handleExternalChange = function() {
 		.setCharacteristic(Characteristic.LockCurrentState, this.getDeviceCurrentStateAsHK());
 }
 
+// Returns the set of services supported by this object.
 ISYLockAccessory.prototype.getServices = function() {
 	var informationService = new Service.AccessoryInformation();
 	
@@ -424,12 +465,16 @@ ISYLockAccessory.prototype.getServices = function() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // LIGHTS
+// Implements the Light service for homekit based on an underlying isy-js device. Is dimmable or not depending
+// on if the underlying device is dimmable. 
 
+// Constructs the light accessory. log = homebridge logger, device = isy-js device object being wrapped
 function ISYLightAccessory(log,device) {
 	ISYAccessoryBaseSetup(this,log,device);
 	this.dimmable = (this.device.deviceType == "DimmableLight");
 }
 
+// Handles the identify command
 ISYLightAccessory.prototype.identify = function(callback) {
 	this.device.sendLightCommand(true, function(result) {
 		this.device.sendLightCommand(false, function(result) {
@@ -438,6 +483,7 @@ ISYLightAccessory.prototype.identify = function(callback) {
 	});
 }
 
+// Handles request to set the current powerstate from homekit. Will ignore redundant commands. 
 ISYLightAccessory.prototype.setPowerState = function(powerOn,callback) {
 	ISYJSDebugMessage(this,"Setting powerstate to %s", powerOn);
 	if(powerOn != this.device.getCurrentLightState()) {
@@ -451,6 +497,7 @@ ISYLightAccessory.prototype.setPowerState = function(powerOn,callback) {
 	}
 }
 
+// Mirrors change in the state of the underlying isj-js device object.
 ISYLightAccessory.prototype.handleExternalChange = function() {
 	ISYJSDebugMessage(this,"Handling external change for light");
 	this.lightService
@@ -461,10 +508,12 @@ ISYLightAccessory.prototype.handleExternalChange = function() {
 	}
 }
 
+// Handles request to get the current on state
 ISYLightAccessory.prototype.getPowerState = function(callback) { 
 	callback(null,this.device.getCurrentLightState());
 }
 
+// Handles request to set the brightness level of dimmable lights. Ignore redundant commands. 
 ISYLightAccessory.prototype.setBrightness = function(level,callback) {
 	ISYJSDebugMessage(this,"Setting brightness to %s", level);
 	if(level != this.device.getCurrentLightDimState()) {
@@ -478,10 +527,12 @@ ISYLightAccessory.prototype.setBrightness = function(level,callback) {
 	}
 }
 
+// Handles a request to get the current brightness level for dimmable lights.
 ISYLightAccessory.prototype.getBrightness = function(callback) {
 	callback(null,this.device.getCurrentLightDimState());
 }
 
+// Returns the set of services supported by this object.
 ISYLightAccessory.prototype.getServices = function() {
 	var informationService = new Service.AccessoryInformation();
 	
@@ -517,31 +568,38 @@ ISYLightAccessory.prototype.getServices = function() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-// CONTACT SENSOR
+// CONTACT SENSOR - ISYDoorWindowSensorAccessory
+// Implements the ContactSensor service.
 
+// Constructs a Door Window Sensor (contact sensor) accessory. log = HomeBridge logger, device = wrapped isy-js device.
 function ISYDoorWindowSensorAccessory(log,device) {
 	ISYAccessoryBaseSetup(this,log,device);
 	this.doorWindowState = false;
 }
 
+// Handles the identify command.
 ISYDoorWindowSensorAccessory.prototype.identify = function(callback) {
 	// Do the identify action
 	callback();
 }
 
+// Translates the state of the underlying device object into the corresponding homekit compatible state
 ISYDoorWindowSensorAccessory.prototype.translateCurrentDoorWindowState = function() {
 	return (this.device.getCurrentDoorWindowState()) ? Characteristic.ContactSensorState.CONTACT_NOT_DETECTED : Characteristic.ContactSensorState.CONTACT_DETECTED;	
 }
 
+// Handles the request to get he current door window state.
 ISYDoorWindowSensorAccessory.prototype.getCurrentDoorWindowState = function(callback) {
 	callback(null,this.translateCurrentDoorWindowState());
 }
 
+// Mirrors change in the state of the underlying isj-js device object.
 ISYDoorWindowSensorAccessory.prototype.handleExternalChange = function() {
 	this.sensorService
 		.setCharacteristic(Characteristic.ContactSensorState, this.translateCurrentDoorWindowState());
 }
 
+// Returns the set of services supported by this object.
 ISYDoorWindowSensorAccessory.prototype.getServices = function() {
 	var informationService = new Service.AccessoryInformation();
 	
@@ -563,16 +621,20 @@ ISYDoorWindowSensorAccessory.prototype.getServices = function() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-// ELK SENSOR PANEL
+// ELK SENSOR PANEL - ISYElkAlarmPanelAccessory
+// Implements the SecuritySystem service for an elk security panel connected to the isy system
 
+// Constructs the alarm panel accessory. log = HomeBridge logger, device = underlying isy-js device being wrapped
 function ISYElkAlarmPanelAccessory(log,device) {
 	ISYAccessoryBaseSetup(this,log,device);
 }
 
+// Handles the identify command
 ISYElkAlarmPanelAccessory.prototype.identify = function(callback) {
 	callback();
 }
 
+// Handles the request to set the alarm target state
 ISYElkAlarmPanelAccessory.prototype.setAlarmTargetState = function(targetStateHK,callback) {
 	ISYJSDebugMessage(this,"Sending command to set alarm panel state to: "+targetStateHK);
 	var targetState = this.translateHKToAlarmTargetState(targetStateHK);
@@ -587,6 +649,10 @@ ISYElkAlarmPanelAccessory.prototype.setAlarmTargetState = function(targetStateHK
 	}
 }
 
+// Translates from the current state of the elk alarm system into a homekit compatible state. The elk panel has a lot more
+// possible states then can be directly represented by homekit so we map them. If the alarm is going off then it is tripped.
+// If it is arming or armed it is considered armed. Stay maps to the state state, away to the away state, night to the night 
+// state. 
 ISYElkAlarmPanelAccessory.prototype.translateAlarmCurrentStateToHK = function() {
 	var tripState = this.device.getAlarmTripState();
 	var sourceAlarmState = this.device.getAlarmState();
@@ -611,6 +677,7 @@ ISYElkAlarmPanelAccessory.prototype.translateAlarmCurrentStateToHK = function() 
 	}
 }
 
+// Translates the current target state of hthe underlying alarm into the appropriate homekit value
 ISYElkAlarmPanelAccessory.prototype.translateAlarmTargetStateToHK = function() {
 	var sourceAlarmState = this.device.getAlarmMode();
 	if(sourceAlarmState == this.device.ALARM_MODE_STAY || sourceAlarmState == this.device.ALARM_MODE_STAY_INSTANT ) {
@@ -624,6 +691,7 @@ ISYElkAlarmPanelAccessory.prototype.translateAlarmTargetStateToHK = function() {
 	}
 }
 
+// Translates the homekit version of the alarm target state into the appropriate elk alarm panel state
 ISYElkAlarmPanelAccessory.prototype.translateHKToAlarmTargetState = function(state) {
 	if(state == Characteristic.SecuritySystemTargetState.STAY_ARM) {
 		return this.device.ALARM_MODE_STAY;
@@ -636,14 +704,17 @@ ISYElkAlarmPanelAccessory.prototype.translateHKToAlarmTargetState = function(sta
 	}
 }
 
+// Handles request to get the target alarm state
 ISYElkAlarmPanelAccessory.prototype.getAlarmTargetState = function(callback) {
 	callback(null,this.translateAlarmTargetStateToHK());
 }
 
+// Handles request to get the current alarm state
 ISYElkAlarmPanelAccessory.prototype.getAlarmCurrentState = function(callback) {
 	callback(null,this.translateAlarmCurrentStateToHK());
 }
 
+// Mirrors change in the state of the underlying isj-js device object.
 ISYElkAlarmPanelAccessory.prototype.handleExternalChange = function() {
 	ISYJSDebugMessage(this,"Source device. Currenty state locally -"+this.device.getAlarmStatusAsText());
 	ISYJSDebugMessage(this,"Got alarm change notification. Setting HK target state to: "+this.translateAlarmTargetStateToHK()+" Setting HK Current state to: "+this.translateAlarmCurrentStateToHK());
@@ -653,6 +724,7 @@ ISYElkAlarmPanelAccessory.prototype.handleExternalChange = function() {
 		.setCharacteristic(Characteristic.SecuritySystemCurrentState, this.translateAlarmCurrentStateToHK());
 }
 
+// Returns the set of services supported by this object.
 ISYElkAlarmPanelAccessory.prototype.getServices = function() {
 	var informationService = new Service.AccessoryInformation();
 	
