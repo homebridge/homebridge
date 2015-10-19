@@ -1,11 +1,11 @@
-var Service = require("hap-nodejs").Service;
-var Characteristic = require("hap-nodejs").Characteristic;
 var request = require("request");
+var Service, Characteristic;
 
-module.exports = {
-  accessories: {
-    Lockitron: LockitronAccessory
-  }
+module.exports = function(homebridge) {
+  Service = homebridge.hap.Service;
+  Characteristic = homebridge.hap.Characteristic;
+  
+  homebridge.registerAccessory("Lockitron", LockitronAccessory);
 }
 
 function LockitronAccessory(log, config) {

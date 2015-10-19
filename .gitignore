@@ -6,3 +6,7 @@
 node_modules/
 npm-debug.log
 .node-version
+
+# Ignore any extra plugins in the example directory that aren't in Git already
+# (this is a sandbox for the user)
+example-plugins
