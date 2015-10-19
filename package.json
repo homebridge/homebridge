@@ -27,7 +27,9 @@
     "node-icontrol": "^0.1.5",
     "node-milight-promise": "0.0.x",
     "node-persist": "0.0.x",
+    "node-xmpp-client": "1.0.0-alpha23",
     "q": "1.4.x",
+    "queue": "^3.1.0",
     "tough-cookie": "^2.0.0",
     "request": "2.49.x",
     "sonos": "0.8.x",
@@ -39,8 +41,6 @@
     "xmldoc": "0.1.x",
     "komponist" : "0.1.0",
     "yamaha-nodejs": "0.4.x",
-    "debug": "^2.2.0",
-    "node-xmpp-client": "1.0.0-alpha23",
-    "queue": "^3.1.0"
+    "debug": "^2.2.0"
   }
 }
