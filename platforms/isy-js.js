@@ -67,6 +67,12 @@ function ISYChangeHandler(isy,device) {
 	}
 }
 
+function ISYJSDebugMessage(isy,message) {
+	if(process.env.ISYJSDEBUG != undefined) {
+		isy.log(message);
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // PLATFORM
 
@@ -100,7 +106,7 @@ ISYPlatform.prototype.shouldIgnore = function(device) {
 				continue;
 			} 
 		}
-		console.log("@@@@@@ Ignoring device: "+deviceName+" ["+deviceAddress+"] because of rule ["+rule.nameContains+"] ["+rule.lastAddressDigit+"] ["+rule.address+"]");						
+		ISYJSDebugMessage(this,"Ignoring device: "+deviceName+" ["+deviceAddress+"] because of rule ["+rule.nameContains+"] ["+rule.lastAddressDigit+"] ["+rule.address+"]");						
 		return true;
 
 	}
@@ -144,7 +150,7 @@ ISYPlatform.prototype.accessories = function(callback) {
 			deviceMap[panelDevice.address] = panelDeviceHK;
 			results.push(panelDeviceHK);
 		}
-		console.log("Filtered device has: "+results.length+" devices");
+		ISYJSDebugMessage(that,"Filtered device has: "+results.length+" devices");
 		callback(results);		
 	});
 }
@@ -182,7 +188,7 @@ ISYFanAccessory.prototype.translateFanSpeedToHK = function(fanSpeed) {
 	} else if(fanSpeed == "High") {
 		return 100;
 	} else {
-		this.log("!!!! ERROR: Unknown fan speed: "+fanSpeed);
+		ISYJSDebugMessage(this,"!!!! ERROR: Unknown fan speed: "+fanSpeed);
 		return 0;
 	}
 }
@@ -197,7 +203,7 @@ ISYFanAccessory.prototype.translateHKToFanSpeed = function(fanStateHK) {
 	} else if(fanStateHK > 67) {
 		return "High";
 	} else {
-		this.log("!!!!! ERROR: Unknown fan state!");
+		ISYJSDebugMessage(this,"ERROR: Unknown fan state!");
 		return "Off";
 	}
 }
@@ -208,13 +214,13 @@ ISYFanAccessory.prototype.getFanRotationSpeed = function(callback) {
 
 ISYFanAccessory.prototype.setFanRotationSpeed = function(fanStateHK,callback) {
 	var newFanState = this.translateHKToFanSpeed(fanStateHK);
-	this.log("Sending command to set fan state to: "+newFanState);
+	ISYJSDebugMessage(this,"Sending command to set fan state to: "+newFanState);
 	if(newFanState != this.device.getCurrentFanState()) {
 		this.device.sendFanCommand(newFanState, function(result) {
 			callback();		
 		});
 	} else {
-		this.log("Fan command does not change actual speed");
+		ISYJSDebugMessage(this,"Fan command does not change actual speed");
 		callback();
 	}
 }
@@ -236,7 +242,7 @@ ISYFanAccessory.prototype.setFanOnState = function(onState,callback) {
 			this.setFanRotationSpeed(this.translateFanSpeedToHK("Off"), callback);
 		}
 	} else {
-		this.log("Fan command does not change actual state");
+		ISYJSDebugMessage(this,"Fan command does not change actual state");
 		callback();
 	} 
 }
@@ -295,7 +301,7 @@ ISYOutletAccessory.prototype.identify = function(callback) {
 }
 
 ISYOutletAccessory.prototype.setOutletState = function(outletState,callback) {
-	this.log("Sending command to set outlet state to: "+outletState);
+	ISYJSDebugMessage(this,"Sending command to set outlet state to: "+outletState);
 	if(outletState != this.device.getCurrentOutletState()) {
 		this.device.sendOutletCommand(outletState, function(result) {
 			callback();		
@@ -358,7 +364,7 @@ ISYLockAccessory.prototype.identify = function(callback) {
 }
 
 ISYLockAccessory.prototype.setTargetLockState = function(lockState,callback) {
-	this.log("Sending command to set lock state to: "+lockState);
+	ISYJSDebugMessage(this,"Sending command to set lock state to: "+lockState);
 	if(lockState != this.getDeviceCurrentStateAsHK()) {
 		var targetLockValue = (lockState == 0) ? false : true;
 		this.device.sendLockCommand(targetLockValue, function(result) {
@@ -433,20 +439,20 @@ ISYLightAccessory.prototype.identify = function(callback) {
 }
 
 ISYLightAccessory.prototype.setPowerState = function(powerOn,callback) {
-	this.log("=== Setting powerstate to %s", powerOn);
+	ISYJSDebugMessage(this,"Setting powerstate to %s", powerOn);
 	if(powerOn != this.device.getCurrentLightState()) {
-		this.log("+++ Changing powerstate to "+powerOn);
+		ISYJSDebugMessage(this,"Changing powerstate to "+powerOn);
 		this.device.sendLightCommand(powerOn, function(result) {
 			callback();
 		});
 	} else {
-		this.log("--- Ignoring redundant setPowerState");
+		ISYJSDebugMessage(this,"Ignoring redundant setPowerState");
 		callback();
 	}
 }
 
 ISYLightAccessory.prototype.handleExternalChange = function() {
-	this.log("=== Handling external change for light");
+	ISYJSDebugMessage(this,"Handling external change for light");
 	this.lightService
 		.setCharacteristic(Characteristic.On, this.device.getCurrentLightState());
 	if(this.device.deviceType == this.device.isy.DEVICE_TYPE_DIMMABLE_LIGHT) {
@@ -460,14 +466,14 @@ ISYLightAccessory.prototype.getPowerState = function(callback) {
 }
 
 ISYLightAccessory.prototype.setBrightness = function(level,callback) {
-	this.log("Setting brightness to %s", level);
+	ISYJSDebugMessage(this,"Setting brightness to %s", level);
 	if(level != this.device.getCurrentLightDimState()) {
-		this.log("+++ Changing Brightness to "+level);
+		ISYJSDebugMessage(this,"Changing Brightness to "+level);
 		this.device.sendLightDimCommand(level, function(result) {
 			callback();			
 		});
 	} else {
-		this.log("--- Ignoring redundant setBrightness");
+		ISYJSDebugMessage(this,"Ignoring redundant setBrightness");
 		callback();
 	}
 }
@@ -568,15 +574,15 @@ ISYElkAlarmPanelAccessory.prototype.identify = function(callback) {
 }
 
 ISYElkAlarmPanelAccessory.prototype.setAlarmTargetState = function(targetStateHK,callback) {
-	this.log("***** Sending command to set alarm panel state to: "+targetStateHK);
+	ISYJSDebugMessage(this,"Sending command to set alarm panel state to: "+targetStateHK);
 	var targetState = this.translateHKToAlarmTargetState(targetStateHK);
-	this.log("***** Would send the target state of: "+targetState);
+	ISYJSDebugMessage(this,"Would send the target state of: "+targetState);
 	if(this.device.getAlarmMode() != targetState) {
 		this.device.sendSetAlarmModeCommand(targetState, function(result) {
 			callback();		
 		});
 	} else {
-		this.log("***** Redundant command, already in that state.");
+		ISYJSDebugMessage(this,"Redundant command, already in that state.");
 		callback();
 	}
 }
@@ -599,7 +605,7 @@ ISYElkAlarmPanelAccessory.prototype.translateAlarmCurrentStateToHK = function() 
 		} else if(sourceAlarmState == this.device.ALARM_MODE_NIGHT || sourceAlarmState == this.device.ALARM_MODE_NIGHT_INSTANT) {
 			return Characteristic.SecuritySystemCurrentState.NIGHT_ARM;
 		} else {
-			this.log("***** Setting to disarmed because sourceAlarmState is "+sourceAlarmState);
+			ISYJSDebugMessage(this,"Setting to disarmed because sourceAlarmState is "+sourceAlarmState);
 			return Characteristic.SecuritySystemCurrentState.DISARMED;
 		}
 	}
@@ -639,8 +645,8 @@ ISYElkAlarmPanelAccessory.prototype.getAlarmCurrentState = function(callback) {
 }
 
 ISYElkAlarmPanelAccessory.prototype.handleExternalChange = function() {
-	this.log("***** Source device. Currenty state locally -"+this.device.getAlarmStatusAsText());
-	this.log("***** Got alarm change notification. Setting HK target state to: "+this.translateAlarmTargetStateToHK()+" Setting HK Current state to: "+this.translateAlarmCurrentStateToHK());
+	ISYJSDebugMessage(this,"Source device. Currenty state locally -"+this.device.getAlarmStatusAsText());
+	ISYJSDebugMessage(this,"Got alarm change notification. Setting HK target state to: "+this.translateAlarmTargetStateToHK()+" Setting HK Current state to: "+this.translateAlarmCurrentStateToHK());
 	this.alarmPanelService
 		.setCharacteristic(Characteristic.SecuritySystemTargetState, this.translateAlarmTargetStateToHK());
 	this.alarmPanelService
