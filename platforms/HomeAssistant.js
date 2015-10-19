@@ -67,8 +67,8 @@
 // When you attempt to add a device, it will ask for a "PIN code".
 // The default code for all HomeBridge accessories is 031-45-154.
 
-var Service = require("HAP-NodeJS").Service;
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 var url = require('url')
 var request = require("request");
 
@@ -152,7 +152,13 @@ HomeAssistantPlatform.prototype = {
         entity = data[i]
         entity_type = entity.entity_id.split('.')[0]
 
+        // ignore devices that are not in the list of supported types
         if (that.supportedTypes.indexOf(entity_type) == -1) {
+          continue;
+        }
+
+        // ignore hidden devices
+        if (entity.attributes && entity.attributes.hidden) {
           continue;
         }
 
@@ -161,6 +167,9 @@ HomeAssistantPlatform.prototype = {
         if (entity_type == 'light') {
           accessory = new HomeAssistantLight(that.log, entity, that)
         }else if (entity_type == 'switch'){
+          console.log(JSON.stringify(entity))
+          console.log("");
+          console.log("");
           accessory = new HomeAssistantSwitch(that.log, entity, that)
         }else if (entity_type == 'scene'){
           accessory = new HomeAssistantSwitch(that.log, entity, that, 'scene')

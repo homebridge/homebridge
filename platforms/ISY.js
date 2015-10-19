@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var xml2js = require('xml2js');
 var request = require('request');
 var util = require('util');

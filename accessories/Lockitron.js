@@ -1,5 +1,5 @@
-var Service = require('HAP-NodeJS').Service;
-var Characteristic = require('HAP-NodeJS').Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 var request = require("request");
 
 module.exports = {
@@ -11,6 +11,17 @@ function LockitronAccessory(log, config) {
   this.name = config["name"];
   this.accessToken = config["api_token"];
   this.lockID = config["lock_id"];
+  
+  this.service = new Service.LockMechanism(this.name);
+  
+  this.service
+    .getCharacteristic(Characteristic.LockCurrentState)
+    .on('get', this.getState.bind(this));
+  
+  this.service
+    .getCharacteristic(Characteristic.LockTargetState)
+    .on('get', this.getState.bind(this))
+    .on('set', this.setState.bind(this));
 }
 
 LockitronAccessory.prototype.getState = function(callback) {
@@ -36,7 +47,7 @@ LockitronAccessory.prototype.getState = function(callback) {
 }
   
 LockitronAccessory.prototype.setState = function(state, callback) {
-  var lockitronState = (state == 1) ? "lock" : "unlock";
+  var lockitronState = (state == Characteristic.LockTargetState.SECURED) ? "lock" : "unlock";
 
   this.log("Set state to %s", lockitronState);
 
@@ -47,6 +58,14 @@ LockitronAccessory.prototype.setState = function(state, callback) {
 
     if (!err && response.statusCode == 200) {
       this.log("State change complete.");
+      
+      // we succeeded, so update the "current" state as well
+      var currentState = (state == Characteristic.LockTargetState.SECURED) ?
+        Characteristic.LockCurrentState.SECURED : Characteristic.LockCurrentState.UNSECURED;
+      
+      this.service
+        .setCharacteristic(Characteristic.LockCurrentState, currentState);
+      
       callback(null); // success
     }
     else {
@@ -57,17 +76,5 @@ LockitronAccessory.prototype.setState = function(state, callback) {
 },
 
 LockitronAccessory.prototype.getServices = function() {
-  
-  var service = new Service.LockMechanism(this.name);
-  
-  service
-    .getCharacteristic(Characteristic.LockCurrentState)
-    .on('get', this.getState.bind(this));
-  
-  service
-    .getCharacteristic(Characteristic.LockTargetState)
-    .on('get', this.getState.bind(this))
-    .on('set', this.setState.bind(this));
-  
-  return [service];
+  return [this.service];
 }

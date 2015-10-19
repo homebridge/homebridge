@@ -26,7 +26,6 @@ try {
   Characteristic = require("hap-nodejs").Characteristic;
 }
 
-
 var util = require('util');
 
 

@@ -1,5 +1,5 @@
-var Service = require("HAP-NodeJS").Service;
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 var wemo = require('wemo');
 
 module.exports = {
@@ -143,6 +143,16 @@ WeMoAccessory.prototype.getServices = function() {
       .on('set', this.setTargetDoorState.bind(this));
     
     return [garageDoorService];
+  }
+  else if (this.service == "Light") {
+    var lightbulbService = new Service.Lightbulb(this.name);
+    
+    lightbulbService
+      .getCharacteristic(Characteristic.On)
+      .on('get', this.getPowerOn.bind(this))
+      .on('set', this.setPowerOn.bind(this));
+    
+    return [lightbulbService];
   }
   else if (this.service == "MotionSensor") {
     var motionSensorService = new Service.MotionSensor(this.name);

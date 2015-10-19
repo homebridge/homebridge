@@ -47,7 +47,7 @@ You have to add services in the following syntax:
     {
         "type": "SERVICENAME",
         "description": "This is just for you to remember things",
-        "name": "We need a name for each service, though it usually shows only if multiple services are present in one accessory",
+        "name": "beer tap thermostat",
         "CHARACTERISTIC1": {
             "Set": "1/1/6",
             "Listen": [
@@ -68,11 +68,54 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 `"Listen":["1/2/3","1/2/4","1/2/5"]` is an array of addresses that are listened to additionally. To these addresses never values get written, but the on startup the service will issue *KNX read requests* to ALL addresses listed in `Set:` and in `Listen:`  
 
 
-# Supported Services and their characteristics
+For two characteristics there are additional minValue and maxValue attributes. These are CurrentTemperature and TargetTemperature, and are used in TemperatureSensor and Thermostat.
 
+So the charcteristic section may look like:
+
+ ````json
+    {
+        "type": "Thermostat",
+        "description": "Sample thermostat",
+        "name": "We need a name for each service, though it usually shows only if multiple services are present in one accessory",
+        "CurrentTemperature": {
+            "Set": "1/1/6",
+            "Listen": [
+                "1/1/63"
+            ],
+            "minValue": -18,
+            "maxValue": 30
+        },
+        "TargetTemperature": {
+            "Set": "1/1/62",
+            "Listen": [
+                "1/1/64"
+            ],
+            "minValue": -4,
+            "maxValue": 12
+        }
+    }
+````
+
+
+## reversal of values for characteristics
+In general, all DPT1 types can be reversed. If you need a 1 for "contact" of a contact senser, you can append an "R" to the group address.
+Likewise, all percentages of DPT5 can be reversed, if you need a 100% (=255) for window closed, append an "R" to the group address. Do not forget the listening addresses!
+ ````json
+    {
+        "type": "ContactSensor",
+        "description": "Sample ContactSensor with 1 as contact (0 is Apple's default)",
+        "name": "WindowContact1",
+        "ContactSensorState": {
+            "Listen": [
+                "1/1/100R"
+            ]
+        }
+    }
+````
+# Supported Services and their characteristics
 ## ContactSensor
--  ContactSensorState: DPT 1.002, 0 as contact **OR**
--  ContactSensorStateContact1: DPT 1.002, 1 as contact
+-  ContactSensorState: DPT 1.002, 0 as contact 
+-  ~~ContactSensorStateContact1: DPT 1.002, 1 as contact~~
 
 -  StatusActive: DPT 1.011, 1 as true
 -  StatusFault: DPT 1.011, 1 as true
@@ -113,10 +156,10 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 -  CurrentAmbientLightLevel: DPT 9.004, 0 to 100000 Lux 
  
 ## LockMechanism (This is poorly mapped!)
--  LockCurrentState: DPT 1, 1 as secured **OR (but not both:)** 
--  LockCurrentStateSecured0: DPT 1, 0 as secured
--  LockTargetState: DPT 1, 1 as secured **OR**  
--  LockTargetStateSecured0: DPT 1, 0 as secured
+-  LockCurrentState: DPT 1, 1 as secured  
+-  ~~LockCurrentStateSecured0: DPT 1, 0 as secured~~
+-  LockTargetState: DPT 1, 1 as secured 
+-  ~~LockTargetStateSecured0: DPT 1, 0 as secured~~
 
 *ToDo here: correction of mappings, HomeKit reqires lock states UNSECURED=0, SECURED=1, JAMMED = 2, UNKNOWN=3*
 
@@ -136,11 +179,11 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
  -  On: DPT 1.001, 1 as on, 0 as off
 
 ## TemperatureSensor
--  CurrentTemperature: DPT9.001 in 캜 [listen only]
+-  CurrentTemperature: DPT9.001 in 째C [listen only]
   
 ## Thermostat
--  CurrentTemperature: DPT9.001 in 캜 [listen only]
--  TargetTemperature: DPT9.001, values 0..40캜 only, all others are ignored
+-  CurrentTemperature: DPT9.001 in 째C [listen only], -40 to 80째C if not overriden as shown above
+-  TargetTemperature: DPT9.001, values 0..40째C only, all others are ignored
 -  CurrentHeatingCoolingState: DPT20.102 HVAC, because of the incompatible mapping only off and heating (=auto) are shown, [listen only]
 -  TargetHeatingCoolingState: DPT20.102 HVAC, as above
 
@@ -152,7 +195,7 @@ Two kinds of addresses are supported: `"Set":"1/2/3"` is a writable group addres
 ## WindowCovering
 -  CurrentPosition: DPT5 percentage
 -  TargetPosition: DPT5 percentage
--  PositionState: DPT5 value [listen only]
+-  PositionState: DPT5 value [listen only: 0 Closing, 1 Opening, 2 Stopped]
 
 ### not yet supported
 -  HoldPosition
