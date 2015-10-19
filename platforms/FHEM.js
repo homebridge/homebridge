@@ -2133,7 +2133,8 @@ function FHEMdebug_handleRequest(request, response){
     if( FHEM_lastEventTime )
     var keys = Object.keys(FHEM_lastEventTime);
     for( var i = 0; i < keys.length; i++ )
-      response.write( "FHEM_lastEventTime " + keys[i] + ": "+ new Date(FHEM_lastEventTime[keys[i]]) +"<br><br>" );
+      response.write( "FHEM_lastEventTime " + keys[i] + ": "+ new Date(FHEM_lastEventTime[keys[i]]) +"<br>" );
+      response.write( "<br>" );
     response.end( "cached: " + util.inspect(FHEM_cached).replace(/\n/g, '<br>') );
 
   } else if( request.url == "/subscriptions" ) {
