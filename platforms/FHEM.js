@@ -14,16 +14,18 @@
 //     }
 // ],
 
+var Service;
 try {
-  var Service = require("hap-nodejs").Service;
+  Service = require("hap-nodejs").Service;
 } catch(err) {
   Service = require("HAP-NodeJS").Service;
 }
 
+var Characteristic;
 try {
-  var Characteristic = require("HAP-NodeJS").Characteristic;
-} catch(err) {
   Characteristic = require("hap-nodejs").Characteristic;
+} catch(err) {
+  Characteristic = require("HAP-NodeJS").Characteristic;
 }
 
 var util = require('util');
