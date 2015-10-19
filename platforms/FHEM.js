@@ -14,8 +14,17 @@
 //     }
 // ],
 
-var Service = require("HAP-NodeJS").Service;
-var Characteristic = require("HAP-NodeJS").Characteristic;
+try {
+  var Service = require("hap-nodejs").Service;
+} catch(err) {
+  Service = require("HAP-NodeJS").Service;
+}
+
+try {
+  var Characteristic = require("HAP-NodeJS").Characteristic;
+} catch(err) {
+  Characteristic = require("hap-nodejs").Characteristic;
+}
 
 
 var util = require('util');
@@ -66,18 +75,21 @@ FHEM_update(inform_id, value, no_update) {
 }
 
 
-var FHEM_lastEventTime;
-var FHEM_longpoll_running = false;
+var FHEM_lastEventTime = {};
+var FHEM_longpoll_running = {};
 //FIXME: add filter
 function FHEM_startLongpoll(connection) {
-  if( FHEM_longpoll_running )
+  if( FHEM_longpoll_running[connection.base_url] )
     return;
-  FHEM_longpoll_running = true;
+  FHEM_longpoll_running[connection.base_url] = true;
+
+  if( connection.disconnects == undefined )
+    connection.disconnects = 0;
 
   var filter = ".*";
   var since = "null";
-  if( FHEM_lastEventTime )
-    since = FHEM_lastEventTime/1000;
+  if( FHEM_lastEventTime[connection.base_url] )
+    since = FHEM_lastEventTime[connection.base_url]/1000;
   var query = "/fhem.pl?XHR=1"+
               "&inform=type=status;filter="+filter+";since="+since+";fmt=JSON"+
               "&timestamp="+Date.now()
@@ -122,7 +134,7 @@ function FHEM_startLongpoll(connection) {
                    var subscription = FHEM_subscriptions[d[0]];
                    if( subscription != undefined ) {
 //console.log( "Rcvd: "+(l.length>132 ? l.substring(0,132)+"...("+l.length+")":l) );
-                     FHEM_lastEventTime = lastEventTime;
+                     FHEM_lastEventTime[connection.base_url] = lastEventTime;
                      var accessory = subscription.accessory;
 
                      var value = d[1];
@@ -227,17 +239,27 @@ function FHEM_startLongpoll(connection) {
                  input = input.substr(FHEM_longpollOffset);
                  FHEM_longpollOffset = 0;
 
-               } ).on( 'end', function() {
-                 console.log( "longpoll ended" );
+                 connection.disconnects = 0;
 
-                 FHEM_longpoll_running = false;
-                 setTimeout( function(){FHEM_startLongpoll(connection)}, 2000 );
+               } ).on( 'end', function() {
+                 FHEM_longpoll_running[connection.base_url] = false;
+
+                 connection.disconnects++;
+                 var timeout = 500 * connection.disconnects - 300;
+                 if( timeout > 30000 ) timeout = 30000;
+
+                 console.log( "longpoll ended, reconnect in: " + timeout + "msec" );
+                 setTimeout( function(){FHEM_startLongpoll(connection)}, timeout  );
 
                } ).on( 'error', function(err) {
-                 console.log( "longpoll error: " + err );
+                 FHEM_longpoll_running[connection.base_url] = false;
 
-                 FHEM_longpoll_running = false;
-                 setTimeout( function(){FHEM_startLongpoll(connection)}, 5000 );
+                 connection.disconnects++;
+                 var timeout = 5000 * connection.disconnects;
+                 if( timeout > 30000 ) timeout = 30000;
+
+                 console.log( "longpoll error: " + err + ", retry in: " + timeout + "msec" );
+                 setTimeout( function(){FHEM_startLongpoll(connection)}, timeout );
 
                } );
 }
@@ -740,10 +762,12 @@ FHEMAccessory(log, connection, s) {
     this.mappings.window = { reading: 'level', cmd: 'level' };
 
   else if( genericType == 'lock'
-           || ( s.Attributes.model && s.Attributes.model.match(/^HM-SEC-KEY/ ) ) )
-    this.mappings.lock = { reading: 'lock', cmdLock: 'lock', cmdUnlock: 'unlock' };
+           || ( s.Attributes.model && s.Attributes.model.match(/^HM-SEC-KEY/ ) ) ) {
+    this.mappings.lock = { reading: 'lock', cmdLock: 'lock', cmdUnlock: 'unlock', cmdOpen: 'open' };
+    if( s.Internals.TYPE == 'dummy' )
+      this.mappings.lock = { reading: 'lock', cmdLock: 'lock locked', cmdUnlock: 'lock unlocked', cmdOpen: 'open' };
 
-  else if( genericType == 'thermostat'
+  } else if( genericType == 'thermostat'
              || s.Attributes.subType == 'thermostat' )
     s.isThermostat = true;
 
@@ -1245,27 +1269,6 @@ FHEMAccessory.prototype = {
   },
 
   execute: function(cmd,callback) {FHEM_execute(this.log, this.connection, cmd, callback)},
-  executexxx: function(cmd,callback) {
-    var url = encodeURI( this.connection.base_url + "/fhem?cmd=" + cmd + "&XHR=1");
-    this.log( '  executing: ' + url );
-
-    this.connection.request
-                     .get( { url: url, gzip: true },
-                           function(err, response, result) {
-                             if( !err && response.statusCode == 200 ) {
-                               if( callback )
-                                 callback( result );
-
-                             } else {
-                               this.log("There was a problem connecting to FHEM ("+ url +").");
-                               if( response )
-                                 this.log( "  " + response.statusCode + ": " + response.statusMessage );
-
-                             }
-
-                           }.bind(this) )
-                     .on( 'error', function(err) { this.log("There was a problem connecting to FHEM ("+ url +"):"+ err); }.bind(this) );
-  },
 
   query: function(reading, callback) {
     if( reading == undefined ) {
@@ -1865,6 +1868,26 @@ FHEMAccessory.prototype = {
         .on('get', function(callback) {
                      this.query(this.mappings.lock.reading, callback);
                    }.bind(this) );
+
+      if( this.mappings.lock.cmdOpen ) {
+        this.log("    target door state characteristic for " + this.name)
+
+        var characteristic = controlService.addCharacteristic(Characteristic.TargetDoorState);
+
+        characteristic.value = Characteristic.TargetDoorState.CLOSED;
+
+        characteristic
+          .on('set', function(characteristic,value, callback, context) {
+                       if( context !== 'fromFHEM' ) {
+                         this.command( 'set', this.mappings.lock.cmdOpen );
+                         setTimeout( function(){characteristic.setValue(Characteristic.TargetDoorState.CLOSED, undefined, 'fromFHEM');}, 500  );
+                       }
+                       if( callback ) callback();
+                     }.bind(this,characteristic) )
+          .on('get', function(callback) {
+                       callback(undefined,Characteristic.TargetDoorState.CLOSED);
+                     }.bind(this) );
+      }
     }
 
     if( this.mappings.garage ) {
@@ -1897,6 +1920,7 @@ FHEMAccessory.prototype = {
                    }.bind(this) );
 
 
+      if( 0 ) {
       this.log("    obstruction detected characteristic for " + this.name)
 
       var characteristic = controlService.getCharacteristic(Characteristic.ObstructionDetected);
@@ -1908,6 +1932,7 @@ FHEMAccessory.prototype = {
         .on('get', function(callback) {
                        callback(undefined,1);
                    }.bind(this) );
+      }
     }
 
     if( this.mappings.temperature ) {
@@ -2056,6 +2081,19 @@ FHEMAccessory.prototype = {
         .on('get', function(callback) {
                      this.query(this.mappings.contact.reading, callback);
                    }.bind(this) );
+
+      if( 1 ) {
+        this.log("    current door state characteristic for " + this.name)
+
+        var characteristic = controlService.addCharacteristic(Characteristic.CurrentDoorState);
+
+        characteristic.value = FHEM_cached[this.mappings.contact.informId]==Characteristic.ContactSensorState.CONTACT_DETECTED?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN;
+
+        characteristic
+          .on('get', function(callback) {
+                       callback(undefined, FHEM_cached[this.mappings.contact.informId]==Characteristic.ContactSensorState.CONTACT_DETECTED?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN);
+                     }.bind(this) );
+      }
     }
 
     if( this.mappings.occupancy ) {
@@ -2093,7 +2131,9 @@ function FHEMdebug_handleRequest(request, response){
   if( request.url == "/cached" ) {
     response.write( "<a href='/'>home</a><br><br>" );
     if( FHEM_lastEventTime )
-      response.write( "FHEM_lastEventTime: "+ new Date(FHEM_lastEventTime) +"<br><br>" );
+    var keys = Object.keys(FHEM_lastEventTime);
+    for( var i = 0; i < keys.length; i++ )
+      response.write( "FHEM_lastEventTime " + keys[i] + ": "+ new Date(FHEM_lastEventTime[keys[i]]) +"<br><br>" );
     response.end( "cached: " + util.inspect(FHEM_cached).replace(/\n/g, '<br>') );
 
   } else if( request.url == "/subscriptions" ) {
