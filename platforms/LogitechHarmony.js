@@ -29,6 +29,7 @@ var Characteristic = require("hap-nodejs").Characteristic;
 var Accessory = require("hap-nodejs").Accessory;
 var uuid = require("hap-nodejs").uuid;
 var inherits = require('util').inherits;
+var queue = require('queue');
 
 
 function sortByKey (array, key) {
@@ -47,136 +48,185 @@ function LogitechHarmonyPlatform (log, config) {
 
 LogitechHarmonyPlatform.prototype = {
 
-  // Find one Harmony remote hub (only support one for now)
-  locateHub: function (callback) {
-    var self = this;
-
-    // Connect to a Harmony hub
-    var createClient = function (ipAddress) {
-      self.log("Connecting to Logitech Harmony remote hub...");
-
-      harmony(ipAddress)
-        .then(function (client) {
-          self.log("Connected to Logitech Harmony remote hub");
-
-          // prevent connection from closing
-          setTimeout(function() {
-            setInterval(function() {
-              self.log("Sending command to prevent timeout");
-              client.getCurrentActivity().then(self.updateCurrentActivity.bind(self));
-            }, 20000);
-          }, 5000);
-
-          callback(null, client);
-        });
-    };
-
-    // Use the ip address in configuration if available
-    if (this.ip_address) {
-      console.log("Using Logitech Harmony hub ip address from configuration");
-
-      return createClient(this.ip_address)
-    }
-
-    this.log("Searching for Logitech Harmony remote hubs...");
-
-    // Discover the harmony hub with bonjour
-    var discover = new harmonyDiscover(_harmonyHubPort);
-
-    // TODO: Support update event with some way to add accessories
-    // TODO: Have some kind of timeout with an error message. Right now this searches forever until it finds one hub.
-    discover.on('online', function (hubInfo) {
-      self.log("Found Logitech Harmony remote hub: " + hubInfo.ip);
-
-      // Stop looking for hubs once we find the first one
-      // TODO: Support multiple hubs
-      discover.stop();
-
-      createClient(hubInfo.ip);
-    });
-
-    // Start looking for hubs
-    discover.start();
-  },
-
-  updateCurrentActivity: function(currentActivity) {
-    var actAccessories = this.activityAccessories;
-    if (actAccessories instanceof Array) {
-      actAccessories.map(function(a) { a.updateActivityState(currentActivity); });
-    }
-  },
-
   accessories: function (callback) {
-    var self = this;
+    var plat = this;
     var foundAccessories = [];
+    var activityAccessories = [];
+    var hub = null;
+    var hubIP = null;
+    var hubQueue = queue();
+    hubQueue.concurrency = 1;
 
     // Get the first hub
-    this.locateHub(function (err, hub) {
+    locateHub(function (err, client, clientIP) {
       if (err) throw err;
 
-      self.log("Fetching Logitech Harmony devices and activites...");
+      plat.log("Fetching Logitech Harmony devices and activites...");
 
+      hub = client;
+      hubIP = clientIP;
       //getDevices(hub);
-      getActivities(hub);
+      getActivities();
     });
 
-    // Get Harmony Devices
-    /*
-    var getDevices = function(hub) {
-      self.log("Fetching Logitech Harmony devices...");
+    // Find one Harmony remote hub (only support one for now)
+    function locateHub(callback) {
+      // Use the ip address in configuration if available
+      if (plat.ip_address) {
+        console.log("Using Logitech Harmony hub ip address from configuration");
 
-      hub.getDevices()
-        .then(function (devices) {
-          self.log("Found devices: ", devices);
+        return createClient(plat.ip_address, callback)
+      }
 
-          var sArray = sortByKey(json['result'],"Name");
+      plat.log("Searching for Logitech Harmony remote hubs...");
 
-          sArray.map(function(s) {
-            accessory = new LogitechHarmonyActivityAccessory(self.log, self.server, self.port, false, s.idx, s.Name, s.HaveDimmer, s.MaxDimLevel, (s.SubType=="RGB")||(s.SubType=="RGBW"));
-            foundAccessories.push(accessory);
+      // Discover the harmony hub with bonjour
+      var discover = new harmonyDiscover(_harmonyHubPort);
+
+      // TODO: Support update event with some way to add accessories
+      // TODO: Have some kind of timeout with an error message. Right now this searches forever until it finds one hub.
+      discover.on('online', function (hubInfo) {
+        plat.log("Found Logitech Harmony remote hub: " + hubInfo.ip);
+
+        // Stop looking for hubs once we find the first one
+        // TODO: Support multiple hubs
+        discover.stop();
+
+        createClient(hubInfo.ip, callback);
+      });
+
+      // Start looking for hubs
+      discover.start();
+    }
+
+    // Connect to a Harmony hub
+    function createClient(ipAddress, callback) {
+      plat.log("Connecting to Logitech Harmony remote hub...");
+      harmony(ipAddress)
+          .then(function (client) {
+            plat.log("Connected to Logitech Harmony remote hub");
+            callback(null, client, ipAddress);
           });
-
-          callback(foundAccessories);
-        });
-    };
-    */
+    }
 
     // Get Harmony Activities
-    var getActivities = function(hub) {
-      self.log("Fetching Logitech Harmony activities...");
+    function getActivities() {
+      plat.log("Fetching Logitech Harmony activities...");
 
       hub.getActivities()
         .then(function (activities) {
-          self.log("Found activities: \n" + activities.map(function (a) { return "\t" + a.label; }).join("\n"));
+          plat.log("Found activities: \n" + activities.map(function (a) { return "\t" + a.label; }).join("\n"));
 
           hub.getCurrentActivity().then(function (currentActivity) {
             var actAccessories = [];
             var sArray = sortByKey(activities, "label");
             sArray.map(function(s) {
-              var accessory = new LogitechHarmonyActivityAccessory(self.log, hub, s, self.updateCurrentActivity.bind(self));
-              accessory.updateActivityState(currentActivity);
-              actAccessories.push(accessory);
-              foundAccessories.push(accessory);
+              var accessory = createActivityAccessory(s);
+              if (accessory.id > 0) {
+                accessory.updateActivityState(currentActivity);
+                actAccessories.push(accessory);
+                foundAccessories.push(accessory);
+              }
             });
-            self.activityAccessories = actAccessories;
+            activityAccessories = actAccessories;
+            keepAliveRefreshLoop();
             callback(foundAccessories);
           }).catch(function (err) {
-            self.log('Unable to get current activity with error', err);
-            callback(false);
+            plat.log('Unable to get current activity with error', err);
+            throw err;
           });
         });
-    };
+    }
+
+    function createActivityAccessory(activity) {
+      var accessory = new LogitechHarmonyActivityAccessory(plat.log, activity, changeCurrentActivity.bind(plat), -1);
+      return accessory;
+    }
+
+    var isChangingActivity = false;
+    function changeCurrentActivity(nextActivity, callback) {
+      if (!nextActivity) {
+        nextActivity = -1;
+      }
+      plat.log('Queue activity to ' + nextActivity);
+      executeOnHub(function(h, cb) {
+        plat.log('Set activity to ' + nextActivity);
+        h.startActivity(nextActivity)
+            .then(function () {
+              cb();
+              isChangingActivity = false;
+              plat.log('Finished setting activity to ' + nextActivity);
+              updateCurrentActivity(nextActivity);
+              if (callback) callback(null, nextActivity);
+            })
+            .catch(function (err) {
+              cb();
+              isChangingActivity = false;
+              plat.log('Failed setting activity to ' + nextActivity + ' with error ' + err);
+              if (callback) callback(err);
+            });
+      }, function(){
+        callback(Error("Set activity failed too many times"));
+      });
+    }
+
+    function updateCurrentActivity(currentActivity) {
+      var actAccessories = activityAccessories;
+      if (actAccessories instanceof Array) {
+        actAccessories.map(function(a) { a.updateActivityState(currentActivity); });
+      }
+    }
+
+    // prevent connection from closing
+    function keepAliveRefreshLoop() {
+      setTimeout(function() {
+        setInterval(function() {
+          executeOnHub(function(h, cb) {
+            plat.log("Refresh Status");
+            h.getCurrentActivity()
+                .then(function(currentActivity){
+                  cb();
+                  updateCurrentActivity(currentActivity);
+                })
+                .catch(cb);
+          });
+        }, 20000);
+      }, 5000);
+    }
+
+    function executeOnHub(func, funcMaxTimeout)
+    {
+      if (!func) return;
+      hubQueue.push(function(cb) {
+          var tout = setTimeout(function(){
+            plat.log("Reconnecting to Hub " + hubIP);
+            createClient(hubIP, function(err, newHub){
+              if (err) throw err;
+              hub = newHub;
+              if (funcMaxTimeout) {
+                funcMaxTimeout();
+              }
+              cb();
+            });
+          }, 30000);
+          func(hub, function(){
+            clearTimeout(tout);
+            cb();
+          });
+      });
+      if (!hubQueue.running){
+        hubQueue.start();
+      }
+    }
   }
 };
 
-function LogitechHarmonyActivityAccessory (log, hub, details, updateCurrentActivity) {
+function LogitechHarmonyActivityAccessory (log, details, changeCurrentActivity) {
   this.log = log;
-  this.hub = hub;
-  this.details = details;
   this.id = details.id;
   this.name = details.label;
   this.isOn = false;
-  this.updateCurrentActivity = updateCurrentActivity;
+  this.changeCurrentActivity = changeCurrentActivity;
   Accessory.call(this, this.name, uuid.generate(this.id));
   var self = this;
 
@@ -194,7 +244,7 @@ function LogitechHarmonyActivityAccessory (log, hub, details, updateCurrentActiv
       })
       .on('set', this.setPowerState.bind(this));
 
-};
+}
 inherits(LogitechHarmonyActivityAccessory, Accessory);
 LogitechHarmonyActivityAccessory.prototype.parent = Accessory.prototype;
 LogitechHarmonyActivityAccessory.prototype.getServices = function() {
@@ -210,22 +260,7 @@ LogitechHarmonyActivityAccessory.prototype.updateActivityState = function (curre
 };
 
 LogitechHarmonyActivityAccessory.prototype.setPowerState = function (state, callback) {
-
-  var self = this;
-
-  this.log('Set activity ' + this.name + ' power state to ' + state);
-
-  var nextActivity = self.id;
-  this.hub.startActivity(nextActivity)
-    .then(function () {
-      self.log('Finished setting activity ' + self.name + ' power state to ' + state);
-        self.updateCurrentActivity(nextActivity);
-        if (callback) callback(null, state);
-    })
-    .catch(function (err) {
-      self.log('Failed setting activity ' + self.name + ' power state to ' + state + ' with error ' + err);
-        if (callback) callback(err);
-    });
+  this.changeCurrentActivity(state ? this.id : null, callback);
 };
 
 module.exports.platform = LogitechHarmonyPlatform;
