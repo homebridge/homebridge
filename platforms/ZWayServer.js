@@ -356,7 +356,16 @@ ZWayServerAccessory.prototype = {
                 }
                 break;
             case "sensorBinary.Door/Window":
-                services.push(new Service.GarageDoorOpener(vdev.metrics.title, vdev.id));
+                var stype = this.platform.getTagValue(vdev, "Service.Type");
+                if(stype === "ContactSensor"){
+                    services.push(new Service.ContactSensor(vdev.metrics.title, vdev.id));
+                } else if(stype === "GarageDoorOpener"){
+                    services.push(new Service.GarageDoorOpener(vdev.metrics.title, vdev.id));
+                } else if(stype === "Window"){
+                    services.push(new Service.GarageDoorOpener(vdev.metrics.title, vdev.id));
+                } else {
+                    services.push(new Service.Door(vdev.metrics.title, vdev.id));
+                }
                 break;
             case "sensorMultilevel.Temperature":
                 services.push(new Service.TemperatureSensor(vdev.metrics.title, vdev.id));
@@ -371,6 +380,8 @@ ZWayServerAccessory.prototype = {
                 var stype = this.platform.getTagValue(vdev, "Service.Type");
                 if(stype === "MotionSensor"){
                     services.push(new Service.MotionSensor(vdev.metrics.title, vdev.id));
+                } else {
+                    services.push(new Service.ContactSensor(vdev.metrics.title, vdev.id));
                 }
         }
         
@@ -412,6 +423,10 @@ ZWayServerAccessory.prototype = {
             map[(new Characteristic.TargetHeatingCoolingState).UUID] = ["thermostat"]; //TODO: Always a fixed result
             map[(new Characteristic.CurrentDoorState).UUID] = ["sensorBinary.Door/Window","sensorBinary"];
             map[(new Characteristic.TargetDoorState).UUID] = ["sensorBinary.Door/Window","sensorBinary"]; //TODO: Always a fixed result
+            map[(new Characteristic.ContactSensorState).UUID] = ["sensorBinary"];
+            map[(new Characteristic.CurrentPosition).UUID] = ["sensorBinary.Door/Window","sensorBinary"];
+            map[(new Characteristic.TargetPosition).UUID] = ["sensorBinary.Door/Window","sensorBinary"];
+            map[(new Characteristic.PositionState).UUID] = ["sensorBinary.Door/Window","sensorBinary"];
             map[(new Characteristic.ObstructionDetected).UUID] = ["sensorBinary.Door/Window","sensorBinary"]; //TODO: Always a fixed result
             map[(new Characteristic.BatteryLevel).UUID] = ["battery.Battery"];
             map[(new Characteristic.StatusLowBattery).UUID] = ["battery.Battery"];
@@ -815,6 +830,68 @@ ZWayServerAccessory.prototype = {
             return cx;
         }
 
+        if(cx instanceof Characteristic.ContactSensorState){
+            cx.zway_getValueFromVDev = function(vdev){
+                var boolval = vdev.metrics.level === "off" ? false : true;
+                boolval = accessory.platform.getTagValue(vdev, "ContactSensorState.Invert") ? !boolval : boolval;
+                return boolval ? Characteristic.ContactSensorState.CONTACT_NOT_DETECTED : Characteristic.ContactSensorState.CONTACT_DETECTED;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            cx.on('change', function(ev){
+                debug("Device " + vdev.metrics.title + ", characteristic " + cx.displayName + " changed from " + ev.oldValue + " to " + ev.newValue);
+            });
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.CurrentPosition){
+            cx.zway_getValueFromVDev = function(vdev){
+                return vdev.metrics.level === "off" ? 0 : 100 ;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                this.getVDev(vdev).then(function(result){
+                    debug("Got value: " + cx.zway_getValueFromVDev(result.data) + ", for " + vdev.metrics.title + ".");
+                    callback(false, cx.zway_getValueFromVDev(result.data));
+                });
+            }.bind(this));
+            cx.on('change', function(ev){
+                debug("Device " + vdev.metrics.title + ", characteristic " + cx.displayName + " changed from " + ev.oldValue + " to " + ev.newValue);
+            });
+            return cx;
+        }
+
+        if(cx instanceof Characteristic.TargetPosition){
+            //TODO: Currently only Door sensors, so always return 0.
+            cx.zway_getValueFromVDev = function(vdev){
+                return 0;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                callback(false, cx.zway_getValueFromVDev(vdev));
+            });
+        }
+
+        if(cx instanceof Characteristic.PositionState){
+            //TODO: Currently only Door sensors, so always return STOPPED.
+            cx.zway_getValueFromVDev = function(vdev){
+                return Characteristic.PositionState.STOPPED;
+            };
+            cx.value = cx.zway_getValueFromVDev(vdev);
+            cx.on('get', function(callback, context){
+                debug("Getting value for " + vdev.metrics.title + ", characteristic \"" + cx.displayName + "\"...");
+                callback(false, cx.zway_getValueFromVDev(vdev));
+            });
+        }
+     
     }
     ,
     configureService: function(service, vdev){
