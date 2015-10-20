@@ -22,6 +22,7 @@
     "hap-nodejs": "^0.0.2",
     "harmonyhubjs-client": "^1.1.4",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
+    "isy-js": "",
     "komponist": "0.1.0",
     "lifx": "git+https://github.com/magicmonkey/lifxjs.git",
     "lifx-api": "^1.0.1",
