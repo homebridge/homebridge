@@ -75,7 +75,7 @@ LockitronAccessory.prototype.setState = function(state, callback) {
       callback(err || new Error("Error setting lock state."));
     }
   }.bind(this));
-},
+}
 
 LockitronAccessory.prototype.getServices = function() {
   return [this.service];
