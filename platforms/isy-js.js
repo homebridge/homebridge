@@ -656,6 +656,7 @@ ISYElkAlarmPanelAccessory.prototype.setAlarmTargetState = function(targetStateHK
 ISYElkAlarmPanelAccessory.prototype.translateAlarmCurrentStateToHK = function() {
 	var tripState = this.device.getAlarmTripState();
 	var sourceAlarmState = this.device.getAlarmState();
+	var sourceAlarmMode = this.device.getAlarmMode();
 	
 	if(tripState >= this.device.ALARM_TRIP_STATE_TRIPPED) {
 		return Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED;		
@@ -664,14 +665,14 @@ ISYElkAlarmPanelAccessory.prototype.translateAlarmCurrentStateToHK = function() 
 	    sourceAlarmState == this.device.ALARM_STATE_READY_TO_ARM_VIOLATION) {
 		return Characteristic.SecuritySystemCurrentState.DISARMED;	   
 	} else {
-		if(sourceAlarmState == this.device.ALARM_MODE_STAY || sourceAlarmState == this.device.ALARM_MODE_STAY_INSTANT ) {
+		if(sourceAlarmMode == this.device.ALARM_MODE_STAY || sourceAlarmMode == this.device.ALARM_MODE_STAY_INSTANT ) {
 			return Characteristic.SecuritySystemCurrentState.STAY_ARM;
-		} else if(sourceAlarmState == this.device.ALARM_MODE_AWAY || sourceAlarmState == this.device.ALARM_MODE_VACATION) {
+		} else if(sourceAlarmMode == this.device.ALARM_MODE_AWAY || sourceAlarmMode == this.device.ALARM_MODE_VACATION) {
 			return Characteristic.SecuritySystemCurrentState.AWAY_ARM;
-		} else if(sourceAlarmState == this.device.ALARM_MODE_NIGHT || sourceAlarmState == this.device.ALARM_MODE_NIGHT_INSTANT) {
+		} else if(sourceAlarmMode == this.device.ALARM_MODE_NIGHT || sourceAlarmMode == this.device.ALARM_MODE_NIGHT_INSTANT) {
 			return Characteristic.SecuritySystemCurrentState.NIGHT_ARM;
 		} else {
-			ISYJSDebugMessage(this,"Setting to disarmed because sourceAlarmState is "+sourceAlarmState);
+			ISYJSDebugMessage(this,"Setting to disarmed because sourceAlarmMode is "+sourceAlarmMode);
 			return Characteristic.SecuritySystemCurrentState.DISARMED;
 		}
 	}
