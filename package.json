@@ -20,7 +20,7 @@
     "eibd": "^0.3.1",
     "elkington": "kevinohara80/elkington",
     "hap-nodejs": "^0.0.2",
-    "harmonyhubjs-client": "enriquez/harmonyhubjs-client#patch-1",
+    "harmonyhubjs-client": "^1.1.6",
     "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
     "komponist": "0.1.0",
     "lifx": "git+https://github.com/magicmonkey/lifxjs.git",
