@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var elkington = require("elkington");
 
 function ElkM1Accessory(log, config) {

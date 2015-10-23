@@ -1,57 +1,46 @@
 var types = require("hap-nodejs/accessories/types.js");
+var Characteristic = require("hap-nodejs").Characteristic;
 var request = require("request");
 
-function X10(log, config) {
+function HomeMaticWindow(log, config) {
   this.log = log;
-  this.ip_address = config["ip_address"];
   this.name = config["name"];
-  this.deviceID = config["device_id"];
-  this.protocol = config["protocol"];
-  this.canDim = config["can_dim"];
+  this.ccuID = config["ccu_id"];
+  this.ccuIP = config["ccu_ip"];
 }
 
-X10.prototype = {
+HomeMaticWindow.prototype = {
 
-  setPowerState: function(powerOn) {
-
-    var binaryState = powerOn ? "on" : "off";
+  
+  getPowerState: function(callback) {
     var that = this;
     
-    this.log("Setting power state of " + this.deviceID + " to " + powerOn);
-    request.put({
-      url: "http://"+this.ip_address+"/x10/"+this.deviceID+"/power/"+binaryState+"?protocol="+this.protocol,
+    this.log("Getting Window State of CCU");    
+    request.get({
+      url: "http://"+this.ccuIP+"/config/xmlapi/state.cgi?datapoint_id="+this.ccuID,
     }, function(err, response, body) {
 
       if (!err && response.statusCode == 200) {
-        that.log("State change complete.");
+        
+        //that.log("Response:"+response.body);
+        var responseString = response.body.substring(83,84);
+        //that.log(responseString);
+	    switch(responseString){
+		              case "0": {callback(Characteristic.ContactSensorState.CONTACT_DETECTED);break;}
+		              case "1": {callback(Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);break;}
+                  case "2": {callback(Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);break;}  
+	    }
+        that.log("Getting Window State complete.");
       }
       else {
-        that.log("Error '"+err+"' setting power state: " + body);
-      }
-    });
-  },
-
-  setBrightnessLevel: function(value) {
-
-    var that = this;
-    
-    this.log("Setting brightness level of " + this.deviceID + " to " + value);
-    request.put({
-      url: "http://"+this.ip_address+"/x10/"+this.deviceID+"/brightness/?protocol="+this.protocol+"&value="+value,
-    }, function(err, response, body) {
-
-      if (!err && response.statusCode == 200) {
-        that.log("State change complete.");
-      }
-      else {
-        that.log("Error '"+err+"' setting brightness level: " + body);
+        that.log("Error '"+err+"' getting Window State: " + body);
       }
     });
   },
 
   getServices: function() {
     var that = this;
-    var services = [{
+    return [{
       sType: types.ACCESSORY_INFORMATION_STYPE,
       characteristics: [{
         cType: types.NAME_CTYPE,
@@ -68,7 +57,7 @@ X10.prototype = {
         onUpdate: null,
         perms: ["pr"],
         format: "string",
-        initialValue: "X10",
+        initialValue: "Homematic",
         supportEvents: false,
         supportBonjour: false,
         manfDescription: "Manufacturer",
@@ -78,7 +67,7 @@ X10.prototype = {
         onUpdate: null,
         perms: ["pr"],
         format: "string",
-        initialValue: "Rev-1",
+        initialValue: "HM-Sec-RHS",
         supportEvents: false,
         supportBonjour: false,
         manfDescription: "Model",
@@ -105,7 +94,7 @@ X10.prototype = {
         designedMaxLength: 1
       }]
     },{
-      sType: types.LIGHTBULB_STYPE,
+      sType: types.CONTACT_SENSOR_STYPE,
       characteristics: [{
         cType: types.NAME_CTYPE,
         onUpdate: null,
@@ -117,35 +106,18 @@ X10.prototype = {
         manfDescription: "Name of service",
         designedMaxLength: 255
       },{
-        cType: types.POWER_STATE_CTYPE,
-        onUpdate: function(value) { that.setPowerState(value); },
-        perms: ["pw","pr","ev"],
+        cType: types.CONTACT_SENSOR_STATE_CTYPE,
+	onRead: function(callback) { that.getPowerState(callback); },
+        perms: ["pr","ev"],
         format: "bool",
         initialValue: false,
         supportEvents: false,
         supportBonjour: false,
-        manfDescription: "Change the power state of a Variable",
+        manfDescription: "Get Window state of a Variable",
         designedMaxLength: 1
       }]
     }];
-    if (that.canDim) {
-      services[1].characteristics.push({
-        cType: types.BRIGHTNESS_CTYPE,
-        onUpdate: function(value) { that.setBrightnessLevel(value); },
-        perms: ["pw","pr","ev"],
-        format: "int",
-        initialValue: 0,
-        supportEvents: false,
-        supportBonjour: false,
-        manfDescription: "Adjust Brightness of Light",
-        designedMinValue: 0,
-        designedMaxValue: 100,
-        designedMinStep: 1,
-        unit: "%"
-      });
-    }
-    return services;
   }
 };
 
-module.exports.accessory = X10;
+module.exports.accessory = HomeMaticWindow;

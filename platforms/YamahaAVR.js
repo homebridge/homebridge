@@ -1,8 +1,8 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var inherits = require('util').inherits;
 var debug = require('debug')('YamahaAVR');
-var Service = require("HAP-NodeJS").Service;
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 var Yamaha = require('yamaha-nodejs');
 var Q = require('q');
 var mdns = require('mdns');
@@ -23,6 +23,7 @@ function YamahaAVRPlatform(log, config){
     this.setMainInputTo = config["setMainInputTo"];
     this.expectedDevices = config["expected_devices"] || 100;
     this.discoveryTimeout = config["discovery_timeout"] || 30;
+    this.manualAddresses = config["manual_addresses"] || {};
     this.browser = mdns.createBrowser(mdns.tcp('http'), {resolverSequence: sequence});
 }
 
@@ -30,24 +31,24 @@ function YamahaAVRPlatform(log, config){
 
 YamahaAVRPlatform.AudioVolume = function() {
   Characteristic.call(this, 'Audio Volume', '00001001-0000-1000-8000-135D67EC4377');
-  this.format = 'uint8';
-  this.unit = 'percentage';
-  this.maximumValue = 100;
-  this.minimumValue = 0;
-  this.stepValue = 1;
-  this.readable = true;
-  this.writable = true;
-  this.supportsEventNotification = true;
+  this.setProps({
+    format: Characteristic.Formats.UINT8,
+    unit: Characteristic.Units.PERCENTAGE,
+    maxValue: 100,
+    minValue: 0,
+    minStep: 1,
+    perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+  });
   this.value = this.getDefaultValue();
 };
 inherits(YamahaAVRPlatform.AudioVolume, Characteristic);
 
 YamahaAVRPlatform.Muting = function() {
   Characteristic.call(this, 'Muting', '00001002-0000-1000-8000-135D67EC4377');
-  this.format = 'bool';
-  this.readable = true;
-  this.writable = true;
-  this.supportsEventNotification = true;
+  this.setProps({
+    format: Characteristic.Formats.UINT8,
+    perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+  });
   this.value = this.getDefaultValue();
 };
 inherits(YamahaAVRPlatform.Muting, Characteristic);
@@ -75,25 +76,44 @@ YamahaAVRPlatform.prototype = {
         var accessories = [];
         var timer, timeElapsed = 0, checkCyclePeriod = 5000;
         
-        browser.on('serviceUp', function(service){
+        // Hmm... seems we need to prevent double-listing via manual and Bonjour...
+        var sysIds = {};
+        
+        var setupFromService = function(service){
             var name = service.name;
             //console.log('Found HTTP service "' + name + '"');
             // We can't tell just from mdns if this is an AVR...
             if (service.port != 80) return; // yamaha-nodejs assumes this, so finding one on another port wouldn't do any good anyway.
             var yamaha = new Yamaha(service.host);
-            yamaha.getSystemConfig().then(function(sysConfig){
-                var sysModel = sysConfig.YAMAHA_AV.System[0].Config[0].Model_Name[0];
-                var sysId = sysConfig.YAMAHA_AV.System[0].Config[0].System_ID[0];
-                that.log("Found Yamaha " + sysModel + " - " + sysId + ", \"" + name + "\"");
-                var accessory = new YamahaAVRAccessory(that.log, that.config, service, yamaha, sysConfig);
-                accessories.push(accessory);
-                if(accessories.length >= this.expectedDevices)
-                    timeoutFunction(); // We're done, call the timeout function now.
-                //callback([accessory]);
-            }, function(err){
-                return;
+            yamaha.getSystemConfig().then(
+                function(sysConfig){
+                    var sysModel = sysConfig.YAMAHA_AV.System[0].Config[0].Model_Name[0];
+                    var sysId = sysConfig.YAMAHA_AV.System[0].Config[0].System_ID[0];
+                    if(sysIds[sysId]){
+                        this.log("WARN: Got multiple systems with ID " + sysId + "! Omitting duplicate!");
+                        return;
+                    }
+                    sysIds[sysId] = true;
+                    this.log("Found Yamaha " + sysModel + " - " + sysId + ", \"" + name + "\"");
+                    var accessory = new YamahaAVRAccessory(this.log, this.config, name, yamaha, sysConfig);
+                    accessories.push(accessory);
+                    if(accessories.length >= this.expectedDevices)
+                        timeoutFunction(); // We're done, call the timeout function now.
+                }.bind(this)
+            );
+        }.bind(this);
+        
+        // process manually specified devices...
+        for(var key in this.manualAddresses){
+            if(!this.manualAddresses.hasOwnProperty(key)) continue;
+            setupFromService({
+                name: key,
+                host: this.manualAddresses[key],
+                port: 80
             });
-        });       
+        }
+        
+        browser.on('serviceUp', setupFromService);
         browser.start();
         
         // The callback can only be called once...so we'll have to find as many as we can
@@ -119,15 +139,15 @@ YamahaAVRPlatform.prototype = {
     }
 };
 
-function YamahaAVRAccessory(log, config, mdnsService, yamaha, sysConfig) {
+function YamahaAVRAccessory(log, config, name, yamaha, sysConfig) {
     this.log = log;
     this.config = config;
-    this.mdnsService = mdnsService;
     this.yamaha = yamaha;
     this.sysConfig = sysConfig;
     
-    this.name = mdnsService.name;
-    this.serviceName = mdnsService.name + " Speakers";
+    this.nameSuffix = config["name_suffix"] || " Speakers";
+    this.name = name;
+    this.serviceName = name + this.nameSuffix;
     this.setMainInputTo = config["setMainInputTo"];
     this.playVolume = this.config["play_volume"];
     this.minVolume = config["min_volume"] || -50.0;
