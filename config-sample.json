@@ -105,6 +105,16 @@
             "platform": "LIFx",
             "name": "LIFx",
             "access_token": "XXXXXXXX generate at https://cloud.lifx.com/settings"
+        },
+        {
+            "platform": "Netatmo",
+            "name": "Netatmo Weather",
+            "auth": {
+                "client_id": "XXXXX Create at https://dev.netatmo.com/",
+                "client_secret": "XXXXX Create at https://dev.netatmo.com/",
+                "username": "your netatmo username",
+                "password": "your netatmo password"
+            }
         }
     ],
 
