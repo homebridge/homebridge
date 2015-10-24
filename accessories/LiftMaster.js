@@ -258,7 +258,7 @@ LiftMasterAccessory.prototype = {
         onUpdate: null,
         perms: ["pr"],
         format: "string",
-        initialValue: "Garage Door Opener Control",
+        initialValue: "Garage Door",
         supportEvents: false,
         supportBonjour: false,
         manfDescription: "Name of service",
