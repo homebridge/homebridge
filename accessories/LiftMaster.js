@@ -16,7 +16,15 @@ LiftMasterAccessory.prototype = {
 
   setState: function(state) {
     this.targetState = state;
+    this.callback = undefined;
     this.login();
+  },
+
+  getState: function(callback) {
+    this.targetState = undefined;
+    this.callback = callback;
+    this.login();
+    return true;
   },
 
   login: function() {
@@ -95,15 +103,21 @@ LiftMasterAccessory.prototype = {
             if (!that.requiredDeviceId) {
               var thisDeviceId = device.MyQDeviceId;
               var thisDoorName = "Unknown";
+              var thisDoorState = 2;
+
               for (var j = 0; j < device.Attributes.length; j ++) {
                 var thisAttributeSet = device.Attributes[j];
                 if (thisAttributeSet.AttributeDisplayName == "desc") {
                   thisDoorName = thisAttributeSet.Value;
                   break;
                 }
+                if (thisAttributeSet.AttributeDisplayName == "doorstate") {
+                  thisDoorState = thisAttributeSet.Value;
+                }
               }
               foundDoors.push(thisDeviceId + " - " + thisDoorName);
               that.deviceId = thisDeviceId;
+              that.deviceState = thisDoorState;
             }
 
             // We specified a door ID, sanity check to make sure it's the one we expected
@@ -111,9 +125,7 @@ LiftMasterAccessory.prototype = {
               that.deviceId = device.MyQDeviceId;
               break;
             }
-
           }
-
         }
 
         // If we have multiple found doors, refuse to proceed
@@ -132,8 +144,14 @@ LiftMasterAccessory.prototype = {
 
         // Did we get a device ID?
         if (that.deviceId) {
-          that.log("Found an opener with ID " + that.deviceId +". Ready to send command...");
-          that.setTargetState();
+          if (that.targetState != undefined) {
+            that.log("Found an opener with ID " + that.deviceId +". Ready to send command...");
+            that.setTargetState();
+          }
+          if (that.callback != undefined) {
+            that.log("Found an opener with ID " + that.deviceId + " [doorstate: " + that.deviceState + "]");
+            that.getCurrentState(that.callback);
+          }
         }
         else
         {
@@ -144,6 +162,11 @@ LiftMasterAccessory.prototype = {
         that.log("Error '"+err+"' getting devices: " + body);
       }
     });
+  },
+
+  getCurrentState: function(callback) {
+      this.log("Getting current state: " + this.deviceState);
+      callback(this.deviceState == 2);
   },
 
   setTargetState: function() {
@@ -181,7 +204,6 @@ LiftMasterAccessory.prototype = {
       body: body,
       json: true
     }, function(err, response, json) {
-
       if (!err && response.statusCode == 200) {
 
         if (json["ReturnCode"] == "0")
@@ -266,6 +288,7 @@ LiftMasterAccessory.prototype = {
       },{
         cType: types.CURRENT_DOOR_STATE_CTYPE,
         onUpdate: function(value) { that.log("Update current state to " + value); },
+        onRead: function(callback) { that.getState(callback); },
         perms: ["pr","ev"],
         format: "int",
         initialValue: 0,
@@ -281,7 +304,7 @@ LiftMasterAccessory.prototype = {
         onUpdate: function(value) { that.setState(value); },
         perms: ["pr","pw","ev"],
         format: "int",
-        initialValue: 0,
+        initialValue: 1,
         supportEvents: false,
         supportBonjour: false,
         manfDescription: "BlaBla",
