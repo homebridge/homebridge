@@ -89,7 +89,7 @@ LiftMasterAccessory.prototype = {
         for (var i=0; i<devices.length; i++) {
           var device = devices[i];
 
-          if (device["MyQDeviceTypeName"] == "GarageDoorOpener") {
+          if (device["MyQDeviceTypeName"] == "GarageDoorOpener" || device["MyQDeviceTypeName"] == "VGDO") {
 
             // If we haven't explicity specified a door ID, we'll loop to make sure we don't have multiple openers, which is confusing
             if (!that.requiredDeviceId) {

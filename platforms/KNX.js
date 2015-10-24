@@ -3,19 +3,18 @@
  */
 'use strict';
 var types = require("hap-nodejs/accessories/types.js");
-//var hardware = require('myHardwareSupport'); //require any additional hardware packages
+
 var knxd = require('eibd');
 
 function KNXPlatform(log, config){
 	this.log = log;
 	this.config = config;
-//	this.property1 = config.property1;
-//	this.property2 = config.property2;
+
 
 
 	// initiate connection to bus for listening ==> done with first shim
 
-};
+}
 
 KNXPlatform.prototype = {
 		accessories: function(callback) {
@@ -49,10 +48,10 @@ KNXPlatform.prototype = {
 					break;
 				default:
 					// do something else
-					this.log("unkown accessory type found")
+					this.log("unkown accessory type found");
 				} 
 
-			};	
+			}
 			// if done, return the array to callback function
 			this.log("returning "+myAccessories.length+" accessories");
 			callback(myAccessories);
@@ -118,7 +117,7 @@ function groupsocketlisten(opts, callback) {
 
 var registerSingleGA = function registerSingleGA (groupAddress, callback, reverse) {
 	subscriptions.push({address: groupAddress, callback: callback, reverse:reverse });
-}
+};
 
 /*
  * public busMonitor.startMonitor()
@@ -193,7 +192,7 @@ var registerGA = function (groupAddresses, callback) {
 	} else {
 		// it's only one
 		if (groupAddresses.match(/(\d*\/\d*\/\d*)/)) {
-			registerSingleGA (groupAddresses.match(/(\d*\/\d*\/\d*)/)[0], callback, groupAddresses[i].match(/\d*\/\d*\/\d*(R)/) ? true:false);
+			registerSingleGA (groupAddresses.match(/(\d*\/\d*\/\d*)/)[0], callback, groupAddresses.match(/\d*\/\d*\/\d*(R)/) ? true:false);
 		}
 	}
 //	console.log("listeners now: " + subscriptions.length);

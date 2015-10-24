@@ -58,14 +58,7 @@ var TelldusLiveAccessory = function TelldusLiveAccessory(log, cloud, device) {
     this.log   = log;
     this.cloud = cloud;
 
-    if( device.model ) {
-      var m = device.model.split(':');
-    } else
-      {
-        var m = [];
-        m[0] = "unknown"
-        m[1] = "unknown"
-      }
+    var m = device.model ? device.model.split(':') : ['unknown', 'unknown'] ;
 
     // Set accessory info
     this.device         = device;
