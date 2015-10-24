@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var request = require("request");
 
 function HomeMatic(log, config) {
@@ -30,7 +30,31 @@ HomeMatic.prototype = {
       }
     });
   },
+  getPowerState: function(callback) {
+    var that = this;
+    
+    this.log("Getting Power State of CCU");    
+    request.get({
+      url: "http://"+this.ccuIP+"/config/xmlapi/state.cgi?datapoint_id="+this.ccuID,
+    }, function(err, response, body) {
 
+      if (!err && response.statusCode == 200) {
+        
+        //that.log("Response:"+response.body);
+        var responseString = response.body.substring(83,87);
+        //that.log(responseString);
+		switch(responseString){
+		  case "true": {modvalue = "1";break;}
+		  case "fals": {modvalue = "0";break;} 
+	    }
+        callback(parseInt(modvalue));
+        that.log("Getting Power State complete.");
+      }
+      else {
+        that.log("Error '"+err+"' getting Power State: " + body);
+      }
+    });
+  },
   getServices: function() {
     var that = this;
     return [{
@@ -101,6 +125,7 @@ HomeMatic.prototype = {
       },{
         cType: types.POWER_STATE_CTYPE,
         onUpdate: function(value) { that.setPowerState(value); },
+        onRead: function(callback) { that.getPowerState(callback); },
         perms: ["pw","pr","ev"],
         format: "bool",
         initialValue: false,

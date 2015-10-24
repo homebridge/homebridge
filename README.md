@@ -52,7 +52,11 @@ You'll also need some patience, as Siri can be very strict about sentence struct
 
 # Getting Started
 
-OK, if you're still excited enough about ordering Siri to make your coffee (which, who wouldn't be!) then here's how to set things up. First, clone this repo and set up the project:
+OK, if you're still excited enough about ordering Siri to make your coffee (which, who wouldn't be!) then here's how to set things up.
+
+**Note:** If you're running on Linux, you'll need to make sure you have the `libavahi-compat-libdnssd-dev` package installed.
+ 
+First, clone this repo:
 
     $ git clone https://github.com/nfarina/homebridge.git
     $ cd homebridge
@@ -61,7 +65,7 @@ OK, if you're still excited enough about ordering Siri to make your coffee (whic
 **Node**: You'll need to have NodeJS version 0.12.x or better installed for required submodule `HAP-NodeJS` to load as well as the `forever` node package..
 
 The server won't do anything until you've edited your `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) or platforms you wish to make available to iOS. The sample configuration has been copied for you into `config.json`. It includes declarations for all supported accessories and platforms. Remove everything except for the accessories and platforms you'll be using.
-
+ 
 Now you should be able to run the homebridge server:
 
     $ cd homebridge

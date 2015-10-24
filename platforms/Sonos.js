@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var sonos = require('sonos');
 
 function SonosPlatform(log, config){
@@ -34,7 +34,7 @@ SonosPlatform.prototype = {
             that.log("Found device at " + device.host);
 
             device.deviceDescription(function (err, description) {
-                if (description["zoneType"] != '11' && description["zoneType"] != '8') { // 8 is the Sonos SUB
+                if (description["zoneType"] != '11' && description["zoneType"] != '8' && description["zoneType"] != '4') { // 8 is the Sonos SUB, 4 is the Sonos Bridge
                     var roomName = description["roomName"];
                     
                     if (!roomNamesFound[roomName]) {

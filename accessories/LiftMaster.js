@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var request = require("request");
 
 // This seems to be the "id" of the official LiftMaster iOS app
@@ -89,7 +89,7 @@ LiftMasterAccessory.prototype = {
         for (var i=0; i<devices.length; i++) {
           var device = devices[i];
 
-          if (device["MyQDeviceTypeName"] == "GarageDoorOpener") {
+          if (device["MyQDeviceTypeName"] == "GarageDoorOpener" || device["MyQDeviceTypeName"] == "VGDO") {
 
             // If we haven't explicity specified a door ID, we'll loop to make sure we don't have multiple openers, which is confusing
             if (!that.requiredDeviceId) {

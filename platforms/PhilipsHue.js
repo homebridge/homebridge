@@ -33,7 +33,7 @@ var hue = require("node-hue-api"),
     HueApi = hue.HueApi,
     lightState = hue.lightState;
 
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 
 function PhilipsHuePlatform(log, config) {
   this.log = log;
@@ -167,7 +167,7 @@ PhilipsHueAccessory.prototype = {
   // Convert 0-65535 to 0-360
   hueToArcDegrees: function(value) {
     value = value/65535;
-    value = value*100;
+    value = value*360;
     value = Math.round(value);
     return value;
   },

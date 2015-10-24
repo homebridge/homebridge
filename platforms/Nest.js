@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var nest = require('unofficial-nest-api');
 
 function NestPlatform(log, config){
@@ -44,7 +44,11 @@ NestPlatform.prototype = {
 
 function NestThermostatAccessory(log, name, device, deviceId) {
   // device info
-  this.name = name;
+  if (name) {
+    this.name = name;
+  } else {
+    this.name = "Nest" + device.serial_number;
+  }
   this.model = device.model_version;
   this.serial = device.serial_number;
   this.deviceId = deviceId;
