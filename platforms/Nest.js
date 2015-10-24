@@ -47,7 +47,7 @@ function NestThermostatAccessory(log, name, device, deviceId) {
   if (name) {
     this.name = name;
   } else {
-    this.name = "Nest";
+    this.name = "Nest" + device.serial_number;
   }
   this.model = device.model_version;
   this.serial = device.serial_number;
