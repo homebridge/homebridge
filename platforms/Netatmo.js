@@ -49,7 +49,7 @@ function NetAtmoRepository(log, api) {
 
 NetAtmoRepository.prototype = {
   refresh: function(callback) {
-    var datasource={
+    var datasource = {
       devices: {},
       modules: {}
     };
@@ -69,7 +69,7 @@ NetAtmoRepository.prototype = {
   },
   load: function(callback) {
     var that = this;
-    this.cache.get( "datasource", function( err, datasource ){
+    this.cache.get( "datasource", function( err, datasource ) {
       if( !err ){
         if ( datasource == undefined ){
           that.refresh(callback);
@@ -126,7 +126,14 @@ function NetatmoAccessory(log, repository, deviceId, moduleId, device) {
   if (moduleId) {
     this.serial = moduleId;
   }
-  this.name = device.module_name;
+
+  // add station name to devices to avoid duplicate names
+  if (device.station_name) {
+    this.name = device.station_name + " " + device.module_name;
+  } else {
+    this.name = device.module_name;
+  }
+
   this.model = device.type;
   this.serviceTypes = device.data_type;
   if (device.battery_vp) {
@@ -161,7 +168,7 @@ NetatmoAccessory.prototype = {
 
   getAirQuality: function(callback) {
     this.getData(function(deviceData) {
-      var level = deviceData.dashboard_data.CO2; 
+      var level = deviceData.dashboard_data.CO2;
       var quality = 0;
       if (level > 2000) quality = 5;
       else if (level > 1500) quality = 4;
