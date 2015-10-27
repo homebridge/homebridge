@@ -9,7 +9,28 @@ var inherits = require('util').inherits;
 process.env.WINK_NO_CACHE = true;
 
 var model = {
-  light_bulbs: require('wink-js/lib/model/light')
+  light_bulbs: require('wink-js/lib/model/light'),
+  refreshUntil: function(that, maxTimes, predicate, callback, interval, incrementInterval) {
+    if (!interval) {
+      interval = 500;
+    }
+    if (!incrementInterval) {
+      incrementInterval = 500;
+    }
+    setTimeout(function() {
+      that.reloadData(function() {
+        if (predicate == undefined || predicate(that.device) == true) {
+          if (callback) callback(true);
+        } else if (maxTimes > 0) {
+          maxTimes = maxTimes - 1;
+          interval += incrementInterval;
+          model.refreshUntil(that, maxTimes, predicate, callback, interval, incrementInterval);
+        } else {
+          if (callback) callback(false);
+        }
+      });
+    }, interval);
+  }
 };
 
 function WinkPlatform(log, config){
@@ -32,7 +53,7 @@ WinkPlatform.prototype = {
     wink.user().devices(function(devices) {
       for (var i=0; i<devices.data.length; i++){
         var device = devices.data[i];
-        var accessory = that.deviceLookup[device.light_bulb_id | ""];
+        var accessory = that.deviceLookup[device.lock_id | device.light_bulb_id | ""];
         if (accessory != undefined) {
           accessory.device = device;
           accessory.loadData();
@@ -68,6 +89,8 @@ WinkPlatform.prototype = {
             var accessory = null;
             if (device.light_bulb_id !== undefined) {
               accessory = new WinkLightAccessory(that.log, device);
+            } else if (device.lock_id !== undefined) {
+              accessory = new WinkLockAccessory(that.log, device);
             }
             if (accessory != undefined) {
               that.deviceLookup[accessory.deviceId] = accessory;
@@ -228,6 +251,100 @@ WinkLightAccessory.prototype.loadData = function() {
       .getValue();
 };
 
+
+/*
+ *   Lock Accessory
+ */
+
+function WinkLockAccessory(log, device) {
+  // construct base
+  WinkAccessory.call(this, log, device, 'lock', device.lock_id);
+
+  // accessor
+  var that = this;
+
+  this
+      .addService(Service.LockMechanism)
+      .getCharacteristic(Characteristic.LockTargetState)
+      .on('get', function(callback) {
+        callback(null, that.isLockTarget());
+      })
+      .on('set', function(value, callback) {
+        var locked = that.fromLockState(value);
+
+        if (locked == undefined) {
+          callback(Error("Unsupported"));
+          return;
+        }
+
+        that.log("Changing target lock state of " + that.name + " to " + (locked ? "locked" : "unlocked"));
+
+        var update = function(retry) {
+          that.control.update({ "desired_state": { "locked": locked } }, function(res) {
+            var err = that.handleResponse(res);
+            if (!err) {
+              model.refreshUntil(that, 5,
+                  function() { return that.isLocked() == that.isLockTarget(); },
+                  function(completed) {
+                    if (completed) {
+                      that.log("Successfully changed lock status to " + (that.isLocked() ? "locked" : "unlocked"));
+                    } else if (retry) {
+                      that.log("Unable to determine if update was successful. Retrying update.");
+                      retry();
+                    } else {
+                      that.log("Unable to determine if update was successful.");
+                    }
+                  });
+            }
+            if (callback)
+            {
+              callback(err);
+              callback = null;
+            }
+          });
+        };
+        update(update);
+      });
+
+  WinkLockAccessory.prototype.loadData.call(this);
+}
+
+inherits(WinkLockAccessory, WinkAccessory);
+WinkLockAccessory.prototype.parent = WinkAccessory.prototype;
+
+WinkLockAccessory.prototype.loadData = function() {
+  this.parent.loadData.call(this);
+  this.getService(Service.LockMechanism)
+      .setCharacteristic(Characteristic.LockCurrentState, this.isLocked());
+  this.getService(Service.LockMechanism)
+      .getCharacteristic(Characteristic.LockTargetState)
+      .getValue();
+};
+
+WinkLockAccessory.prototype.toLockState= function(isLocked) {
+  return isLocked  ? Characteristic.LockCurrentState.SECURED : Characteristic.LockCurrentState.UNSECURED;
+};
+
+WinkLockAccessory.prototype.fromLockState= function(lockState) {
+  switch (lockState) {
+    case Characteristic.LockCurrentState.SECURED:
+      return true;
+    case Characteristic.LockCurrentState.UNSECURED:
+      return false;
+    default:
+      return undefined;
+  }
+};
+
+WinkLockAccessory.prototype.isLockTarget= function() {
+  return this.toLockState(this.device.desired_state.locked);
+};
+
+WinkLockAccessory.prototype.isLocked= function() {
+  return this.toLockState(this.device.last_reading.locked);
+};
+
 module.exports.accessory = WinkAccessory;
+module.exports.lockAccessory = WinkLockAccessory;
 module.exports.lightAccessory = WinkLightAccessory;
 module.exports.platform = WinkPlatform;
