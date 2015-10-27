@@ -27,7 +27,7 @@
     "lifx": "git+https://github.com/magicmonkey/lifxjs.git",
     "lifx-api": "^1.0.1",
     "mdns": "^2.2.4",
-    "netatmo": "1.3.0",
+    "netatmo": "git+https://github.com/patricks/netatmo.git",
     "node-cache": "3.0.0",
     "node-hue-api": "^1.0.5",
     "node-icontrol": "^0.1.5",

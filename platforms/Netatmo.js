@@ -19,7 +19,7 @@
 //
 // The default code for all HomeBridge accessories is 031-45-154.
 
-var types = require('hap-nodejs/accessories/types.js');
+var types = require("hap-nodejs/accessories/types.js");
 
 //////////////////////////////////////////////////////////////////////////////
 // DECLARE SOME UUIDS WHICH SHOUL BE IN HAP-NODEJS TYPES LIB, BUT ARE NOT YET
@@ -38,8 +38,8 @@ types.CARBON_DIOXIDE_LEVEL_CTYPE = stPre + "93" + stPost;
 types.AIR_QUALITY_CTYPE = stPre + "95" + stPost;
 //////////////////////////////////////////////////////////////////////////////
 
-var netatmo = require('netatmo');
-var NodeCache = require( "node-cache" );
+var netatmo = require("netatmo");
+var NodeCache = require("node-cache");
 
 function NetAtmoRepository(log, api) {
   this.api = api;
@@ -50,28 +50,36 @@ function NetAtmoRepository(log, api) {
 NetAtmoRepository.prototype = {
   refresh: function(callback) {
     var datasource = {
-      devices: {},
       modules: {}
     };
     var that = this;
-    that.api.getDevicelist(function(err, devices, modules) {
+    that.api.getStationsData(function(err, devices) {
+
+      // querying for the device infos and the main module
       for (var device of devices) {
+        device.module_name = device.station_name + " " + device.module_name
+
         that.log("refreshing device " + device._id + " (" + device.module_name + ")");
-        datasource.devices[device._id] = device;
+        datasource.modules[device._id] = device;
+
+        // querying for the extra modules
+        for (var module of device.modules) {
+          module.module_name = device.station_name + " " + module.module_name
+
+          that.log("refreshing device " + module._id + " (" + module.module_name + ")");
+          datasource.modules[module._id] = module;
+        }
       }
-      for (var module of modules) {
-        that.log("refreshing module " + module._id + " (" + module.module_name + ")");
-        datasource.modules[module._id] = module;
-      }
+
       that.cache.set( "datasource", datasource, 20 );
       callback(datasource);
     });
   },
   load: function(callback) {
     var that = this;
-    this.cache.get( "datasource", function( err, datasource ) {
-      if( !err ){
-        if ( datasource == undefined ){
+    this.cache.get( "datasource", function(err, datasource) {
+      if(!err) {
+        if (datasource == undefined) {
           that.refresh(callback);
         } else {
           callback(datasource)
@@ -100,16 +108,9 @@ NetatmoPlatform.prototype = {
     var foundAccessories = [];
 
     this.repository.load(function(datasource) {
-      for (var id in datasource.devices) {
-        var device = datasource.devices[id];
-        that.log("Adding accessory for device " + id + " (" + device.module_name + ")");
-        var accessory = new NetatmoAccessory(that.log, that.repository, device._id, null, device);
-        foundAccessories.push(accessory);
-      }
       for (var id in datasource.modules) {
-        var module = datasource.modules[id];
-        that.log("Adding accessory for module " + module._id + " (" + module.module_name + ")");
-        var accessory = new NetatmoAccessory(that.log, that.repository, module.main_device, module._id, module);
+        var device = datasource.modules[id];
+        var accessory = new NetatmoAccessory(that.log, that.repository, device);
         foundAccessories.push(accessory);
       }
       callback(foundAccessories);
@@ -117,22 +118,12 @@ NetatmoPlatform.prototype = {
   }
 }
 
-function NetatmoAccessory(log, repository, deviceId, moduleId, device) {
+function NetatmoAccessory(log, repository, device) {
   this.log = log;
   this.repository = repository;
-  this.deviceId = deviceId;
-  this.moduleId = moduleId;
-  this.serial = deviceId;
-  if (moduleId) {
-    this.serial = moduleId;
-  }
-
-  // add station name to devices to avoid duplicate names
-  if (device.station_name) {
-    this.name = device.station_name + " " + device.module_name;
-  } else {
-    this.name = device.module_name;
-  }
+  this.deviceId = device._id;
+  this.name = device.module_name
+  this.serial = device._id;
 
   this.model = device.type;
   this.serviceTypes = device.data_type;
@@ -146,11 +137,7 @@ NetatmoAccessory.prototype = {
   getData: function(callback) {
     var that = this;
     this.repository.load(function(datasource) {
-      if(that.moduleId) {
-        callback(datasource.modules[that.moduleId]);
-      } else {
-        callback(datasource.devices[that.deviceId]);
-      }
+      callback(datasource.modules[that.deviceId]);
     });
   },
 
