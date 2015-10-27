@@ -1,5 +1,5 @@
-var Service = require("HAP-NodeJS").Service;
-var Characteristic = require("HAP-NodeJS").Characteristic;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
 var request = require("request");
 
 module.exports = {
@@ -14,14 +14,21 @@ function HttpAccessory(log, config) {
   this.off_url = config["off_url"];
   this.brightness_url = config["brightness_url"];
   this.http_method = config["http_method"];
+  this.username = config["username"];
+  this.password = config["password"];
 }
 
 HttpAccessory.prototype = {
 
-  httpRequest: function(url, method, callback) {
+  httpRequest: function(url, method, username, password, callback) {
     request({
       url: url,
-      method: method
+      method: method,
+      auth: {
+        user: username,
+        pass: password,
+        sendImmediately: false
+      }
     },
     function (error, response, body) {
       callback(error, response, body)
@@ -40,13 +47,17 @@ HttpAccessory.prototype = {
       this.log("Setting power state to off");
     }
 
-    this.httpRequest(url, this.http_method, function(error, response, body) {
+    this.httpRequest(url, this.http_method, this.username, this.password, function(error, response, body) {
       if (error) {
         this.log('HTTP power function failed: %s', error.message);
         callback(error);
       }
       else {
         this.log('HTTP power function succeeded!');
+        this.log(response);
+        this.log(body);
+        this.log(this.username);
+        this.log(this.password);
         callback();
       }
     }.bind(this));
@@ -57,7 +68,7 @@ HttpAccessory.prototype = {
 
     this.log("Setting brightness to %s", level);
 
-    this.httpRequest(url, this.http_method, function(error, response, body) {
+    this.httpRequest(url, this.http_method, this.username, this.password, function(error, response, body) {
       if (error) {
         this.log('HTTP brightness function failed: %s', error);
         callback(error);
@@ -68,33 +79,33 @@ HttpAccessory.prototype = {
       }
     }.bind(this));
   },
-  
+
   identify: function(callback) {
     this.log("Identify requested!");
     callback(); // success
   },
-  
+
   getServices: function() {
 
     // you can OPTIONALLY create an information service if you wish to override
     // the default values for things like serial number, model, etc.
     var informationService = new Service.AccessoryInformation();
-    
+
     informationService
       .setCharacteristic(Characteristic.Manufacturer, "HTTP Manufacturer")
       .setCharacteristic(Characteristic.Model, "HTTP Model")
       .setCharacteristic(Characteristic.SerialNumber, "HTTP Serial Number");
-    
+
     var lightbulbService = new Service.Lightbulb();
-    
+
     lightbulbService
       .getCharacteristic(Characteristic.On)
       .on('set', this.setPowerState.bind(this));
-    
+
     lightbulbService
       .addCharacteristic(new Characteristic.Brightness())
       .on('set', this.setBrightness.bind(this));
-    
+
     return [informationService, lightbulbService];
   }
 };

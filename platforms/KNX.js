@@ -2,20 +2,19 @@
  *  based on Sonos platform
  */
 'use strict';
-var types = require("HAP-NodeJS/accessories/types.js");
-//var hardware = require('myHardwareSupport'); //require any additional hardware packages
+var types = require("hap-nodejs/accessories/types.js");
+
 var knxd = require('eibd');
 
 function KNXPlatform(log, config){
 	this.log = log;
 	this.config = config;
-//	this.property1 = config.property1;
-//	this.property2 = config.property2;
+
 
 
 	// initiate connection to bus for listening ==> done with first shim
 
-};
+}
 
 KNXPlatform.prototype = {
 		accessories: function(callback) {
@@ -49,10 +48,10 @@ KNXPlatform.prototype = {
 					break;
 				default:
 					// do something else
-					this.log("unkown accessory type found")
+					this.log("unkown accessory type found");
 				} 
 
-			};	
+			}
 			// if done, return the array to callback function
 			this.log("returning "+myAccessories.length+" accessories");
 			callback(myAccessories);
@@ -116,9 +115,9 @@ function groupsocketlisten(opts, callback) {
 }
 
 
-var registerSingleGA = function registerSingleGA (groupAddress, callback) {
-	subscriptions.push({address: groupAddress, callback: callback });
-}
+var registerSingleGA = function registerSingleGA (groupAddress, callback, reverse) {
+	subscriptions.push({address: groupAddress, callback: callback, reverse:reverse });
+};
 
 /*
  * public busMonitor.startMonitor()
@@ -143,7 +142,7 @@ var startMonitor = function startMonitor(opts) {  // using { host: name-ip, port
 				if (subscriptions[i].address === dest) {
 					// found one, notify
 					console.log('HIT: Write from '+src+' to '+dest+': '+val+' ['+type+']');
-					subscriptions[i].callback(val, src, dest, type);
+					subscriptions[i].callback(val, src, dest, type, subscriptions[i].reverse);
 				}
 			}
 		});
@@ -156,7 +155,7 @@ var startMonitor = function startMonitor(opts) {  // using { host: name-ip, port
 				if (subscriptions[i].address === dest) {
 					// found one, notify
 //					console.log('HIT: Response from '+src+' to '+dest+': '+val+' ['+type+']');
-					subscriptions[i].callback(val, src, dest, type);
+					subscriptions[i].callback(val, src, dest, type, subscriptions[i].reverse);
 				}
 			}
 
@@ -185,13 +184,16 @@ var registerGA = function (groupAddresses, callback) {
 	if (groupAddresses.constructor.toString().indexOf("Array") > -1) {
 		// handle multiple addresses
 		for (var i = 0; i < groupAddresses.length; i++) {
-			if (groupAddresses[i]) { // do not bind empty addresses
-				registerSingleGA (groupAddresses[i], callback);
+			if (groupAddresses[i] && groupAddresses[i].match(/(\d*\/\d*\/\d*)/)) { // do not bind empty addresses or invalid addresses
+				// clean the addresses
+				registerSingleGA (groupAddresses[i].match(/(\d*\/\d*\/\d*)/)[0], callback,groupAddresses[i].match(/\d*\/\d*\/\d*(R)/) ? true:false );
 			}
 		}
 	} else {
 		// it's only one
-		registerSingleGA (groupAddresses, callback);
+		if (groupAddresses.match(/(\d*\/\d*\/\d*)/)) {
+			registerSingleGA (groupAddresses.match(/(\d*\/\d*\/\d*)/)[0], callback, groupAddresses.match(/\d*\/\d*\/\d*(R)/) ? true:false);
+		}
 	}
 //	console.log("listeners now: " + subscriptions.length);
 };

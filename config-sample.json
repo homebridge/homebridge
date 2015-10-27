@@ -24,6 +24,10 @@
             "token_secret" : "telldus token secret"
         },
         {
+            "platform" : "Telldus",
+            "name" : "Telldus"
+        },
+        {
             "platform": "Wink",
             "name": "Wink",
             "client_id": "YOUR_WINK_API_CLIENT_ID",
@@ -89,14 +93,29 @@
             "delay": 30,
             "repeat": 3,
             "zones":["Kitchen Lamp","Bedroom Lamp","Living Room Lamp","Hallway Lamp"]
-         },
-         {
+        },
+        {
              "platform": "HomeAssistant",
              "name": "HomeAssistant",
              "host": "http://192.168.1.10:8123",
              "password": "XXXXX",
              "supported_types": ["light", "switch", "media_player", "scene"]
-         }
+        },
+        {
+            "platform": "LIFx",
+            "name": "LIFx",
+            "access_token": "XXXXXXXX generate at https://cloud.lifx.com/settings"
+        },
+        {
+            "platform": "Netatmo",
+            "name": "Netatmo Weather",
+            "auth": {
+                "client_id": "XXXXX Create at https://dev.netatmo.com/",
+                "client_secret": "XXXXX Create at https://dev.netatmo.com/",
+                "username": "your netatmo username",
+                "password": "your netatmo password"
+            }
+        }
     ],
 
     "accessories": [
@@ -145,6 +164,24 @@
             "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
         },
         {
+            "accessory": "HomeMaticWindow",
+            "name": "Contact",
+            "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
+            "ccu_id": "The XMP-API id of your HomeMatic device (type HM-Sec-RHS)",
+            "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
+        },
+        {
+            "accessory": "HomeMaticThermo",
+            "name": "Contact",
+            "description": "Control HomeMatic devices (The XMP-API addon for the CCU is required)",
+            "ccu_id_TargetTemp": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+			"ccu_id_CurrentTemp": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+			"ccu_id_ControlMode": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+			"ccu_id_ManuMode": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+			"ccu_id_AutoMode": "The XMP-API id of your HomeMatic device (type HM-CC-RT-DN )",
+            "ccu_ip": "The IP-Adress of your HomeMatic CCU device"
+        },
+        {
             "accessory": "X10",
             "name": "Lamp",
             "ip_address": "localhost:3000",
@@ -159,7 +196,20 @@
             "off_url": "https://192.168.1.22:3030/devices/23222/off",
             "brightness_url": "https://192.168.1.22:3030/devices/23222/brightness/%b",
             "http_method": "POST"
-        },{
+        },
+	{
+            "accessory": "HttpHygrometer",
+            "name": "Kitchen",
+            "url": "http://host/URL",
+            "http_method": "GET"
+        },
+	{
+            "accessory": "HttpThermometer",
+            "name": "Garage",
+            "url": "http://home/URL",
+            "http_method": "GET"
+        },
+	{
             "accessory": "ELKM1",
             "name": "Security System",
             "description": "Allows basic control of Elk M1 security system. You can use 1 of 3 arm modes: Away, Stay, Night. If you need to access all 3, create 3 accessories with different names.",
@@ -205,7 +255,18 @@
             "window_seconds": 5,
             "sensor_type": "m",
             "inverse": false
+        },
+        {
+            "accessory": "GenericRS232Device",
+            "name": "Projector",
+            "description": "Make sure you set a 'Siri-Name' for your iOS-Device (example: 'Home Cinema') otherwise it might not work.",
+            "id": "TYDYMU044UVNP",
+            "baudrate": 9600,
+            "device": "/dev/tty.usbserial",
+            "manufacturer": "Acer",
+            "model_name": "H6510BD",
+            "on_command": "* 0 IR 001\r",
+            "off_command": "* 0 IR 002\r"
         }
-
     ]
 }

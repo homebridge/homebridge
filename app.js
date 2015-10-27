@@ -1,14 +1,14 @@
 var fs = require('fs');
 var path = require('path');
 var storage = require('node-persist');
-var hap = require('HAP-NodeJS');
-var uuid = require('HAP-NodeJS').uuid;
-var Bridge = require('HAP-NodeJS').Bridge;
-var Accessory = require('HAP-NodeJS').Accessory;
-var Service = require('HAP-NodeJS').Service;
-var Characteristic = require('HAP-NodeJS').Characteristic;
-var accessoryLoader = require('HAP-NodeJS').AccessoryLoader;
-var once = require('HAP-NodeJS/lib/util/once').once;
+var hap = require("hap-nodejs");
+var uuid = require("hap-nodejs").uuid;
+var Bridge = require("hap-nodejs").Bridge;
+var Accessory = require("hap-nodejs").Accessory;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
+var accessoryLoader = require("hap-nodejs").AccessoryLoader;
+var once = require("hap-nodejs/lib/util/once").once;
 
 console.log("Starting HomeBridge server...");
 
@@ -86,7 +86,7 @@ function loadAccessories() {
         log("Initializing %s accessory...", accessoryType);
         
         var accessoryInstance = new accessoryConstructor(log, accessoryConfig);
-        var accessory = createAccessory(accessoryInstance, accessoryName);
+        var accessory = createAccessory(accessoryInstance, accessoryName, accessoryType, accessoryConfig.uuid_base);  //pass accessoryType for UUID generation, and optional parameter uuid_base which can be used instead of displayName for UUID generation
         
         // add it to the bridge
         bridge.addBridgedAccessory(accessory);
@@ -113,11 +113,11 @@ function loadPlatforms() {
         log("Initializing %s platform...", platformType);
 
         var platformInstance = new platformConstructor(log, platformConfig);
-        loadPlatformAccessories(platformInstance, log);
+        loadPlatformAccessories(platformInstance, log, platformType);
     }
 }
 
-function loadPlatformAccessories(platformInstance, log) {
+function loadPlatformAccessories(platformInstance, log, platformType) {
   asyncCalls++;
   platformInstance.accessories(once(function(foundAccessories){
       asyncCalls--;
@@ -129,7 +129,7 @@ function loadPlatformAccessories(platformInstance, log) {
           
           log("Initializing platform accessory '%s'...", accessoryName);
           
-          var accessory = createAccessory(accessoryInstance, accessoryName);
+          var accessory = createAccessory(accessoryInstance, accessoryName, platformType, accessoryInstance.uuid_base);
 
           // add it to the bridge
           bridge.addBridgedAccessory(accessory);
@@ -141,7 +141,7 @@ function loadPlatformAccessories(platformInstance, log) {
   }));
 }
 
-function createAccessory(accessoryInstance, displayName) {
+function createAccessory(accessoryInstance, displayName, accessoryType, uuid_base) {
   
   var services = accessoryInstance.getServices();
   
@@ -159,7 +159,7 @@ function createAccessory(accessoryInstance, displayName) {
     // The returned "services" for this accessory are simply an array of new-API-style
     // Service instances which we can add to a created HAP-NodeJS Accessory directly.
     
-    var accessoryUUID = uuid.generate(accessoryInstance.constructor.name + ":" + displayName);
+    var accessoryUUID = uuid.generate(accessoryType + ":" + (uuid_base || displayName));
     
     var accessory = new Accessory(displayName, accessoryUUID);
     
@@ -191,6 +191,16 @@ function createAccessory(accessoryInstance, displayName) {
   }
 }
 
+// Returns the setup code in a scannable format.
+function printPin(pin) {
+  console.log("Scan this code with your HomeKit App on your iOS device:");
+  console.log("\x1b[30;47m%s\x1b[0m", "                       ");
+  console.log("\x1b[30;47m%s\x1b[0m", "    ┌────────────┐     ");
+  console.log("\x1b[30;47m%s\x1b[0m", "    │ " + pin + " │     ");
+  console.log("\x1b[30;47m%s\x1b[0m", "    └────────────┘     ");
+  console.log("\x1b[30;47m%s\x1b[0m", "                       ");
+}
+
 // Returns a logging function that prepends messages with the given name in [brackets].
 function createLog(name) {
   return function(message) {
@@ -201,6 +211,7 @@ function createLog(name) {
 }
 
 function publish() {
+  printPin(bridgeConfig.pin);
   bridge.publish({
     username: bridgeConfig.username || "CC:22:3D:E3:CE:30",
     port: bridgeConfig.port || 51826,

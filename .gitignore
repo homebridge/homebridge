@@ -13,4 +13,8 @@ npm-debug.log
 
 # HomeBridge
 config.json
+config.test.json
 persist/
+
+
+.AppleDouble

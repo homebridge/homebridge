@@ -33,9 +33,6 @@ var hue = require("node-hue-api"),
     HueApi = hue.HueApi,
     lightState = hue.lightState;
 
-/* // Oldschool
-var types = require("HAP-NodeJS/accessories/types.js");
-*/
 var Service = require("HAP-NodeJS").Service;
 var Characteristic = require("HAP-NodeJS").Characteristic;
 

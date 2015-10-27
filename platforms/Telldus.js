@@ -1,87 +1,83 @@
 var types = require("hap-nodejs/accessories/types.js");
-var TellduAPI = require("telldus-live");
+var telldus = require('telldus');
 
-function TelldusLivePlatform(log, config) {
+function TelldusPlatform(log, config) {
     var that = this;
     that.log = log;
-
-    that.isLoggedIn = false;
-
-    // Login to Telldus Live!
-    that.cloud = new TellduAPI.TelldusAPI({publicKey: config["public_key"], privateKey: config["private_key"]})
-        .login(config["token"], config["token_secret"], function(err, user) {
-            if (!!err) that.log("Login error: " + err.message);
-            that.log("User logged in: " + user.firstname + " " + user.lastname + ", " + user.email);
-            that.isLoggedIn = true;
-        }
-    );
 }
 
-TelldusLivePlatform.prototype = {
+TelldusPlatform.prototype = {
 
     accessories: function(callback) {
         var that = this;
 
         that.log("Fetching devices...");
 
-        that.cloud.getDevices(function(err, devices) {
+        var devices = telldus.getDevicesSync();
 
-            if (!!err) return that.log('getDevices: ' + err.message);
+        that.log("Found " + devices.length + " devices...");
 
-            var foundAccessories = [];
+        var foundAccessories = [];
 
-            // Clean non device
-            for (var i = 0; i < devices.length; i++) {
-                if (devices[i].type != 'device') {
-                    devices.splice(i, 1);
-                }
+        // Clean non device
+        for (var i = 0; i < devices.length; i++) {
+            if (devices[i].type != 'DEVICE') {
+                devices.splice(i, 1);
             }
+        }
 
-            for (var i = 0; i < devices.length; i++) {
-                if (devices[i].type === 'device') {
-                    TelldusLiveAccessory.create(that.log, devices[i], that.cloud, function(err, accessory) {
-                        if (!!err) that.log("Couldn't load device info");
-                        foundAccessories.push(accessory);
-                        if (foundAccessories.length >= devices.length) {
-                            callback(foundAccessories);
-                        }
-                    });
-                }
+        for (var i = 0; i < devices.length; i++) {
+            if (devices[i].type === 'DEVICE') {
+                TelldusAccessory.create(that.log, devices[i], function(err, accessory) {
+                    if (!!err) that.log("Couldn't load device info");
+                    foundAccessories.push(accessory);
+                    if (foundAccessories.length >= devices.length) {
+                        callback(foundAccessories);
+                    }
+                });
             }
-
-        });
+        }
     }
 };
 
-var TelldusLiveAccessory = function TelldusLiveAccessory(log, cloud, device) {
+var TelldusAccessory = function TelldusAccessory(log, device) {
 
     this.log   = log;
-    this.cloud = cloud;
 
-    var m = device.model ? device.model.split(':') : ['unknown', 'unknown'] ;
+    var m = device.model.split(':');
+
+    this.dimTimeout = false;
 
     // Set accessory info
     this.device         = device;
     this.id             = device.id;
     this.name           = device.name;
-    this.manufacturer   = m[1];
-    this.model          = m[0];
-    this.state          = device.state;
-    this.stateValue     = device.stateValue;
+    this.manufacturer   = "Telldus"; // NOTE: Change this later
+    this.model          = device.model;
     this.status         = device.status;
+    switch (device.status.name) {
+      case 'OFF':
+        this.state = 0;
+        this.stateValue = 0;
+        break;
+      case 'ON':
+        this.state = 2;
+        this.stateValue = 1;
+        break;
+      case 'DIM':
+        this.state = 16;
+        this.stateValue = device.status.level;
+        break;
+    }
 };
 
-TelldusLiveAccessory.create = function (log, device, cloud, callback) {
+TelldusAccessory.create = function (log, device, callback) {
 
-    cloud.getDeviceInfo(device, function(err, device) {
+    callback(null, new TelldusAccessory(log, device));
 
-        if (!!err) that.log("Couldn't load device info");
-
-        callback(err, new TelldusLiveAccessory(log, cloud, device));
-    });
 };
 
-TelldusLiveAccessory.prototype = {
+TelldusAccessory.prototype = {
 
     dimmerValue: function() {
 
@@ -143,21 +139,18 @@ TelldusLiveAccessory.prototype = {
             },{
                 cType: types.IDENTIFY_CTYPE,
                 onUpdate: function () {
-                    that.cloud.onOffDevice(that.device, true, function(err, result) {
+                    telldus.turnOff(that.id, function(err){
                         if (!!err) that.log("Error: " + err.message);
-                        that.cloud.onOffDevice(that.device, false, function(err, result) {
+                        telldus.turnOn(that.id, function(err){
                             if (!!err) that.log("Error: " + err.message);
-                            that.cloud.onOffDevice(that.device, true, function(err, result) {
+                            telldus.turnOff(that.id, function(err){
                                 if (!!err) that.log("Error: " + err.message);
-                                that.cloud.onOffDevice(that.device, false, function(err, result) {
+                                telldus.turnOn(that.id, function(err){
                                     if (!!err) that.log("Error: " + err.message);
-                                    that.cloud.onOffDevice(that.device, true, function(err, result) {
-                                        if (!!err) that.log("Error: " + err.message);
-                                    })
-                                })
-                            })
-                        })
-                    })
+                                });
+                            });
+                        });
+                    });
                 },
                 perms: ["pw"],
                 format: "bool",
@@ -189,27 +182,27 @@ TelldusLiveAccessory.prototype = {
         cTypes.push({
             cType: types.POWER_STATE_CTYPE,
             onUpdate: function(value) {
-                if (value == 1) {
-                    that.cloud.onOffDevice(that.device, value, function(err, result) {
+                if (value) {
+                    telldus.turnOn(that.id, function(err){
                         if (!!err) {
                             that.log("Error: " + err.message)
                         } else {
-                            that.log(that.name + " - Updated power state: " + (value === true ? 'ON' : 'OFF'));
+                            that.log(that.name + " - Updated power state: ON");
                         }
                     });
                 } else {
-                    that.cloud.onOffDevice(that.device, value, function(err, result) {
+                    telldus.turnOff(that.id, function(err){
                         if (!!err) {
                             that.log("Error: " + err.message)
                         } else {
-                            that.log(that.name + " - Updated power state: " + (value === true ? 'ON' : 'OFF'));
+                            that.log(that.name + " - Updated power state: OFF");
                         }
                     });
                 }
             },
             perms: ["pw","pr","ev"],
             format: "bool",
-            initialValue: (that.state != 2 && (that.state === 16 && that.stateValue != "0")) ? 1 : 0,
+            initialValue: (that.state != 2 && (that.state === 16 && that.stateValue != 0)) ? 1 : 0,
             supportEvents: true,
             supportBonjour: false,
             manfDescription: "Change the power state",
@@ -220,13 +213,20 @@ TelldusLiveAccessory.prototype = {
             cTypes.push({
                 cType: types.BRIGHTNESS_CTYPE,
                 onUpdate: function (value) {
-                    that.cloud.dimDevice(that.device, (255 * (value / 100)), function (err, result) {
-                        if (!!err) {
-                            that.log("Error: " + err.message);
-                        } else {
-                            that.log(that.name + " - Updated brightness: " + value);
-                        }
-                    });
+                    if (that.dimTimeout) {
+                      clearTimeout(that.dimTimeout);
+                    }
+
+                    that.dimTimeout = setTimeout(function(){
+                        telldus.dim(that.id, (255 * (value / 100)), function(err, result){
+                            if (!!err) {
+                                that.log("Error: " + err.message);
+                            } else {
+                                that.log(that.name + " - Updated brightness: " + value);
+                            }
+                        });
+                        that.dimTimeout = false;
+                    }, 250);
                 },
                 perms: ["pw", "pr", "ev"],
                 format: "int",
@@ -261,5 +261,5 @@ TelldusLiveAccessory.prototype = {
     }
 };
 
-module.exports.platform = TelldusLivePlatform;
-module.exports.accessory = TelldusLiveAccessory;
+module.exports.platform = TelldusPlatform;
+module.exports.accessory = TelldusAccessory;
