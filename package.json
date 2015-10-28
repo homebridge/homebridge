@@ -41,7 +41,7 @@
     "telldus-live": "^0.2.1",
     "teslams": "1.0.1",
     "tough-cookie": "^2.0.0",
-    "unofficial-nest-api": "git+https://github.com/hachidorii/unofficial_nodejs_nest.git#d8d48edc952b049ff6320ef99afa7b2f04cdee98",
+    "unofficial-nest-api": "git+https://github.com/kraigm/unofficial_nodejs_nest.git#3cbd337adc32fab3b481659b38d86f9fcd6a9c02",
     "wemo": "0.2.x",
     "wink-js": "0.0.5",
     "xml2js": "0.4.x",
