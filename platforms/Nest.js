@@ -6,14 +6,12 @@ var Accessory = require("hap-nodejs").Accessory;
 var uuid = require("hap-nodejs").uuid;
 var inherits = require('util').inherits;
 
-
 function NestPlatform(log, config){
+    // auth info
+    this.username = config["username"];
+    this.password = config["password"];
 
-  // auth info
-  this.username = config["username"];
-  this.password = config["password"];
-
-  this.log = log;
+    this.log = log;
     this.accessoryLookup = { };
 }
 
@@ -27,10 +25,7 @@ NestPlatform.prototype = {
         nest.login(this.username, this.password, function (err, data) {
             if (err) {
                 that.log("There was a problem authenticating with Nest.");
-            }
-            else {
-
-
+            } else {
                 nest.fetchStatus(function (data) {
                     for (var deviceId in data.device) {
                         if (data.device.hasOwnProperty(deviceId)) {
@@ -68,255 +63,202 @@ NestPlatform.prototype = {
 }
 
 function NestThermostatAccessory(log, name, device, deviceId, initialData) {
-  // device info
-  if (name) {
-    this.name = name;
-  } else {
-    this.name = "Nest";
-  }
-  this.model = device.model_version;
-  this.serial = device.serial_number;
-  this.deviceId = deviceId;
-  this.log = log;
-    Accessory.call(this, name, uuid.generate(deviceId));
+    // device info
+    this.name = name || ("Nest" + device.serial_number);
+    this.deviceId = deviceId;
+    this.log = log;
+    this.device = device;
+
+    var id = uuid.generate('nest.thermostat.' + deviceId);
+    Accessory.call(this, name, id);
+    this.uuid_base = id;
+
+    this.currentData = initialData;
 
     this.getService(Service.AccessoryInformation)
         .setCharacteristic(Characteristic.Manufacturer, "Nest")
-        .setCharacteristic(Characteristic.Model, this.model)
-        .setCharacteristic(Characteristic.SerialNumber, this.serial);
+        .setCharacteristic(Characteristic.Model, device.model_version)
+        .setCharacteristic(Characteristic.SerialNumber, device.serial_number);
 
     this.addService(Service.Thermostat, name);
 
     this.getService(Service.Thermostat)
-        .setCharacteristic(Characteristic.TemperatureDisplayUnits, this.extractTemperatureUnits(device))
-        .on('get', this.getTemperatureUnits);
+        .getCharacteristic(Characteristic.TemperatureDisplayUnits)
+        .on('get', function(callback) {
+            var units = this.getTemperatureUnits();
+            var unitsName = units == Characteristic.TemperatureDisplayUnits.FAHRENHEIT ? "Fahrenheit" : "Celsius";
+            this.log("Tempature unit for " + this.name + " is: " + unitsName);
+            if (callback) callback(null, units);
+        }.bind(this));
 
     this.getService(Service.Thermostat)
-        .setCharacteristic(Characteristic.TargetTemperature, this.extractTargetTemperature(initialData))
-        .on('get', this.getTargetTemperature)
-        .on('set', this.setTargetTemperature);
+        .getCharacteristic(Characteristic.CurrentTemperature)
+        .on('get', function(callback) {
+            var curTemp = this.getCurrentTemperature();
+            this.log("Current temperature for " + this.name + " is: " + curTemp);
+            if (callback) callback(null, curTemp);
+        }.bind(this));
 
     this.getService(Service.Thermostat)
-        .setCharacteristic(Characteristic.TargetHeatingCoolingState, this.extractTargetHeatingCooling(initialData))
-        .on('get', this.getTargetHeatingCooling)
-        .on('set', this.setTargetHeatingCooling);
+        .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
+        .on('get', function(callback) {
+            var curHeatingCooling = this.getCurrentHeatingCooling();
+            this.log("Current heating for " + this.name + " is: " + curHeatingCooling);
+            if (callback) callback(null, curHeatingCooling);
+        }.bind(this));
+
+    this.getService(Service.Thermostat)
+        .getCharacteristic(Characteristic.TargetTemperature)
+        .on('get', function(callback) {
+            var targetTemp = this.getTargetTemperature();
+            this.log("Target temperature for " + this.name + " is: " + targetTemp);
+            if (callback) callback(null, targetTemp);
+        }.bind(this))
+        .on('set', this.setTargetTemperature.bind(this));
+
+    this.getService(Service.Thermostat)
+        .getCharacteristic(Characteristic.TargetHeatingCoolingState)
+        .on('get', function(callback) {
+            var targetHeatingCooling = this.getTargetHeatingCooling();
+            this.log("Target heating for " + this.name + " is: " + targetHeatingCooling);
+            if (callback) callback(null, targetHeatingCooling);
+        }.bind(this))
+        .on('set', this.setTargetHeatingCooling.bind(this));
 
     this.updateData(initialData);
 }
 inherits(NestThermostatAccessory, Accessory);
-//NestThermostatAccessory.prototype.parent = Accessory.prototype;
-Service.prototype.getCharacteristic = function(name) {
-    // returns a characteristic object from the service
-    // If  Service.prototype.getCharacteristic(Characteristic.Type)  does not find the characteristic,
-    // but the type is in optionalCharacteristics, it adds the characteristic.type to the service and returns it.
-    var index, characteristic;
-    for (index in this.characteristics) {
-        characteristic = this.characteristics[index];
-        if (typeof name === 'string' && characteristic.displayName === name) {
-            return characteristic;
-        }
-        else if (typeof name === 'function' && characteristic instanceof name) {
-            return characteristic;
-        }
-    }
-    if (typeof name === 'function')  {
-        for (index in this.optionalCharacteristics) {
-            characteristic = this.optionalCharacteristics[index];
-            if (characteristic instanceof name) {
-                return this.addCharacteristic(name);
-            }
-        }
-    }
-};
+NestThermostatAccessory.prototype.parent = Accessory.prototype;
 
 NestThermostatAccessory.prototype.getServices = function() {
     return this.services;
 };
 
 NestThermostatAccessory.prototype.updateData = function(data) {
+    if (data != undefined) {
+        this.currentData = data;
+    }
     var thermostat = this.getService(Service.Thermostat);
-    thermostat.setCharacteristic(Characteristic.CurrentTemperature, this.extractCurrentTemperature(data));
-    thermostat.setCharacteristic(Characteristic.CurrentHeatingCoolingState, this.extractCurrentHeatingCooling(data));
-    thermostat.setCharacteristic(Characteristic.CurrentRelativeHumidity, this.extractCurrentRelativeHumidity(data));
+    thermostat.getCharacteristic(Characteristic.TemperatureDisplayUnits).getValue();
+    thermostat.getCharacteristic(Characteristic.CurrentTemperature).getValue();
+    thermostat.getCharacteristic(Characteristic.CurrentHeatingCoolingState).getValue();
+    thermostat.getCharacteristic(Characteristic.TargetHeatingCoolingState).getValue();
+    thermostat.getCharacteristic(Characteristic.TargetTemperature).getValue();
 };
 
-NestThermostatAccessory.prototype.extractCurrentHeatingCooling = function(device){
-    var currentHeatingCooling = 0;
-    switch(device.target_temperature_type) {
-        case "OFF":
-            currentHeatingCooling = 0;
-            break;
-        case "HEAT":
-            currentHeatingCooling = 1;
-            break;
-        case "COOL":
-            currentHeatingCooling = 2;
-            break;
-        case "RANGE":
-            currentHeatingCooling = 3;
-            break;
-        default:
-            currentHeatingCooling = 0;
+NestThermostatAccessory.prototype.getCurrentHeatingCooling = function(){
+    var current = this.getCurrentTemperature();
+    var state = this.getTargetHeatingCooling();
+
+    var isRange = state == (Characteristic.CurrentHeatingCoolingState.HEAT | Characteristic.CurrentHeatingCoolingState.COOL);
+    var high = isRange ? this.currentData.target_temperature_high : this.currentData.target_temperature;
+    var low = isRange ? this.currentData.target_temperature_low : this.currentData.target_temperature;
+
+    // Add threshold
+    var threshold = .2;
+    high += threshold;
+    low -= threshold;
+
+    if ((state & Characteristic.CurrentHeatingCoolingState.COOL) && this.currentData.can_cool && high < current) {
+        return Characteristic.CurrentHeatingCoolingState.COOL;
     }
-    this.log("Current heating for " + this.name + "is: " + currentHeatingCooling);
-    return currentHeatingCooling;
+    if ((state & Characteristic.CurrentHeatingCoolingState.HEAT) && this.currentData.can_heat && low > current) {
+        return Characteristic.CurrentHeatingCoolingState.HEAT;
+    }
+    return Characteristic.CurrentHeatingCoolingState.OFF;
 };
-NestThermostatAccessory.prototype.getCurrentHeatingCooling = function(callback){
-    var that = this;
-    this.log("Checking current heating cooling for: " + this.name);
-    nest.fetchStatus(function (data) {
-        var device = data.device[that.deviceId];
-        var currentHeatingCooling = that.extractCurrentHeatingCooling(device);
-        callback(currentHeatingCooling);
-    });
-};
-NestThermostatAccessory.prototype.extractTargetHeatingCooling = function(device){
-    var targetHeatingCooling = 0;
-    switch(device.target_temperature_type) {
+
+NestThermostatAccessory.prototype.getTargetHeatingCooling = function(){
+    switch(this.currentData.target_temperature_type) {
         case "off":
-            targetHeatingCooling = 0;
-            break;
+            return Characteristic.CurrentHeatingCoolingState.OFF;
         case "heat":
-            targetHeatingCooling = 1;
-            break;
+            return Characteristic.CurrentHeatingCoolingState.HEAT;
         case "cool":
-            targetHeatingCooling = 2;
-            break;
+            return Characteristic.CurrentHeatingCoolingState.COOL;
         case "range":
-            targetHeatingCooling = 3;
-            break;
+            return Characteristic.CurrentHeatingCoolingState.HEAT | Characteristic.CurrentHeatingCoolingState.COOL;
         default:
-            targetHeatingCooling = 0;
+            return Characteristic.CurrentHeatingCoolingState.OFF;
     }
-    this.log("Current target heating for " + this.name + " is: " + targetHeatingCooling);
-    return targetHeatingCooling;
-};
-NestThermostatAccessory.prototype.getTargetHeatingCooling = function(callback){
-        var that = this;
-        this.log("Checking target heating cooling for: " + this.name);
-        nest.fetchStatus(function (data) {
-            var device = data.device[that.deviceId];
-            var targetHeatingCooling = that.extractTargetHeatingCooling(device);
-            callback(targetHeatingCooling);
-        });
-    };
-
-
-NestThermostatAccessory.prototype.extractCurrentTemperature = function(device){
-    var curTemp = this.extractAsDisplayUnit(device.current_temperature, device);
-    this.log("Current temperature for " + this.name + " is: " + curTemp);
-    return curTemp;
 };
 
-NestThermostatAccessory.prototype.extractTargetTemperature = function(device){
-    var targetTemp;
-    if (device.target_temperature != undefined) {
-        targetTemp = device.target_temperature;
-    } else if (device.temperature_lock_high_temp != undefined) {
-        targetTemp = device.temperature_lock_high_temp;
-    } else {
-        return null;
+NestThermostatAccessory.prototype.getCurrentTemperature = function(){
+    return this.currentData.current_temperature;
+};
+
+NestThermostatAccessory.prototype.getTargetTemperature = function() {
+    switch (this.getTargetHeatingCooling()) {
+        case Characteristic.CurrentHeatingCoolingState.HEAT | Characteristic.CurrentHeatingCoolingState.COOL:
+            // Choose closest target as single target
+            var high = this.currentData.target_temperature_high;
+            var low = this.currentData.target_temperature_low;
+            var cur = this.currentData.current_temperature;
+            return Math.abs(high - cur) < Math.abs(cur - low) ? high : low;
+        default:
+            return this.currentData.target_temperature;
     }
-
-    targetTemp = this.extractAsDisplayUnit(targetTemp, device);
-    this.log("Target temperature for " + this.name + " is: " + targetTemp);
-    return targetTemp;
 };
-NestThermostatAccessory.prototype.getTargetTemperature = function(callback){
-        var that = this;
-        nest.fetchStatus(function (data) {
-            var device = data.shared[that.deviceId];
-            var targetTemp = this.extractTargetTemperature(device);
-            callback(targetTemp);
-        });
-    };
 
-NestThermostatAccessory.prototype.extractTemperatureUnits = function(device) {
-    var temperatureUnits = 0;
-    switch(device.temperature_scale) {
+NestThermostatAccessory.prototype.getTemperatureUnits = function() {
+    switch(this.device.temperature_scale) {
         case "F":
-            this.log("Tempature unit for " + this.name + " is: " + "Fahrenheit");
-            temperatureUnits = 1;
-            break;
+            return Characteristic.TemperatureDisplayUnits.FAHRENHEIT;
         case "C":
-            this.log("Tempature unit for " + this.name + " is: " + "Celsius");
-            temperatureUnits = 0;
-            break;
+            return Characteristic.TemperatureDisplayUnits.CELSIUS;
         default:
-            temperatureUnits = 0;
+            return Characteristic.TemperatureDisplayUnits.CELSIUS;
     }
-    return temperatureUnits;
-};
-
-NestThermostatAccessory.prototype.isFahrenheitUnit = function(unit) {
-  return unit == 1;
-};
-
-NestThermostatAccessory.prototype.convertToDisplayUnit = function(value, displayUnit) {
-    return this.isFahrenheitUnit(displayUnit) ? nest.ctof(value) : value;
-};
-
-NestThermostatAccessory.prototype.convertToValueUnit = function(value, displayUnit) {
-    return this.isFahrenheitUnit(displayUnit) ? nest.ftoc(value) : value;
-};
-
-NestThermostatAccessory.prototype.extractAsDisplayUnit = function(value, device) {
-    var tempUnit = this.extractTemperatureUnits(device);
-    return this.convertToDisplayUnit(value, tempUnit);
-};
-
-NestThermostatAccessory.prototype.extractAsValueUnit = function(value, device) {
-    return this.convertToValueUnit(value, this.extractTemperatureUnits(device));
-};
-
-NestThermostatAccessory.prototype.getTemperatureUnits = function(callback){
-        var that = this;
-        nest.fetchStatus(function (data) {
-            var device = data.device[that.deviceId];
-            var temperatureUnits = that.extractTemperatureUnits(device);
-            callback(temperatureUnits);
-        });
-    };
-
-NestThermostatAccessory.prototype.extractCurrentRelativeHumidity = function(device) {
-    var humidity = device.current_humidity;
-    this.log("Humidity for " + this.name + " is: " + humidity);
-    return humidity;
 };
 
 NestThermostatAccessory.prototype.setTargetHeatingCooling = function(targetHeatingCooling, callback){
-        var targetTemperatureType = 'off';
-        switch(targetHeatingCooling) {
-            case 0:
-                targetTemperatureType = 'off';
-                break;
-            case 1:
-                targetTemperatureType = 'heat';
-                break;
-            case 2:
-                targetTemperatureType = 'cool';
-                break;
-            case 3:
-                targetTemperatureType = 'range';
-                break;
-            default:
-                targetTemperatureType = 'off';
-        }
+    var targetTemperatureType = null;
 
-        this.log("Setting target heating cooling for " + this.name + " to: " + targetTemperatureType);
-        nest.setTargetTemperatureType(this.deviceId, targetTemperatureType);
-
-    if (callback) {
-        callback();
+    switch(targetHeatingCooling) {
+        case Characteristic.CurrentHeatingCoolingState.HEAT:
+            targetTemperatureType = 'heat';
+            break;
+        case Characteristic.CurrentHeatingCoolingState.COOL:
+            targetTemperatureType = 'cool';
+            break;
+        case Characteristic.CurrentHeatingCoolingState.HEAT | Characteristic.CurrentHeatingCoolingState.COOL:
+            targetTemperatureType = 'range';
+            break;
+        default:
+            targetTemperatureType = 'off';
+            break;
     }
+
+    this.log("Setting target heating cooling for " + this.name + " to: " + targetTemperatureType);
+    nest.setTargetTemperatureType(this.deviceId, targetTemperatureType);
+
+    if (callback) callback(null, targetTemperatureType);
 };
 
 NestThermostatAccessory.prototype.setTargetTemperature = function(targetTemperature, callback){
-    this.log("Setting target temperature for " + this.name + " to: " + targetTemperature);
-    nest.setTemperature(this.deviceId, targetTemperature);
-    if (callback) {
-        callback();
+
+    switch (this.getTargetHeatingCooling()) {
+        case Characteristic.CurrentHeatingCoolingState.HEAT | Characteristic.CurrentHeatingCoolingState.COOL:
+            // Choose closest target as single target
+            var high = this.currentData.target_temperature_high;
+            var low = this.currentData.target_temperature_low;
+            var cur = this.currentData.current_temperature;
+            var isHighTemp = Math.abs(high - cur) < Math.abs(cur - low);
+            if (isHighTemp) {
+                high = targetTemperature;
+            } else {
+                low = targetTemperature;
+            }
+            this.log("Setting " + (isHighTemp ? "high" : "low") + " target temperature for " + this.name + " to: " + targetTemperature);
+            nest.setTemperatureRange(this.deviceId, low, high);
+            break;
+        default:
+            this.log("Setting target temperature for " + this.name + " to: " + targetTemperature);
+            nest.setTemperature(this.deviceId, targetTemperature);
+            break;
     }
+
+    if (callback) callback(null, targetTemperature);
 };
 
 module.exports.accessory = NestThermostatAccessory;
