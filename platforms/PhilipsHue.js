@@ -187,6 +187,20 @@ PhilipsHueAccessory.prototype = {
     value = Math.round(value);
     return value;
   },
+  extractValue: function(characteristic, status) {
+    switch(characteristic.toLowerCase()) {
+      case 'power':
+        return status.state.on  ? 1 : 0;
+      case 'hue':
+        return this.hueToArcDegrees(status.state.hue);
+      case 'brightness':
+        return this.bitsToPercentage(status.state.bri);
+      case 'saturation':
+        return this.bitsToPercentage(status.state.sat);
+      default:
+        return null;
+    }
+  },
   // Create and set a light state
   executeChange: function(characteristic, value, callback) {
     var state = lightState.create();
@@ -254,24 +268,14 @@ PhilipsHueAccessory.prototype = {
       }
       
       else {
-        switch(characteristic.toLowerCase()) {
-        case 'power':
-          callback(null, status.state.on  ? 1 : 0);
-          break;
-        case 'hue':
-          callback(null, this.hueToArcDegrees(status.state.hue));
-          break;
-        case 'brightness':
-          callback(null, this.bitsToPercentage(status.state.bri));
-          break;
-        case 'saturation':
-          callback(null, this.bitsToPercentage(status.state.sat));
-          break;
-        //default:
-        //  this.log("Device " + that.device.name + " does not support reading characteristic " + characteristic);
-        //  callback(Error("Device " + that.device.name + " does not support reading characteristic " + characteristic) );
+        var newValue = this.extractValue(characteristic, status);
+        if (newValue != undefined) {
+          callback(null, newValue);
+        } else {
+          //  this.log("Device " + that.device.name + " does not support reading characteristic " + characteristic);
+          //  callback(Error("Device " + that.device.name + " does not support reading characteristic " + characteristic) );
         }
-		
+
         callback = null;
 		
         //this.log("Get " + that.device.name + ", characteristic: " + characteristic + ", value: " + value + ".");
@@ -295,24 +299,28 @@ PhilipsHueAccessory.prototype = {
 	lightbulbService
 	.getCharacteristic(Characteristic.On)
 	.on('get', function(callback) { that.getState("power", callback);})
-	.on('set', function(value, callback) { that.executeChange("power", value, callback);});
+	.on('set', function(value, callback) { that.executeChange("power", value, callback);})
+    .value = this.extractValue("power", this.device);
 
 	lightbulbService
 	.addCharacteristic(Characteristic.Brightness)
 	.on('get', function(callback) { that.getState("brightness", callback);})
-	.on('set', function(value, callback) { that.executeChange("brightness", value, callback);});
+	.on('set', function(value, callback) { that.executeChange("brightness", value, callback);})
+    .value = this.extractValue("brightness", this.device);
 
 	// Handle the Hue/Hue Lux divergence
 	if (this.device.state.hasOwnProperty('hue') && this.device.state.hasOwnProperty('sat')) {
 		lightbulbService
 		.addCharacteristic(Characteristic.Hue)
 		.on('get', function(callback) { that.getState("hue", callback);})
-		.on('set', function(value, callback) { that.executeChange("hue", value, callback);});
+		.on('set', function(value, callback) { that.executeChange("hue", value, callback);})
+        .value = this.extractValue("hue", this.device);
 
 		lightbulbService
 		.addCharacteristic(Characteristic.Saturation)
 		.on('get', function(callback) { that.getState("saturation", callback);})
-		.on('set', function(value, callback) { that.executeChange("saturation", value, callback);});
+		.on('set', function(value, callback) { that.executeChange("saturation", value, callback);})
+        .value = this.extractValue("saturation", this.device);
 	}
 
 	var informationService = new Service.AccessoryInformation();
