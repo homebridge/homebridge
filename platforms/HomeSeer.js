@@ -29,12 +29,22 @@
 // - Added offEventGroup && offEventName to events (turn <event> on launches one HS event. turn <event> off can launch another HS event)
 // - Added GarageDoorOpener support
 // - Added Lock support
+// V0.10 - 2015/10/29
+// - Added Security System support
+// - Added Window support
+// - Added Window Covering support
+// - Added obstruction support to doors, windows, and windowCoverings
 //
 //
 // Remember to add platform to config.json. 
 //
 // You can get HomeSeer Device References by clicking a HomeSeer device name, then 
-// choosing the Advanced Tab. 
+// choosing the Advanced Tab.
+//
+// The uuid_base parameter is valid for all events and accessories. 
+// If you set this parameter to some unique identifier, the HomeKit accessory ID will be based on uuid_base instead of the accessory name.
+// It is then easier to change the accessory name without messing the HomeKit database.
+// 
 //
 // Example:
 // "platforms": [
@@ -148,10 +158,31 @@
 //              "lockValue":1                   // Required - HomeSeer device control value to lock
 //            },
 //            {
+//              "ref":230,                      // Required - HomeSeer Device Reference of a Security System
+//              "type":"SecuritySystem",        // Required for a security system
+//              "name":"Home alarm",            // Optional - HomeSeer device name is the default
+//              "armedStayValues":[0],          // Optional - List of the HomeSeer device values for a HomeKit security state=ARMED-STAY
+//              "armedAwayValues":[1],          // Optional - List of the HomeSeer device values for a HomeKit security state=ARMED-AWAY
+//              "armedNightValues":[2],         // Optional - List of the HomeSeer device values for a HomeKit security state=ARMED-NIGHT
+//              "disarmedValues":[3],           // Optional - List of the HomeSeer device values for a HomeKit security state=DISARMED
+//              "alarmValues":[4],              // Optional - List of the HomeSeer device values for a HomeKit security state=ALARM
+//              "armStayValue":0,               // Required - HomeSeer device control value to arm in stay mode. If you don't have this mode, select any value that arms your system
+//              "armAwayValue":1,               // Required - HomeSeer device control value to arm in away mode. If you don't have this mode, select any value that arms your system
+//              "armNightValue":2,              // Required - HomeSeer device control value to arm in night mode. If you don't have this mode, select any value that arms your system
+//              "disarmValue":3                 // Required - HomeSeer device control value to disarm security system
+//            },
+//            {
 //              "ref":115,                      // Required - HomeSeer Device Reference for a device holding battery level (0-100)
 //              "type":"Battery",               // Required for a Battery
 //              "name":"Roomba battery",        // Optional - HomeSeer device name is the default
 //              "batteryThreshold":15           // Optional - If the level is below this value, the HomeKit LowBattery characteristic is set to 1. Default is 10
+//            },
+//            {
+//              "ref":240,                      // Required - HomeSeer Device Reference for a door - HomeSeer values must go from 0 (closed) to 100 (open)
+//              "type":"Door",                  // Required for a Door
+//              "name":"Main door",             // Optional - HomeSeer device name is the default
+//              "obstructionRef":241,           // Optional - HomeSeer device reference for your door obstruction state (can be the same as ref)
+//              "obstructionValues":[1]         // Optional - List of the HomeSeer device values for a HomeKit obstruction state=OBSTRUCTION
 //            }
 //         ]
 //     }
@@ -177,8 +208,10 @@
 // - Battery                (batteryThreshold option)
 // - GarageDoorOpener       (state, control, obstruction, lock options)
 // - Lock                   (unsecured, secured, jammed options)
-// - Door
-
+// - SecuritySystem         (arm, disarm options)
+// - Door                   (obstruction option)
+// - Window                 (obstruction option)
+// - WindowCovering         (obstruction option)
 
 var Service = require("hap-nodejs").Service;
 var Characteristic = require("hap-nodejs").Characteristic;
@@ -672,7 +705,7 @@ HomeSeerAccessory.prototype = {
     },
 
     setLockTargetState: function(state, callback) {
-        this.log("Setting target lock state state to %s", state);
+        this.log("Setting target lock state to %s", state);
 
         var ref = this.config.lockRef;
         var value = 0;
@@ -693,6 +726,62 @@ HomeSeerAccessory.prototype = {
             }
         }.bind(this));
     },
+
+    getSecuritySystemCurrentState: function(callback) {
+        var url = this.access_url + "request=getstatus&ref=" + this.ref;
+
+        httpRequest(url, 'GET', function(error, response, body) {
+            if (error) {
+                this.log('HomeSeer get security system current state function failed: %s', error.message);
+                callback( error, 3 );
+            }
+            else {
+                var status = JSON.parse( body );
+                var value = status.Devices[0].value;
+	
+                this.log('HomeSeer get security system current state function succeeded: value=' + value );
+                if( this.config.armedStayValues && this.config.armedStayValues.indexOf(value) != -1 )
+                    callback( null, 0 );
+                else if( this.config.armedAwayValues && this.config.armedAwayValues.indexOf(value) != -1 )
+                    callback( null, 1 );
+                else if( this.config.armedNightValues && this.config.armedNightValues.indexOf(value) != -1 )
+                    callback( null, 2 );
+                else if( this.config.disarmedValues && this.config.disarmedValues.indexOf(value) != -1 )
+                    callback( null, 3 );
+                else if( this.config.alarmValues && this.config.alarmValues.indexOf(value) != -1 )
+                    callback( null, 4 );
+                else
+                    callback( null, 0 );                
+            }
+        }.bind(this));
+    },
+
+    setSecuritySystemTargetState: function(state, callback) {
+        this.log("Setting security system state to %s", state);
+
+        var value = 0;
+        if( state == 0 && this.config.armStayValue )
+            value = this.config.armStayValue;
+        else if( state == 1 && this.config.armAwayValue )
+            value = this.config.armAwayValue;
+        else if( state == 2 && this.config.armNightValue )
+            value = this.config.armNightValue;
+        else if( state == 3 && this.config.disarmValue )
+            value = this.config.disarmValue;
+
+        var url = this.access_url + "request=controldevicebyvalue&ref=" + this.ref + "&value=" + value;
+        httpRequest(url, 'GET', function(error, response, body) {
+            if (error) {
+                this.log('HomeSeer set target security system state function failed: %s', error.message);
+                callback(error);
+            }
+            else {
+                this.log('HomeSeer set target security system state function succeeded!');
+                callback();
+            }
+        }.bind(this));
+    },
+
 
     getPositionState: function(callback) {
         callback( null, 2 );  // Temporarily return STOPPED. TODO: full door support
@@ -897,7 +986,50 @@ HomeSeerAccessory.prototype = {
             doorService
                 .getCharacteristic(Characteristic.PositionState)
                 .on('get', this.getPositionState.bind(this));
+            if( this.config.obstructionRef ) {
+                doorService
+                    .addCharacteristic(new Characteristic.ObstructionDetected())
+                    .on('get', this.getObstructionDetected.bind(this));
+            }
             services.push( doorService );
+            break;
+            }
+        case "Window": {
+            var windowService = new Service.Window();
+            windowService
+                .getCharacteristic(Characteristic.CurrentPosition)
+                .on('get', this.getValue.bind(this));
+            windowService
+                .getCharacteristic(Characteristic.TargetPosition)
+                .on('set', this.setValue.bind(this));
+            windowService
+                .getCharacteristic(Characteristic.PositionState)
+                .on('get', this.getPositionState.bind(this));
+            if( this.config.obstructionRef ) {
+                windowService
+                    .addCharacteristic(new Characteristic.ObstructionDetected())
+                    .on('get', this.getObstructionDetected.bind(this));
+            }
+            services.push( windowService );
+            break;
+            }
+        case "WindowCovering": {
+            var windowCoveringService = new Service.WindowCovering();
+            windowCoveringService
+                .getCharacteristic(Characteristic.CurrentPosition)
+                .on('get', this.getValue.bind(this));
+            windowCoveringService
+                .getCharacteristic(Characteristic.TargetPosition)
+                .on('set', this.setValue.bind(this));
+            windowCoveringService
+                .getCharacteristic(Characteristic.PositionState)
+                .on('get', this.getPositionState.bind(this));
+            services.push( windowCoveringService );
+            if( this.config.obstructionRef ) {
+                windowCoveringService
+                    .addCharacteristic(new Characteristic.ObstructionDetected())
+                    .on('get', this.getObstructionDetected.bind(this));
+            }
             break;
             }
         case "Battery": {
@@ -972,6 +1104,17 @@ HomeSeerAccessory.prototype = {
                 .getCharacteristic(Characteristic.LockTargetState)
                 .on('set', this.setLockTargetState.bind(this));
             services.push( lockService );
+            break;
+            }
+        case "SecuritySystem": {
+            var securitySystemService = new Service.SecuritySystem();
+            securitySystemService
+                .getCharacteristic(Characteristic.SecuritySystemCurrentState)
+                .on('get', this.getSecuritySystemCurrentState.bind(this));
+            securitySystemService
+                .getCharacteristic(Characteristic.SecuritySystemTargetState)
+                .on('set', this.setSecuritySystemTargetState.bind(this));
+            services.push( securitySystemService );
             break;
             }
 
