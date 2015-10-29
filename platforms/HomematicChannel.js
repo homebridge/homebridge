@@ -1,3 +1,4 @@
+"use strict";
 var types = require("hap-nodejs/accessories/types.js");
 
 
@@ -21,9 +22,7 @@ HomeMaticGenericChannel.prototype = {
 
   // Return current States
   query: function(dp, callback) {
-    var that = this;
-
-    if (this.state[dp] != undefined) {
+    if (this.state[dp] !== undefined) {
       callback(this.state[dp]);
     } else {
       //      that.log("No cached Value found start fetching and send temp 0 back");
@@ -34,7 +33,7 @@ HomeMaticGenericChannel.prototype = {
   },
 
   dpvalue: function(dp, fallback) {
-    if (this.state[dp] != undefined) {
+    if (this.state[dp] !== undefined) {
       return (this.state[dp]);
     } else {
       return fallback;
@@ -66,8 +65,8 @@ HomeMaticGenericChannel.prototype = {
   reverse: function(value) {
     if (value == "true") return "false";
     if (value == "false") return "true";
-    if (value == 0) return 1;
-    if (value == 1) return 0;
+    if (value === 0) return 1;
+    if (value === 1) return 0;
     if (value == "0") return "1";
     if (value == "1") return "0";
     return value;
@@ -76,11 +75,11 @@ HomeMaticGenericChannel.prototype = {
   cache: function(dp, value) {
     var that = this;
 
-    if ((that.reverseDP[dp] != undefined) && (that.reverseDP[dp] == true)) {
+    if ((that.reverseDP[dp] !== undefined) && (that.reverseDP[dp] === true)) {
       value = that.reverse(value);
     }
 
-    if (that.currentStateCharacteristic[dp] != undefined) {
+    if (that.currentStateCharacteristic[dp] !== undefined) {
       that.currentStateCharacteristic[dp].updateValue(value, null);
     }
     this.state[dp] = value;
@@ -89,7 +88,7 @@ HomeMaticGenericChannel.prototype = {
 
   delayed: function(mode, dp, value, delay) {
 
-    if (this.eventupdate == true) {
+    if (this.eventupdate === true) {
       return;
     }
 
@@ -102,13 +101,13 @@ HomeMaticGenericChannel.prototype = {
     var that = this;
     this.delayed[delay] = setTimeout(function() {
       clearTimeout(that.delayed[delay]);
-      that.command(mode, dp, value)
+      that.command(mode, dp, value);
     }, delay ? delay : 100);
   },
 
   command: function(mode, dp, value, callback) {
 
-    if (this.eventupdate == true) {
+    if (this.eventupdate === true) {
       return;
     }
     var that = this;
@@ -170,12 +169,12 @@ HomeMaticGenericChannel.prototype = {
       supportBonjour: false,
       manfDescription: "Identify Accessory",
       designedMaxLength: 1
-    }]
+    }];
   },
 
   controlCharacteristics: function(that) {
 
-    cTypes = [{
+    var cTypes = [{
       cType: types.NAME_CTYPE,
       onUpdate: null,
       perms: ["pr"],
@@ -185,14 +184,14 @@ HomeMaticGenericChannel.prototype = {
       supportBonjour: false,
       manfDescription: "Name of service",
       designedMaxLength: 255
-    }]
+    }];
 
 
     if (this.type == "SWITCH") {
       cTypes.push({
         cType: types.POWER_STATE_CTYPE,
         onUpdate: function(value) {
-          that.command("set", "STATE", (value == 1) ? true : false)
+          that.command("set", "STATE", (value == 1) ? true : false);
         },
 
         onRead: function(callback) {
@@ -228,37 +227,37 @@ HomeMaticGenericChannel.prototype = {
           supportBonjour: false,
           manfDescription: "Is Outlet in Use",
           designedMaxLength: 1
-        })
+        });
       }
     }
 
 
     if (this.type == "KEYMATIC") {
       cTypes.push({
-          cType: types.CURRENT_LOCK_MECHANISM_STATE_CTYPE,
+        cType: types.CURRENT_LOCK_MECHANISM_STATE_CTYPE,
 
-          onRead: function(callback) {
+        onRead: function(callback) {
             that.query("STATE", callback);
           },
 
-          onRegister: function(characteristic) {
+        onRegister: function(characteristic) {
             that.currentStateCharacteristic["STATE"] = characteristic;
             characteristic.eventEnabled = true;
             that.remoteGetValue("STATE");
           },
 
-          perms: ["pr", "ev"],
-          format: "bool",
-          initialValue: that.dpvalue("STATE", 0),
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Current State of your Lock",
-          designedMaxLength: 1
-        }, {
+        perms: ["pr", "ev"],
+        format: "bool",
+        initialValue: that.dpvalue("STATE", 0),
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Current State of your Lock",
+        designedMaxLength: 1
+      }, {
           cType: types.TARGET_LOCK_MECHANISM_STATE_CTYPE,
 
           onUpdate: function(value) {
-            that.command("set", "STATE", (value == 1) ? "true" : "false")
+            that.command("set", "STATE", (value == 1) ? "true" : "false");
           },
 
           onRead: function(callback) {
@@ -280,13 +279,13 @@ HomeMaticGenericChannel.prototype = {
           supportBonjour: false,
           manfDescription: "Target State of your Lock",
           designedMaxLength: 1
-        }
+        },
 
-        , {
+        {
           cType: types.TARGET_DOORSTATE_CTYPE,
 
           onUpdate: function(value) {
-            that.command("set", "OPEN", "true")
+            that.command("set", "OPEN", "true");
           },
 
           onRead: function(callback) {
@@ -307,17 +306,13 @@ HomeMaticGenericChannel.prototype = {
           designedMaxLength: 1
         }
       );
-
-
     }
-
-
 
     if (this.type == "DIMMER") {
       cTypes.push({
         cType: types.POWER_STATE_CTYPE,
         onUpdate: function(value) {
-          that.command("set", "LEVEL", (value == true) ? "1" : "0")
+          that.command("set", "LEVEL", (value == true) ? "1" : "0");
         },
 
         onRead: function(callback) {
@@ -369,29 +364,29 @@ HomeMaticGenericChannel.prototype = {
 
     if (this.type == "BLIND") {
       cTypes.push({
-          cType: types.WINDOW_COVERING_CURRENT_POSITION_CTYPE,
+        cType: types.WINDOW_COVERING_CURRENT_POSITION_CTYPE,
 
-          onRead: function(callback) {
+        onRead: function(callback) {
             that.query("LEVEL", callback);
           },
 
-          onRegister: function(characteristic) {
+        onRegister: function(characteristic) {
             that.currentStateCharacteristic["LEVEL"] = characteristic;
             characteristic.eventEnabled = true;
             that.remoteGetValue("LEVEL");
           },
 
-          perms: ["pr", "ev"],
-          format: "int",
-          initialValue: that.dpvalue("LEVEL", 0),
-          supportEvents: false,
-          supportBonjour: false,
-          manfDescription: "Current Blind Position",
-          designedMinValue: 0,
-          designedMaxValue: 100,
-          designedMinStep: 1,
-          unit: "%"
-        },
+        perms: ["pr", "ev"],
+        format: "int",
+        initialValue: that.dpvalue("LEVEL", 0),
+        supportEvents: false,
+        supportBonjour: false,
+        manfDescription: "Current Blind Position",
+        designedMinValue: 0,
+        designedMaxValue: 100,
+        designedMinStep: 1,
+        unit: "%"
+      },
 
         {
           cType: types.WINDOW_COVERING_TARGET_POSITION_CTYPE,
@@ -497,16 +492,16 @@ HomeMaticGenericChannel.prototype = {
     if (this.type == "CLIMATECONTROL_RT_TRANSCEIVER") {
 
       cTypes.push({
-          cType: types.NAME_CTYPE,
-          onUpdate: null,
-          perms: ["pr"],
-          format: "string",
-          initialValue: this.name,
-          supportEvents: true,
-          supportBonjour: false,
-          manfDescription: "Name of service",
-          designedMaxLength: 255
-        },
+        cType: types.NAME_CTYPE,
+        onUpdate: null,
+        perms: ["pr"],
+        format: "string",
+        initialValue: this.name,
+        supportEvents: true,
+        supportBonjour: false,
+        manfDescription: "Name of service",
+        designedMaxLength: 255
+      },
 
         {
           cType: types.CURRENTHEATINGCOOLING_CTYPE,
@@ -550,8 +545,7 @@ HomeMaticGenericChannel.prototype = {
             characteristic.eventEnabled = true;
             that.remoteGetValue("ACTUAL_TEMPERATURE");
           },
-          perms: ["pw", "pr", "ev"],
-          perms: ["pr"],
+          perms: ["pr", "ev"],
           format: "double",
           initialValue: that.dpvalue("ACTUAL_TEMPERATURE", 20),
           supportEvents: false,
@@ -602,7 +596,7 @@ HomeMaticGenericChannel.prototype = {
     }
 
 
-    return cTypes
+    return cTypes;
   },
 
   sType: function() {
@@ -633,12 +627,12 @@ HomeMaticGenericChannel.prototype = {
     }
 
     if (this.type == "MOTION_DETECTOR") {
-      return types.MOTION_SENSOR_STYPE
+      return types.MOTION_SENSOR_STYPE;
     }
 
 
     if (this.type == "KEYMATIC") {
-      return types.LOCK_MECHANISM_STYPE
+      return types.LOCK_MECHANISM_STYPE;
     }
 
 
@@ -649,12 +643,12 @@ HomeMaticGenericChannel.prototype = {
     var that = this;
     var services = [{
       sType: types.ACCESSORY_INFORMATION_STYPE,
-      characteristics: this.informationCharacteristics(),
+      characteristics: this.informationCharacteristics()
     }, {
       sType: this.sType(),
       characteristics: this.controlCharacteristics(that)
     }];
-    this.log("Loaded services for " + this.name)
+    this.log("Loaded services for " + this.name);
     return services;
   }
 };
