@@ -1,3 +1,4 @@
+"use strict";
 //
 // Homematic Platform Shim for HomeBridge 
 // 
@@ -7,13 +8,13 @@
 
 
 var types = require("hap-nodejs/accessories/types.js");
-var xmlrpc = require('homematic-xmlrpc')
+var xmlrpc = require("homematic-xmlrpc");
 
 var request = require("request");
 var http = require("http");
 var path = require("path");
 
-var HomeMaticGenericChannel = require(path.resolve(__dirname, 'HomematicChannel.js'));
+var HomeMaticGenericChannel = require(path.resolve(__dirname, "HomematicChannel.js"));
 
 
 
@@ -28,29 +29,29 @@ RegaRequest.prototype = {
 
     var post_options = {
       host: this.ccuIP,
-      port: '80',
-      path: '/tclrega.exe',
-      method: 'POST',
+      port: "80",
+      path: "/tclrega.exe",
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': script.length
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": script.length
       }
     };
 
     var post_req = http.request(post_options, function(res) {
       var data = "";
-      res.setEncoding('binary');
-      res.on('data', function(chunk) {
+      res.setEncoding("binary");
+      res.on("data", function(chunk) {
         data += chunk.toString();
       });
-      res.on('end', function() {
+      res.on("end", function() {
         var pos = data.lastIndexOf("<xml><exec>");
         var response = (data.substring(0, pos));
         callback(response);
       });
     });
 
-    post_req.on('error', function(e) {
+    post_req.on("error", function(e) {
       callback("{}");
     });
 
@@ -65,23 +66,24 @@ RegaRequest.prototype = {
 
     var script = "var d = dom.GetObject(\"" + channel + "." + datapoint + "\");if (d){Write(d.State());}";
     //that.log("Rega Request " + script);
-    var regarequest = this.script(script, function(data) {
+    this.script(script, function(data) {
       that.log("Rega Response" + data);
-      if (data != undefined) {
+      if (data !== undefined) {
         callback(parseFloat(data));
       }
     });
   },
 
   setValue: function(channel, datapoint, value) {
-    var that = this;
 
     var script = "var d = dom.GetObject(\"" + channel + "." + datapoint + "\");if (d){d.State(\"" + value + "\");}";
-    //that.log("Rega Request " + script);
-    var regarequest = this.script(script, function(data) {});
+    //this.log("Rega Request " + script);
+    this.script(script, function(data) {
+
+    });
   }
 
-}
+};
 
 function HomematicRPC(log, ccuip, platform) {
   this.log = log;
@@ -106,29 +108,29 @@ HomematicRPC.prototype = {
     }
 
     this.localIP = ip;
-    this.log("Local IP: " + this.localIP)
+    this.log("Local IP: " + this.localIP);
 
     this.server = xmlrpc.createServer({
       host: this.localIP,
       port: 9090
-    })
-
-    this.server.on('NotFound', function(method, params) {
-      that.log('Method ' + method + ' does not exist');
     });
 
-    this.server.on('system.listMethods', function(err, params, callback) {
-      that.log('Method call params for \'system.listMethods\': ' + params)
-      callback(null, ['system.listMethods', 'system.multicall']);
+    this.server.on("NotFound", function(method, params) {
+      that.log("Method " + method + " does not exist");
+    });
+
+    this.server.on("system.listMethods", function(err, params, callback) {
+      that.log("Method call params for 'system.listMethods': " + params);
+      callback(null, ["system.listMethods", "system.multicall"]);
     });
 
 
-    this.server.on('system.multicall', function(err, params, callback) {
+    this.server.on("system.multicall", function(err, params, callback) {
       params.map(function(events) {
         try {
           events.map(function(event) {
-            if ((event["methodName"] == "event") && (event['params'] != undefined)) {
-              var params = event['params'];
+            if ((event["methodName"] == "event") && (event["params"] !== undefined)) {
+              var params = event["params"];
               var channel = "BidCos-RF." + params[1];
               var datapoint = params[2];
               var value = params[3];
@@ -144,11 +146,11 @@ HomematicRPC.prototype = {
       callback(null);
     });
 
-    this.log('XML-RPC server listening on port 9090')
+    this.log("XML-RPC server listening on port 9090");
     this.connect();
 
 
-    process.on('SIGINT', function() {
+    process.on("SIGINT", function() {
       if (that.stopping) {
         return;
       }
@@ -156,7 +158,7 @@ HomematicRPC.prototype = {
       that.stop();
     });
 
-    process.on('SIGTERM', function() {
+    process.on("SIGTERM", function() {
       if (that.stopping) {
         return;
       }
@@ -167,29 +169,28 @@ HomematicRPC.prototype = {
   },
 
   getIPAddress: function() {
-    var interfaces = require('os').networkInterfaces();
+    var interfaces = require("os").networkInterfaces();
     for (var devName in interfaces) {
       var iface = interfaces[devName];
       for (var i = 0; i < iface.length; i++) {
         var alias = iface[i];
-        if (alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal)
+        if (alias.family === "IPv4" && alias.address !== "127.0.0.1" && !alias.internal)
           return alias.address;
       }
     }
-    return '0.0.0.0';
+    return "0.0.0.0";
   },
 
   getValue: function(channel, datapoint, callback) {
 
     var that = this;
-    if (this.client == undefined) {
+    if (this.client === undefined) {
       that.log("Returning cause client is invalid");
       return;
     }
     if (channel.indexOf("BidCos-RF.") > -1)  {
       channel = channel.substr(10);
-      this.log("Calling rpc getValue");
-      this.client.methodCall('getValue', [channel, datapoint], function(error, value) {
+      this.client.methodCall("getValue", [channel, datapoint], function(error, value) {
         callback(value);
       });
       return;
@@ -200,41 +201,41 @@ HomematicRPC.prototype = {
 
     var that = this;
 
-    if (this.client == undefined) return;
+    if (this.client === undefined) return;
 
     if (channel.indexOf("BidCos-RF.") > -1)  {
       channel = channel.substr(10);
     }
 
-    this.client.methodCall('setValue', [channel, datapoint, value], function(error, value) {
+    this.client.methodCall("setValue", [channel, datapoint, value], function(error, value) {
 
     });
   },
 
   connect: function() {
     var that = this;
-    this.log('Creating Local HTTP Client for CCU RPC Events');
+    this.log("Creating Local HTTP Client for CCU RPC Events");
     this.client = xmlrpc.createClient({
       host: this.ccuip,
       port: 2001,
-      path: '/'
+      path: "/"
     });
-    this.log('CCU RPC Init Call on port 2001');
-    this.client.methodCall('init', ['http://' + this.localIP + ':9090', 'homebridge'], function(error, value) {
-      that.log('CCU Response ....')
+    this.log("CCU RPC Init Call on port 2001");
+    this.client.methodCall("init", ["http://" + this.localIP + ":9090", "homebridge"], function(error, value) {
+      that.log("CCU Response ....");
     });
   },
 
 
   stop: function() {
     this.log("Removing Event Server");
-    this.client.methodCall('init', ['http://' + this.localIP + ':9090'], function(error, value) {
+    this.client.methodCall("init", ["http://" + this.localIP + ":9090"], function(error, value) {
 
     });
     setTimeout(process.exit(0), 1000);
   }
 
-}
+};
 
 
 function HomeMaticPlatform(log, config) {
@@ -267,35 +268,35 @@ HomeMaticPlatform.prototype = {
 
     var regarequest = new RegaRequest(this.log, this.ccuIP).script(script, function(data) {
       var json = JSON.parse(data);
-      if (json['devices'] != undefined) {
-        json['devices'].map(function(device) {
+      if (json["devices"] !== undefined) {
+        json["devices"].map(function(device) {
           var isFiltered = false;
 
-          if ((that.filter_device != undefined) && (that.filter_device.indexOf(device.address) > -1)) {
+          if ((that.filter_device !== undefined) && (that.filter_device.indexOf(device.address) > -1)) {
             isFiltered = true;
           } else {
             isFiltered = false;
           }
           // that.log('device address:', device.address);
 
-          if ((device['channels'] != undefined) && (!isFiltered)) {
+          if ((device["channels"] !== undefined) && (!isFiltered)) {
 
-            device['channels'].map(function(ch) {
+            device["channels"].map(function(ch) {
               var isChannelFiltered = false;
 
-              if ((that.filter_channel != undefined) && (that.filter_channel.indexOf(ch.address) > -1)) {
+              if ((that.filter_channel !== undefined) && (that.filter_channel.indexOf(ch.address) > -1)) {
                 isChannelFiltered = true;
               } else {
                 isChannelFiltered = false;
               }
               // that.log('name', ch.name, ' -> address:', ch.address);
-              if ((ch.address != undefined) && (!isChannelFiltered)) {
+              if ((ch.address !== undefined) && (!isChannelFiltered)) {
 
                 if ((ch.type == "SWITCH") || (ch.type == "BLIND") || (ch.type == "SHUTTER_CONTACT") || (ch.type == "DIMMER") || (ch.type == "CLIMATECONTROL_RT_TRANSCEIVER") ||  (ch.type == "MOTION_DETECTOR") ||  (ch.type == "KEYMATIC")) {
                   // Switch found
                   // Check if marked as Outlet
-                  var special = (that.outlets.indexOf(ch.address) > -1) ? 'OUTLET' : undefined;
-                  accessory = new HomeMaticGenericChannel(that.log, that, ch.id, ch.name, ch.type, ch.address, special);
+                  var special = (that.outlets.indexOf(ch.address) > -1) ? "OUTLET" : undefined;
+                  var accessory = new HomeMaticGenericChannel(that.log, that, ch.id, ch.name, ch.type, ch.address, special);
                   that.foundAccessories.push(accessory);
                 }
 
@@ -370,14 +371,14 @@ HomeMaticPlatform.prototype = {
       script = script + command;
     });
     this.sendQueue = [];
-    //this.log("RegaSend: " + script);
+    //this.log('RegaSend: ' + script);
     var regarequest = new RegaRequest(this.log, this.ccuIP).script(script, function(data) {});
   },
 
   sendRequest: function(accessory, script, callback) {
-    var that = this;
+
     var regarequest = new RegaRequest(this.log, this.ccuIP).script(script, function(data) {
-      if (data != undefined) {
+      if (data !== undefined) {
         try {
           var json = JSON.parse(data);
           callback(json);
@@ -399,11 +400,11 @@ HomeMaticPlatform.prototype = {
     var that = this;
     this.delayed[delay] = setTimeout(function() {
       clearTimeout(that.delayed[delay]);
-      that.sendPreparedRequests()
+      that.sendPreparedRequests();
     }, delay ? delay : 100);
     this.log("New Timer was set");
   }
-}
+};
 
 
 
