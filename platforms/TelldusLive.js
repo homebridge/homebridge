@@ -1,4 +1,4 @@
-var types = require("HAP-NodeJS/accessories/types.js");
+var types = require("hap-nodejs/accessories/types.js");
 var TellduAPI = require("telldus-live");
 
 function TelldusLivePlatform(log, config) {
@@ -58,7 +58,7 @@ var TelldusLiveAccessory = function TelldusLiveAccessory(log, cloud, device) {
     this.log   = log;
     this.cloud = cloud;
 
-    var m = device.model.split(':');
+    var m = device.model ? device.model.split(':') : ['unknown', 'unknown'] ;
 
     // Set accessory info
     this.device         = device;

@@ -1,14 +1,14 @@
 var fs = require('fs');
 var path = require('path');
 var storage = require('node-persist');
-var hap = require('HAP-NodeJS');
-var uuid = require('HAP-NodeJS').uuid;
-var Bridge = require('HAP-NodeJS').Bridge;
-var Accessory = require('HAP-NodeJS').Accessory;
-var Service = require('HAP-NodeJS').Service;
-var Characteristic = require('HAP-NodeJS').Characteristic;
-var accessoryLoader = require('HAP-NodeJS').AccessoryLoader;
-var once = require('HAP-NodeJS/lib/util/once').once;
+var hap = require("hap-nodejs");
+var uuid = require("hap-nodejs").uuid;
+var Bridge = require("hap-nodejs").Bridge;
+var Accessory = require("hap-nodejs").Accessory;
+var Service = require("hap-nodejs").Service;
+var Characteristic = require("hap-nodejs").Characteristic;
+var accessoryLoader = require("hap-nodejs").AccessoryLoader;
+var once = require("hap-nodejs/lib/util/once").once;
 
 console.log("Starting HomeBridge server...");
 
