@@ -308,14 +308,15 @@ HomeMaticPlatform.prototype = {
               // that.log('name', ch.name, ' -> address:', ch.address);
               if ((ch.address !== undefined) && (!isChannelFiltered)) {
 
-                if ((ch.type == "SWITCH") || (ch.type == "BLIND") || (ch.type == "SHUTTER_CONTACT") || (ch.type == "DIMMER") || (ch.type == "CLIMATECONTROL_RT_TRANSCEIVER") ||  (ch.type == "MOTION_DETECTOR") ||  (ch.type == "KEYMATIC")) {
+               
                   // Switch found
                   // Check if marked as Outlet
                   var special = (that.outlets.indexOf(ch.address) > -1) ? "OUTLET" : undefined;
                   var accessory = new HomeMaticGenericChannel(that.log, that, ch.id, ch.name, ch.type, ch.address, special);
-                  that.foundAccessories.push(accessory);
-                }
-
+                  if (accessory.sType()!=undefined) {
+                  	// support exists for this channel
+                  	that.foundAccessories.push(accessory);
+                  }
 
               } else {
                 that.log(device.name + " has no address");

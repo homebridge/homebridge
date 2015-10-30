@@ -78,9 +78,7 @@ HomeMaticGenericChannel.prototype = {
 	// Check custom Mapping from HM to HomeKit
     var map = this.datapointMappings[dp];
     if (map != undefined) {
-      this.log("Mapping found for " + dp);
       if (map[value]!=undefined) {
-         this.log("Mapping found for " + dp + " " + value);
          value = map[value];
       }
     }
@@ -636,7 +634,7 @@ HomeMaticGenericChannel.prototype = {
       return types.THERMOSTAT_STYPE;
 	}
 	
-	if ((this.type=="SHUTTER_CONTACT") ||(this.type=="ROTARY_HANDLE_SENSOR")) { 
+	if ((this.type=="SHUTTER_CONTACT") || (this.type=="ROTARY_HANDLE_SENSOR")) { 
       return types.CONTACT_SENSOR_STYPE;
 	}
 		
