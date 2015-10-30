@@ -2,9 +2,25 @@
 //
 // Homematic Platform Shim for HomeBridge 
 // 
+// to add the homematic platform add this to config.json. Example:
+// "platforms": [
+//     {
+//         "platform": "HomeMatic",
+//         "name": "HomeMatic",
+//         "filter_device":[],
+//         "filter_channel":["BidCos-RF.KEQXXXXXXX:4", "BidCos-RF.LEQXXXXXXX:2"],
+//         "outlets":[ "BidCos-RF.KEQXXXXXXX:4","BidCos-RF.IEQXXXXXXX:1"]
+// 
+//     }
+//
 // V0.1 - 2015/10/29
 // - initial version
 // - reintegrated Homematic Platform fork from https://github.com/thkl/homebridge/tree/xmlrpc
+// 2015/10/30 thkl
+// - added Rotary Sensors ; fixed thermostat
+ 
+// ],
+
 
 
 var types = require("hap-nodejs/accessories/types.js");
