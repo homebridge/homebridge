@@ -32,11 +32,11 @@ HomeMaticGenericChannel.prototype = {
     var that = this;
       
     if (this.state[dp] != undefined) {
-      callback(this.state[dp]);
+     if (callback!=undefined){callback(this.state[dp]);}
     } else {
 //      that.log("No cached Value found start fetching and send temp 0 back");
       this.remoteGetValue(dp);
-      callback(0);
+      if (callback!=undefined){callback(0);}
     }
 
   },
@@ -107,16 +107,22 @@ HomeMaticGenericChannel.prototype = {
   },
 
   command: function(mode,dp,value,callback) {
- 
+   
    if (this.eventupdate==true) {
     return;
    }
    var that = this;
 
    if (mode == "set") {
-        //this.log("Send " + value + " to Datapoint " + dp + " at " + that.adress);
+        this.log("Send " + value + " to Datapoint " + dp + " at " + that.adress);
 		that.platform.setValue(that.adress,dp,value);
    }
+
+   if (mode == "setrega") {
+        this.log("Send " + value + " to Datapoint " + dp + " at " + that.adress);
+		that.platform.setRegaValue(that.adress,dp,value);
+   }
+
   },
 
   informationCharacteristics: function() {
@@ -580,11 +586,15 @@ HomeMaticGenericChannel.prototype = {
     {
       cType: types.TARGET_TEMPERATURE_CTYPE,
       onUpdate: function(value) {
-            //that.delayed("set", "SET_TEMPERATURE", value,500);
-            that.delayed("set", "MANU_MODE", value,500);
+            if (that.state["CONTROL_MODE"]!=1) {
+              that.delayed("setrega", "MANU_MODE",value,500);
+            } else {
+              that.delayed("set", "SET_TEMPERATURE", value,500);
+            }
       },
       onRead: function(callback) {
 			that.query("SET_TEMPERATURE",callback);
+			that.query("CONTROL_MODE",undefined);
 			
       },
       onRegister: function(characteristic) { 

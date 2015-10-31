@@ -360,6 +360,12 @@ HomeMaticPlatform.prototype = {
   },
 
 
+  setRegaValue: function(channel, datapoint, value) {
+      var rega = new RegaRequest(this.log, this.ccuIP);
+      rega.setValue(channel, datapoint, value);
+      return;
+  },
+
   getValue: function(channel, datapoint, callback) {
 
     if (channel.indexOf("BidCos-RF.") > -1)  {
