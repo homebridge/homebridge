@@ -239,7 +239,7 @@ PhilipsHueAccessory.prototype = {
         if (err.code == "ECONNRESET") {
           setTimeout(function() {
             this.executeChange(characteristic, value, callback);
-          }, 300);
+          }.bind(this), 300);
         } else {
           this.log(err);
           callback(new Error(err));
