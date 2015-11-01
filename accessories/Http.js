@@ -101,8 +101,7 @@ HttpAccessory.prototype = {
 
 			switchService
 				.getCharacteristic(Characteristic.On)
-				.on('get', this.getPowerOn.bind(this))
-				.on('set', this.setPowerOn.bind(this));
+				.on('set', this.setPowerState.bind(this));
 
 			return [switchService];
 		} else if (this.service == "Light") {
