@@ -274,15 +274,15 @@ PhilipsHueAccessory.prototype = {
         if (newValue != undefined) {
           callback(null, newValue);
         } else {
-          //  this.log("Device " + that.device.name + " does not support reading characteristic " + characteristic);
+          //  that.log("Device " + that.device.name + " does not support reading characteristic " + characteristic);
           //  callback(Error("Device " + that.device.name + " does not support reading characteristic " + characteristic) );
         }
 
         callback = null;
     
-        //this.log("Get " + that.device.name + ", characteristic: " + characteristic + ", value: " + value + ".");
+        //that.log("Get " + that.device.name + ", characteristic: " + characteristic + ", value: " + value + ".");
       }
-    }.bind(this));
+    }.bind(that));
   },
   
   // Respond to identify request
