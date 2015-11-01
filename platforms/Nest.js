@@ -69,7 +69,7 @@ function NestThermostatAccessory(log, name, device, deviceId, initialData) {
     this.device = device;
 
     var id = uuid.generate('nest.thermostat.' + deviceId);
-    Accessory.call(this, name, id);
+    Accessory.call(this, this.name, id);
     this.uuid_base = id;
 
     this.currentData = initialData;
