@@ -544,6 +544,31 @@ HomeMaticGenericChannel.prototype = {
 	 });
 	}
 	
+	// Smoke Detector
+	if (this.type=="SMOKE_DETECTOR") { 
+	 cTypes.push(
+	 {  
+	 	cType: "00000076-0000-1000-8000-0026BB765291",
+         
+        onRead: function(callback) {
+            that.query("STATE",callback);
+        },
+        
+        onRegister: function(characteristic) { 
+            that.currentStateCharacteristic["STATE"] = characteristic;
+            characteristic.eventEnabled = true;
+            that.remoteGetValue("STATE");
+        },
+      
+      perms: ["pr","ev"],
+      format: "bool",
+      initialValue: that.dpvalue("STATE",0),
+      supportEvents: false,
+      supportBonjour: false,
+      manfDescription: "Smoke detected"
+	 });
+	}
+	
 	// Heating Device
 	
 	if ((this.type=="CLIMATECONTROL_RT_TRANSCEIVER") || (this.type=="THERMALCONTROL_TRANSMIT")) {
@@ -588,8 +613,9 @@ HomeMaticGenericChannel.prototype = {
       onUpdate: function(value) {
             if (that.state["CONTROL_MODE"]!=1) {
               that.delayed("setrega", "MANU_MODE",value,500);
+              that.state["CONTROL_MODE"]=1; // set to Manual Mode
             } else {
-              that.delayed("set", "SET_TEMPERATURE", value,500);
+              that.delayed("setrega", "SET_TEMPERATURE", value,500);
             }
       },
       onRead: function(callback) {
@@ -601,6 +627,7 @@ HomeMaticGenericChannel.prototype = {
             that.currentStateCharacteristic["SET_TEMPERATURE"] = characteristic;
             characteristic.eventEnabled = true;
             that.remoteGetValue("SET_TEMPERATURE");
+            that.remoteGetValue("CONTROL_MODE");
       },
       perms: ["pw","pr","ev"],format: "double",
       initialValue: that.dpvalue("SET_TEMPERATURE",16),
@@ -657,6 +684,9 @@ HomeMaticGenericChannel.prototype = {
 	  return types.LOCK_MECHANISM_STYPE
 	}
 	
+	if (this.type=="SMOKE_DETECTOR") {
+	  return "00000087-0000-1000-8000-0026BB765291";
+	}
 	
 	
   },

@@ -330,7 +330,7 @@ HomeMaticPlatform.prototype = {
         });
 
         /*
-                      				    accessory = new HomeMaticGenericChannel(that.log, that, "1234" , "DummyKM" , "KEYMATIC" , "1234");
+                      				    var accessory = new HomeMaticGenericChannel(that.log, that, "1234" , "DummyKM" , "SMOKE_DETECTOR" , "1234");
         				                that.foundAccessories.push(accessory);
 
                       				    accessory = new HomeMaticGenericChannel(that.log, that, "5678" , "DummyBLIND" , "BLIND" , "5678");
