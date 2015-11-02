@@ -55,14 +55,14 @@ HttpAccessory.prototype = {
 			this.log("Setting power state to off");
 		}
 
-		this.httpRequest(url, body, this.http_method, this.username, this.password, function(error, response, body) {
+		this.httpRequest(url, body, this.http_method, this.username, this.password, function(error, response, responseBody) {
 			if (error) {
 				this.log('HTTP power function failed: %s', error.message);
 				callback(error);
 			} else {
 				this.log('HTTP power function succeeded!');
 				this.log(response);
-				this.log(body);
+				this.log(responseBody);
 				this.log(this.username);
 				this.log(this.password);
 				callback();
