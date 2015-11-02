@@ -41,14 +41,26 @@ NestPlatform.prototype = {
                         }
                     }
                     function subscribe() {
-                        nest.subscribe(subscribeDone, ['shared']);
+                        nest.subscribe(subscribeDone, ['device','shared']);
                     }
 
                     function subscribeDone(deviceId, data, type) {
                         // data if set, is also stored here: nest.lastStatus.shared[thermostatID]
                         if (deviceId && that.accessoryLookup[deviceId]) {
                             that.log('Update to Device: ' + deviceId + " type: " + type);
-                            that.accessoryLookup[deviceId].updateData(data);
+                            var accessory = that.accessoryLookup[deviceId];
+                            if (accessory) {
+                                switch (type) {
+                                    case 'shared':
+                                        accessory.updateData(data);
+                                        break;
+                                    case 'device':
+                                        accessory.device = data;
+                                        accessory.updateData();
+                                        break;
+                                }
+                            }
+
                         }
                         setTimeout(subscribe, 2000);
                     }
@@ -107,6 +119,14 @@ function NestThermostatAccessory(log, name, device, deviceId, initialData) {
         }.bind(this));
 
     this.getService(Service.Thermostat)
+        .getCharacteristic(Characteristic.CurrentRelativeHumidity)
+        .on('get', function(callback) {
+            var curHumidity = this.getCurrentRelativeHumidity();
+            this.log("Current humidity for " + this.name + " is: " + curHumidity);
+            if (callback) callback(null, curHumidity);
+        }.bind(this));
+
+    this.getService(Service.Thermostat)
         .getCharacteristic(Characteristic.TargetTemperature)
         .on('get', function(callback) {
             var targetTemp = this.getTargetTemperature();
@@ -141,6 +161,7 @@ NestThermostatAccessory.prototype.updateData = function(data) {
     thermostat.getCharacteristic(Characteristic.TemperatureDisplayUnits).getValue();
     thermostat.getCharacteristic(Characteristic.CurrentTemperature).getValue();
     thermostat.getCharacteristic(Characteristic.CurrentHeatingCoolingState).getValue();
+    thermostat.getCharacteristic(Characteristic.CurrentRelativeHumidity).getValue();
     thermostat.getCharacteristic(Characteristic.TargetHeatingCoolingState).getValue();
     thermostat.getCharacteristic(Characteristic.TargetTemperature).getValue();
 };
@@ -184,6 +205,10 @@ NestThermostatAccessory.prototype.getTargetHeatingCooling = function(){
 
 NestThermostatAccessory.prototype.getCurrentTemperature = function(){
     return this.currentData.current_temperature;
+};
+
+NestThermostatAccessory.prototype.getCurrentRelativeHumidity = function(){
+    return this.device.current_humidity;
 };
 
 NestThermostatAccessory.prototype.getTargetTemperature = function() {
