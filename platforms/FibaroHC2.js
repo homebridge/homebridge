@@ -66,6 +66,29 @@ FibaroHC2Platform.prototype = {
             		accessory = new FibaroAccessory(new Service.LightSensor(s.name), [Characteristic.CurrentAmbientLightLevel]);
             	else if (s.type == "com.fibaro.FGWP101")
             		accessory = new FibaroAccessory(new Service.Outlet(s.name), [Characteristic.On, Characteristic.OutletInUse]);
+            	else if (s.type == "virtual_device") {
+            		for (var r = 0; r < s.properties.rows.length; r++) {
+            			if (s.properties.rows[r].type == "button") {
+            				for (var e = 0; e < s.properties.rows[r].elements.length; e++) {
+            					var name = s.properties.rows[r].elements[e].caption;
+            					var virtualButton = new FibaroAccessory(new Service.Switch(name), [Characteristic.On]);
+								virtualButton.buttonId = s.properties.rows[r].elements[e].id;
+								virtualButton.getServices = function() {
+									return that.getServices(this);
+								};
+			  					virtualButton.platform = that;
+				  				virtualButton.remoteAccessory = s;
+			  					virtualButton.id 			  = s.id;
+			  					virtualButton.name			  = name;
+  								virtualButton.model			  = "Virtual Button";
+  								virtualButton.manufacturer	  = "Fibaro";
+  								virtualButton.serialNumber	  = "<unknown>";
+            					foundAccessories.push(virtualButton);
+   					          	that.log("Service name: " + virtualButton.controlService.displayName + ", Accessory name: " + virtualButton.name);
+            				}
+            			} 
+            		}
+            	}
 				if (accessory != null) {
 					accessory.getServices = function() {
   							return that.getServices(accessory);
@@ -159,18 +182,29 @@ FibaroHC2Platform.prototype = {
 	if (!readOnly) {
     	characteristic
     	    .on('set', function(value, callback, context) {
-        	            	if( context !== 'fromFibaro' ) {
-            	        		if (onOff) 
+        	            	if( context !== 'fromFibaro' && context !== 'fromSetValue') {
+        	            		if (homebridgeAccessory.buttonId != null) {
+									homebridgeAccessory.platform.command("pressButton", homebridgeAccessory.buttonId, homebridgeAccessory);
+									// In order to behave like a push button reset the status to off
+							    	setTimeout( function(){
+							    		characteristic.setValue(false, undefined, 'fromSetValue');
+							    	}, 100 );
+        	            		} else if (onOff) {
 									homebridgeAccessory.platform.command(value == 0 ? "turnOff": "turnOn", null, homebridgeAccessory);
-								else
+								} else
 									homebridgeAccessory.platform.command("setValue", value, homebridgeAccessory);
-							}
-    	            		callback();
+							} 
+   	            			callback();
         	           }.bind(this) );
     }
     characteristic
         .on('get', function(callback) {
-					  	homebridgeAccessory.platform.getAccessoryValue(callback, onOff, homebridgeAccessory, powerValue);
+     	            	if (homebridgeAccessory.buttonId != null) {
+     	            		// a push button is normally off
+					      	callback(undefined, false);
+     	            	} else {
+					  		homebridgeAccessory.platform.getAccessoryValue(callback, onOff, homebridgeAccessory, powerValue);
+						}
                    }.bind(this) );
   },
   getServices: function(homebridgeAccessory) {
@@ -251,3 +285,4 @@ function subscribeUpdate(characteristic, accessory, onOff)
 }
 
 module.exports.platform = FibaroHC2Platform;
+
