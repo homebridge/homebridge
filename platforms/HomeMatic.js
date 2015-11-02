@@ -2,9 +2,25 @@
 //
 // Homematic Platform Shim for HomeBridge 
 // 
+// to add the homematic platform add this to config.json. Example:
+// "platforms": [
+//     {
+//         "platform": "HomeMatic",
+//         "name": "HomeMatic",
+//         "filter_device":[],
+//         "filter_channel":["BidCos-RF.KEQXXXXXXX:4", "BidCos-RF.LEQXXXXXXX:2"],
+//         "outlets":[ "BidCos-RF.KEQXXXXXXX:4","BidCos-RF.IEQXXXXXXX:1"]
+// 
+//     }
+//
 // V0.1 - 2015/10/29
 // - initial version
 // - reintegrated Homematic Platform fork from https://github.com/thkl/homebridge/tree/xmlrpc
+// 2015/10/30 thkl
+// - added Rotary Sensors ; fixed thermostat
+ 
+// ],
+
 
 
 var types = require("hap-nodejs/accessories/types.js");
@@ -292,14 +308,15 @@ HomeMaticPlatform.prototype = {
               // that.log('name', ch.name, ' -> address:', ch.address);
               if ((ch.address !== undefined) && (!isChannelFiltered)) {
 
-                if ((ch.type == "SWITCH") || (ch.type == "BLIND") || (ch.type == "SHUTTER_CONTACT") || (ch.type == "DIMMER") || (ch.type == "CLIMATECONTROL_RT_TRANSCEIVER") ||  (ch.type == "MOTION_DETECTOR") ||  (ch.type == "KEYMATIC")) {
+               
                   // Switch found
                   // Check if marked as Outlet
                   var special = (that.outlets.indexOf(ch.address) > -1) ? "OUTLET" : undefined;
                   var accessory = new HomeMaticGenericChannel(that.log, that, ch.id, ch.name, ch.type, ch.address, special);
-                  that.foundAccessories.push(accessory);
-                }
-
+                  if (accessory.sType()!=undefined) {
+                  	// support exists for this channel
+                  	that.foundAccessories.push(accessory);
+                  }
 
               } else {
                 that.log(device.name + " has no address");
@@ -313,7 +330,7 @@ HomeMaticPlatform.prototype = {
         });
 
         /*
-                      				    accessory = new HomeMaticGenericChannel(that.log, that, "1234" , "DummyKM" , "KEYMATIC" , "1234");
+                      				    var accessory = new HomeMaticGenericChannel(that.log, that, "1234" , "DummyKM" , "SMOKE_DETECTOR" , "1234");
         				                that.foundAccessories.push(accessory);
 
                       				    accessory = new HomeMaticGenericChannel(that.log, that, "5678" , "DummyBLIND" , "BLIND" , "5678");
@@ -342,6 +359,12 @@ HomeMaticPlatform.prototype = {
 
   },
 
+
+  setRegaValue: function(channel, datapoint, value) {
+      var rega = new RegaRequest(this.log, this.ccuIP);
+      rega.setValue(channel, datapoint, value);
+      return;
+  },
 
   getValue: function(channel, datapoint, callback) {
 
