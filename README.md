@@ -1,95 +1,67 @@
 
 # Homebridge
 
-Homebridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It includes a set of "shims" (found in the [accessories](accessories/) and [platforms](platforms/) folders) that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices.
+Homebridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
-Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using the included shims, you can say things like:
+Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
 
- * _Siri, unlock the front door._ ([Lockitron](https://lockitron.com))
- * _Siri, open the garage door._ ([LiftMaster MyQ](https://www.myliftmaster.com))
- * _Siri, turn on the Leaf._ ([Carwings](http://www.nissanusa.com/innovations/carwings.article.html))
- * _Siri, turn off the Speakers._ ([Sonos](http://www.sonos.com))
- * _Siri, turn on the Dehumidifier._ ([WeMo](http://www.belkin.com/us/Products/home-automation/c/wemo-home-automation/))
- * _Siri, turn on Away Mode._ ([Xfinity Home](http://www.comcast.com/home-security.html))
- * _Siri, turn on the living room lights._ ([Wink](http://www.wink.com), [SmartThings](http://www.smartthings.com), [X10](http://github.com/edc1591/rest-mochad), [Philips Hue](http://meethue.com), [Home Assistant](http://home-assistant.io) [LimitlessLED/MiLight/Easybulb](http://www.limitlessled.com/), [LIFx](http://www.lifx.com/))
- * _Siri, set the movie scene._ ([Logitech Harmony](http://myharmony.com/))
+ * _Siri, unlock the front door._
+ * _Siri, open the garage door._
+ * _Siri, turn on the coffee maker._ 
+ * _Siri, turn on the living room lights._
+ * _Siri, good morning!_
 
-If you would like to support any other devices, please write a shim and create a pull request and I'd be happy to add it to this official list.
+You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/browse/keyword/homebridge-plugin).
 
-# Shim types
-There are 2 types of shims supported in Homebridge.
+# Installation
 
-* Accessory - Individual device
-* Platform - A full bridge to another system
+**Note:** If you're running on Linux, you'll need to make sure you have the `libavahi-compat-libdnssd-dev` package installed. If you're running on a Raspberry Pi, you should have a look at the [Wiki](/nfarina/homebridge/wiki/Running-HomeBridge-on-a-Raspberry-Pi).
 
-## Accessories
+Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) and should be installed "globally" by typing:
 
-Accessories are individual devices you would like to bridge to HomeKit. You set them up by declaring them individually in your `config.json` file. Generally, you specify them by `name` or `id` and which system they use.
+    npm install -g homebridge
 
-## Platforms
+You may have to execute commands with `sudo` depending on your system. Now you should be able to run Homebridge:
 
-Platforms bridge entire systems to HomeKit. Platforms can be things like Wink or SmartThings or Vera. By adding a platform to your `config.json`, Homebridge will automatically detect all of your devices for you.
+    $ `homebridge`
+    No plugins found. See the README for information on installing plugins.
 
-All you have to do is add the right config options so Homebridge can authenticate and communicate with your other system, and voila, your devices will be available to HomeKit via Homebridge.
+Homebridge will complain if you don't have any Plugins installed, since it will essentially be useless, although you can still "pair" with it. See the next section "Installing Plugins" for more info.
 
-# Why?
+Once you've installed a Plugin or two, you can run Homebridge again:
 
-Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, these shims will be obsolete, and I hope that happens soon. In the meantime, this server is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
-
-# Credit
-
-Homebridge itself is basically just a set of shims and a README. The actual HomeKit API work was done by [KhaosT](http://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project. Additionally, many of the shims benefit from amazing NodeJS projects out there like `sonos` and `wemo` that implement all the interesting functionality.
-
-# Before you Begin
-
-I would call this project a "novelty" in its current form, and is for **intrepid hackers only**. To make any of this work, you'll need:
-
- * An app on your iOS device that can manage your HomeKit database.
- * An always-running server (like a Raspberry Pi) on which you can install NodeJS.
- * Knowledge of Git submodules and npm.
-
-You'll also need some patience, as Siri can be very strict about sentence structure, and occasionally she will forget about HomeKit altogether. But it's not surprising that HomeKit isn't rock solid, since almost no one can actually use it today besides developers who are creating hardware accessories for it. There are, to my knowledge, exactly zero licensed HomeKit devices on the market right now, so Apple can easily get away with this all being a work in progress.
-
-# Getting Started
-
-OK, if you're still excited enough about ordering Siri to make your coffee (which, who wouldn't be!) then here's how to set things up.
-
-**Note:** If you're running on Linux, you'll need to make sure you have the `libavahi-compat-libdnssd-dev` package installed.
- 
-First, clone this repo:
-
-    $ git clone https://github.com/nfarina/homebridge.git
-    $ cd homebridge
-    $ npm install
-
-**Note**: You'll need to have NodeJS version 0.12.x or better installed for required submodule `HAP-NodeJS` to load.
-
- 
-Now you should be able to run the homebridge server:
-
-    $ cd homebridge
-    $ npm run start
-    Starting Homebridge server...
+    $ `homebridge`
     Couldn't find a config.json file [snip]
 
-The server won't do anything until you've created a `config.json` file containing your home devices (or _accessories_ in HomeKit parlance) or platforms you wish to make available to iOS. You can start by copying and modifying the included `config-sample.json` file which includes declarations for all supported accessories and platforms.
+However, Homebridge won't do anything until you've created a `config.json` file containing your accessories and/or platforms. You can start by copying and modifying the included `config-sample.json` file which includes declarations for some example accessories and platforms. Each Plugin will have its own expected configuration; the documentation for Plugins should give you some real-world examples for that plugin.
 
-Once you've added your devices and/or platforms, you should be able to run the server again and see them initialize:
+**NOTE**: Your `config.json` file MUST live in your home directory inside `.homebridge`. The full error message will contain the exact path where your config is expected to be found.
 
-    $ npm run start
-    Starting Homebridge server...
-    Loading 6 accessories...
-    [Speakers] Initializing 'Sonos' accessory...
-    [Coffee Maker] Initializing 'WeMo' accessory...
-    [Speakers] Initializing 'Sonos' accessory...
-    [Coffee Maker] Initializing 'WeMo' accessory...
-    [Wink] Initializing Wink platform...
-    [Wink] Fetching Wink devices.
-    [Wink] Initializing device with name Living Room Lamp...
+Once you've added your config file, you should be able to run the server again:
+
+    $ homebridge
+    Loaded plugin: homebridge-lockitron
+    Registering accessory 'Lockitron'
+    ---
+    Loaded config.json with 1 accessories and 0 platforms.
+    ---
+    Loading 0 platforms...
+    Loading 1 accessories...
+    [Back Door] Initializing Lockitron accessory...
 
 Your server is now ready to receive commands from iOS.
 
-# Adding your devices to iOS
+# Installing Plugins
+
+Plugins are NodeJS modules published through NPM and tagged with the keyword `homebridge-plugin`. They must have a name with the prefix `homebridge-`, like **homebridge-mysmartlock**.
+
+Plugins can publish Accessories and/or Platforms. Accessories are individual devices, like a smart switch or a garage door. Platforms act like a single device but can expose a set of devices, like a house full of smart lightbulbs.
+
+You install Plugins the same way you installed Homebridge - as a global NPM module. For example:
+
+    npm install -g homebridge-lockitron
+
+# Adding Homebridge to iOS
 
 HomeKit is actually not an app; it's a "database" similar to HealthKit and PassKit. But where HealthKit has the companion _Health_ app and PassKit has _Passbook_, Apple has supplied no app for managing your HomeKit database (at least [not yet](http://9to5mac.com/2015/05/20/apples-planned-ios-9-home-app-uses-virtual-rooms-to-manage-homekit-accessories/)). However, the HomeKit API is open for developers to write their own apps for adding devices to HomeKit.
 
@@ -99,11 +71,9 @@ There are also some free apps that work OK. Try [Insteon+](https://itunes.apple.
 
 If you are a member of the iOS developer program, I highly recommend Apple's [HomeKit Catalog](https://developer.apple.com/library/ios/samplecode/HomeKitCatalog/Introduction/Intro.html) app, as it is reliable and comprehensive and free (and open source).
 
-## Adding HomeKit Accessories
+Once you've gotten a HomeKit app running on your iOS device, it should "discover" the single accessory "Homebridge", assuming that you're still running the Homebridge server and you're on the same Wifi network. Adding this accessory will automatically add all accessories and platforms defined in `config.json`.
 
-Once you've gotten a HomeKit app running on your iOS device, you can use it to add your Homebridge devices. The app should "discover" the single accessory "Homebridge", assuming that you're still running the Homebridge server and you're on the same Wifi network. Adding this accessory will automatically add all accessories and platforms defined in `config.json`.
-
-When you attempt to add Homebridge, it will ask for a "PIN code". The default code is `031-45-154` (but this can be changed, see `config-sample.json`). This process will create some files in the `persist` directory of the Homebridge server, which stores the pairing relationship.
+When you attempt to add Homebridge, it will ask for a "PIN code". The default code is `031-45-154` (but this can be changed, see `config-sample.json`).
 
 # Interacting with your Devices
 
@@ -111,10 +81,10 @@ Once your device has been added to HomeKit, you should be able to tell Siri to c
 
 One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos shim in `config-samples.json` is "Speakers".
 
-# Final Notes
+# Why?
 
-HomeKit is definitely amazing when it works. Speaking to Siri is often much quicker and easier than launching whatever app your device manufacturer provides.
+Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, these shims will be obsolete, and I hope that happens soon. In the meantime, this server is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
 
-I welcome any suggestions or pull requests, but keep in mind that it's likely not possible to support all the things you might want to do with a device through HomeKit. For instance, you might want to hack the Sonos shim to play the specific kind of music you want and that's great, but it might not be appropriate to merge those specific changes into this repository. The shims here should be mostly simple "canonical examples" and easily hackable by others.
+# Credit
 
-Good luck!
+The original HomeKit API work was done by [KhaosT](http://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project.
