@@ -203,7 +203,11 @@
             "on_url": "https://192.168.1.22:3030/devices/23222/on",
             "off_url": "https://192.168.1.22:3030/devices/23222/off",
             "brightness_url": "https://192.168.1.22:3030/devices/23222/brightness/%b",
-            "http_method": "POST"
+			"username": "",
+			"password": "",
+            "http_method": "POST",
+			"service": "Switch",
+			"brightnessHandling": "no"
         },
 	{
             "accessory": "HttpHygrometer",
