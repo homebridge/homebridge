@@ -190,7 +190,7 @@ PhilipsHueAccessory.prototype = {
   extractValue: function(characteristic, status) {
     switch(characteristic.toLowerCase()) {
       case 'power':
-        return status.state.on  ? 1 : 0;
+        return status.state.reachable && status.state.on ? 1 : 0;
       case 'hue':
         return this.hueToArcDegrees(status.state.hue);
       case 'brightness':
