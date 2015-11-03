@@ -1,0 +1,44 @@
+#!/bin/sh
+
+set -e
+
+echo "Installing Homebridge..."
+
+APP_PATH=`pwd`
+FOREVER_PATH=`which forever || true`
+USER_NAME=`whoami`
+
+
+if [[ "$OSTYPE" == "linux*" ]]; then
+  ## install for linux
+
+  # copy SysVinit script to the correct path.
+  sudo cp startup/homebridge /etc/init.d/homebridge
+  # set exec permissions on script.
+  sudo chmod +x /etc/init.d/homebridge
+
+  # Set the current path for where the app lives.
+  sudo sed -i '' -e "s#%PATH%#$APP_PATH#g" /etc/init.d/homebridge
+  # Set the path for where the forever lives.
+  sudo sed -i '' -e "s#%FOREVER_PATH%#$FOREVER_PATH#g" /etc/init.d/homebridge
+
+  # Start it.
+  sudo /etc/init.d/homebridge start
+
+  # tell it to launch at boot
+  sudo update-rc.d homebridge defaults
+
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  ## install for OS X
+
+  # copy template plist to the correct path.
+  cp startup/org.homebridge.plist ~/Library/LaunchAgents/org.homebridge.plist
+
+  # Set the current user for the script to run as.
+  sed -i '' -e "s#%USER%#$USER_NAME#g" ~/Library/LaunchAgents/org.homebridge.plist
+  # Set the current path for where the app lives.
+  sed -i '' -e "s#%PATH%#$APP_PATH#g" ~/Library/LaunchAgents/org.homebridge.plist
+
+  # Tell launchd to start it.
+  launchctl load -w -F ~/Library/LaunchAgents/org.homebridge.plist
+fi
