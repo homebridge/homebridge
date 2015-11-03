@@ -1,9 +1,11 @@
-var Service = require("hap-nodejs").Service;
-var Characteristic = require("hap-nodejs").Characteristic;
 var request = require("request");
+var Service, Characteristic;
 
-module.exports = {
-  accessory: LockitronAccessory
+module.exports = function(homebridge) {
+  Service = homebridge.hap.Service;
+  Characteristic = homebridge.hap.Characteristic;
+  
+  homebridge.registerAccessory("homebridge-lockitron", "Lockitron", LockitronAccessory);
 }
 
 function LockitronAccessory(log, config) {
@@ -73,7 +75,7 @@ LockitronAccessory.prototype.setState = function(state, callback) {
       callback(err || new Error("Error setting lock state."));
     }
   }.bind(this));
-},
+}
 
 LockitronAccessory.prototype.getServices = function() {
   return [this.service];

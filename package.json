@@ -1,53 +1,37 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "scripts": {
-    "start": "DEBUG=* node app.js || true"
+    "dev": "DEBUG=* ./bin/homebridge -P example-plugins/ || true"
+  },
+  "author": {
+    "name": "Nick Farina"
   },
   "repository": {
     "type": "git",
     "url": "git://github.com/nfarina/homebridge.git"
   },
-  "license": "ISC",
+  "bugs": {
+    "url": "http://github.com/nfarina/homebridge/issues"
+  },
+  "licenses": [
+    {
+      "type": "ISC",
+      "url": "http://github.com/nfarina/homebridge/blob/master/LICENSE"
+    }
+  ],
+  "bin": {
+    "homebridge": "bin/homebridge"
+  },
+  "engines": {
+    "node": ">=0.12.0"
+  },
+  "preferGlobal": true,
   "dependencies": {
-    "ad2usb": "git+https://github.com/alistairg/node-ad2usb.git#local",
-    "async": "^1.4.2",
-    "carwingsjs": "0.0.x",
-    "chokidar": "^1.0.5",
-    "color": "0.10.x",
-    "debug": "^2.2.0",
-    "eibd": "^0.3.1",
-    "elkington": "kevinohara80/elkington",
-    "hap-nodejs": "^0.0.3",
-    "harmonyhubjs-client": "^1.1.6",
-    "harmonyhubjs-discover": "git+https://github.com/swissmanu/harmonyhubjs-discover.git",
-    "homematic-xmlrpc": "git+https://github.com/hobbyquaker/homematic-xmlrpc",
-    "isy-js": "",
-    "komponist": "0.1.0",
-    "lifx": "git+https://github.com/magicmonkey/lifxjs.git",
-    "lifx-api": "^1.0.1",
-    "mdns": "^2.2.4",
-    "netatmo": "git+https://github.com/patricks/netatmo.git",
-    "node-cache": "3.0.0",
-    "node-hue-api": "^1.0.5",
-    "node-icontrol": "^0.1.5",
-    "node-milight-promise": "0.0.x",
-    "node-persist": "0.0.x",
-    "node-xmpp-client": "1.0.0-alpha23",
-    "q": "1.4.x",
-    "queue": "^3.1.0",
-    "request": "2.49.x",
-    "sonos": "0.8.x",
-    "telldus-live": "^0.2.1",
-    "teslams": "1.0.1",
-    "tough-cookie": "^2.0.0",
-    "unofficial-nest-api": "git+https://github.com/kraigm/unofficial_nodejs_nest.git#3cbd337adc32fab3b481659b38d86f9fcd6a9c02",
-    "wemo": "0.2.x",
-    "wink-js": "0.0.5",
-    "xml2js": "0.4.x",
-    "xmldoc": "0.1.x",
-    "yamaha-nodejs": "0.4.x",
-    "serialport": "2.0.x"
+    "chalk": "^1.1.1",
+    "commander": "2.8.1",
+    "hap-nodejs": "0.0.2",
+    "semver": "5.0.3"
   }
 }
