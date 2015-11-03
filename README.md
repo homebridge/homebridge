@@ -41,7 +41,7 @@ However, Homebridge won't do anything until you've created a `config.json` file 
 
 **NOTE**: Your `config.json` file MUST live in your home directory inside `.homebridge`. The full error message will contain the exact path where your config is expected to be found.
 
-Once you've added your config file, you should be able to run the server again:
+Once you've added your config file, you should be able to run Homebridge again:
 
     $ homebridge
     Loaded plugin: homebridge-lockitron
@@ -53,7 +53,7 @@ Once you've added your config file, you should be able to run the server again:
     Loading 1 accessories...
     [Back Door] Initializing Lockitron accessory...
 
-Your server is now ready to receive commands from iOS.
+Homebridge is now ready to receive commands from iOS.
 
 # Installing Plugins
 
@@ -79,7 +79,7 @@ There are also some free apps that work OK. Try [Insteon+](https://itunes.apple.
 
 If you are a member of the iOS developer program, I highly recommend Apple's [HomeKit Catalog](https://developer.apple.com/library/ios/samplecode/HomeKitCatalog/Introduction/Intro.html) app, as it is reliable and comprehensive and free (and open source).
 
-Once you've gotten a HomeKit app running on your iOS device, it should "discover" the single accessory "Homebridge", assuming that you're still running the Homebridge server and you're on the same Wifi network. Adding this accessory will automatically add all accessories and platforms defined in `config.json`.
+Once you've gotten a HomeKit app running on your iOS device, it should "discover" the single accessory "Homebridge", assuming that you're still running Homebridge and you're on the same Wifi network. Adding this accessory will automatically add all accessories and platforms defined in `config.json`.
 
 When you attempt to add Homebridge, it will ask for a "PIN code". The default code is `031-45-154` (but this can be changed, see `config-sample.json`).
 
@@ -87,11 +87,11 @@ When you attempt to add Homebridge, it will ask for a "PIN code". The default co
 
 Once your device has been added to HomeKit, you should be able to tell Siri to control your devices. However, realize that Siri is a cloud service, and iOS may need some time to synchronize your device information with iCloud.
 
-One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos shim in `config-samples.json` is "Speakers".
+One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos accessory is "Speakers".
 
 # Why?
 
-Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, these shims will be obsolete, and I hope that happens soon. In the meantime, this server is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
+Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, this project will be obsolete, and I hope that happens soon. In the meantime, Homebridge is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
 
 # Credit
 
