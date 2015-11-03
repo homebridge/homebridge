@@ -11,7 +11,9 @@ function HttpAccessory(log, config) {
 
 	// url info
 	this.on_url = config["on_url"];
+	this.on_body = config["on_body"];
 	this.off_url = config["off_url"];
+	this.off_body = config["off_body"];
 	this.brightness_url = config["brightness_url"];
 	this.http_method = config["http_method"];
 	this.username = config["username"];
@@ -23,9 +25,10 @@ function HttpAccessory(log, config) {
 
 HttpAccessory.prototype = {
 
-	httpRequest: function(url, method, username, password, callback) {
+	httpRequest: function(url, body, method, username, password, callback) {
 		request({
 				url: url,
+				body: body,
 				method: method,
 				auth: {
 					user: username,
@@ -40,23 +43,26 @@ HttpAccessory.prototype = {
 
 	setPowerState: function(powerOn, callback) {
 		var url;
+		var body;
 
 		if (powerOn) {
 			url = this.on_url;
+			body = this.on_body;
 			this.log("Setting power state to on");
 		} else {
 			url = this.off_url;
+			body = this.off_body;
 			this.log("Setting power state to off");
 		}
 
-		this.httpRequest(url, this.http_method, this.username, this.password, function(error, response, body) {
+		this.httpRequest(url, body, this.http_method, this.username, this.password, function(error, response, responseBody) {
 			if (error) {
 				this.log('HTTP power function failed: %s', error.message);
 				callback(error);
 			} else {
 				this.log('HTTP power function succeeded!');
 				this.log(response);
-				this.log(body);
+				this.log(responseBody);
 				this.log(this.username);
 				this.log(this.password);
 				callback();
@@ -69,7 +75,7 @@ HttpAccessory.prototype = {
 
 		this.log("Setting brightness to %s", level);
 
-		this.httpRequest(url, this.http_method, this.username, this.password, function(error, response, body) {
+		this.httpRequest(url, "", this.http_method, this.username, this.password, function(error, response, body) {
 			if (error) {
 				this.log('HTTP brightness function failed: %s', error);
 				callback(error);
