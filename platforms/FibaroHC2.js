@@ -51,43 +51,36 @@ FibaroHC2Platform.prototype = {
           	if (s.visible == true) {
           		var accessory = null;
           		if (s.type == "com.fibaro.multilevelSwitch")
-            		accessory = new FibaroAccessory(new Service.Lightbulb(s.name), [Characteristic.On, Characteristic.Brightness]);
+            		accessory = new FibaroBridgedAccessory([{controlService: new Service.Lightbulb(s.name), characteristics: [Characteristic.On, Characteristic.Brightness]}]);
 				else if (s.type == "com.fibaro.FGRM222" || s.type == "com.fibaro.FGR221")
-            		accessory = new FibaroAccessory(new Service.WindowCovering(s.name), [Characteristic.CurrentPosition, Characteristic.TargetPosition, Characteristic.PositionState]);
+            		accessory = new FibaroBridgedAccessory([{controlService: new Service.WindowCovering(s.name), characteristics: [Characteristic.CurrentPosition, Characteristic.TargetPosition, Characteristic.PositionState]}]);
 				else if (s.type == "com.fibaro.binarySwitch" || s.type == "com.fibaro.developer.bxs.virtualBinarySwitch")
-            		accessory = new FibaroAccessory(new Service.Switch(s.name), [Characteristic.On]);
+            		accessory = new FibaroBridgedAccessory([{controlService: new Service.Switch(s.name), characteristics: [Characteristic.On]}]);
 				else if (s.type == "com.fibaro.FGMS001" || s.type == "com.fibaro.motionSensor")
-            		accessory = new FibaroAccessory(new Service.MotionSensor(s.name), [Characteristic.MotionDetected]);
+            		accessory = new FibaroBridgedAccessory([{controlService: new Service.MotionSensor(s.name), characteristics: [Characteristic.MotionDetected]}]);
 				else if (s.type == "com.fibaro.temperatureSensor")
-            		accessory = new FibaroAccessory(new Service.TemperatureSensor(s.name), [Characteristic.CurrentTemperature]);
+            		accessory = new FibaroBridgedAccessory([{controlService: new Service.TemperatureSensor(s.name), characteristics: [Characteristic.CurrentTemperature]}]);
 				else if (s.type == "com.fibaro.doorSensor")
-            		accessory = new FibaroAccessory(new Service.ContactSensor(s.name), [Characteristic.ContactSensorState]);
+            		accessory = new FibaroBridgedAccessory([{controlService: new Service.ContactSensor(s.name), characteristics: [Characteristic.ContactSensorState]}]);
 				else if (s.type == "com.fibaro.lightSensor")
-            		accessory = new FibaroAccessory(new Service.LightSensor(s.name), [Characteristic.CurrentAmbientLightLevel]);
+            		accessory = new FibaroBridgedAccessory([{controlService: new Service.LightSensor(s.name), characteristics: [Characteristic.CurrentAmbientLightLevel]}]);
             	else if (s.type == "com.fibaro.FGWP101")
-            		accessory = new FibaroAccessory(new Service.Outlet(s.name), [Characteristic.On, Characteristic.OutletInUse]);
-            	else if (s.type == "virtual_device") {
+            		accessory = new FibaroBridgedAccessory([{ controlService: new Service.Outlet(s.name), characteristics: [Characteristic.On, Characteristic.OutletInUse]}]);
+            	else if (s.type == "virtual_device" && s.name.charAt(0) != "_") {
+            		var services = [];
             		for (var r = 0; r < s.properties.rows.length; r++) {
             			if (s.properties.rows[r].type == "button") {
             				for (var e = 0; e < s.properties.rows[r].elements.length; e++) {
-            					var name = s.properties.rows[r].elements[e].caption;
-            					var virtualButton = new FibaroAccessory(new Service.Switch(name), [Characteristic.On]);
-								virtualButton.buttonId = s.properties.rows[r].elements[e].id;
-								virtualButton.getServices = function() {
-									return that.getServices(this);
-								};
-			  					virtualButton.platform = that;
-				  				virtualButton.remoteAccessory = s;
-			  					virtualButton.id 			  = s.id;
-			  					virtualButton.name			  = name;
-  								virtualButton.model			  = "Virtual Button";
-  								virtualButton.manufacturer	  = "Fibaro";
-  								virtualButton.serialNumber	  = "<unknown>";
-            					foundAccessories.push(virtualButton);
-   					          	that.log("Service name: " + virtualButton.controlService.displayName + ", Accessory name: " + virtualButton.name);
+            					var service = {
+            						controlService: new Service.Switch(s.properties.rows[r].elements[e].caption),
+            						characteristics: [Characteristic.On]
+            					};
+								service.controlService.subtype = s.properties.rows[r].elements[e].id;
+            					services.push(service);
             				}
             			} 
             		}
+            		accessory = new FibaroBridgedAccessory(services);
             	}
 				if (accessory != null) {
 					accessory.getServices = function() {
@@ -171,20 +164,22 @@ FibaroHC2Platform.prototype = {
 			    .setCharacteristic(Characteristic.SerialNumber, homebridgeAccessory.serialNumber);
   	return informationService;
   },
-  bindCharacteristicEvents: function(characteristic, homebridgeAccessory) {
+  bindCharacteristicEvents: function(characteristic, service, homebridgeAccessory) {
   	var onOff = characteristic.props.format == "bool" ? true : false;
   	var readOnly = true;
   	for (var i = 0; i < characteristic.props.perms.length; i++)
 		if (characteristic.props.perms[i] == "pw")
 			readOnly = false;
   	var powerValue = (characteristic.UUID == "00000026-0000-1000-8000-0026BB765291") ? true : false;
-    subscribeUpdate(characteristic, homebridgeAccessory, onOff);
+	if (service.controlService.subtype != null) {
+	    subscribeUpdate(characteristic, homebridgeAccessory, onOff);
+	}
 	if (!readOnly) {
     	characteristic
     	    .on('set', function(value, callback, context) {
         	            	if( context !== 'fromFibaro' && context !== 'fromSetValue') {
-        	            		if (homebridgeAccessory.buttonId != null) {
-									homebridgeAccessory.platform.command("pressButton", homebridgeAccessory.buttonId, homebridgeAccessory);
+        	            		if (service.controlService.subtype != null) {
+									homebridgeAccessory.platform.command("pressButton", service.controlService.subtype, homebridgeAccessory);
 									// In order to behave like a push button reset the status to off
 							    	setTimeout( function(){
 							    		characteristic.setValue(false, undefined, 'fromSetValue');
@@ -199,7 +194,7 @@ FibaroHC2Platform.prototype = {
     }
     characteristic
         .on('get', function(callback) {
-     	            	if (homebridgeAccessory.buttonId != null) {
+     	            	if (service.controlService.subtype != null) {
      	            		// a push button is normally off
 					      	callback(undefined, false);
      	            	} else {
@@ -208,22 +203,27 @@ FibaroHC2Platform.prototype = {
                    }.bind(this) );
   },
   getServices: function(homebridgeAccessory) {
+  	var services = [];
   	var informationService = homebridgeAccessory.platform.getInformationService(homebridgeAccessory);
-  	for (var i=0; i < homebridgeAccessory.characteristics.length; i++) {
-	    var characteristic = homebridgeAccessory.controlService.getCharacteristic(homebridgeAccessory.characteristics[i]);
-	    if (characteristic == undefined)
-	    	characteristic = homebridgeAccessory.controlService.addCharacteristic(homebridgeAccessory.characteristics[i]);
-		homebridgeAccessory.platform.bindCharacteristicEvents(characteristic, homebridgeAccessory);
-  	}
-    
-    return [informationService, homebridgeAccessory.controlService];
+  	services.push(informationService);
+  	for (var s = 0; s < homebridgeAccessory.services.length; s++) {
+		var service = homebridgeAccessory.services[s];
+		for (var i=0; i < service.characteristics.length; i++) {
+			var characteristic = service.controlService.getCharacteristic(service.characteristics[i]);
+			if (characteristic == undefined)
+				characteristic = service.controlService.addCharacteristic(service.characteristics[i]);
+			homebridgeAccessory.platform.bindCharacteristicEvents(characteristic, service, homebridgeAccessory);
+		}
+		services.push(service.controlService);
+    }
+    return services;
   }  
 }
 
-function FibaroAccessory(controlService, characteristics) {
-    this.controlService = controlService;
-    this.characteristics = characteristics;
+function FibaroBridgedAccessory(services) {
+    this.services = services;
 }
+
 
 var lastPoll=0;
 var pollingUpdateRunning = false;
@@ -253,7 +253,7 @@ function startPollingUpdate( platform )
           					var value=parseInt(s.value);
           					if (isNaN(value))
           						value=(s.value === "true");
-          					for (i=0;i<updateSubscriptions.length; i++) {
+          					for (var i=0;i<updateSubscriptions.length; i++) {
           						var subscription = updateSubscriptions[i];
           						if (subscription.id == s.id) {
           							if (s.power != undefined && subscription.characteristic.UUID == "00000026-0000-1000-8000-0026BB765291") {
@@ -285,4 +285,3 @@ function subscribeUpdate(characteristic, accessory, onOff)
 }
 
 module.exports.platform = FibaroHC2Platform;
-
