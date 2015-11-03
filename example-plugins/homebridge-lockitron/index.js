@@ -5,7 +5,7 @@ module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
   
-  homebridge.registerAccessory("Lockitron", LockitronAccessory);
+  homebridge.registerAccessory("homebridge-lockitron", "Lockitron", LockitronAccessory);
 }
 
 function LockitronAccessory(log, config) {

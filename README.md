@@ -1,4 +1,8 @@
 
+# IMPORTANT
+
+Homebridge has recently spun off its included accessories into a new module [homebridge-legacy-plugins](https://github.com/nfarina/homebridge-legacy-plugins). Please do not open any issues related to specific devices in this repository; go there instead.
+
 # Homebridge
 
 Homebridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
@@ -60,6 +64,10 @@ Plugins can publish Accessories and/or Platforms. Accessories are individual dev
 You install Plugins the same way you installed Homebridge - as a global NPM module. For example:
 
     npm install -g homebridge-lockitron
+
+You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/browse/keyword/homebridge-plugin).
+
+**IMPORTANT**: Many of the plugins that Homebridge used to include with its default installation have been moved to the single plugin [homebridge-legacy-plugins](https://www.npmjs.com/package/homebridge-legacy-plugins).
 
 # Adding Homebridge to iOS
 
