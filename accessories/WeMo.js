@@ -89,7 +89,15 @@ WeMoAccessory.prototype.setPowerOn = function(powerOn, callback) {
   var binaryState = powerOn ? 1 : 0; // wemo langauge
   this.log("Setting power state on the '%s' to %s", this.wemoName, binaryState);
 
+  var callbackWasCalled = false;
+
   this.device.setBinaryState(binaryState, function(err, result) {
+    if (callbackWasCalled) {
+      this.log("WARNING: setBinaryState called its callback more than once! Discarding the second one.");
+    }
+    
+    callbackWasCalled = true;
+    
     if (!err) {
       this.log("Successfully set power state on the '%s' to %s", this.wemoName, binaryState);
       callback(null);
