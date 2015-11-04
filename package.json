@@ -3,7 +3,7 @@
   "description": "HomeKit support for the impatient",
   "version": "0.2.1",
   "scripts": {
-    "dev": "DEBUG=* ./bin/homebridge -P example-plugins/ || true"
+    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true"
   },
   "author": {
     "name": "Nick Farina"
