@@ -1,4 +1,6 @@
 
+[![Slack Status](https://homebridge-slackin.herokuapp.com/badge.svg)](https://homebridge-slackin.herokuapp.com)
+
 # IMPORTANT
 
 Homebridge has recently spun off its included accessories into a new module [homebridge-legacy-plugins](https://github.com/nfarina/homebridge-legacy-plugins). Please do not open any issues related to specific devices in this repository; go there instead.
@@ -16,6 +18,12 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
  * _Siri, good morning!_
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/browse/keyword/homebridge-plugin).
+
+# Community
+
+If you're having an issue with a particular plugin, open an issue in that plugin's Github repository. If you're having an issue with Homebridge itself, feel free to open issues and PRs here.
+
+You can also chat with us in our nascent [Slack instance](http://homebridge-slackin.herokuapp.com).
 
 # Installation
 
