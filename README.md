@@ -33,7 +33,7 @@ You can also chat with us in our nascent [Slack instance](http://homebridge-slac
 
 # Installation
 
-**Note:** If you're running on Linux, you'll need to make sure you have the `libavahi-compat-libdnssd-dev` package installed. If you're running on a Raspberry Pi, you should have a look at the [Wiki](/nfarina/homebridge/wiki/Running-HomeBridge-on-a-Raspberry-Pi).
+**Note:** If you're running on Linux, you'll need to make sure you have the `libavahi-compat-libdnssd-dev` package installed. If you're running on a Raspberry Pi, you should have a look at the [Wiki](https://github.com/nfarina/homebridge/wiki/Running-HomeBridge-on-a-Raspberry-Pi).
 
 Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) and should be installed "globally" by typing:
 
@@ -107,11 +107,11 @@ One final thing to remember is that Siri will almost always prefer its default p
 
 We don't have a lot of documentation right now for creating plugins, but there are many existing plugins you can study.
 
-The best place to start is the included [Example Plugins](tree/master/example-plugins). Right now this contains a single plugin that registers a fake door lock Accessory. This will show you how to use the Homebridge Plugin API.
+The best place to start is the included [Example Plugins](https://github.com/nfarina/homebridge/tree/master/example-plugins). Right now this contains a single plugin that registers a fake door lock Accessory. This will show you how to use the Homebridge Plugin API.
 
 For more example on how to construct HomeKit Services and Characteristics, see the many Accessories in the [Legacy Plugins](https://github.com/nfarina/homebridge-legacy-plugins/tree/master/accessories) repository.
 
-There isn't currently an example for how to publish a Platform (which allows the user to bridge many discovered devices at once, like a house full of smart lightbulbs), but the process is almost identical to registering an Accessory. Simply modify the example `index.js` in [homebridge-lockitron](tree/master/example-plugins/homebridge-lockitron) to say something like:
+There isn't currently an example for how to publish a Platform (which allows the user to bridge many discovered devices at once, like a house full of smart lightbulbs), but the process is almost identical to registering an Accessory. Simply modify the example `index.js` in [homebridge-lockitron](https://github.com/nfarina/homebridge/tree/master/example-plugins/homebridge-lockitron) to say something like:
 
     homebridge.registerPlatform("homebridge-myplugin", "MyPlatform", MyPlatform);
 
