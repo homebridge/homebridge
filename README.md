@@ -41,14 +41,14 @@ Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) 
 
 You may have to execute commands with `sudo` depending on your system. Now you should be able to run Homebridge:
 
-    $ `homebridge`
+    $ homebridge
     No plugins found. See the README for information on installing plugins.
 
 Homebridge will complain if you don't have any Plugins installed, since it will essentially be useless, although you can still "pair" with it. See the next section "Installing Plugins" for more info.
 
 Once you've installed a Plugin or two, you can run Homebridge again:
 
-    $ `homebridge`
+    $ homebridge
     Couldn't find a config.json file [snip]
 
 However, Homebridge won't do anything until you've created a `config.json` file containing your accessories and/or platforms. You can start by copying and modifying the included `config-sample.json` file which includes declarations for some example accessories and platforms. Each Plugin will have its own expected configuration; the documentation for Plugins should give you some real-world examples for that plugin.
