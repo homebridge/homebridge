@@ -6,6 +6,13 @@
   "keywords": [
     "homebridge-plugin"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/example/homebridge-lockitron.git"
+  },
+  "bugs": {
+    "url": "http://github.com/example/homebridge-lockitron/issues"
+  },
   "engines": {
     "node": ">=0.12.0",
     "homebridge": ">=0.2.0"
