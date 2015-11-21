@@ -11,14 +11,14 @@
     "accessories": [
         {
             "accessory": "WeMo",
-            "name": "Coffee Maker",
+            "name": "Coffee Maker"
         }
     ],
 
     "platforms": [
         {
             "platform" : "PhilipsHue",
-            "name" : "Hue",
+            "name" : "Hue"
         }
     ]
 }
