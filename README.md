@@ -3,6 +3,8 @@
 
 # IMPORTANT
 
+[![Join the chat at https://gitter.im/nfarina/homebridge](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/nfarina/homebridge?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Homebridge has recently spun off its included accessories into a new module [homebridge-legacy-plugins](https://github.com/nfarina/homebridge-legacy-plugins) which contains our previous integrations for popular devices like Nest, WeMo, Sonos, Hue, and many more. Please do not open any issues related to specific devices in this repository; go there instead.
 
 If you were using Homebridge previously and just want to get back up and running as quickly as possible, you can install the `homebridge-legacy-plugins` plugin which contains integrations for popular devices like Nest, WeMo, Sonos, Hue, and many more. After installing Homebridge (see "Installation" below), simply install the legacy plugins module:
