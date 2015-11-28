@@ -1,16 +1,6 @@
 
 [![Slack Status](https://homebridge-slackin.herokuapp.com/badge.svg)](https://homebridge-slackin.herokuapp.com)
 
-# IMPORTANT
-
-Homebridge has recently spun off its included accessories into a new module [homebridge-legacy-plugins](https://github.com/nfarina/homebridge-legacy-plugins) which contains our previous integrations for popular devices like Nest, WeMo, Sonos, Hue, and many more. Please do not open any issues related to specific devices in this repository; go there instead.
-
-If you were using Homebridge previously and just want to get back up and running as quickly as possible, you can install the `homebridge-legacy-plugins` plugin which contains integrations for popular devices like Nest, WeMo, Sonos, Hue, and many more. After installing Homebridge (see "Installation" below), simply install the legacy plugins module:
-
-    npm install -g homebridge-legacy-plugins
-
-You should first explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/browse/keyword/homebridge-plugin) to see if a newer version of your accessory is available before using the one in Legacy Plugins (which may be deleted).
-
 # Homebridge
 
 Homebridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
