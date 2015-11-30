@@ -27,9 +27,9 @@ You can also chat with us in our nascent [Slack instance](http://homebridge-slac
 
 Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) and should be installed "globally" by typing:
 
-    npm install -g homebridge
+    sudo npm install -g homebridge
 
-You may have to execute commands with `sudo` depending on your system. Now you should be able to run Homebridge:
+Now you should be able to run Homebridge:
 
     $ homebridge
     No plugins found. See the README for information on installing plugins.
@@ -67,7 +67,7 @@ Plugins can publish Accessories and/or Platforms. Accessories are individual dev
 
 You install Plugins the same way you installed Homebridge - as a global NPM module. For example:
 
-    npm install -g homebridge-lockitron
+    sudo npm install -g homebridge-lockitron
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/browse/keyword/homebridge-plugin).
 
