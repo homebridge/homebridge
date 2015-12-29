@@ -45,6 +45,8 @@ However, Homebridge won't do anything until you've created a `config.json` file 
 
 **NOTE**: Your `config.json` file MUST live in your home directory inside `.homebridge`. The full error message will contain the exact path where your config is expected to be found.
 
+**REALLY IMPORTANT**: You must use a "plain text" editor to create or modify `config.json`. Do NOT use apps like TextEdit on Mac or Wordpad on Windows; these apps will corrupt the formatting of the file in hard-to-debug ways. I suggest using the free [Atom text editor](http://atom.io).
+
 Once you've added your config file, you should be able to run Homebridge again:
 
     $ homebridge
