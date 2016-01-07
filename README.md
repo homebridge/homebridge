@@ -13,7 +13,7 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
  * _Siri, turn on the living room lights._
  * _Siri, good morning!_
 
-You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/browse/keyword/homebridge-plugin).
+You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
 
 # Community
 
@@ -71,7 +71,7 @@ You install Plugins the same way you installed Homebridge - as a global NPM modu
 
     sudo npm install -g homebridge-lockitron
 
-You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/browse/keyword/homebridge-plugin).
+You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
 
 **IMPORTANT**: Many of the plugins that Homebridge used to include with its default installation have been moved to the single plugin [homebridge-legacy-plugins](https://www.npmjs.com/package/homebridge-legacy-plugins).
 
