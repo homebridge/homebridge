@@ -121,6 +121,19 @@ Two reasons why Homebridge may not be discoverable:
 
   2. iOS device has gotten your Homebridge `username` (looks like a MAC address) "stuck" somehow, where it's in the database but inactive. Fix: change your `username` in the "bridge" section of `config.json` to be some new value.
 
+### Errors on startup
+
+The following errors are experienced when starting Homebridge and can be safely ignored. The cost of removing the issue at the core of the errors isn't worth the effort.
+
+```
+*** WARNING *** The program 'nodejs' uses the Apple Bonjour compatibility layer of Avahi
+*** WARNING *** Please fix your application to use the native API of Avahi!
+*** WARNING *** For more information see http://0pointerde/avahi-compat?s=libdns_sd&e=nodejs
+*** WARNING *** The program 'nodejs' called 'DNSServiceRegister()' which is not supported (or only supported partially) in the Apple Bonjour compatibility layer of Avahi
+*** WARNING *** Please fix your application to use the native API of Avahi!
+*** WARNING *** For more information see http://0pointerde/avahi-compat?s=libdns_sd&e=nodejs&f=DNSServiceRegister
+```
+
 # Why Homebridge?
 
 Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, this project will be obsolete, and I hope that happens soon. In the meantime, Homebridge is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
