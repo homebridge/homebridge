@@ -15,12 +15,7 @@
   "bugs": {
     "url": "http://github.com/nfarina/homebridge/issues"
   },
-  "licenses": [
-    {
-      "type": "ISC",
-      "url": "http://github.com/nfarina/homebridge/blob/master/LICENSE"
-    }
-  ],
+  "license": "ISC",
   "bin": {
     "homebridge": "bin/homebridge"
   },
