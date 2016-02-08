@@ -33,6 +33,12 @@ function SamplePlatform(log, config, api) {
       response.end();
     }
 
+    if (request.url == "/reachability") {
+      this.updateAccessoriesReachability();
+      response.writeHead(204);
+      response.end();
+    }
+
     if (request.url == "/remove") {
       this.removeAccessory();
       response.writeHead(204);
@@ -186,6 +192,14 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
 
   this.accessories.push(newAccessory);
   this.api.registerPlatformAccessories("homebridge-samplePlatform", "SamplePlatform", [newAccessory]);
+}
+
+SamplePlatform.prototype.updateAccessoriesReachability = function() {
+  console.log("Update Reachability");
+  for (var index in this.accessories) {
+    var accessory = this.accessories[index];
+    accessory.updateReachability(false);
+  }
 }
 
 // Sample function to show how developer can remove accessory dynamically from outside event
