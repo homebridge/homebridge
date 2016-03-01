@@ -74,6 +74,10 @@ SamplePlatform.prototype.configureAccessory = function(accessory) {
   // accessory.updateReachability()
   accessory.reachable = true;
 
+  accessory.on('identify', function() {
+    console.log("Identify!!!");
+  });
+
   if (accessory.getService(Service.Lightbulb)) {
     accessory.getService(Service.Lightbulb)
     .getCharacteristic(Characteristic.On)
@@ -178,7 +182,9 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
   uuid = UUIDGen.generate(accessoryName);
 
   var newAccessory = new Accessory(accessoryName, uuid);
-
+  newAccessory.on('identify', function() {
+    console.log("Identify!!!");
+  });
   // Plugin can save context on accessory
   // To help restore accessory in configureAccessory()
   // newAccessory.context.something = "Something"
