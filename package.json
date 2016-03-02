@@ -1,7 +1,7 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "0.2.19",
+  "version": "0.3.0",
   "scripts": {
     "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true"
   },
@@ -15,12 +15,7 @@
   "bugs": {
     "url": "http://github.com/nfarina/homebridge/issues"
   },
-  "licenses": [
-    {
-      "type": "ISC",
-      "url": "http://github.com/nfarina/homebridge/blob/master/LICENSE"
-    }
-  ],
+  "license": "ISC",
   "bin": {
     "homebridge": "bin/homebridge"
   },
@@ -31,7 +26,8 @@
   "dependencies": {
     "chalk": "^1.1.1",
     "commander": "2.8.1",
-    "hap-nodejs": "0.2.5",
-    "semver": "5.0.3"
+    "hap-nodejs": "0.2.6",
+    "semver": "5.0.3",
+    "node-persist": "^0.0.8"
   }
 }
