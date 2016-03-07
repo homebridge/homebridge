@@ -125,6 +125,8 @@ This will start up Homebridge and load your in-development plugin from a nearby 
 DEBUG=* ./bin/homebridge -D -U ~/.homebridge-dev -P ../my-great-plugin/
 ```
 
+This is very useful when you are already using your development machine to host a "real" Homebridge instance (with all your accessories) that you don't want to disturb.
+
 # Common Issues
 
 ### My iOS App Can't Find Homebridge
