@@ -111,6 +111,16 @@ And you can find an example plugin that publishes an individual accessory at [he
 
 See more examples on how to create Platform classes in the [Legacy Plugins](https://github.com/nfarina/homebridge-legacy-plugins/tree/master/platforms) repository.
 
+# Plugin Development
+
+When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. You can tell Homebridge to look for your plugin at a specific location using the command-line parameter `-P`. For example, if you are in the Homebridge directory (as checked out from Github), you might type:
+
+```sh
+DEBUG=* ./bin/homebridge -D -P ../my-great-plugin/
+```
+
+This will start up Homebridge and load your in-development plugin from a nearby directory.
+
 # Common Issues
 
 ### My iOS App Can't Find Homebridge
