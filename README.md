@@ -119,7 +119,11 @@ When writing your plugin, you'll want Homebridge to load it from your developmen
 DEBUG=* ./bin/homebridge -D -P ../my-great-plugin/
 ```
 
-This will start up Homebridge and load your in-development plugin from a nearby directory.
+This will start up Homebridge and load your in-development plugin from a nearby directory. Note that you can also direct Homebridge to load your configuration from somewhere besides the default `~/.homebridge`, for example:
+
+```sh
+DEBUG=* ./bin/homebridge -D -U ~/.homebridge-dev -P ../my-great-plugin/
+```
 
 # Common Issues
 
