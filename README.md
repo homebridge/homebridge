@@ -31,6 +31,10 @@ Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) 
 
     sudo npm install -g homebridge
 
+You may need to use the `--unsafe-perm` flag if you receive an error similar to this:
+
+    gyp WARN EACCES user "root" does not have permission to access the dev dir "/root/.node-gyp/5.5.0"
+
 Now you should be able to run Homebridge:
 
     $ homebridge
