@@ -28,7 +28,7 @@ function SamplePlatform(log, config, api) {
 
   this.requestServer = http.createServer(function(request, response) {
     if (request.url === "/add") {
-      this.addAccessory();
+      this.addAccessory(new Date().toISOString());
       response.writeHead(204);
       response.end();
     }
@@ -175,10 +175,6 @@ SamplePlatform.prototype.configurationRequestHandler = function(context, request
 SamplePlatform.prototype.addAccessory = function(accessoryName) {
   console.log("Add Accessory");
   var uuid;
-
-  if (!accessoryName) {
-    accessoryName = "Test Accessory"
-  }
 
   uuid = UUIDGen.generate(accessoryName);
 
