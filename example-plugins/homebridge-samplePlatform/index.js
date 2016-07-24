@@ -21,7 +21,8 @@ module.exports = function(homebridge) {
 // config may be null
 // api may be null if launched from old homebridge version
 function SamplePlatform(log, config, api) {
-  console.log("SamplePlatform Init");
+  log("SamplePlatform Init");
+  var platform = this;
   this.log = log;
   this.config = config;
   this.accessories = [];
@@ -47,7 +48,7 @@ function SamplePlatform(log, config, api) {
   }.bind(this));
 
   this.requestServer.listen(18081, function() {
-    console.log("Server Listening...");
+    platform.log("Server Listening...");
   });
 
   if (api) {
@@ -58,7 +59,7 @@ function SamplePlatform(log, config, api) {
       // Platform Plugin should only register new accessory that doesn't exist in homebridge after this event.
       // Or start discover new accessories
       this.api.on('didFinishLaunching', function() {
-        console.log("Plugin - DidFinishLaunching");
+        platform.log("DidFinishLaunching");
       }.bind(this));
   }
 }
@@ -67,7 +68,8 @@ function SamplePlatform(log, config, api) {
 // Developer can configure accessory at here (like setup event handler)
 // Update current value
 SamplePlatform.prototype.configureAccessory = function(accessory) {
-  console.log("Plugin - Configure Accessory: " + accessory.displayName);
+  this.log(accessory.displayName, "Configure Accessory");
+  var platform = this;
 
   // set the accessory to reachable if plugin can currently process the accessory
   // otherwise set to false and update the reachability later by invoking 
@@ -75,7 +77,7 @@ SamplePlatform.prototype.configureAccessory = function(accessory) {
   accessory.reachable = true;
 
   accessory.on('identify', function(paired, callback) {
-    console.log("Identify!!!");
+    platform.log(accessory.displayName, "Identify!!!");
     callback();
   });
 
@@ -83,7 +85,7 @@ SamplePlatform.prototype.configureAccessory = function(accessory) {
     accessory.getService(Service.Lightbulb)
     .getCharacteristic(Characteristic.On)
     .on('set', function(value, callback) {
-      console.log("Light -> " + value);
+      platform.log(accessory.displayName, "Light -> " + value);
       callback();
     });
   }
@@ -94,8 +96,8 @@ SamplePlatform.prototype.configureAccessory = function(accessory) {
 //Handler will be invoked when user try to config your plugin
 //Callback can be cached and invoke when nessary
 SamplePlatform.prototype.configurationRequestHandler = function(context, request, callback) {
-  console.log("Context: ", JSON.stringify(context));
-  console.log("Request: ", JSON.stringify(request));
+  this.log("Context: ", JSON.stringify(context));
+  this.log("Request: ", JSON.stringify(request));
 
   // Check the request response
   if (request && request.response && request.response.inputs && request.response.inputs.name) {
@@ -173,7 +175,8 @@ SamplePlatform.prototype.configurationRequestHandler = function(context, request
 
 // Sample function to show how developer can add accessory dynamically from outside event
 SamplePlatform.prototype.addAccessory = function(accessoryName) {
-  console.log("Add Accessory");
+  this.log("Add Accessory");
+  var platform = this;
   var uuid;
 
   if (!accessoryName) {
@@ -184,7 +187,7 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
 
   var newAccessory = new Accessory(accessoryName, uuid);
   newAccessory.on('identify', function(paired, callback) {
-    console.log("Identify!!!");
+    platform.log(accessory.displayName, "Identify!!!");
     callback();
   });
   // Plugin can save context on accessory
@@ -194,7 +197,7 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
   newAccessory.addService(Service.Lightbulb, "Test Light")
   .getCharacteristic(Characteristic.On)
   .on('set', function(value, callback) {
-    console.log("Light -> " + value);
+    platform.log(accessory.displayName, "Light -> " + value);
     callback();
   });
 
@@ -203,7 +206,7 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
 }
 
 SamplePlatform.prototype.updateAccessoriesReachability = function() {
-  console.log("Update Reachability");
+  this.log("Update Reachability");
   for (var index in this.accessories) {
     var accessory = this.accessories[index];
     accessory.updateReachability(false);
@@ -212,7 +215,7 @@ SamplePlatform.prototype.updateAccessoriesReachability = function() {
 
 // Sample function to show how developer can remove accessory dynamically from outside event
 SamplePlatform.prototype.removeAccessory = function() {
-  console.log("Remove Accessory");
+  this.log("Remove Accessory");
   this.api.unregisterPlatformAccessories("homebridge-samplePlatform", "SamplePlatform", this.accessories);
 
   this.accessories = [];
