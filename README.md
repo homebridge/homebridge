@@ -49,9 +49,9 @@ Once you've installed a Plugin or two, you can run Homebridge again:
 
 However, Homebridge won't do anything until you've created a `config.json` file containing your accessories and/or platforms. You can start by copying and modifying the included `config-sample.json` file which includes declarations for some example accessories and platforms. Each Plugin will have its own expected configuration; the documentation for Plugins should give you some real-world examples for that plugin.
 
-**NOTE**: Your `config.json` file MUST live in your home directory inside `.homebridge`. The full error message will contain the exact path where your config is expected to be found.
+**NOTE**: Your `config.json` file MUST be inside of `.homebridge`, which is inside of your home folder.  On MacOS and Linux, the full path for your `config.json` would be `~/.homebridge/config.json`.  Any error messages will contain the exact path where your config is expected to be found.
 
-**REALLY IMPORTANT**: You must use a "plain text" editor to create or modify `config.json`. Do NOT use apps like TextEdit on Mac or Wordpad on Windows; these apps will corrupt the formatting of the file in hard-to-debug ways. I suggest using the free [Atom text editor](http://atom.io).
+**REALLY IMPORTANT**: You must use a "plain text" editor to create or modify `config.json`. Do NOT use apps like TextEdit on Mac or Wordpad on Windows.  Apps like these will corrupt the formatting of the file in hard-to-debug ways, making improper `"` signs is an example.  I suggest using the free [Atom text editor](http://atom.io).
 
 Once you've added your config file, you should be able to run Homebridge again:
 
