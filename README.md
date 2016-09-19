@@ -29,7 +29,7 @@ You can also chat with us in our nascent [Slack instance](http://homebridge-slac
 
 Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) and should be installed "globally" by typing:
 
-    sudo npm install -g homebridge
+    sudo npm install -g --unsafe-perm homebridge
 
 You may need to use the `--unsafe-perm` flag if you receive an error similar to this:
 
