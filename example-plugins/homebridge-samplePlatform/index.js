@@ -189,7 +189,8 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
   // Plugin can save context on accessory
   // To help restore accessory in configureAccessory()
   // newAccessory.context.something = "Something"
-
+  
+  // Make sure you provided a name for service otherwise it may not visible in some HomeKit apps.
   newAccessory.addService(Service.Lightbulb, "Test Light")
   .getCharacteristic(Characteristic.On)
   .on('set', function(value, callback) {
