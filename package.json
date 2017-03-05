@@ -29,6 +29,6 @@
     "hap-nodejs": "git://github.com/NorthernMan54/HAP-NodeJS",
     "semver": "5.0.3",
     "node-persist": "^0.0.8",
-    "hap-alexa": "^0.0.3"
+    "hap-alexa": "^0.0.8"
   }
 }
