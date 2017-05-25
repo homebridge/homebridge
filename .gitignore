@@ -14,3 +14,11 @@ package-lock.json
 example-plugins
 
 .idea
+
+**/snap/.snapcraft
+**/parts/
+**/stage
+**/prime
+**/*.snap
+**/*.tar*
+.project
