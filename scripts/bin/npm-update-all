@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# call update on all packages
+npm-wrapper update
+
+# restart homebridge
+snapctl restart homebridge

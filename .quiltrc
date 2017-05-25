@@ -1,0 +1,6 @@
+for where in ./ ../ ../../ ../../../ ../../../../ ../../../../../; do
+    if [ -e ${where}debian/rules -a -d ${where}debian/patches ]; then
+        export QUILT_PATCHES=debian/patches
+        break
+    fi
+done

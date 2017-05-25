@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -x
+exec >> $SNAP_COMMON/hook.log 2>&1
+echo "$(date '+%Y-%m-%d %H:%M:%S') $0: Entering hook"
+
+# assume snap has always latest
+mkdir -p $SNAP_COMMON/lib
+ARCH_TRIPLET="$($SNAP//usr/bin/gcc -dumpmachine)"
+[ -e $SNAP/lib/${ARCH_TRIPLET} ] && cp -r $SNAP/lib/${ARCH_TRIPLET} $SNAP_COMMON/lib
+
+LIB_NODE="lib/node_modules"
+LIB_NODE_HOMEBRIDGE="${LIB_NODE}/homebridge"
+for dir in ${LIB_NODE_HOMEBRIDGE} ${LIB_NODE_HOMEBRIDGE}-info ${LIB_NODE_HOMEBRIDGE}-server ${LIB_NODE}/npm ${LIB_NODE}/node-gyp
+do
+    [ -e ${SNAP}/${dir} ] && ${SNAP}/usr/bin/rsync -rltp --delete-after ${SNAP}/${dir} ${SNAP_COMMON}/${LIB_NODE}
+done
+
+ mkdir -p $SNAP_COMMON/bin
+[ -e $SNAP/bin/homebridge ] && cp -R $SNAP/bin/homebridge $SNAP_COMMON/bin
+[ -e $SNAP/bin/node-gyp ] && cp -R $SNAP/bin/node-gyp $SNAP_COMMON/bin
+[ -e $SNAP/bin/npm ] && cp -R $SNAP/bin/npm $SNAP_COMMON/bin

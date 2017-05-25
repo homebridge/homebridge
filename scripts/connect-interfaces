@@ -1,0 +1,26 @@
+#!/bin/bash
+
+echo "This is helper script and it shoud be called by user directly!"
+echo "Connecting interfaces for homebridge"
+
+echo "Connecting interfaces"
+grep " - " /snap/homebridge/current/meta/snap.yaml | sort | uniq |sed -e 's/^[ \t]*//' | sed -e 's/- /homebridge:/' | while read line
+do
+  if [ -z "$(echo $line | grep avahi)" ]; then
+      echo  -e "Connecting $line plug with core slot"
+      snap connect $line core
+  else
+      # handle avahi based on device
+      if [ -n "$(snap interfaces avahi)" ]; then
+          echo  -e "Connecting $line plug with avahi snap slot"
+          snap connect $line avahi
+      else
+          if [ -n "$(snap interfaces core | grep avahi)" ]; then
+              echo  -e "Connecting $line plug with core slot as we are on classic"
+              snap connect $line core
+          else
+              echo "install avahi snap, to provide avahi slot"
+          fi
+      fi
+  fi
+done

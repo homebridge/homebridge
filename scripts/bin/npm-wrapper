@@ -1,0 +1,9 @@
+#!/bin/bash
+if [ "$($SNAP/usr/bin/whoami)" != "root" ]; then
+    echo "Please run as root!!"
+    exit 0
+fi
+source $SNAP/bin/env-setup
+pushd $SNAP_COMMON 2&> /dev/null
+npm --prefix $SNAP_COMMON -g "$@"
+popd 2&> /dev/null

@@ -1,0 +1,29 @@
+export npm_config_globalignorefile=$SNAP_COMMON/npmignore
+export npm_config_globalconfig=$SNAP_COMMON/npmrc
+export npm_config_init_module=$SNAP_COMMON/.npm-init.js
+export npm_config_userconfig=$SNAP_COMMON/unpmrc
+export npm_config_cache=$SNAP_COMMON/.npm
+
+export PYTHON=$SNAP/usr/bin/python2.7
+export HOME=$SNAP_COMMON
+export PATH=$SNAP/alias-bin:$SNAP_COMMON/bin:$PATH:$SNAP/usr/lib/git-core
+
+#setup flags for compilation
+case $SNAP_ARCH in
+amd64)
+	TRIPLET="x86_64-linux-gnu"
+	;;
+armhf)
+	TRIPLET="arm-linux-gnueabihf"
+	;;
+arm64)
+	TRIPLET="aarch64-linux-gnu"
+	;;
+*)
+	TRIPLET="$SNAP_ARCH-linux-gnu"
+	;;
+esac
+
+export LDFLAGS="--verbose -L${SNAP}/usr/ -L${SNAP}/usr/lib -L${SNAP}/usr/lib/${TRIPLET}/"
+export CFLAGS="-I${SNAP}/usr/include/${TRIPLET} -I${SNAP}/usr/include"
+export CPPFLAGS="-I${SNAP}/usr/include/${TRIPLET} -I${SNAP}/usr/include"

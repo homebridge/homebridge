@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -x
+exec >> $SNAP_COMMON/hook.log 2>&1
+echo "$(date '+%Y-%m-%d %H:%M:%S') $0: Entering hook"
+
+# handle install, default config + npm config files
+[ ! -e $SNAP_COMMON/config.json ] && [ -e $SNAP/config-sample.json ] && cp $SNAP/config-sample.json $SNAP_COMMON/config.json
+[ ! -e $SNAP_COMMON/npmrc ] && [ -e $SNAP/npmrc ] &&  cp $SNAP/npmrc $SNAP_COMMON
+[ ! -e $SNAP_COMMON/.npmrc ] && [ -e $SNAP/.npmrc ] && cp $SNAP/.npmrc $SNAP_COMMON
+
+# call post-refresh to install npm modules from snap
+$SNAP/meta/hooks/post-refresh

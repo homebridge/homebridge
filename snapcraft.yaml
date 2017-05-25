@@ -1,0 +1,128 @@
+name: homebridge
+version: "0"
+version-script: jq -r --arg x version '.[$x]' prime/lib/node_modules/homebridge/package.json
+summary: Homebridge
+description: |
+   Homebridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices.
+
+confinement: strict
+grade: stable
+
+# give  hook network access so it can update npm packages if needed
+hooks:
+    post-refresh:
+        plugs:
+            - network
+
+apps:
+    homebridge:
+        # -U < path where config is store> 
+        command: homebridge-wrapper -U $SNAP_COMMON
+        daemon: simple
+        plugs:
+          - network-bind
+          - avahi-control
+          - docker-support
+          - ppp
+    manual:
+        command: homebridge-wrapper -U $SNAP_COMMON
+        plugs:
+          - network-bind
+          - avahi-control
+          - docker-support
+          - ppp
+    npm:
+        command: npm-wrapper
+        plugs:
+          - network
+          - docker-support
+
+    npm-install:
+        command: npm-wrapper install
+        plugs:
+          - network
+          - docker-support
+    list-installed-packages:
+        command: npm-wrapper ls --depth=0
+        plugs:
+          - network
+          - docker-support
+    list-outdated-packages:
+        command: npm-wrapper outdated --depth=0
+        plugs:
+          - network
+          - docker-support
+    update-all-packages:
+        command: npm-update-all
+        plugs:
+          - network
+          - docker-support
+parts:
+    homebridge:
+        source: .
+        plugin: nodejs
+        node-packages:
+            - homebridge
+            - homebridge-info
+            - homebridge-server
+            - node-gyp
+        build-packages:
+            - python
+            - libavahi-compat-libdnssd-dev
+            - jq
+        stage-packages:
+            - libavahi-compat-libdnssd-dev
+            - python2.7
+            - rsync
+        override-build: |
+            snapcraftctl build
+            npm install -g --unsafe-perm npm@latest
+    scripts:
+        plugin: dump
+        source: scripts
+    glibc:
+        plugin: nil
+        source: https://git.launchpad.net/glibc
+        source-tag: glibc-2.23
+        source-type: git
+        stage-packages:
+            - make
+            - gcc
+            - g++
+            - g++-5
+            - cpp-5
+            - build-essential
+            - libstdc++-5-dev
+            - git
+            - gettext-base
+        build-packages:
+            - rdfind
+            - symlinks
+            - systemtap-sdt-dev
+            - libaudit-dev
+            - g++-5
+            - wget
+            - quilt
+            - gawk
+        prepare: |
+            wget http://archive.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_2.23-0ubuntu{4..99}.debian.tar.xz
+            tar -xf glibc_2.23-*.debian.tar.xz
+            rm -rf manual
+            quilt push -afq --leave-rejects --quiltrc=../../../.quiltrc
+            sed -i 's|curpass =.*|curpass = "libc"|g' debian/rules
+            sed -i 's|prefix=/usr|prefix=/snap/'"${SNAPCRAFT_PROJECT_NAME}"'/current/usr|g' debian/rules
+            sed -i 's|dir=/|dir=/snap/'"${SNAPCRAFT_PROJECT_NAME}"'/current/|g' debian/rules
+            sed -i 's|build-arch: $(stamp)build_C.UTF-8 |# build-arch: $(stamp)build_C.UTF-8|g' debian/rules
+            sed -i 's|$(stamp)build_locales-all|# $(stamp)build_locales-all|g' debian/rules
+            sed -i 's|--prefix=/usr|--prefix=/snap/'"${SNAPCRAFT_PROJECT_NAME}"'/current/usr|g' debian/rules.d/build.mk
+            sed -i 's|$(CURDIR)/debian/tmp-$(curpass)|'"${PWD}"'|g' debian/rules.d/build.mk
+        build: |
+            unset LD_LIBRARY_PATH
+            DEB_BUILD_PROFILES='stage0' DEB_BUILD_OPTIONS='nocheck parallel=$(nproc)' debian/rules build-arch
+            cd build-tree/*-libc
+            make install -j$(nproc)
+        install: |
+            cp -rf snap/${SNAPCRAFT_PROJECT_NAME}/current/lib ${SNAPCRAFT_PART_INSTALL}
+            cp -rf snap/${SNAPCRAFT_PROJECT_NAME}/current/sbin ${SNAPCRAFT_PART_INSTALL}
+            cp -rf snap/${SNAPCRAFT_PROJECT_NAME}/current/usr ${SNAPCRAFT_PART_INSTALL}
+            ln -sf gcc $SNAPCRAFT_PART_INSTALL/usr/bin/cc

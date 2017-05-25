@@ -1,0 +1,4 @@
+#!/bin/bash
+
+source $SNAP/bin/env-setup
+$SNAP_COMMON/bin/homebridge "$@"
