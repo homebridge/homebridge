@@ -1,6 +1,6 @@
 
 [![Slack Status](https://homebridge-slackin.herokuapp.com/badge.svg)](https://homebridge-slackin.herokuapp.com)
-
+[<img src="https://img.shields.io/badge/rating-4%2B%20stars-brightgreen.svg">](https://recordnotfound.com/homebridge-nfarina-4693)
 # Homebridge
 
 ![](https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif)
