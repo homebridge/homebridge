@@ -49,9 +49,9 @@ Once you've installed a Plugin or two, you can run Homebridge again:
 
 However, Homebridge won't do anything until you've created a `config.json` file containing your accessories and/or platforms. You can start by copying and modifying the included `config-sample.json` file which includes declarations for some example accessories and platforms. Each Plugin will have its own expected configuration; the documentation for Plugins should give you some real-world examples for that plugin.
 
-**NOTE**: Your `config.json` file MUST be inside of `.homebridge`, which is inside of your home folder.  On MacOS and Linux, the full path for your `config.json` would be `~/.homebridge/config.json`.  Any error messages will contain the exact path where your config is expected to be found.
+**NOTE**: Your `config.json` file MUST be inside of `.homebridge`, which is inside of your home folder. On macOS and Linux, the full path for your `config.json` would be `~/.homebridge/config.json`. Any error messages will contain the exact path where your config is expected to be found.
 
-**REALLY IMPORTANT**: You must use a "plain text" editor to create or modify `config.json`. Do NOT use apps like TextEdit on Mac or Wordpad on Windows.  Apps like these will corrupt the formatting of the file in hard-to-debug ways, making improper `"` signs is an example.  I suggest using the free [Atom text editor](http://atom.io).
+**REALLY IMPORTANT**: You must use a "plain text" editor to create or modify `config.json`. Do NOT use apps like TextEdit on Mac or Wordpad on Windows. Apps like these will corrupt the formatting of the file in hard-to-debug ways, making improper `"` signs is an example. I suggest using the free [Atom text editor](http://atom.io).
 
 Once you've added your config file, you should be able to run Homebridge again:
 
@@ -150,6 +150,11 @@ The following errors are experienced when starting Homebridge and can be safely 
 *** WARNING *** For more information see http://0pointerde/avahi-compat?s=libdns_sd&e=nodejs&f=DNSServiceRegister
 ```
 
+### Limitations
+
+ * One installation of Homebridge can only expose 100 accessories due to a HomeKit limit. You can however run multiple Homebridge instances by pointing them to different config and persistence paths (see issue #827).
+ * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
+
 # Why Homebridge?
 
 Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, this project will be obsolete, and I hope that happens soon. In the meantime, Homebridge is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
@@ -157,5 +162,3 @@ Technically, the device manufacturers should be the ones implementing the HomeKi
 # Credit
 
 The original HomeKit API work was done by [KhaosT](http://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project.
-
-
