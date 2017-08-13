@@ -52,26 +52,26 @@ function SamplePlatform(log, config, api) {
   });
 
   if (api) {
-      // Save the API object as plugin needs to register new accessory via this object.
+      // Save the API object as plugin needs to register new accessory via this object
       this.api = api;
 
-      // Listen to event "didFinishLaunching", this means homebridge already finished loading cached accessories
+      // Listen to event "didFinishLaunching", this means homebridge already finished loading cached accessories.
       // Platform Plugin should only register new accessory that doesn't exist in homebridge after this event.
-      // Or start discover new accessories
+      // Or start discover new accessories.
       this.api.on('didFinishLaunching', function() {
         platform.log("DidFinishLaunching");
       }.bind(this));
   }
 }
 
-// Function invoked when homebridge tries to restore cached accessory
-// Developer can configure accessory at here (like setup event handler)
-// Update current value
+// Function invoked when homebridge tries to restore cached accessory.
+// Developer can configure accessory at here (like setup event handler).
+// Update current value.
 SamplePlatform.prototype.configureAccessory = function(accessory) {
   this.log(accessory.displayName, "Configure Accessory");
   var platform = this;
 
-  // set the accessory to reachable if plugin can currently process the accessory
+  // Set the accessory to reachable if plugin can currently process the accessory,
   // otherwise set to false and update the reachability later by invoking 
   // accessory.updateReachability()
   accessory.reachable = true;
@@ -93,8 +93,8 @@ SamplePlatform.prototype.configureAccessory = function(accessory) {
   this.accessories.push(accessory);
 }
 
-//Handler will be invoked when user try to config your plugin
-//Callback can be cached and invoke when nessary
+// Handler will be invoked when user try to config your plugin.
+// Callback can be cached and invoke when necessary.
 SamplePlatform.prototype.configurationRequestHandler = function(context, request, callback) {
   this.log("Context: ", JSON.stringify(context));
   this.log("Request: ", JSON.stringify(request));
@@ -169,7 +169,7 @@ SamplePlatform.prototype.configurationRequestHandler = function(context, request
   // Plugin can set context to allow it track setup process
   context.ts = "Hello";
 
-  //invoke callback to update setup UI
+  // Invoke callback to update setup UI
   callback(respDict);
 }
 
@@ -186,11 +186,10 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
     platform.log(accessory.displayName, "Identify!!!");
     callback();
   });
-  // Plugin can save context on accessory
-  // To help restore accessory in configureAccessory()
+  // Plugin can save context on accessory to help restore accessory in configureAccessory()
   // newAccessory.context.something = "Something"
   
-  // Make sure you provided a name for service otherwise it may not visible in some HomeKit apps.
+  // Make sure you provided a name for service, otherwise it may not visible in some HomeKit apps
   newAccessory.addService(Service.Lightbulb, "Test Light")
   .getCharacteristic(Characteristic.On)
   .on('set', function(value, callback) {
