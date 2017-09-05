@@ -99,7 +99,7 @@ One final thing to remember is that Siri will almost always prefer its default p
 
 # Writing Plugins
 
-For a great introduction to writing plugins with some example code, check out [Frédéric Bartelet's excellent blog post](http://www.theodo.fr/blog/2017/08/make-siri-perfect-home-companion-devices-not-supported-apple-homekit/).
+For a great introduction to writing plugins with some example code, check out [Frédéric Barthelet's excellent blog post](http://www.theodo.fr/blog/2017/08/make-siri-perfect-home-companion-devices-not-supported-apple-homekit/).
 
 There are also many existing plugins you can study.
 
