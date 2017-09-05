@@ -99,9 +99,11 @@ One final thing to remember is that Siri will almost always prefer its default p
 
 # Writing Plugins
 
-We don't have a lot of documentation right now for creating plugins, but there are many existing plugins you can study.
+For a great introduction to writing plugins with some example code, check out [Frédéric Bartelet's excellent blog post](http://www.theodo.fr/blog/2017/08/make-siri-perfect-home-companion-devices-not-supported-apple-homekit/).
 
-The best place to start is the included [Example Plugins](https://github.com/nfarina/homebridge/tree/master/example-plugins). Right now this contains a single plugin that registers a platform that offers fake light accessories. This will show you how to use the Homebridge Plugin API.
+There are also many existing plugins you can study.
+
+You might start with the included [Example Plugins](https://github.com/nfarina/homebridge/tree/master/example-plugins). Right now this contains a single plugin that registers a platform that offers fake light accessories. This will show you how to use the Homebridge Plugin API.
 
 For more example on how to construct HomeKit Services and Characteristics, see the many Accessories in the [Legacy Plugins](https://github.com/nfarina/homebridge-legacy-plugins/tree/master/accessories) repository.
 
