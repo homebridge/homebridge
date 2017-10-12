@@ -16,6 +16,7 @@
     "url": "http://github.com/nfarina/homebridge/issues"
   },
   "license": "ISC",
+  "main": "lib/api.js",
   "bin": {
     "homebridge": "bin/homebridge"
   },
