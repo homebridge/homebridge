@@ -1,5 +1,5 @@
 
-[![Slack Status](https://homebridge-slackin.herokuapp.com/badge.svg)](https://slackin-xiwztisllv.now.sh)
+[![Slack Status](https://slackin-adpxqdnhge.now.sh/badge.svg)](https://slackin-adpxqdnhge.now.sh)
 
 # Homebridge
 
