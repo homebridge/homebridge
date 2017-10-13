@@ -21,7 +21,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 If you're having an issue with a particular plugin, open an issue in that plugin's Github repository. If you're having an issue with Homebridge itself, feel free to open issues and PRs here.
 
-You can also chat with us in our nascent [Slack instance](http://homebridge-slackin.herokuapp.com).
+You can also chat with us in [Slack](https://slackin-adpxqdnhge.now.sh).
 
 # Installation
 
