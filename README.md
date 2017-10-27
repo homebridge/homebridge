@@ -115,6 +115,7 @@ See more examples on how to create Platform classes in the [Legacy Plugins](http
 
 # Plugin Development
 
+## Using the bundled sample plugin
 When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. You can tell Homebridge to look for your plugin at a specific location using the command-line parameter `-P`. For example, if you are in the Homebridge directory (as checked out from Github), you might type:
 
 ```sh
@@ -128,6 +129,26 @@ DEBUG=* ./bin/homebridge -D -U ~/.homebridge-dev -P ../my-great-plugin/
 ```
 
 This is very useful when you are already using your development machine to host a "real" Homebridge instance (with all your accessories) that you don't want to disturb.
+
+## Using a plugin generator
+
+You can now use [@bhagyas/generator-homebridge-platform-typescript](https://github.com/bhagyas/generator-homebridge-platform-typescript) to quickly generate a sample Homebridge plugin that uses Typescript for syntax. This is based on the sample platform plugin provided along with Homebridge. When developing with the scaffolded project, it is assumed that you would be using an available instance of Homebridge running on your local machine.
+
+To setup the generator: 
+
+```sh
+git clone https://github.com/bhagyas/generator-homebridge-platform-typescript
+cd generator-homebridge-platform-typescript
+npm link
+```
+
+To scaffold a sample platform plugin:
+
+```sh
+mkdir homebridge-sample-platform
+cd homebridge-sample-platform
+yo homebridge-platform-typescript`
+```
 
 # Common Issues
 
@@ -164,3 +185,5 @@ Technically, the device manufacturers should be the ones implementing the HomeKi
 # Credit
 
 The original HomeKit API work was done by [KhaosT](http://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project.
+
+Yeoman based Platform Plugin generator by [Bhagya Silva](http://about.me/bhagyas) at [@bhagyas/generator-homebridge-platform-typescript](https://github.com/bhagyas/generator-homebridge-platform-typescript)
