@@ -23,11 +23,20 @@ If you're having an issue with a particular plugin, open an issue in that plugin
 
 There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
 
-# Installation
 You can also chat with us in [Slack](https://slackin-adpxqdnhge.now.sh)
 
-**Note:** If you're running on Linux, you'll need to make sure you have the `libavahi-compat-libdnssd-dev` package installed. If you're running on a Raspberry Pi, you should have a look at the [Wiki](https://github.com/nfarina/homebridge/wiki/Running-HomeBridge-on-a-Raspberry-Pi).
+## Installation
 
+#### Quick Overview
+1. **Node v4.3.2 or greater is required.** Check by running: `node --version`. The plugins you use may require newer versions.
+2. **Linux Only**: Install the libavahi-compat-libdnssd-dev package: `sudo apt-get install libavahi-compat-libdnssd-dev`
+3. Install Homebridge using: `npm install -g homebridge` _or_ `sudo npm install -g --unsafe-perm homebridge` (see below)
+4. Install the plugins using: `npm install -g <plugin-name>`
+5. Create the `config.json` file.
+
+**Note:** If you're running on a Raspberry Pi, you should have a look at the [Wiki](https://github.com/nfarina/homebridge/wiki/Running-HomeBridge-on-a-Raspberry-Pi).
+
+#### Installation Details
 Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) and should be installed "globally" by typing:
 
     sudo npm install -g --unsafe-perm homebridge
