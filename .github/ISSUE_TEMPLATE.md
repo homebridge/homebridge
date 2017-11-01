@@ -20,13 +20,19 @@
 - **OS**:         <!-- The version and architecture of your operating system -->
 
 ### Configuration
-<!-- If relevant, include the contents of your config.json file between the two ``` lines below. -->
+<!-- If relevant, include the contents of your config.json file between the two ``` lines below.
+  - Remove any sensitive information, passwords, etc.
+  - If output is long:
+    - Please extract only the relevant portions if possible
+    - Consider creating a gist, etc
+ -->
 ```json
 
 ```
 
 ### Homebridge Log / Command Output
 <!-- Paste relevant output between the two ``` lines below
+  - Remove any sensitive information, passwords, etc.
   - If output is long:
     - Please extract only the relevant portions if possible
     - Consider creating a gist, etc
