@@ -24,6 +24,7 @@ apps:
           - avahi-control
           - docker-support
           - ppp
+
     manual:
         command: homebridge-wrapper -U $SNAP_COMMON
         plugs:
@@ -31,6 +32,10 @@ apps:
           - avahi-control
           - docker-support
           - ppp
+
+    show-qr-code:
+        command: grep -A 30 'Scan this code with your HomeKit app' $SNAP_COMMON/homebridge.log
+
     npm:
         command: npm-wrapper
         plugs:

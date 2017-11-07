@@ -1,4 +1,4 @@
 #!/bin/bash
 
 source $SNAP/bin/env-setup
-$SNAP_COMMON/bin/homebridge "$@"
+$SNAP_COMMON/bin/homebridge "$@" | tee $SNAP_COMMON/homebridge.log
