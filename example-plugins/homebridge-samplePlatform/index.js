@@ -183,7 +183,7 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
 
   var newAccessory = new Accessory(accessoryName, uuid);
   newAccessory.on('identify', function(paired, callback) {
-    platform.log(accessory.displayName, "Identify!!!");
+    platform.log(newAccessory.displayName, "Identify!!!");
     callback();
   });
   // Plugin can save context on accessory to help restore accessory in configureAccessory()
@@ -193,7 +193,7 @@ SamplePlatform.prototype.addAccessory = function(accessoryName) {
   newAccessory.addService(Service.Lightbulb, "Test Light")
   .getCharacteristic(Characteristic.On)
   .on('set', function(value, callback) {
-    platform.log(accessory.displayName, "Light -> " + value);
+    platform.log(newAccessory.displayName, "Light -> " + value);
     callback();
   });
 
