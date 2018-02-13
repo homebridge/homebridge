@@ -1,0 +1,22 @@
+{
+"bridge": {
+    "name": "Homebridge",
+    "username": "CC:22:3D:E3:CE:30",
+    "port": 51826,
+    "pin": "xxx-xx-xxx",
+    "manufacturer": "@nfarina",
+    "model": "Homebridge",
+    "serialNumber": "0.4.20"
+},
+"accessories": [{
+    "platform": "Nest",
+    "name": "Nest",
+    "token": "c.5ABsTpo88k5yfNIxZlh...",
+
+    "clientId": "xxxxx",
+    "clientSecret": "xxxxx",
+    "code": "xxxxx",
+
+    "username": "xxxxx",
+    "password": "xxxxx"
+}]
