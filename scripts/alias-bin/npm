@@ -1,6 +1,0 @@
-#!/bin/bash
-
-source $SNAP/bin/env-setup
-pushd $SNAP_COMMON 2&> /dev/null
-$SNAP_COMMON/bin/npm --unsafe-perm --prefix $SNAP_COMMON -g "$@"
-popd 2&> /dev/null

@@ -10,18 +10,29 @@
 
     "platforms": [
      {
-         "platform": "Info",
-         "port": 9876,
-         "name": "Homebridge Info Server",
-         "updateFrequency": 10000,
+         "platform"            : "Info",
+         "port"                : 9876,
+         "name"                : "Homebridge Info Server",
+         "updateFrequency"     : 10000,
          "updateCheckFrequency": 86400
      },
      {
          "platform": "Server",
          "port"    : 8765,
          "name"    : "Homebridge Server",
-         "log"     : "/var/snap/homebridge/current/serber.log",
+         "log"     : "/var/snap/homebridge/common/homebridge.log",
          "restart" : "snapctl restart homebridge.homebridge"
+     },
+     {
+         "platform": "config",
+         "name"    : "Config",
+         "port"    : 8080,
+         "restart" : "snapctl restart homebridge.homebridge",
+         "sudo"    : false,
+         "log": {
+             "method": "systemd",
+             "service": "snap.homebridge.homebridge"
+            },
+         }
      }
-    ]
 }

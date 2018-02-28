@@ -3,7 +3,9 @@ if [ "$($SNAP/usr/bin/whoami)" != "root" ]; then
     echo "Please run as root!!"
     exit 0
 fi
-source $SNAP/bin/env-setup
+
+. ${SNAP}/bin/homebridge-read-settings
+
 pushd $SNAP_COMMON 2&> /dev/null
-npm --prefix $SNAP_COMMON -g "$@"
+$SNAP_COMMON/bin/npm "$@"
 popd 2&> /dev/null

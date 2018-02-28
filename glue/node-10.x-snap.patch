@@ -1,0 +1,100 @@
+diff --git a/src/node.cc b/src/node.cc
+index c7cc49a..8340284 100644
+--- a/src/node.cc
++++ b/src/node.cc
+@@ -1522,9 +1522,11 @@ static void SetGid(const FunctionCallbackInfo<Value>& args) {
+     return env->ThrowError("setgid group id does not exist");
+   }
+ 
++/*
+   if (setgid(gid)) {
+     return env->ThrowErrnoException(errno, "setgid");
+   }
++*/
+ }
+ 
+ 
+@@ -1541,9 +1543,11 @@ static void SetEGid(const FunctionCallbackInfo<Value>& args) {
+     return env->ThrowError("setegid group id does not exist");
+   }
+ 
++/*
+   if (setegid(gid)) {
+     return env->ThrowErrnoException(errno, "setegid");
+   }
++*/
+ }
+ 
+ 
+@@ -1560,9 +1564,11 @@ static void SetUid(const FunctionCallbackInfo<Value>& args) {
+     return env->ThrowError("setuid user id does not exist");
+   }
+ 
++/*
+   if (setuid(uid)) {
+     return env->ThrowErrnoException(errno, "setuid");
+   }
++*/
+ }
+ 
+ 
+@@ -1579,9 +1585,11 @@ static void SetEUid(const FunctionCallbackInfo<Value>& args) {
+     return env->ThrowError("seteuid user id does not exist");
+   }
+ 
++/*
+   if (seteuid(uid)) {
+     return env->ThrowErrnoException(errno, "seteuid");
+   }
++*/
+ }
+ 
+ 
+diff --git a/src/node_file.cc b/src/node_file.cc
+index 5ab1a8d..94f3cfb 100644
+--- a/src/node_file.cc
++++ b/src/node_file.cc
+@@ -1716,14 +1716,17 @@ static void Chown(const FunctionCallbackInfo<Value>& args) {
+ 
+   FSReqBase* req_wrap_async = GetReqWrap(env, args[3]);
+   if (req_wrap_async != nullptr) {  // chown(path, uid, gid, req)
+-    AsyncCall(env, req_wrap_async, args, "chown", UTF8, AfterNoArgs,
+-              uv_fs_chown, *path, uid, gid);
++    // AsyncCall(env, req_wrap_async, args, "chown", UTF8, AfterNoArgs,
++    //           uv_fs_chown, *path, uid, gid);
++    AsyncCall(env, req_wrap_async, args, "stat", UTF8, AfterNoArgs,
++              uv_fs_stat, *path);
+   } else {  // chown(path, uid, gid, undefined, ctx)
+     CHECK_EQ(argc, 5);
+     FSReqWrapSync req_wrap_sync;
+     FS_SYNC_TRACE_BEGIN(chown);
+-    SyncCall(env, args[4], &req_wrap_sync, "chown",
+-             uv_fs_chown, *path, uid, gid);
++    // SyncCall(env, args[4], &req_wrap_sync, "chown",
++    //          uv_fs_chown, *path, uid, gid);
++    SyncCall(env, args[2], &req_wrap_sync, "stat", uv_fs_stat, *path);
+     FS_SYNC_TRACE_END(chown);
+   }
+ }
+@@ -1749,14 +1752,17 @@ static void FChown(const FunctionCallbackInfo<Value>& args) {
+ 
+   FSReqBase* req_wrap_async = GetReqWrap(env, args[3]);
+   if (req_wrap_async != nullptr) {  // fchown(fd, uid, gid, req)
+-    AsyncCall(env, req_wrap_async, args, "fchown", UTF8, AfterNoArgs,
+-              uv_fs_fchown, fd, uid, gid);
++    // AsyncCall(env, req_wrap_async, args, "fchown", UTF8, AfterNoArgs,
++    //           uv_fs_fchown, fd, uid, gid);
++    AsyncCall(env, req_wrap_async, args, "fstat", UTF8, AfterStat,
++              uv_fs_fstat, fd);
+   } else {  // fchown(fd, uid, gid, undefined, ctx)
+     CHECK_EQ(argc, 5);
+     FSReqWrapSync req_wrap_sync;
+     FS_SYNC_TRACE_BEGIN(fchown);
+-    SyncCall(env, args[4], &req_wrap_sync, "fchown",
+-             uv_fs_fchown, fd, uid, gid);
++    // SyncCall(env, args[4], &req_wrap_sync, "fchown",
++    //          uv_fs_fchown, fd, uid, gid);
++    SyncCall(env, args[2], &req_wrap_sync, "fstat", uv_fs_fstat, fd);
+     FS_SYNC_TRACE_END(fchown);
+   }
+ }

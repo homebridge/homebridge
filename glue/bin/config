@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# list of supported keys
+keys=""

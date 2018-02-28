@@ -1,0 +1,3 @@
+#!/bin/bash
+
+grep -A 30 'Scan this code with your HomeKit app' $SNAP_COMMON/homebridge.log

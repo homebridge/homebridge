@@ -1,0 +1,23 @@
+#!/bin/bash
+
+source $SNAP/bin/config &>/dev/null
+
+echo -e "HOMEbridge: HomeKit support for the impatient\n"
+echo -e "Make sure you have connected all interfaces, check more by calling $ snap interfaces"
+echo -e "\nHOMEbridge supports settings keys"
+echo -e "\tvalues can be changed by calling\n\t$ snap set $SNAP_NAME <key name>='<key value>'"
+echo -e "\nlist of supported keys:"
+
+for key in ${keys[@]}
+do
+    default_value="DEFAULT_$key"
+    description="DESCRIPTION_$key"
+    snappy_key="KEY_$key"
+    echo -e "\t${!snappy_key}:   ${!description}"
+    value=$(snapctl get ${!snappy_key})
+    if [ "x$value" == "x" ]; then
+        echo -e "\t\tNo value set, using default value: '${!default_value}'"
+    else
+        echo -e "\t\tCurrent value set to: '$value', (default value: '${!default_value}')"
+    fi
+done

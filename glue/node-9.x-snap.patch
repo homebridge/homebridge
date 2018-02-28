@@ -1,0 +1,80 @@
+diff --git a/src/node.cc b/src/node.cc
+index 737f589..e80bec2 100644
+--- a/src/node.cc
++++ b/src/node.cc
+@@ -2111,9 +2111,11 @@ static void SetGid(const FunctionCallbackInfo<Value>& args) {
+     return env->ThrowError("setgid group id does not exist");
+   }
+ 
++/*
+   if (setgid(gid)) {
+     return env->ThrowErrnoException(errno, "setgid");
+   }
++*/
+ }
+ 
+ 
+@@ -2130,9 +2132,11 @@ static void SetEGid(const FunctionCallbackInfo<Value>& args) {
+     return env->ThrowError("setegid group id does not exist");
+   }
+ 
++/*
+   if (setegid(gid)) {
+     return env->ThrowErrnoException(errno, "setegid");
+   }
++*/
+ }
+ 
+ 
+@@ -2149,9 +2153,11 @@ static void SetUid(const FunctionCallbackInfo<Value>& args) {
+     return env->ThrowError("setuid user id does not exist");
+   }
+ 
++/*
+   if (setuid(uid)) {
+     return env->ThrowErrnoException(errno, "setuid");
+   }
++*/
+ }
+ 
+ 
+@@ -2168,9 +2174,11 @@ static void SetEUid(const FunctionCallbackInfo<Value>& args) {
+     return env->ThrowError("seteuid user id does not exist");
+   }
+ 
++/*
+   if (seteuid(uid)) {
+     return env->ThrowErrnoException(errno, "seteuid");
+   }
++*/
+ }
+ 
+ 
+diff --git a/src/node_file.cc b/src/node_file.cc
+index 10655e5..4e68954 100644
+--- a/src/node_file.cc
++++ b/src/node_file.cc
+@@ -1280,9 +1280,9 @@ static void Chown(const FunctionCallbackInfo<Value>& args) {
+   uv_gid_t gid = static_cast<uv_gid_t>(args[2]->Uint32Value());
+ 
+   if (args[3]->IsObject()) {
+-    ASYNC_CALL(chown, args[3], UTF8, *path, uid, gid);
++    ASYNC_CALL(stat, args[3], UTF8, *path);
+   } else {
+-    SYNC_CALL(chown, *path, *path, uid, gid);
++    SYNC_CALL(stat, *path, *path);
+   }
+ }
+ 
+@@ -1312,9 +1312,9 @@ static void FChown(const FunctionCallbackInfo<Value>& args) {
+   uv_gid_t gid = static_cast<uv_gid_t>(args[2]->Uint32Value());
+ 
+   if (args[3]->IsObject()) {
+-    ASYNC_CALL(fchown, args[3], UTF8, fd, uid, gid);
++    ASYNC_CALL(fstat, args[3], UTF8, fd);
+   } else {
+-    SYNC_CALL(fchown, 0, fd, uid, gid);
++    SYNC_CALL(fstat, 0, fd);
+   }
+ }
+ 
