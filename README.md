@@ -30,9 +30,10 @@ You can also chat with us in [Slack](https://slackin-znyruquwmv.now.sh).
 #### Quick Overview
 1. **Node v4.3.2 or greater is required.** Check by running: `node --version`. The plugins you use may require newer versions.
 2. **Linux Only**: Install the libavahi-compat-libdnssd-dev package: `sudo apt-get install libavahi-compat-libdnssd-dev`
-3. Install Homebridge using: `npm install -g homebridge` _or_ `sudo npm install -g --unsafe-perm homebridge` (see below)
-4. Install the plugins using: `npm install -g <plugin-name>`
-5. Create the `config.json` file.
+3. **Windows Only**: Install [Bonjour SDK](https://developer.apple.com/download/more/?=Bonjour%20SDK%20for%20Windows) and OpenSSL [32-bit](https://slproweb.com/download/Win32OpenSSL-1_0_2j.exe) or [64-bit](https://s3.amazonaws.com/brave-deps/OpenSSL/Win64OpenSSL-1_0_2j.zip) depending on your system. The linked OpenSSL version the latest version known to work, see [issue 825](https://github.com/nfarina/homebridge/issues/825).
+4. Install Homebridge using: `npm install -g homebridge` _or_ `sudo npm install -g --unsafe-perm homebridge` (see below)
+5. Install the plugins using: `npm install -g <plugin-name>`
+6. Create the `config.json` file.
 
 **Note:** If you're running on a Raspberry Pi, you should have a look at the [Wiki](https://github.com/nfarina/homebridge/wiki/Running-HomeBridge-on-a-Raspberry-Pi).
 
