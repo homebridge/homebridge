@@ -29,7 +29,7 @@ You can also chat with us in [Slack](https://slackin-znyruquwmv.now.sh).
 
 #### Quick Overview
 1. **Node v4.3.2 or greater is required.** Check by running: `node --version`. The plugins you use may require newer versions.
-2. **Linux Only**: Install the libavahi-compat-libdnssd-dev package: `sudo apt-get install libavahi-compat-libdnssd-dev`
+2. **On Linux only:** Install the libavahi-compat-libdnssd-dev package: `sudo apt-get install libavahi-compat-libdnssd-dev`
 3. Install Homebridge using: `npm install -g homebridge` _or_ `sudo npm install -g --unsafe-perm homebridge` (see below)
 4. Install the plugins using: `npm install -g <plugin-name>`
 5. Create the `config.json` file.
