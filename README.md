@@ -1,5 +1,5 @@
 <p align="center"><img src="https://i.imgur.com/B688egX.png"></p>
-[![Slack Status](https://slackin-znyruquwmv.now.sh/badge.svg)](https://slackin-znyruquwmv.now.sh)
+
 
 # Homebridge
 
