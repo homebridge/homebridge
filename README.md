@@ -1,5 +1,5 @@
+<p align="center"><img src="https://user-images.githubusercontent.com/19808920/40754647-531702de-6448-11e8-84c1-9f950d71d4cd.png"></p>
 
-[![Slack Status](https://slackin-znyruquwmv.now.sh/badge.svg)](https://slackin-znyruquwmv.now.sh)
 
 # Homebridge
 
@@ -24,6 +24,8 @@ If you're having an issue with a particular plugin, open an issue in that plugin
 There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
 
 You can also chat with us in [Slack](https://slackin-znyruquwmv.now.sh).
+
+[![Slack Status](https://slackin-znyruquwmv.now.sh/badge.svg)](https://slackin-znyruquwmv.now.sh)
 
 ## Installation
 
