@@ -1,4 +1,4 @@
-<p align="center"><img src="https://i.imgur.com/B688egX.png"></p>
+<p align="center"><img src="https://user-images.githubusercontent.com/19808920/40754647-531702de-6448-11e8-84c1-9f950d71d4cd.png"></p>
 
 
 # Homebridge
