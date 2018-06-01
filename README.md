@@ -25,6 +25,8 @@ There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge
 
 You can also chat with us in [Slack](https://slackin-znyruquwmv.now.sh).
 
+[![Slack Status](https://slackin-znyruquwmv.now.sh/badge.svg)](https://slackin-znyruquwmv.now.sh)
+
 ## Installation
 
 #### Quick Overview
