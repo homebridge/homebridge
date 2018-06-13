@@ -1,4 +1,9 @@
 #!/bin/sh
 
 # list of supported keys
-keys=""
+keys="HOMEBRIDGE_AUTO_UPDATE_NPM_MODULES"
+
+# default values
+DESCRIPTION_HOMEBRIDGE_AUTO_UPDATE_NPM_MODULES="automatically update all installed npm packages whenever homebridge snap is updated, supported values [on/off]"
+DEFAULT_HOMEBRIDGE_AUTO_UPDATE_NPM_MODULES="on"
+KEY_HOMEBRIDGE_AUTO_UPDATE_NPM_MODULES="auto-update-packages"

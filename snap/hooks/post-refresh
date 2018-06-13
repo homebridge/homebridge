@@ -20,3 +20,11 @@ done
 [ -e $SNAP/bin/homebridge ] && cp -R $SNAP/bin/homebridge $SNAP_COMMON/bin
 [ -e $SNAP/bin/node-gyp ] && cp -R $SNAP/bin/node-gyp $SNAP_COMMON/bin
 [ -e $SNAP/bin/npm ] && cp -R $SNAP/bin/npm $SNAP_COMMON/bin
+
+source $SNAP/bin/env-setup
+if [ "${HOMEBRIDGE_AUTO_UPDATE_NPM_MODULES}" = "on" ]; then
+    pushd $SNAP_COMMON
+    export PATH="$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH"
+    ${SNAP}/bin/npm --prefix $SNAP_COMMON -g update
+    popd
+fi
