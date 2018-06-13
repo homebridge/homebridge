@@ -1,7 +1,7 @@
 name: homebridge
 version: "0"
 version-script: jq -r --arg x version '.[$x]' prime/lib/node_modules/homebridge/package.json
-summary: Homebridge
+summary: HomeKit support for the impatient
 description: |
    Homebridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices.
 
