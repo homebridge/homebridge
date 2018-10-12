@@ -1,4 +1,6 @@
-<p align="center"><img src="https://user-images.githubusercontent.com/19808920/40754647-531702de-6448-11e8-84c1-9f950d71d4cd.png"></p>
+<p align="center">
+    <img src="https://cl.ly/cd382873a395/Logo2x.png" height="200">
+</p>
 
 
 # Homebridge
