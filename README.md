@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://cl.ly/cd382873a395/Logo2x.png" height="200">
+    <img src="https://cl.ly/99e68ac49cef/Logo2x.png" height="200">
 </p>
 
 
