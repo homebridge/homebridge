@@ -20,6 +20,18 @@ img {
 	margin: 0 auto;
 	position: relative;
 }
+footer {
+	display: block;
+
+	> p {
+		margin: 0 auto;
+		text-align: center;
+		font-size: 14px;
+		color: rgba(255,255,255,0.75);
+		padding: 80px;
+		max-width: 800px;
+	}
+}
 
 .panel {
 	background: #FFF;
