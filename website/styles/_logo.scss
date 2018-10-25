@@ -23,12 +23,29 @@ $logo-appear-duration: 1.5s;
 	width: 85px;
 	overflow: visible;
 
-	path {
+	mask path {
+		stroke-dasharray: 1300;
+	  stroke-dashoffset: 1300;
+	  animation: dash 3s linear forwards;
+		animation-delay: $logo-appear-duration + .25s;
+	}
+
+	g#base path {
+		fill: #000;
+		opacity: 0.3;
+	}
+
+	g#draw path {
 		fill: #000;
 		opacity: 0.8;
 	}
 }
 
+@keyframes dash {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 
 #FirstBand path {
 	animation: loadUp .6s $easeInOutCubic forwards;

@@ -93,9 +93,21 @@ a {
   margin: auto;
   width: 85px;
   overflow: visible; }
-  .Logo__Featured svg path {
+  .Logo__Featured svg mask path {
+    stroke-dasharray: 1300;
+    stroke-dashoffset: 1300;
+    animation: dash 3s linear forwards;
+    animation-delay: 1.75s; }
+  .Logo__Featured svg g#base path {
+    fill: #000;
+    opacity: 0.3; }
+  .Logo__Featured svg g#draw path {
     fill: #000;
     opacity: 0.8; }
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: 0; } }
 
 #FirstBand path {
   animation: loadUp 0.6s cubic-bezier(0.645, 0.045, 0.355, 1) forwards; }
