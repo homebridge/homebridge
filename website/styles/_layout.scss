@@ -1,0 +1,71 @@
+body {
+	background: $page-bg url(../images/bg.jpg) center top no-repeat;
+}
+* {
+	box-sizing: border-box;
+}
+img {
+	max-width: 100%;
+}
+
+.bg__pastel {
+	background: $brand-pastel;
+}
+.t__center {
+	text-align: center;
+}
+.container {
+	width: 100%;
+	max-width: $container-width;
+	margin: 0 auto;
+	position: relative;
+}
+
+.panel {
+	background: #FFF;
+	padding: 20px 40px;
+
+	p {
+		color: $brand-mid;
+	}
+}
+.panel__breakout {
+	margin-left: -40px;
+	margin-right: -40px;
+}
+.row {
+	font-size: 0;
+	overflow: hidden; // ghetto clearfix
+}
+.col {
+	font-size: 16px;
+	display: block;
+	float: left;
+}
+.col-50 {
+	width: 50%;
+	padding: 20px 40px;
+
+	h2, p {
+		max-width: 300px;
+	}
+	h2 {
+		margin-bottom: .4rem;
+	}
+	p {
+		line-height: 1.5;
+	}
+	img {
+		width: 100%;
+	}
+}
+
+.RaspberryPi {
+	filter: grayscale(100%);
+	opacity: 0.5;
+}
+
+a {
+	color: #8A36E3;
+	text-decoration: none;
+}

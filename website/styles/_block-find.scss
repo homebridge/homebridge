@@ -1,0 +1,64 @@
+.Block__FindPlugin {
+	background: $brand-pastel;
+	text-align: center;
+	padding: 40px 20px;
+
+	@extend .panel__breakout;
+
+	h2 {
+		margin-bottom: 5px;
+	}
+	p {
+		margin-top: 0;
+	}
+	span {
+		display: inline-block;
+		width: 100%;
+		max-width: 600px;
+		position: relative;
+	}
+	input {
+		width: 100%;
+		padding: 15px 10px;
+		padding-right: 150px;
+		box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+		border: 0 none;
+		border-radius: 6px;
+		transition: all .3s $easeInOutCubic;
+		font-size: 18px;
+
+		&:focus,
+		&:active {
+			outline: none;
+			box-shadow: 0 2px 10px rgba($brand-blue,0.1);
+		}
+
+		&::-webkit-input-placeholder {
+			color: #e0e0e0;
+			font: inherit;
+		}
+	}
+	button {
+		width: 140px;
+		position: absolute;
+		right: 0;
+		top: 0;
+		height: 100%;
+		background: linear-gradient(
+			to bottom,
+			#8A36E3,
+			#AB77E2
+		);
+		color: white;
+		border: none;
+		border-top-right-radius: 6px;
+		border-bottom-right-radius: 6px;
+		text-align: center;
+		padding: 1rem 2.25rem;
+		text-decoration: none;
+		font-size: 14px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.075em;
+	}
+}

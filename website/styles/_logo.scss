@@ -1,0 +1,74 @@
+$logo-appear-delay: 1s;
+$logo-appear-duration: 1.5s;
+
+.Logo {
+	display: inline-block;
+	border-radius: 100%;
+	background: #FFF;
+	width: 133px;
+	height: 133px;
+	margin: 10px auto;
+	position: relative;
+	opacity: 0;
+	animation: appearUp $logo-appear-duration $easeOutExpo forwards $logo-appear-delay;
+}
+
+.Logo__Featured svg {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	margin: auto;
+	width: 85px;
+	overflow: visible;
+
+	path {
+		fill: #000;
+		opacity: 0.8;
+	}
+}
+
+
+#FirstBand path {
+	animation: loadUp .6s $easeInOutCubic forwards;
+}
+@for $i from 1 through 5 {
+	#FirstBand path:nth-child(#{$i}) {
+		animation-delay: $logo-appear-duration + .25s + (.075*$i);
+	}
+}
+
+#SecondBand path {
+	animation: loadUp .6s $easeInOutCubic forwards;
+}
+@for $i from 1 through 5 {
+	#SecondBand path:nth-child(#{$i}) {
+		animation-delay: $logo-appear-duration + 1.5s + (.033*$i);
+	}
+}
+
+@keyframes loadUp {
+	0% {
+		transform: translateY(0);
+		opacity: 0.25;
+	}
+	50% {
+		transform: translateY(-2px);
+	}
+	100% {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+@keyframes appearUp {
+	0% {
+		transform: translateY(25px);
+		opacity: 0;
+	}
+	100% {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}

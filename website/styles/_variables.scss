@@ -1,0 +1,28 @@
+// Colours
+$brand-blue: #140a33;
+$brand-pastel: #f8f7fa;
+$brand-mid: #6a6087;
+
+$clr-blue-a: #030659;
+$clr-blue-b: #090084;
+
+// Layout
+$container-width: 960px;
+
+$page-bg: $brand-blue;
+
+$font-family: "din-2014", system, sans-serif;
+
+
+// Autocomplete
+$autocomplete-bg: #FFF;
+$autocomplete-bg-hover: #F7F7F7;
+$autocomplete-bg-active: $brand-blue;
+$autocomplete-bg-highlight: transparent;
+$autocomplete-text: $brand-blue;
+$autocomplete-text-hover: $brand-blue;
+$autocomplete-text-active: #FFF;
+$autocomplete-text-highlight:  $brand-blue;
+
+$easeInOutCubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+$easeOutExpo: cubic-bezier(0.190, 1.000, 0.220, 1.000);

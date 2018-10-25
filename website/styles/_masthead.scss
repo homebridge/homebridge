@@ -1,0 +1,169 @@
+.Masthead {
+	// background: $masthead-gradient;
+	color: #FFF;
+	text-align: center;
+	overflow: hidden;
+	position: relative;
+	width: 100%;
+
+	.command {
+		position: absolute;
+		display: block;
+
+		span {
+  			transform-style: preserve-3d;
+  			display: block;
+		}
+
+		&.__lvl1 {
+			font-size: 22px;
+			filter: blur(2px);
+		}
+
+		&.__lvl2 {
+			font-size: 16px;
+			filter: blur(3px);
+			opacity: .66;
+		}
+		&.__lvl3 {
+			font-size: 12px;
+			filter: blur(4px);
+			opacity: .45;
+		}
+		&.__lvl4 {
+			font-size: 8px;
+			filter: blur(6px);
+			opacity: .2;
+		}
+
+		&.__coffeeMachine {
+			left: 15%;
+			top: 10%;
+		}
+		&.__goodMorning {
+			right: 0;
+			top: -5%;
+		}
+		&.__tesla {
+			right: 10%;
+			top: 25%;
+		}
+	}
+	.container {
+		padding: 1px 0;
+	}
+	.command.__lvl1 span {
+		animation: 5s level-1 linear;	
+	}
+	.command.__lvl2 span {
+		animation: 8.5s level-2 linear;
+	}
+	.command.__lvl3 span {
+		animation: 9.25s level-3 linear;	
+	}
+	.command.__lvl4 span {
+		animation: 11s level-4 linear;	
+	}
+}
+
+.MastheadContent {
+	max-width: 640px;
+	margin: 180px auto;
+	position: relative;
+	z-index: 2;
+
+	h1 {
+		font-size: 32px;
+		font-weight: 400;
+		margin: .5rem 0 0 0;
+	}
+	h2 {
+		font-size: 20px;
+		font-weight: 400;
+		line-height: 1.5;
+		max-width: 480px;
+		margin: .5rem auto 2rem auto;
+		opacity: .66;
+	}
+	input {
+		width: 400px;
+		padding: 8px;
+	}
+}
+
+#commandParallax {
+    position: absolute;
+    top: 0;
+    left: -200px;
+    right: -200px;
+    height: 100%;
+    opacity: .33;
+}
+
+@keyframes level-1 {
+	0% {
+		transform: translateY(0);
+		opacity: 0;
+	}
+	10% {
+		opacity: 1;
+	}
+	90% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(-140px);
+		opacity: 0;
+	}
+}
+
+@keyframes level-2 {
+	0% {
+		transform: translateY(0);
+		opacity: 0;
+	}
+	10% {
+		opacity: 1;
+	}
+	90% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(-80px);
+		opacity: 0;
+	}
+}
+
+@keyframes level-3 {
+	0% {
+		transform: translateY(0);
+		opacity: 0;
+	}
+	10% {
+		opacity: 1;
+	}
+	90% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(-50px);
+		opacity: 0;
+	}
+}
+
+@keyframes level-4 {
+	0% {
+		transform: translateY(0);
+		opacity: 0;
+	}
+	10% {
+		opacity: 1;
+	}
+	90% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(-30px);
+		opacity: 0;
+	}
+}
