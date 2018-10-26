@@ -30,6 +30,19 @@ footer {
 		color: rgba(255,255,255,0.75);
 		padding: 80px;
 		max-width: 800px;
+		line-height: 1.75;
+
+		> span {
+			color: rgba(255,255,255,0.25);
+		}
+	}
+
+	> p:first-child {
+		padding-bottom: 40px;
+	}
+
+	> p + p {
+		padding-top: 0;
 	}
 }
 

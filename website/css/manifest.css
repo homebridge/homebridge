@@ -42,7 +42,14 @@ footer {
     font-size: 14px;
     color: rgba(255, 255, 255, 0.75);
     padding: 80px;
-    max-width: 800px; }
+    max-width: 800px;
+    line-height: 1.75; }
+    footer > p > span {
+      color: rgba(255, 255, 255, 0.25); }
+  footer > p:first-child {
+    padding-bottom: 40px; }
+  footer > p + p {
+    padding-top: 0; }
 
 .panel {
   background: #FFF;
