@@ -113,15 +113,15 @@ One final thing to remember is that Siri will almost always prefer its default p
 
 For a great introduction to writing plugins with some example code, check out [Frédéric Barthelet's excellent blog post](http://www.theodo.fr/blog/2017/08/make-siri-perfect-home-companion-devices-not-supported-apple-homekit/).
 
-There are also many existing plugins you can study.
+There are two basic types of plugins:
+* Single accessories: controls, for example, a single light bulb.
+* Platform accessories: a "meta" accessory that controls many sub-accessories. For example, a bridge that translates to many other devices on a specialized channel.
 
-You might start with the included [Example Plugins](https://github.com/nfarina/homebridge/tree/master/example-plugins). Right now this contains a single plugin that registers a platform that offers fake light accessories. This will show you how to use the Homebridge Plugin API.
+There are many existing plugins you can study; you might start with the included [Example Plugins](https://github.com/nfarina/homebridge/tree/master/example-plugins). Right now this contains a single plugin that registers a platform that offers fake light accessories. This is a good example of how to use the Homebridge Plugin API. You can also find an example plugin that [publishes an individual accessory](https://github.com/nfarina/homebridge/tree/6500912f54a70ff479e63e2b72760ab589fa558a/example-plugins/homebridge-lockitron).
 
 For more example on how to construct HomeKit Services and Characteristics, see the many Accessories in the [Legacy Plugins](https://github.com/nfarina/homebridge-legacy-plugins/tree/master/accessories) repository.
 
 You can also view the [full list of supported HomeKit Services and Characteristics in the HAP-NodeJS protocol repository](https://github.com/KhaosT/HAP-NodeJS/blob/master/lib/gen/HomeKitTypes.js).
-
-And you can find an example plugin that publishes an individual accessory at [here](https://github.com/nfarina/homebridge/tree/6500912f54a70ff479e63e2b72760ab589fa558a/example-plugins/homebridge-lockitron).
 
 See more examples on how to create Platform classes in the [Legacy Plugins](https://github.com/nfarina/homebridge-legacy-plugins/tree/master/platforms) repository.
 
