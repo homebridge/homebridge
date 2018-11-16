@@ -127,6 +127,12 @@ You can also view the [full list of supported HomeKit Services and Characteristi
 
 See more examples on how to create Platform classes in the [Legacy Plugins](https://github.com/nfarina/homebridge-legacy-plugins/tree/master/platforms) repository.
 
+## Writing Plugins (ES6)
+
+Your plugin may need to perform a lot of asynchronous communication with 3rd-party services. To avoid "callback hell", you might try using next-generation JavaScript features like **async/await**.
+
+Check out the [`homebridge-tesla`](https://github.com/nfarina/homebridge-tesla) plugin for an example of how to write ES6 code and transpile with [Babel](https://babeljs.io) and [Rollup](http://rollupjs.org) for distribution.
+
 ## Plugin Development
 
 When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. You can tell Homebridge to look for your plugin at a specific location using the command-line parameter `-P`. For example, if you are in the Homebridge directory (as checked out from Github), you might type:
