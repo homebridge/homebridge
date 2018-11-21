@@ -7,6 +7,11 @@ description: |
 
 confinement: strict
 grade: stable
+architectures:
+    - build-on: armhf
+    - build-on: arm64
+    - build-on: i386
+    - build-on: amd64
 
 # give  hook network access so it can update npm packages if needed
 hooks:
