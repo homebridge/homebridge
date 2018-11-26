@@ -25,9 +25,9 @@ If you're having an issue with a particular plugin, open an issue in that plugin
 
 There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
 
-You can also chat with us in [Slack](https://slackin-znyruquwmv.now.sh).
+You can also chat with us in [Slack](https://homebridge-slackin.glitch.me).
 
-[![Slack Status](https://slackin-znyruquwmv.now.sh/badge.svg)](https://slackin-znyruquwmv.now.sh)
+[![Slack Status](https://homebridge-slackin.glitch.me/badge.svg)](https://homebridge-slackin.glitch.me)
 
 ## Installation
 
