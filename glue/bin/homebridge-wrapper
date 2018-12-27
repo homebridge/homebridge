@@ -1,4 +1,4 @@
 #!/bin/bash
 
 . ${SNAP}/bin/homebridge-read-settings
-$SNAP_COMMON/bin/homebridge "$@" | tee $SNAP_COMMON/homebridge.log
+$SNAP_COMMON/bin/homebridge "$@" ${HOMEBRIDGE_OPTS} | tee $SNAP_COMMON/homebridge.log
