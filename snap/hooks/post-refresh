@@ -1,13 +1,13 @@
 #!/bin/bash
 
 set -x
-exec >> $SNAP_COMMON/hook.log 2>&1
+exec >> ${SNAP_COMMON}/hook.log 2>&1
 echo "$(date '+%Y-%m-%d %H:%M:%S') $0: Entering hook"
 
 # assume snap has always latest
-mkdir -p $SNAP_COMMON/lib
+mkdir -p ${SNAP_COMMON}/lib
 ARCH_TRIPLET="$($SNAP//usr/bin/gcc -dumpmachine)"
-[ -e $SNAP/lib/${ARCH_TRIPLET} ] && cp -r $SNAP/lib/${ARCH_TRIPLET} $SNAP_COMMON/lib
+[ -e ${SNAP}/lib/${ARCH_TRIPLET} ] && cp -r ${SNAP}/lib/${ARCH_TRIPLET} ${SNAP_COMMON}/lib
 
 LIB_NODE="lib/node_modules"
 LIB_NODE_HOMEBRIDGE="${LIB_NODE}/homebridge"
@@ -16,15 +16,15 @@ do
     [ -e ${SNAP}/${dir} ] && ${SNAP}/usr/bin/rsync -rltp --delete-after ${SNAP}/${dir} ${SNAP_COMMON}/${LIB_NODE}
 done
 
- mkdir -p $SNAP_COMMON/bin
-[ -e $SNAP/bin/homebridge ] && cp -R $SNAP/bin/homebridge $SNAP_COMMON/bin
-[ -e $SNAP/bin/node-gyp ] && cp -R $SNAP/bin/node-gyp $SNAP_COMMON/bin
-[ -e $SNAP/bin/npm ] && cp -R $SNAP/bin/npm $SNAP_COMMON/bin
+ mkdir -p ${SNAP_COMMON}/bin
+[ -e ${SNAP}/bin/homebridge ] && cp -R ${SNAP}/bin/homebridge ${SNAP_COMMON}/bin
+[ -e ${SNAP}/bin/node-gyp ] && cp -R ${SNAP}/bin/node-gyp ${SNAP_COMMON}/bin
+[ -e ${SNAP}/bin/npm ] && cp -R ${SNAP}/bin/npm ${SNAP_COMMON}/bin
 
-source $SNAP/bin/env-setup
+
+. ${SNAP}/bin/homebridge-read-settings
 if [ "${HOMEBRIDGE_AUTO_UPDATE_NPM_MODULES}" = "on" ]; then
-    pushd $SNAP_COMMON
-    export PATH="$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH"
-    ${SNAP}/bin/npm --prefix $SNAP_COMMON -g update
+    pushd ${SNAP_COMMON}
+    ${SNAP_COMMON}/bin/npm --prefix ${SNAP_COMMON} -g update
     popd
 fi
