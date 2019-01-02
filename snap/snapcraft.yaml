@@ -42,6 +42,7 @@ apps:
         command: bin/homebridge-wrapper -U $SNAP_COMMON
         adapter: none
         daemon: simple
+        restart-condition: always
         plugs:
           - network-bind
           - avahi-control
