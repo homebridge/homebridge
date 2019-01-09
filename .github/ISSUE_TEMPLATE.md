@@ -1,4 +1,8 @@
 <!-- If you have an issue with a plugin consider creating an issue in the plugin's github repo instead. -->
+### Pre Steps
+
+<!-- Before opening an issue, please review the Troubleshooting Page on the Wiki to ensure that this is a new issue, and alternatively search the closed issues for similar problems. -->
+<!-- Link to the Troubleshooting page on the Wiki - https://github.com/nfarina/homebridge/wiki/Basic-Troubleshooting  -->
 
 <!-- Provide a general summary in the Title above -->
 
