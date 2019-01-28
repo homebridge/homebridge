@@ -25,7 +25,7 @@ If you're having an issue with a particular plugin, open an issue in that plugin
 
 There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
 
-Our official Discord community is [here](https://discord.gg/RcV7fa8).
+r/Homekit and r/Homebridge have also created a community Discord server, where users of both Homekit and Homebridge can discuss their different products as well as get support. The link for the community is [here](https://discord.gg/RcV7fa8).
 
 [![Discord Status](https://img.shields.io/discord/512378789297258528.svg?style=flat)](https://discord.gg/RcV7fa8)
 
