@@ -21,13 +21,13 @@
     "homebridge": "bin/homebridge"
   },
   "engines": {
-    "node": ">=4.3.2"
+    "node": ">=8.0.0"
   },
   "preferGlobal": true,
   "dependencies": {
     "chalk": "^1.1.1",
     "commander": "2.8.1",
-    "hap-nodejs": "0.4.49",
+    "hap-nodejs": "0.4.50",
     "semver": "5.0.3",
     "node-persist": "^0.0.8",
     "qrcode-terminal": "^0.11.0"
