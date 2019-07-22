@@ -1,12 +1,6 @@
-var crypto = require('crypto');
+import crypto, {BinaryLike} from "crypto";
 
-'use strict';
-
-module.exports = {
-  generate: generate
-}
-
-function generate(data) {
+export function generate(data: BinaryLike) {
   var sha1sum = crypto.createHash('sha1');
   sha1sum.update(data);
   var s = sha1sum.digest('hex');
