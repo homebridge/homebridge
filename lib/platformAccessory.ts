@@ -15,7 +15,7 @@ export class PlatformAccessory extends EventEmitter {
     _associatedHAPAccessory: any;
     cameraSource: any;
 
-    constructor(displayName: string, UUID: string, category: string) {
+    constructor(displayName: string, UUID: string, category?: string) {
         super();
         if (!displayName) {
             throw new Error("Accessories must be created with a non-empty displayName.");
