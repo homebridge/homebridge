@@ -1,5 +1,5 @@
 import program from 'commander';
-import hap from "hap-nodejs";
+import { init } from "hap-nodejs";
 
 import version from './version';
 import {Server} from './server';
@@ -28,7 +28,7 @@ export default () => {
     .parse(process.argv);
 
   // Initialize HAP-NodeJS with a custom persist directory
-  hap.init(User.persistPath());
+  init(User.persistPath());
 
   const server = new Server({
     cleanCachedAccessories,

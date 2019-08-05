@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 
-import { Characteristic, Service } from 'hap-nodejs';
+import { Characteristic, CharacteristicGetCallback, CharacteristicSetCallback, Service } from 'hap-nodejs';
 
 import { BridgeSetupSession } from './bridgeSetupSession';
 
@@ -8,9 +8,9 @@ export class BridgeSetupManager extends EventEmitter {
     //@ts-ignore
     service;
     session?: BridgeSetupSession = undefined;
-    stateCharacteristic: HAPNodeJS.Characteristic;
-    versionCharacteristic: HAPNodeJS.Characteristic;
-    controlPointCharacteristic: HAPNodeJS.Characteristic;
+    stateCharacteristic: Characteristic;
+    versionCharacteristic: Characteristic;
+    controlPointCharacteristic: Characteristic;
     configurablePlatformPlugins: any;
 
     constructor() {
@@ -51,7 +51,7 @@ export class BridgeSetupManager extends EventEmitter {
         this.service.addCharacteristic(this.controlPointCharacteristic);
         this.configurablePlatformPlugins = undefined;
     }
-    handleReadRequest = (callback: HAPNodeJS.CharacteristicGetCallback, context: any) => {
+    handleReadRequest = (callback: CharacteristicGetCallback, context: any) => {
         if (!context) {
             return;
         }
@@ -63,7 +63,7 @@ export class BridgeSetupManager extends EventEmitter {
             this.session.handleReadRequest(callback);
         }
     }
-    handleWriteRequest = (value: string, callback: HAPNodeJS.CharacteristicSetCallback, context: any) => {
+    handleWriteRequest = (value: string, callback: CharacteristicSetCallback, context: any) => {
         if (!context) {
             callback();
             return;

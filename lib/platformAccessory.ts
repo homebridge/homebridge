@@ -7,7 +7,7 @@ export class PlatformAccessory extends EventEmitter {
     displayName: any;
     UUID: any;
     category: any;
-    services: HAPNodeJS.Service[];
+    services: Service[];
     reachable: boolean;
     context: {};
     _associatedPlugin: any;
@@ -75,7 +75,7 @@ export class PlatformAccessory extends EventEmitter {
         return service;
     }
 
-    removeService = (service: HAPNodeJS.Service) => {
+    removeService = (service: Service) => {
         var targetServiceIndex;
 
         for (var index in this.services) {
@@ -105,7 +105,7 @@ export class PlatformAccessory extends EventEmitter {
      */
     getService = (name: string | typeof Service) => {
         for (let index in this.services) {
-          const service: HAPNodeJS.Service = this.services[index];
+          const service: Service = this.services[index];
 
           if (typeof name === 'string' && (service.displayName === name || service.name === name)) {
             return service;
@@ -243,7 +243,7 @@ export class PlatformAccessory extends EventEmitter {
         this.reachable = false;
 
         var services = [];
-        var servicesMap: Record<string, HAPNodeJS.Service> = {};
+        var servicesMap: Record<string, Service> = {};
 
         for (var index in data.services) {
             var service = data.services[index];

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { EventEmitter } from 'events';
 
-import { uuid } from 'hap-nodejs';
+import { uuid, CharacteristicGetCallback, Characteristic } from 'hap-nodejs';
 
 import { Config } from './types';
 
@@ -58,7 +58,7 @@ export class BridgeSetupSession extends EventEmitter {
     currentPlatformInstance: any;
     configurablePlatformPlugins?: any;
 
-    constructor(public stateChar: HAPNodeJS.Characteristic, public controlChar: HAPNodeJS.Characteristic) {
+    constructor(public stateChar: Characteristic, public controlChar: Characteristic) {
       super();
     }
 
@@ -205,7 +205,7 @@ export class BridgeSetupSession extends EventEmitter {
         }
     }
 
-    handleReadRequest(callback: HAPNodeJS.CharacteristicGetCallback) {
+    handleReadRequest(callback: CharacteristicGetCallback) {
         callback(null, this.lastResponse!);
     }
 }

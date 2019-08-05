@@ -3,10 +3,7 @@ import fs from 'fs';
 import { uuid } from "hap-nodejs";
 import { create } from 'node-persist';
 
-import AccessoryLoader from "hap-nodejs/lib/AccessoryLoader";
-import { Bridge } from "hap-nodejs/lib/Bridge";
-import { Accessory, Characteristic, Service } from "hap-nodejs";
-import { once } from 'hap-nodejs/lib/util/once';
+import { Accessory, AccessoryLoader, Bridge, Characteristic, Service, once } from "hap-nodejs";
 import chalk from 'chalk';
 import qrcode from 'qrcode-terminal';
 
@@ -388,7 +385,7 @@ export class Server {
             services.forEach(function(service: any) {
                 // if you returned an AccessoryInformation service, merge its values with ours
                 if (service instanceof Service.AccessoryInformation) {
-                    var existingService = accessory.getService(Service.AccessoryInformation);
+                    var existingService = accessory.getService(Service.AccessoryInformation)!;
                     // pull out any values you may have defined
                     // @ts-ignore
                   var manufacturer = service.getCharacteristic(Characteristic.Manufacturer).value;

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 
-import hap from "hap-nodejs";
-var hapLegacyTypes = require("hap-nodejs/accessories/types.js");
+import hap, { Accessory } from "hap-nodejs";
+var hapLegacyTypes = require("hap-nodejs/dist/accessories/types.js");
 
 import { _system as log } from "./logger";
 import { User } from './user';
@@ -14,14 +14,14 @@ type PlatformConstructor = any;
 
 export class API extends EventEmitter {
 
-    _accessories: Record<string, HAPNodeJS.Accessory>;
+    _accessories: Record<string, Accessory>;
     _platforms: Record<string, PlatformConstructor>;
     _configurableAccessories: Record<string, any>;
     _dynamicPlatforms: Record<string, PlatformConstructor>;
     version: number;
     serverVersion: string;
     user: User;
-    hap: HAPNodeJS.HAPNodeJS;
+    hap: typeof import('hap-nodejs');
     hapLegacyTypes: any;
     platformAccessory: any;
 
@@ -54,7 +54,7 @@ export class API extends EventEmitter {
         this.platformAccessory = PlatformAccessory;
     }
 
-    accessory = (name: string): typeof HAPNodeJS.Accessory => {
+    accessory = (name: string): Accessory => {
 
         // if you passed the "short form" name like "Lockitron" instead of "homebridge-lockitron.Lockitron",
         // see if it matches exactly one accessory.
@@ -81,7 +81,7 @@ export class API extends EventEmitter {
         }
     }
 
-    registerAccessory = (pluginName: string, accessoryName: string, constructor: HAPNodeJS.Accessory, configurationRequestHandler: any) => {
+    registerAccessory = (pluginName: string, accessoryName: string, constructor: Accessory, configurationRequestHandler: any) => {
         var fullName = pluginName + "." + accessoryName;
 
         if (this._accessories[fullName])
