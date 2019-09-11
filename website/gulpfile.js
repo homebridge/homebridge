@@ -9,7 +9,7 @@ var minifyCss = require('gulp-minify-css');
 
 gulp.task('sass', function () {
   return gulp.src('./styles/*.scss')
-            .pipe(sass())
+            .pipe(sass({outputStyle: 'compressed'}))
             .pipe(gulp.dest('./css'));
 });
 
