@@ -1,11 +1,15 @@
 var gulp = require('gulp');
 var sass = require('gulp-sass');
 var clean = require('gulp-clean');
+var browserSync = require('browser-sync').create();
 
 gulp.task('sass', function () {
   return gulp.src('./styles/*.scss')
     .pipe(sass({outputStyle: 'compressed'}))
-    .pipe(gulp.dest('./css'));
+    .pipe(gulp.dest('./css'))
+    .pipe(browserSync.reload({
+      stream: true
+    }))
 });
 
 gulp.task('clean', function(){
@@ -13,7 +17,15 @@ gulp.task('clean', function(){
     .pipe(clean());
 });
 
-gulp.task('build', ['clean'], function() {
+gulp.task('browser-sync', function() {
+    browserSync.init({
+        server: {
+            baseDir: "../"
+        }
+    });
+});
+
+gulp.task('build', ['clean', 'browser-sync'], function() {
   gulp.run(['sass']);
 });
 
