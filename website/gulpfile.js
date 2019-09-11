@@ -1,16 +1,11 @@
-
 var gulp = require('gulp');
 var sass = require('gulp-sass');
-var gulpif = require('gulp-if');
 var clean = require('gulp-clean');
-var useref = require('gulp-useref');
-var uglify = require('gulp-uglify');
-var minifyCss = require('gulp-minify-css');
 
 gulp.task('sass', function () {
   return gulp.src('./styles/*.scss')
-            .pipe(sass({outputStyle: 'compressed'}))
-            .pipe(gulp.dest('./css'));
+    .pipe(sass({outputStyle: 'compressed'}))
+    .pipe(gulp.dest('./css'));
 });
 
 gulp.task('clean', function(){
