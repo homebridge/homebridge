@@ -3,7 +3,9 @@
   "description": "HomeKit support for the impatient",
   "version": "0.4.50",
   "scripts": {
-    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true"
+    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
+    "test": "jest",
+    "lint": "eslint 'lib/**/*.{js,ts}' --cache"
   },
   "author": {
     "name": "Nick Farina"
@@ -24,12 +26,17 @@
     "node": ">=4.3.2"
   },
   "preferGlobal": true,
+  "devDependencies": {
+    "eslint": "^6.7.2",
+    "eslint-plugin-jest": "^23.1.1",
+    "jest": "^24.9.0"
+  },
   "dependencies": {
     "chalk": "^1.1.1",
     "commander": "2.8.1",
     "hap-nodejs": "0.4.51",
-    "semver": "5.0.3",
     "node-persist": "^0.0.8",
-    "qrcode-terminal": "^0.11.0"
+    "qrcode-terminal": "^0.11.0",
+    "semver": "5.0.3"
   }
 }
