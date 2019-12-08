@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as semver from 'semver';
-import * as version from './version';
+import {getVersion} from './version';
 import {_system as log} from "./logger";
 
 /**
@@ -52,8 +52,9 @@ export class Plugin {
       throw new Error("Plugin " + this.pluginPath + " does not contain the 'homebridge' package in 'engines'.");
     }
   
-    const versionRequired = pjson.engines.homebridge;
-  
+    const versionRequired = pjson.engines.homebridge;  
+    const version = getVersion();
+
     // make sure the version is satisfied by the currently running version of HomeBridge
     if (!semver.satisfies(version, versionRequired)) {
       throw new Error("Plugin " + this.pluginPath + " requires a HomeBridge version of " + versionRequired + " which does not satisfy the current HomeBridge version of " + version + ". You may need to upgrade your installation of HomeBridge.");

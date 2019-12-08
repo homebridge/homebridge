@@ -3,7 +3,7 @@
   "description": "HomeKit support for the impatient",
   "version": "0.4.50",
   "scripts": {
-    "start": "node -r ts-node/register ./lib/main.ts",
+    "start": "node -r ts-node/register ./lib/main.ts -D -P example-plugins/",
     "start:dev": "node ./bin/homebridge DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
     "start:watch": "node ./node_modules/nodemon/bin/nodemon.js",
     "start:ts": "node --inspect=5858 -r ts-node/register ./lib/main.ts",
