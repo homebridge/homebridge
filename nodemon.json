@@ -6,8 +6,6 @@
         "dist"
     ],
     "verbose": false,
-    "execMap": {
-        "js": "npm start"
-    },
+    "exec": "npm run start",
     "ext": "ts,js,json"
 }
