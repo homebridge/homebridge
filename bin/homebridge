@@ -11,7 +11,7 @@ process.title = 'homebridge';
 // Find the HomeBridge lib
 var path = require('path');
 var fs = require('fs');
-var lib = path.join(path.dirname(fs.realpathSync(__filename)), '../lib');
+var lib = path.join(path.dirname(fs.realpathSync(__filename)), '../dist');
 
 // Run HomeBridge
-require(lib + '/cli')();
+require(lib + '/client').run();
