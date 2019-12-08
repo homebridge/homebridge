@@ -1,18 +1,16 @@
 import * as path from 'path';
 import * as  fs from 'fs';
 import {uuid} from "hap-nodejs";
-const accessoryStorage = require('node-persist').create();
+import * as accessoryStorage from 'node-persist';
 const Bridge = require("hap-nodejs").Bridge;
-const Accessory = require("hap-nodejs").Accessory;
-const Service = require("hap-nodejs").Service;
-const Characteristic = require("hap-nodejs").Characteristic;
 const AccessoryLoader = require("hap-nodejs").AccessoryLoader;
-const once = require("hap-nodejs/lib/util/once").once;
+import {Accessory, Service, Characteristic} from "hap-nodejs";
+import {once} from "hap-nodejs/lib/util/once";
 import {Plugin} from './plugin';
 import {User} from './user';
 import {API} from './api';
-const PlatformAccessory = require("./platformAccessory").PlatformAccessory;
-const BridgeSetupManager = require("./bridgeSetupManager").BridgeSetupManager;
+import {PlatformAccessory} from "./platformAccessory";
+import {BridgeSetupManager} from "./bridgeSetupManager";
 import {_system as log} from "./logger";
 import {withPrefix as LoggerWithPrefix} from './logger';
 import {generate as MacGenerate} from "./util/mac";
@@ -25,11 +23,11 @@ export function toTitleCase(str: string) {
 
 export class Server {
 
-  private _api;
+  private _api: any;
   private _config: any;
   protected _plugins = {};
-  private _cachedPlatformAccessories;
-  private _bridge;
+  private _cachedPlatformAccessories: any;
+  private _bridge: any;
   private _cleanCachedAccessories: boolean;
   protected _hideQRCode: boolean;
   private _externalPorts: any;
@@ -38,7 +36,7 @@ export class Server {
   private _activeDynamicPlugins = {};
   private _configurablePlatformPlugins = {};
   private _publishedAccessories = {};
-  private _setupManager;
+  private _setupManager: any;
 
   private _asyncCalls = 0;
   protected _asyncWait = true;
@@ -393,7 +391,7 @@ export class Server {
   private _configCachedPlatformAccessories() {
     const verifiedAccessories = [];
     for (const index in this._cachedPlatformAccessories) {
-      const accessory = this._cachedPlatformAccessories[index];
+      const accessory: any = this._cachedPlatformAccessories[index];
   
       if (!(accessory instanceof PlatformAccessory)) {
         console.log("Unexpected Accessory!");

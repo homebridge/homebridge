@@ -1,7 +1,4 @@
-const crypto = require('crypto');
-const uuid = require("hap-nodejs").uuid;
-const inherits = require('util').inherits;
-const EventEmitter = require('events').EventEmitter;
+import {EventEmitter} from 'events';
 
 export class BridgeSetupSession extends EventEmitter {
 
@@ -14,6 +11,9 @@ export class BridgeSetupSession extends EventEmitter {
   private preferedLanguage: string;
 
   private lastResponse: any;
+
+  private listOfPlatforms: any;
+  private configurablePlatformPlugins: any;
 
   // 0 - Waiting for negotiate
   // 1 - Waiting for selection

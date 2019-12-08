@@ -18,21 +18,21 @@ export class API extends EventEmitter {
   protected readonly version = 2.4;
 
   // expose the homebridge server version
-  protected serverVersion;
+  protected serverVersion: any;
 
   // expose the User class methods to plugins to get paths. Example: homebridge.user.storagePath()
-  protected user;
+  protected user: any;
   
   // expose HAP-NodeJS in its entirely for plugins to use instead of making Plugins
   // require() it as a dependency - it's a heavy dependency so we don't want it in
   // every single plugin.
-  protected hap;
+  protected hap: any;
   
   // we also need to "bolt on" the legacy "types" constants for older accessories/platforms
   // still using the "object literal" style JSON.
-  protected hapLegacyTypes;
+  protected hapLegacyTypes: any;
 
-  protected platformAccessory;
+  protected platformAccessory: any;
 
   constructor() {
     super();

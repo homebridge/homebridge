@@ -11,9 +11,9 @@ import {_system as log} from "./logger";
  */
 export class Plugin {
   
-  private pluginPath;
-  private initializer;
-  public static paths;
+  private pluginPath: string;
+  protected initializer: any;
+  public static paths: any;
 
   constructor(pluginPath = null) {
     this.pluginPath = pluginPath;
@@ -29,7 +29,7 @@ export class Plugin {
     Plugin.paths.unshift(path.resolve(process.cwd(), pluginPath));
   }  
 
-  load(options) {
+  load(options: any) {
     options = options || {};
   
     // does this plugin exist at all?
@@ -82,7 +82,7 @@ export class Plugin {
     }
   }
   
-  static loadPackageJSON(pluginPath) {
+  static loadPackageJSON(pluginPath: string) {
     // check for a package.json
     const pjsonPath = path.join(pluginPath, "package.json");
     let pjson = null;

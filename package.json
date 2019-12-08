@@ -37,6 +37,7 @@
     "semver": "5.0.3"
   },
   "devDependencies": {
+    "@types/chalk": "^2.2.0",
     "@types/node": "^12.12.14",
     "awesome-typescript-loader": "^5.2.1",
     "copy-webpack-plugin": "^5.0.5",

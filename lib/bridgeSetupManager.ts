@@ -1,6 +1,5 @@
-const EventEmitter = require('events').EventEmitter;
-const Service = require("hap-nodejs").Service;
-const Characteristic = require("hap-nodejs").Characteristic;
+import {EventEmitter} from 'events';
+import {Service, Characteristic} from "hap-nodejs";
 import {BridgeSetupSession} from "./bridgeSetupSession";
 
 export class BridgeSetupManager extends EventEmitter {
@@ -11,6 +10,7 @@ export class BridgeSetupManager extends EventEmitter {
 
   private versionCharacteristic: any;
   private controlPointCharacteristic: any;
+  private configurablePlatformPlugins: any;
 
   constructor() {
     super();

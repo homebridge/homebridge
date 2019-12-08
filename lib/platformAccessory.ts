@@ -2,16 +2,17 @@ const uuid = require("hap-nodejs").uuid;
 const Accessory = require("hap-nodejs").Accessory;
 const Service = require("hap-nodejs").Service;
 const Characteristic = require("hap-nodejs").Characteristic;
-const EventEmitter = require('events').EventEmitter;
+import {EventEmitter} from 'events';
 
 export class PlatformAccessory extends EventEmitter {
 
-  private displayName: string;
+  public displayName: string;
   private UUID: string;
   private category: string;
   private services = [];
   private reachable = false;
   private context = {};
+  private cameraSource: any;
 
   public _associatedPlugin: any;
   public _associatedPlatform: any;
@@ -104,7 +105,7 @@ export class PlatformAccessory extends EventEmitter {
    * @param {string} subtype A subtype string to match
    * @returns Service
    */
-  getServiceByUUIDAndSubType(UUID, subtype) {
+  getServiceByUUIDAndSubType(UUID: any, subtype: string): any {
     for (const index in this.services) {
       const service = this.services[index];
       
@@ -132,7 +133,7 @@ export class PlatformAccessory extends EventEmitter {
     }
   }
   
-  private _prepareAssociatedHAPAccessory() {
+  public _prepareAssociatedHAPAccessory() {
     this._associatedHAPAccessory = new Accessory(this.displayName, this.UUID);
   
     if (this.cameraSource) {

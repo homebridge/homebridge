@@ -1,5 +1,4 @@
 import * as path from 'path';
-import * as fs from 'fs';
 import * as os from 'os';
 
 /**
@@ -8,16 +7,10 @@ import * as os from 'os';
 export class User {
 
   // global cached config
-  config;
+  protected config: any;
 
   // optional custom storage path
   static customStoragePath: string;
-
-  constructor() {}
-
-  // config() {
-  //   return this.config; //|| (this.config = Config.load(this.configPath()));    
-  // }
 
   static storagePath(): string {
     if (this.customStoragePath) return this.customStoragePath;
