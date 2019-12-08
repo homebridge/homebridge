@@ -1,7 +1,7 @@
 const EventEmitter = require('events').EventEmitter;
 const Service = require("hap-nodejs").Service;
 const Characteristic = require("hap-nodejs").Characteristic;
-const SetupSession = require("./bridgeSetupSession").SetupSession;
+import {BridgeSetupSession} from "./bridgeSetupSession";
 
 export class BridgeSetupManager extends EventEmitter {
 
@@ -67,7 +67,7 @@ export class BridgeSetupManager extends EventEmitter {
       return;
     }
   
-    const data = new Buffer(value, 'base64');
+    const data = Buffer.from(value, 'base64');
     const request = JSON.parse(data.toString());
     callback();
   
@@ -77,7 +77,7 @@ export class BridgeSetupManager extends EventEmitter {
         this.session.validSession = false;
       }
   
-      this.session = new SetupSession(this.stateCharacteristic, this.controlPointCharacteristic);
+      this.session = new BridgeSetupSession(this.stateCharacteristic, this.controlPointCharacteristic);
       this.session.configurablePlatformPlugins = this.configurablePlatformPlugins;
       this.session.on('newConfig', function(type, name, replace, config) {
         this.emit('newConfig', type, name, replace, config);

@@ -176,7 +176,7 @@ export class BridgeSetupSession extends EventEmitter {
   sendResponse(response) {
     if (this.validSession) {
       const serializedReponse = JSON.stringify(response);
-      const respData = new Buffer(serializedReponse).toString('base64');
+      const respData = Buffer.from(serializedReponse).toString('base64');
       this.lastResponse = respData;
       setTimeout(function() {
         this.controlChar.setValue(respData);
