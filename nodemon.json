@@ -1,0 +1,13 @@
+{
+    "ignore": [
+        ".git",
+        "node_modules/**/node_modules",
+        "bin",
+        "dist"
+    ],
+    "verbose": false,
+    "execMap": {
+        "js": "npm start"
+    },
+    "ext": "ts,js,json"
+}

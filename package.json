@@ -3,7 +3,11 @@
   "description": "HomeKit support for the impatient",
   "version": "0.4.50",
   "scripts": {
-    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true"
+    "start": "node -r ts-node/register ./lib/main.ts",
+    "start:dev": "node ./bin/homebridge DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
+    "start:watch": "node ./node_modules/nodemon/bin/nodemon.js",
+    "start:ts": "node --inspect=5858 -r ts-node/register ./lib/main.ts",
+    "build": "node_modules/.bin/webpack --config webpack.config.js"
   },
   "author": {
     "name": "Nick Farina"
@@ -16,7 +20,7 @@
     "url": "http://github.com/nfarina/homebridge/issues"
   },
   "license": "ISC",
-  "main": "lib/api.js",
+  "main": "lib/main.ts",
   "bin": {
     "homebridge": "bin/homebridge"
   },
@@ -28,8 +32,21 @@
     "chalk": "^1.1.1",
     "commander": "2.8.1",
     "hap-nodejs": "0.4.51",
-    "semver": "5.0.3",
     "node-persist": "^0.0.8",
-    "qrcode-terminal": "^0.11.0"
+    "qrcode-terminal": "^0.11.0",
+    "semver": "5.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^12.12.14",
+    "awesome-typescript-loader": "^5.2.1",
+    "copy-webpack-plugin": "^5.0.5",
+    "json-loader": "^0.5.7",
+    "nodemon": "^2.0.1",
+    "source-map-loader": "^0.2.4",
+    "ts-loader": "^6.2.1",
+    "ts-node": "^8.5.4",
+    "typescript": "^3.7.3",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.10"
   }
 }
