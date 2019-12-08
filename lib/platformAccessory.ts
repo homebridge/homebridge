@@ -1,7 +1,4 @@
-const uuid = require("hap-nodejs").uuid;
-const Accessory = require("hap-nodejs").Accessory;
-const Service = require("hap-nodejs").Service;
-const Characteristic = require("hap-nodejs").Characteristic;
+import {uuid, Accessory, Service, Characteristic} from "hap-nodejs";
 import {EventEmitter} from 'events';
 
 export class PlatformAccessory extends EventEmitter {
