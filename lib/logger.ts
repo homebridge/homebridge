@@ -99,8 +99,7 @@ export function setTimestampEnabled(timestamp) {
 
 // Force color in log messages, even when output is redirected
 export function forceColor() {
-  chalk.enabled = true;
-  chalk.level = 1;
+  chalk.Instance.apply({level: 1, enabled: true});
 }
 
 // global cache of logger instances by plugin name

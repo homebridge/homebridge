@@ -29,7 +29,7 @@
   },
   "preferGlobal": true,
   "dependencies": {
-    "chalk": "^1.1.1",
+    "chalk": "^3.0.0",
     "commander": "2.8.1",
     "hap-nodejs": "0.4.51",
     "node-persist": "^0.0.8",
