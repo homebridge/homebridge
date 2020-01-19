@@ -30,23 +30,23 @@
   "dependencies": {
     "chalk": "^3.0.0",
     "commander": "2.8.1",
-    "hap-nodejs": "0.4.51",
+    "hap-nodejs": "0.5.0",
     "node-persist": "^0.0.8",
     "qrcode-terminal": "^0.11.0",
     "semver": "5.0.3"
   },
   "devDependencies": {
     "@types/chalk": "^2.2.0",
-    "@types/node": "^12.12.14",
+    "@types/node": "^12.12.25",
     "awesome-typescript-loader": "^5.2.1",
-    "copy-webpack-plugin": "^5.0.5",
+    "copy-webpack-plugin": "^5.1.1",
     "json-loader": "^0.5.7",
-    "nodemon": "^2.0.1",
+    "nodemon": "^2.0.2",
     "source-map-loader": "^0.2.4",
     "ts-loader": "^6.2.1",
-    "ts-node": "^8.5.4",
-    "typescript": "^3.7.3",
-    "webpack": "^4.41.2",
+    "ts-node": "^8.6.2",
+    "typescript": "^3.7.5",
+    "webpack": "^4.41.5",
     "webpack-cli": "^3.3.10"
   }
 }

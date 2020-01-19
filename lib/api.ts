@@ -1,6 +1,6 @@
 import {EventEmitter} from 'events';
 import * as hap from "hap-nodejs";
-import * as hapLegacyTypes from "hap-nodejs/accessories/types.js";
+import {Types as hapLegacyTypes} from "hap-nodejs";
 import {_system as log} from "./logger";
 import {User} from "./user";
 import {PlatformAccessory} from "./platformAccessory";

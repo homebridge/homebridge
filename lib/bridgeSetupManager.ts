@@ -15,7 +15,7 @@ export class BridgeSetupManager extends EventEmitter {
   constructor() {
     super();
 
-    this.service = new Service(null, "49FB9D4D-0FEA-4BF1-8FA6-E7B18AB86DCE");
+    this.service = new Service(null, "49FB9D4D-0FEA-4BF1-8FA6-E7B18AB86DCE", null);
 
     this.stateCharacteristic = new Characteristic("State", "77474A2F-FA98-485E-97BE-4762458774D8", {
       format: Characteristic.Formats.UINT8,
