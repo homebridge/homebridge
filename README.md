@@ -7,8 +7,6 @@
 [![Website](https://img.shields.io/website?down_color=red&down_message=offline&up_color=green&up_message=online&url=https%3A%2F%2Fhomebridge.io)](https://homebridge.io)
 [![npm](https://img.shields.io/npm/v/homebridge?style=flat)](https://www.npmjs.com/package/homebridge)
 [![npm](https://img.shields.io/npm/dt/homebridge?style=flat)](https://www.npmjs.com/package/homebridge)
-[![GitHub issues](https://img.shields.io/github/issues/nfarina/homebridge?style=flat)](https://github.com/nfarina/homebridge/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr/nfarina/homebridge?style=flat)](https://github.com/nfarina/homebridge/pulls)
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
 
