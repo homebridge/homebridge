@@ -2,6 +2,9 @@
   "bridge": {
     "name": "Homebridge",
     "username": "CC:22:3D:E3:CE:30",
+    "manufacturer": "Homebridge.io",
+    "firmware": "4.11.0",
+    "model": "config-ui-x",
     "port": 51826,
     "pin": "031-45-154"
   },
