@@ -6,7 +6,7 @@
     "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true"
   },
   "author": {
-    "name": "Homebridge"
+    "name": "Nick Farina"
   },
   "repository": {
     "type": "git",
