@@ -3,7 +3,6 @@
     "name": "Homebridge",
     "username": "CC:22:3D:E3:CE:30",
     "manufacturer": "Homebridge.io",
-    "firmware": "0.4.51",
     "model": "homebridge",
     "port": 51826,
     "pin": "031-45-154"
