@@ -1,9 +1,9 @@
 # Configuration for probot-stale - https://github.com/probot/stale
 
 # Number of days of inactivity before an Issue or Pull Request becomes stale
-daysUntilStale: 180
+daysUntilStale: 60
 # Number of days of inactivity before a stale Issue or Pull Request is closed
-daysUntilClose: 14
+daysUntilClose: 7
 # Issues or Pull Requests with these labels will never be considered stale. Set to `[]` to disable
 exemptLabels:
   - pinned
