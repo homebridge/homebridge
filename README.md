@@ -101,7 +101,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ## Adding Homebridge to iOS
 
-HomeKit itself is actually not an app; it's a "database" similar to HealthKit and PassKit. Where HealthKit has the companion _Health_ app and PassKit has _Passbook_, HomeKit has the _Home_ app, introduced with iOS 10.
+HomeKit itself is actually not an app; it's a "database" similar to HealthKit and PassKit. Where HealthKit has the companion _Health_ app and PassKit has the _Wallet_ app, HomeKit has the _Home_ app, introduced with iOS 10.
 
 If you are a member of the iOS developer program, you might also find Apple's [HomeKit Catalog](https://developer.apple.com/library/ios/samplecode/HomeKitCatalog/Introduction/Intro.html) app to be useful, as it provides straightforward and comprehensive management of all HomeKit database "objects".
 
