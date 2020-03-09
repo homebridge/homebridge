@@ -1,5 +1,5 @@
 {
-  "name": "donavanbecker/homebridge",
+  "name": "npmpublish-test-homebridge",
   "description": "HomeKit support for the impatient",
   "version": "1.0.0-beta1",
   "scripts": {
