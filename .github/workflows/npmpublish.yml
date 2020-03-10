@@ -12,10 +12,8 @@ jobs:
         with:
           node-version: 12
       - run: npm ci
-      - run: npm test
 
   publish-npm:
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
