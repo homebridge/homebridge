@@ -3,7 +3,7 @@
 </p>
 
 
-# Homebridge [![npm](https://img.shields.io/npm/v/homebridge?style=flat)](https://www.npmjs.com/package/homebridge) [![npm](https://img.shields.io/npm/dt/homebridge?style=flat)](https://www.npmjs.com/package/homebridge)
+# Homebridge [![npm](https://badgen.net/npm/v/homebridge?color=purple)](https://www.npmjs.com/package/homebridge) [![npm](https://badgen.net/npm/dt/homebridge?color=purple)](https://www.npmjs.com/package/homebridge)
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
 
