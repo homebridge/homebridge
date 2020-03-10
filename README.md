@@ -47,7 +47,7 @@ The [Homebridge Wiki](https://github.com/nfarina/homebridge/wiki) contains step-
 #### Quick Overview
 
 1. **Node v4.3.2 or greater is required.** Check by running: `node -v`. The plugins you use may require newer versions.
-2. Install Homebridge using: `npm install -g homebridge`
+2. Install Homebridge using: `npm install -g --unsafe-perm homebridge`
 3. Install the plugins using: `npm install -g <plugin-name>`
 4. Create the `config.json` file.
 
@@ -55,7 +55,7 @@ The [Homebridge Wiki](https://github.com/nfarina/homebridge/wiki) contains step-
 
 Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) and should be installed "globally" by typing:
 
-    sudo npm install -g homebridge
+    sudo npm install -g --unsafe-perm homebridge
 
 Now you should be able to run Homebridge:
 
@@ -103,7 +103,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ## Adding Homebridge to iOS
 
-HomeKit itself is actually not an app; it's a "database" similar to HealthKit and PassKit. Where HealthKit has the companion _Health_ app and PassKit has _Wallet_, HomeKit has the _Home_ app, introduced with iOS 10.
+HomeKit itself is actually not an app; it's a "database" similar to HealthKit and PassKit. Where HealthKit has the companion _Health_ app and PassKit has the _Wallet_ app, HomeKit has the _Home_ app, introduced with iOS 10.
 
 If you are a member of the iOS developer program, you might also find Apple's [HomeKit Catalog](https://developer.apple.com/library/ios/samplecode/HomeKitCatalog/Introduction/Intro.html) app to be useful, as it provides straightforward and comprehensive management of all HomeKit database "objects".
 
