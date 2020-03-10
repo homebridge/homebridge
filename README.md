@@ -35,23 +35,27 @@ You can also chat with us in [Slack](https://homebridge-slackin.glitch.me).
 
 ## Installation
 
-#### Quick Overview
-1. **Node v4.3.2 or greater is required.** Check by running: `node --version`. The plugins you use may require newer versions.
-2. **On Linux only:** Install the libavahi-compat-libdnssd-dev package: `sudo apt-get install libavahi-compat-libdnssd-dev`
-3. Install Homebridge using: `npm install -g homebridge` _or_ `sudo npm install -g --unsafe-perm homebridge` (see below)
-4. Install the plugins using: `npm install -g <plugin-name>`
-5. Create the `config.json` file.
+The [Homebridge Wiki](https://github.com/nfarina/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge as a service so it automatically start on boot:
 
-**Note:** If you're running on a Raspberry Pi, you should have a look at the [Wiki](https://github.com/nfarina/homebridge/wiki/Running-HomeBridge-on-a-Raspberry-Pi).
+* [Setup Homebridge on a Raspberry Pi (Raspbian)](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-Raspbian)
+* [Setup Homebridge on Debian/Ubuntu Linux](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux)
+* [Setup Homebridge on macOS](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-macOS)
+* [Setup Homebridge on Windows 10](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-Windows-10)
+* [Setup Homebridge on Docker (Linux)](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-Docker)
+* [Other Platforms](https://github.com/nfarina/homebridge/wiki/Other-Platforms)
+
+#### Quick Overview
+
+1. **Node v4.3.2 or greater is required.** Check by running: `node -v`. The plugins you use may require newer versions.
+2. Install Homebridge using: `npm install -g --unsafe-perm homebridge`
+3. Install the plugins using: `npm install -g <plugin-name>`
+4. Create the `config.json` file.
 
 #### Installation Details
+
 Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) and should be installed "globally" by typing:
 
     sudo npm install -g --unsafe-perm homebridge
-
-You may need to use the `--unsafe-perm` flag if you receive an error similar to this:
-
-    gyp WARN EACCES user "root" does not have permission to access the dev dir "/root/.node-gyp/5.5.0"
 
 Now you should be able to run Homebridge:
 
@@ -96,8 +100,6 @@ You install Plugins the same way you installed Homebridge - as a global NPM modu
     sudo npm install -g homebridge-lockitron
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
-
-**IMPORTANT**: Many of the plugins that Homebridge used to include with its default installation have been moved to the single plugin [homebridge-legacy-plugins](https://www.npmjs.com/package/homebridge-legacy-plugins).
 
 ## Adding Homebridge to iOS
 
@@ -165,22 +167,9 @@ Two reasons why Homebridge may not be discoverable:
   
   3. iOS DNS cache has gone stale or gotten misconfigured. Fix: Turn airplane mode on and back off to flush the DNS cache. (This is a temporary fix, but can be repeated when the problem recurs. No permanent fix is as yet known/confirmed. If you're experiencing this as a recurrent issue, it likely affects other bonjour and .local DNS resolution services, for which cycling airplane mode will also temporarily resolve.)
 
-### Errors on startup
-
-The following errors are experienced when starting Homebridge and can be safely ignored. The cost of removing the issue at the core of the errors isn't worth the effort.
-
-```
-*** WARNING *** The program 'nodejs' uses the Apple Bonjour compatibility layer of Avahi
-*** WARNING *** Please fix your application to use the native API of Avahi!
-*** WARNING *** For more information see http://0pointerde/avahi-compat?s=libdns_sd&e=nodejs
-*** WARNING *** The program 'nodejs' called 'DNSServiceRegister()' which is not supported (or only supported partially) in the Apple Bonjour compatibility layer of Avahi
-*** WARNING *** Please fix your application to use the native API of Avahi!
-*** WARNING *** For more information see http://0pointerde/avahi-compat?s=libdns_sd&e=nodejs&f=DNSServiceRegister
-```
-
 ### Limitations
 
- * One installation of Homebridge can only expose 100 accessories due to a HomeKit limit. You can however run multiple Homebridge instances by pointing them to different config and persistence paths (see issue #827).
+ * One installation of Homebridge can only expose 150 accessories due to a HomeKit limit. You can however run multiple Homebridge instances by pointing them to different config and persistence paths (see issue #827).
  * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
 
 ## Why Homebridge?
