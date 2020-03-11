@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 12
-      - run: npm ci
+      - run: npm install
 
   publish-npm:
     needs: build
@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 12
           registry-url: https://registry.npmjs.org/
-      - run: npm ci
+      - run: npm install
       - run: node .github/workflows/prerelease.js
       - run: npm --no-git-tag-version version prerelease --preid=beta
       - run: npm publish --tag=beta
