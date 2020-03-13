@@ -21,13 +21,15 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ## Community
 
+[![Discord](https://img.shields.io/discord/432663330281226270.svg?label=discord)](https://discord.gg/6GUFCb)
+
 If you're having an issue with a particular plugin, open an issue in that plugin's Github repository. If you're having an issue with Homebridge itself, feel free to open issues and PRs here.
 
 There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
 
 r/Homekit and r/Homebridge have also created a community Discord server, where users of both Homekit and Homebridge can discuss their different products as well as get support. The link for the community is [here](https://discord.gg/RcV7fa8).
 
-[![Discord Status](https://img.shields.io/discord/512378789297258528.svg?style=flat)](https://discord.gg/RcV7fa8)
+[[![Discord Status](https://img.shields.io/discord/512378789297258528.svg?style=flat)](https://discord.gg/RcV7fa8)
 
 You can also chat with us in [Slack](https://homebridge-slackin.glitch.me).
 
