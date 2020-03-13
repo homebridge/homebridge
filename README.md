@@ -1,5 +1,5 @@
 <p align="center">
-<a href="https://homebridge.io"><img src="https://user-images.githubusercontent.com/19808920/58770949-bd9c7900-857f-11e9-8558-5dfaffddffda.png" height="200" /></a>
+<a href="https://homebridge.io"><img src="https://user-images.githubusercontent.com/117280/76642526-9ca28480-6510-11ea-890d-aafe638acf58.png" height="200" /></a>
 </p>
 
 
