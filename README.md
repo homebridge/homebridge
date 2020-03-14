@@ -6,8 +6,8 @@
 
 # Homebridge
 
-  <a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge?color=purple" ></a>
-  <a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge?color=purple" ></a>
+  <a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge" ></a>
+  <a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge" ></a>
 
 </span>
 
@@ -31,7 +31,7 @@ The official Homebridge Discord server and Reddit community are where users can 
 
 <span align="center">
 
-[![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/6GUFCb) [![Homebridge Reddit](https://user-images.githubusercontent.com/3979615/76676288-12dcdf00-6616-11ea-8b90-2c6c70d72192.png)](https://www.reddit.com/r/homebridge/)
+[![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/6GUFCb) [![Homebridge Reddit](.github/homebridge-reddit.svg?sanitize=true)](https://www.reddit.com/r/homebridge/)
 
 </span>
 
