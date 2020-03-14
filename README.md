@@ -29,7 +29,11 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 The official Homebridge Discord server and Reddit community are where users can discuss Homebridge and ask for help.
 
+<span align="center">
+
 [![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/6GUFCb) [![Homebridge Reddit](https://user-images.githubusercontent.com/3979615/76676288-12dcdf00-6616-11ea-8b90-2c6c70d72192.png)](https://www.reddit.com/r/homebridge/)
+
+</span>
 
 HomeKit communities can also be found on both [discord](https://discord.gg/RcV7fa8) and [reddit](https://www.reddit.com/r/homekit).
 
