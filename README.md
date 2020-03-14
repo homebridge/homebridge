@@ -34,11 +34,10 @@ If you're having an issue with a particular plugin, open an issue in that plugin
 
 This is the offical Homebridge community on Reddit.
 
-
-There is also HomeKit communities on discord and reddit.
-
 [![Homekit Discord](https://img.shields.io/discord/512378789297258528.svg?label=discord)](https://discord.gg/RcV7fa8)
 [![Homekit Reddit](https://badgen.net/badge/reddit/homekit/yellow)](https://www.reddit.com/r/homekit)
+
+HomeKit communities can also be found on both discord and reddit.
 
 ## Installation
 
