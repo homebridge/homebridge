@@ -32,7 +32,7 @@ If you're having an issue with a particular plugin, open an issue in that plugin
 ![Homebridge Reddit](https://badgen.net/badge/reddit/homebridge/purple)
 
 
-This is the offical [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
+This is the offical Homebridge community on Reddit.
 
 
 There is also HomeKit communities on discord and reddit.
