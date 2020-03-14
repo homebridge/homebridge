@@ -20,8 +20,9 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
  * _Siri, good morning!_
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
+##  Community
 
-## Community
+#### Homebridge
 
 [![Homebridge Discord](https://img.shields.io/discord/432663330281226270.svg?label=discord)](https://discord.gg/6GUFCb)
 
@@ -31,8 +32,9 @@ If you're having an issue with a particular plugin, open an issue in that plugin
 
 ![Homebridge Reddit](https://badgen.net/badge/reddit/homebridge/purple)
 
-
 This is the offical Homebridge community on Reddit.
+
+#### HomeKit
 
 [![Homekit Discord](https://img.shields.io/discord/512378789297258528.svg?label=discord)](https://discord.gg/RcV7fa8)
 [![Homekit Reddit](https://badgen.net/badge/reddit/homekit/yellow)](https://www.reddit.com/r/homekit)
