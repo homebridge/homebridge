@@ -9,7 +9,7 @@
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
 
-Homebridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
+**Homebridge** is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
 Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
 
@@ -23,19 +23,20 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ## Community
 
-[![Discord](https://img.shields.io/discord/432663330281226270.svg?label=discord)](https://discord.gg/6GUFCb)
+**Homebridge*
+
+[![Homebridge Discord](https://img.shields.io/discord/432663330281226270.svg?label=discord)](https://discord.gg/6GUFCb)
+
+This is the official Homebridge discord server, where users can discuss homebridge and how to maintain it. There is also dedicated channels for different plugins where you can reach out to ask questions or get support from the developer that created them.
 
 If you're having an issue with a particular plugin, open an issue in that plugin's Github repository. If you're having an issue with Homebridge itself, feel free to open issues and PRs here.
 
-There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
+![Homebridge Reddit](https://badgen.net/badge/reddit/homebridge/purple)
+This is the offical [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
 
 r/Homekit and r/Homebridge have also created a community Discord server, where users of both Homekit and Homebridge can discuss their different products as well as get support. The link for the community is [here](https://discord.gg/RcV7fa8).
 
-[![Discord Status](https://img.shields.io/discord/512378789297258528.svg?style=flat)](https://discord.gg/RcV7fa8)
-
-You can also chat with us in [Slack](https://homebridge-slackin.glitch.me).
-
-[![Slack Status](https://homebridge-slackin.glitch.me/badge.svg)](https://homebridge-slackin.glitch.me)
+[![Homekit Discord](https://img.shields.io/discord/512378789297258528.svg?label=discord)](https://discord.gg/RcV7fa8)
 
 ## Installation
 
