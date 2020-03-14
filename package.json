@@ -1,7 +1,7 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "0.4.52",
+  "version": "0.4.53",
   "scripts": {
     "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true"
   },
@@ -10,10 +10,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/nfarina/homebridge.git"
+    "url": "git://github.com/homebridge/homebridge.git"
   },
   "bugs": {
-    "url": "http://github.com/nfarina/homebridge/issues"
+    "url": "http://github.com/homebridge/homebridge/issues"
   },
   "license": "ISC",
   "main": "lib/api.js",
