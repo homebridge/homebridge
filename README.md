@@ -2,8 +2,10 @@
 <a href="https://homebridge.io"><img src="https://user-images.githubusercontent.com/117280/76642526-9ca28480-6510-11ea-890d-aafe638acf58.png" height="200" /></a>
 </p>
 
-
-# Homebridge [![npm](https://badgen.net/npm/v/homebridge?color=purple)](https://www.npmjs.com/package/homebridge) [![npm](https://badgen.net/npm/dt/homebridge?color=purple)](https://www.npmjs.com/package/homebridge)
+<p align="center">
+  <a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge?color=purple" ></a>
+  <a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge?color=purple" ></a>
+</p>
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
 
@@ -29,7 +31,7 @@ There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge
 
 r/Homekit and r/Homebridge have also created a community Discord server, where users of both Homekit and Homebridge can discuss their different products as well as get support. The link for the community is [here](https://discord.gg/RcV7fa8).
 
-[[![Discord Status](https://img.shields.io/discord/512378789297258528.svg?style=flat)](https://discord.gg/RcV7fa8)
+[![Discord Status](https://img.shields.io/discord/512378789297258528.svg?style=flat)](https://discord.gg/RcV7fa8)
 
 You can also chat with us in [Slack](https://homebridge-slackin.glitch.me).
 
