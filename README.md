@@ -1,11 +1,15 @@
 <p align="center">
-<a href="https://homebridge.io"><img src="https://user-images.githubusercontent.com/117280/76642526-9ca28480-6510-11ea-890d-aafe638acf58.png" height="200" /></a>
+<img src="https://user-images.githubusercontent.com/3979615/62948461-bae3bd00-be27-11e9-81b5-05c65c388a1e.png" height="120">
 </p>
 
-<p align="center">
+<span align="center">
+
+# Homebridge
+
   <a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge?color=purple" ></a>
   <a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge?color=purple" ></a>
-</p>
+
+</span>
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
 
@@ -20,26 +24,14 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
  * _Siri, good morning!_
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
-##  Community
 
-#### Homebridge
+## Homebridge Community
 
-The Official Homebridge discord server is where users can discuss homebridge and how to maintain it. There is also dedicated channels for different plugins where you can reach out to ask questions to other users of that plugin or get support from the developer that created them.
+The official Homebridge Discord server and Reddit community are where users can discuss Homebridge and ask for help.
 
-[![Homebridge Discord](https://img.shields.io/discord/432663330281226270.svg?label=discord)](https://discord.gg/6GUFCb)
+[![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/6GUFCb) [![Homebridge Reddit](https://user-images.githubusercontent.com/3979615/76676288-12dcdf00-6616-11ea-8b90-2c6c70d72192.png)](https://www.reddit.com/r/homebridge/)
 
-If you're having an issue with a particular plugin, open an issue in that plugin's Github repository. If you're having an issue with Homebridge itself, feel free to open issues and PRs here.
-
-This is the offical Homebridge community on Reddit.
-
-![Homebridge Reddit](https://badgen.net/badge/reddit/homebridge/purple)
-
-#### HomeKit
-
-HomeKit communities can also be found on both discord and reddit.
-
-[![Homekit Discord](https://img.shields.io/discord/512378789297258528.svg?label=discord)](https://discord.gg/RcV7fa8)
-[![Homekit Reddit](https://badgen.net/badge/reddit/homekit/yellow)](https://www.reddit.com/r/homekit)
+HomeKit communities can also be found on both [discord](https://discord.gg/RcV7fa8) and [reddit](https://www.reddit.com/r/homekit).
 
 ## Installation
 
@@ -186,6 +178,6 @@ Technically, the device manufacturers should be the ones implementing the HomeKi
 
 ## Credit
 
-Homebridge was originally created by Nick Farina. [![nfarina twitter](https://badgen.net/badge/twitter/nfarina?icon&color=purple)](https://twitter.com/nfarina)
+Homebridge was originally created by [Nick Farina](https://twitter.com/nfarina).
 
-The original HomeKit API work was done by Khaos Tian in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project. [![KhaosT twitter](https://badgen.net/badge/twitter/KhaosT?icon&color=green)](https://twitter.com/khaost)
+The original HomeKit API work was done by [Khaos Tian](https://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project.
