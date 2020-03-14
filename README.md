@@ -93,7 +93,7 @@ Once you've added your config file, you should be able to run Homebridge again:
 
 Homebridge is now ready to receive commands from iOS.
 
-# Installing Plugins
+## Installing Plugins
 
 Plugins are NodeJS modules published through NPM and tagged with the keyword `homebridge-plugin`. They must have a name with the prefix `homebridge-`, like **homebridge-mysmartlock**.
 
