@@ -6,6 +6,3 @@ contact_links:
   - name: Discord
     url: https://discord.gg/6GUFCb
     about: The Homebridge Discord Community - for general Homebridge questions or help.
-  - name: Slack
-    url: https://homebridge-slackin.glitch.me
-    about: The Homebridge Slack Community - many plugins have a dedicated channel for their users.
