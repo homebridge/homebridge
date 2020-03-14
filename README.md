@@ -186,4 +186,6 @@ Technically, the device manufacturers should be the ones implementing the HomeKi
 
 ## Credit
 
-Homebridge was originally created by [@nfarina](https://twitter.com/nfarina). The original HomeKit API work was done by [@KhaosT](https://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project.
+Homebridge was originally created by Nick Farina. [![nfarina twitter](https://badgen.net/badge/twitter/nfarina?icon&color=purple)](https://twitter.com/nfarina)
+
+The original HomeKit API work was done by Khaos Tian in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project. [![KhaosT twitter](https://badgen.net/badge/twitter/KhaosT?icon&color=green)](https://twitter.com/khaost)
