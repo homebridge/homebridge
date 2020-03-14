@@ -25,7 +25,7 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
 
-## Homebridge Community
+## Community
 
 The official Homebridge Discord server and Reddit community are where users can discuss Homebridge and ask for help.
 
