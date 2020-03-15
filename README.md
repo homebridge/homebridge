@@ -39,7 +39,7 @@ HomeKit communities can also be found on both [discord](https://discord.gg/RcV7f
 
 ## Installation
 
-The [Homebridge Wiki](https://github.com/nfarina/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge as a service so it automatically start on boot:
+The [Homebridge Wiki](https://github.com/nfarina/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge as a service so it automatically starts on boot:
 
 * [Setup Homebridge on a Raspberry Pi (Raspbian)](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-Raspbian)
 * [Setup Homebridge on Debian/Ubuntu Linux](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux)
