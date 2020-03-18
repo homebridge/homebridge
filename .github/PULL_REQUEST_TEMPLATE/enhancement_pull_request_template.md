@@ -7,17 +7,10 @@ assignees: ''
 
 ---
 
-<!-- If you have an enhancement with a plugin create an pull request on that plugin's GitHub page instead. -->
+<!-- Provide a general summary in the Title above and desciption below -->
 
-<!-- Provide a general summary in the Title above -->
 
-**Describe What Is Being Enhanced:**
-<!-- A clear and concise description of what the bug is. -->
 
-**If This Enhancement Is Related To And Issue, What Is The Issue Number(#):**
-<!-- Steps to reproduce the behavior. -->
 
-**Expected behavior:**
-<!-- A clear and concise description of what you expected to happen. -->
 
-<!-- Click the "Preview" tab before you submit to ensure the formatting is correct. -->
+<!-- Please Click the "Preview" tab before you submit to ensure the formatting is correct. -->
