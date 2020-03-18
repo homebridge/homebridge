@@ -2,7 +2,7 @@
 name: Support Request
 about: Need help installing Homebridge?
 title: ''
-labels: Question
+labels: question
 assignees: ''
 
 ---
