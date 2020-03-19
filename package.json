@@ -21,7 +21,7 @@
     "homebridge": "bin/homebridge"
   },
   "engines": {
-    "node": ">=10.17.0"
+    "node": ">=12.16.1"
   },
   "files": [
     "README.md",
