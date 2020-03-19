@@ -50,7 +50,7 @@ The [Homebridge Wiki](https://github.com/nfarina/homebridge/wiki) contains step-
 
 #### Quick Overview
 
-1. **Node v4.3.2 or greater is required.** Check by running: `node -v`. The plugins you use may require newer versions.
+1. **Node v10 or greater is required.** Check by running: `node -v`. The plugins you use may require newer versions.
 2. Install Homebridge using: `npm install -g --unsafe-perm homebridge`
 3. Install the plugins using: `npm install -g <plugin-name>`
 4. Create the `config.json` file.
