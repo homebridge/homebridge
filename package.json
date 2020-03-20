@@ -32,11 +32,11 @@
   ],
   "preferGlobal": true,
   "dependencies": {
-    "chalk": "^1.1.1",
-    "commander": "2.8.1",
+    "chalk": "^3.0.0",
+    "commander": "5.0.0",
     "hap-nodejs": "0.5.7",
-    "node-persist": "^0.0.8",
-    "qrcode-terminal": "^0.11.0",
+    "node-persist": "^0.0.11",
+    "qrcode-terminal": "^0.12.0",
     "semver": "^7.1.3"
   }
 }
