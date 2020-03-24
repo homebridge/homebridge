@@ -1,13 +1,19 @@
 <p align="center">
-<a href="https://homebridge.io"><img src="https://user-images.githubusercontent.com/19808920/58770949-bd9c7900-857f-11e9-8558-5dfaffddffda.png" height="200" /></a>
+<img src="https://user-images.githubusercontent.com/3979615/76676648-d8754100-6619-11ea-8f3d-dafd6b18dffe.png" height="120">
 </p>
 
+<span align="center">
 
-# Homebridge [![npm](https://badgen.net/npm/v/homebridge?color=purple)](https://www.npmjs.com/package/homebridge) [![npm](https://badgen.net/npm/dt/homebridge?color=purple)](https://www.npmjs.com/package/homebridge)
+# Homebridge
+
+<a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge" ></a>
+<a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge" ></a>
+
+</span>
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
 
-Homebridge is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
+**Homebridge** is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
 Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
 
@@ -19,23 +25,21 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
 
-## Community
+##  Community
 
-If you're having an issue with a particular plugin, open an issue in that plugin's Github repository. If you're having an issue with Homebridge itself, feel free to open issues and PRs here.
+The official Homebridge Discord server and Reddit community are where users can discuss Homebridge and ask for help.
 
-There is  a [Homebridge community on Reddit](https://www.reddit.com/r/homebridge/).
+<span align="center">
 
-r/Homekit and r/Homebridge have also created a community Discord server, where users of both Homekit and Homebridge can discuss their different products as well as get support. The link for the community is [here](https://discord.gg/RcV7fa8).
+[![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/kqNCe2D) [![Homebridge Reddit](.github/homebridge-reddit.svg?sanitize=true)](https://www.reddit.com/r/homebridge/)
 
-[![Discord Status](https://img.shields.io/discord/512378789297258528.svg?style=flat)](https://discord.gg/RcV7fa8)
+</span>
 
-You can also chat with us in [Slack](https://homebridge-slackin.glitch.me).
-
-[![Slack Status](https://homebridge-slackin.glitch.me/badge.svg)](https://homebridge-slackin.glitch.me)
+HomeKit communities can also be found on both [discord](https://discord.gg/RcV7fa8) and [reddit](https://www.reddit.com/r/homekit).
 
 ## Installation
 
-The [Homebridge Wiki](https://github.com/nfarina/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge as a service so it automatically start on boot:
+The [Homebridge Wiki](https://github.com/nfarina/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge as a service so it automatically starts on boot:
 
 * [Setup Homebridge on a Raspberry Pi (Raspbian)](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-Raspbian)
 * [Setup Homebridge on Debian/Ubuntu Linux](https://github.com/nfarina/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux)
@@ -89,7 +93,7 @@ Once you've added your config file, you should be able to run Homebridge again:
 
 Homebridge is now ready to receive commands from iOS.
 
-# Installing Plugins
+## Installing Plugins
 
 Plugins are NodeJS modules published through NPM and tagged with the keyword `homebridge-plugin`. They must have a name with the prefix `homebridge-`, like **homebridge-mysmartlock**.
 
@@ -178,4 +182,6 @@ Technically, the device manufacturers should be the ones implementing the HomeKi
 
 ## Credit
 
-The original HomeKit API work was done by [KhaosT](http://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project.
+Homebridge was originally created by [Nick Farina](https://twitter.com/nfarina).
+
+The original HomeKit API work was done by [Khaos Tian](https://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project.
