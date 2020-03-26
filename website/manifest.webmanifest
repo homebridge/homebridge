@@ -1,22 +1,24 @@
 {
-    "name": "Homebridge",
-    "short_name": "Homebridge",
-    "description": "Homebridge is a lightweight NodeJS server that emulates the iOS HomeKit API.",
-    "theme_color": "#140a33",
-    "background_color": "#57277c",
-    "display": "standalone",
-    "icons": [
-        {
-            "src": "/android-chrome-192x192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any maskable"
-        },
-        {
-            "src": "/android-chrome-512x512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any maskable"
-        }
-    ]
+  "name": "Homebridge",
+  "short_name": "Homebridge",
+  "description": "Homebridge is a lightweight NodeJS server that emulates the iOS HomeKit API.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#57277c",
+  "theme_color": "#140a33",
+  "icons": [
+    {
+      "src": "website/images/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "website/images/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
