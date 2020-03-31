@@ -1,0 +1,22 @@
+# Add 'website' to any changes within 'website' folder/subfolders and index.html
+website:
+  - website/**/*
+  - ./index.html
+  - ./CNAME
+
+# Add 'enhancement' to any file changes within 'lib' folder/subfolders
+enhancement: 
+  - lib/**/*
+  - bin/**/*
+
+# Add 'enhancement' label to any change to index.js file
+enhancement:
+  - ./index.js
+  - ./package.json
+  - ./pakcage-lock.json
+  - ./README.md
+  - ./config-sample.json
+  
+# Add 'workflow' to any changes within 'workflow' folder or any subfolders
+workflow:
+  - .github/workflows/*
