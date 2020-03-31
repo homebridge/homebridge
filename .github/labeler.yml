@@ -1,4 +1,4 @@
-# Add 'website' to any changes within 'website' folder/subfolders and index.html
+# Add 'website' to any changes to website files
 website:
   - website/**/*
   - ./index.html
@@ -16,4 +16,4 @@ enhancement:
   
 # Add 'workflow' to any changes within 'workflow' folder or any subfolders
 workflow:
-  - .github/workflows/*
+  - .github/workflows/**/*
