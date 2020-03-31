@@ -4,13 +4,10 @@ website:
   - ./index.html
   - ./CNAME
 
-# Add 'enhancement' to any file changes within 'lib' folder/subfolders
+# Add 'enhancement' to any file changes within 'lib' folder/subfolders and also main repo files
 enhancement: 
   - lib/**/*
   - bin/**/*
-
-# Add 'enhancement' label to any change to index.js file
-enhancement:
   - ./index.js
   - ./package.json
   - ./pakcage-lock.json
