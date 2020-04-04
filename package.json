@@ -3,7 +3,13 @@
   "description": "HomeKit support for the impatient",
   "version": "0.4.53",
   "scripts": {
-    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true"
+    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
+    "lint": "eslint 'src/**/*.{js,ts,json}'",
+    "build": "npm run clean && tsc",
+    "test": "jest",
+    "clean": "rimraf lib/",
+    "prepublishOnly": "npm run build",
+    "postpublish": "npm run clean"
   },
   "author": {
     "name": "Nick Farina"
@@ -21,7 +27,7 @@
     "homebridge": "bin/homebridge"
   },
   "engines": {
-    "node": ">=8.15.1"
+    "node": ">=10.17.0"
   },
   "files": [
     "README.md",
@@ -38,5 +44,19 @@
     "node-persist": "^0.0.11",
     "qrcode-terminal": "^0.12.0",
     "semver": "^7.1.3"
+  },
+  "devDependencies": {
+    "@types/node": "10.17.18",
+    "@types/jest": "^25.2.1",
+    "@types/semver": "^7.1.0",
+    "typescript": "^3.8.3",
+    "ts-node": "^8.8.2",
+    "rimraf": "^3.0.2",
+    "jest": "^25.2.7",
+    "ts-jest": "^25.3.1",
+    "eslint": "^6.8.0",
+    "@typescript-eslint/parser": "^2.27.0",
+    "@typescript-eslint/eslint-plugin": "^2.27.0",
+    "eslint-plugin-jest": "^23.8.2"
   }
 }
