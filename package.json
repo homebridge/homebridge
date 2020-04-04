@@ -22,7 +22,8 @@
     "url": "http://github.com/homebridge/homebridge/issues"
   },
   "license": "ISC",
-  "main": "lib/api.js",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "bin": {
     "homebridge": "bin/homebridge"
   },
@@ -40,15 +41,18 @@
   "dependencies": {
     "chalk": "^3.0.0",
     "commander": "5.0.0",
-    "hap-nodejs": "0.5.9",
+    "hap-nodejs": "0.5.12-beta.0",
     "node-persist": "^0.0.11",
     "qrcode-terminal": "^0.12.0",
-    "semver": "^7.1.3"
+    "semver": "^7.1.3",
+    "source-map-support": "^0.5.16"
   },
   "devDependencies": {
     "@types/node": "10.17.18",
     "@types/jest": "^25.2.1",
     "@types/semver": "^7.1.0",
+    "@types/ip": "^1.1.0",
+    "@types/debug": "^4.1.5",
     "typescript": "^3.8.3",
     "ts-node": "^8.8.2",
     "rimraf": "^3.0.2",

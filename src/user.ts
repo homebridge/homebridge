@@ -1,47 +1,38 @@
-var path = require('path');
-var fs = require('fs');
-var os = require('os');
-
-'use strict';
-
-module.exports = {
-  User: User
-}
+import path from "path";
+import os from "os";
 
 /**
  * Manages user settings and storage locations.
  */
+export class User {
 
-// global cached config
-var config;
+    private static customStoragePath?: string;
+    private static storageAccessed = false;
 
-// optional custom storage path
-var customStoragePath;
+    static configPath(): string {
+      return path.join(User.storagePath(), "config.json");
+    }
 
-function User() {
-}
+    static persistPath(): string {
+      return path.join(User.storagePath(), "persist"); // hap-nodejs data is stored here
+    }
 
-User.config = function() {
-  return config || (config = Config.load(User.configPath()));
-}
+    static cachedAccessoryPath(): string {
+      return path.join(User.storagePath(), "accessories");
+    }
 
-User.storagePath = function() {
-  if (customStoragePath) return customStoragePath;
-  return path.join(os.homedir(), ".homebridge");
-}
+    static storagePath(): string {
+      User.storageAccessed = true;
 
-User.configPath = function() {
-  return path.join(User.storagePath(), "config.json");
-}
+      return User.customStoragePath ? User.customStoragePath : path.join(os.homedir(), ".homebridge");
+    }
 
-User.persistPath = function() {
-  return path.join(User.storagePath(), "persist");
-}
+    public static setStoragePath(...storagePathSegments: string[]): void {
+      if (User.storageAccessed) {
+        throw new Error("Storage path was already accessed and cannot be changed anymore. Try initializing your custom storage path earlier!");
+      }
 
-User.cachedAccessoryPath = function() {
-  return path.join(User.storagePath(), "accessories");
-}
+      User.customStoragePath = path.resolve(...storagePathSegments);
+    }
 
-User.setStoragePath = function(storagePath) {
-  customStoragePath = path.resolve(storagePath);
 }
