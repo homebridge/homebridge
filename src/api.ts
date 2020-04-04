@@ -1,186 +1,315 @@
-var inherits = require('util').inherits;
-var EventEmitter = require('events').EventEmitter;
-var hap = require("hap-nodejs");
-var hapLegacyTypes = require("hap-nodejs/dist/accessories/types.js");
-var log = require("./logger")._system;
-var User = require("./user").User;
-var PlatformAccessory = require("./platformAccessory").PlatformAccessory;
-var serverVersion = require("./version");
+import { EventEmitter } from "events";
+import getVersion from "./version";
+import { Logger, Logging } from "./logger";
+import * as hapNodeJs from "hap-nodejs";
+import { Service } from "hap-nodejs";
+import { PlatformAccessory } from "./platformAccessory";
+import { User } from "./user";
+import { PlatformContext, PluginRequest, PluginResponseHandler } from "./setupmanager/bridgeSetupApi";
+import { AccessoryConfig, PlatformConfig } from "./server";
 
-// The official homebridge API is the object we feed the plugin's exported initializer function.
+const log = Logger.internal;
 
-module.exports = {
-  API: API
+
+export type PluginIdentifier = PluginName | ScopedPluginName;
+export type PluginName = string; // plugin name like "homebridge-dummy"
+export type ScopedPluginName = string; // plugin name like "@scope/homebridge-dummy"
+export type AccessoryName = string;
+export type PlatformName = string;
+
+export type AccessoryIdentifier = string; // format: "PluginName.AccessoryName"
+export type PlatformIdentifier = string; // format: "PluginName.PlatformName"
+
+export enum PluginType {
+    ACCESSORY = "accessory",
+    PLATFORM = "platform",
 }
 
-function API() {
-  this._accessories = {}; // this._accessories[pluginName.accessoryName] = accessory constructor
-  this._platforms = {}; // this._platforms[pluginName.platformName] = platform constructor
+export interface PluginInitializer {
 
-  this._configurableAccessories = {};
-  this._dynamicPlatforms = {}; // this._dynamicPlatforms[pluginName.platformName] = platform constructor
-  
-  // expose the homebridge API version
-  this.version = 2.4;
+    (api: API): void;
 
-  // expose the homebridge server version
-  this.serverVersion = serverVersion;
-
-  // expose the User class methods to plugins to get paths. Example: homebridge.user.storagePath()
-  this.user = User;
-  
-  // expose HAP-NodeJS in its entirely for plugins to use instead of making Plugins
-  // require() it as a dependency - it's a heavy dependency so we don't want it in
-  // every single plugin.
-  this.hap = hap;
-  
-  // we also need to "bolt on" the legacy "types" constants for older accessories/platforms
-  // still using the "object literal" style JSON.
-  this.hapLegacyTypes = hapLegacyTypes;
-
-  this.platformAccessory = PlatformAccessory;
 }
 
-inherits(API, EventEmitter);
-
-API.prototype.accessory = function(name) {
-  
-  // if you passed the "short form" name like "Lockitron" instead of "homebridge-lockitron.Lockitron",
-  // see if it matches exactly one accessory.
-  if (name.indexOf('.') == -1) {
-    var found = [];
-    for (var fullName in this._accessories) {
-      if (fullName.split(".")[1] == name)
-        found.push(fullName);
-    }
-    
-    if (found.length == 1) {
-      return this._accessories[found[0]];
-    }
-    else if (found.length > 1) {
-      throw new Error("The requested accessory '" + name + "' has been registered multiple times. Please be more specific by writing one of: " + found.join(", "));
-    }
-    else {
-      throw new Error("The requested accessory '" + name + "' was not registered by any plugin.");
-    }
-  }
-  else {
-
-    if (!this._accessories[name])
-      throw new Error("The requested accessory '" + name + "' was not registered by any plugin.");
-    
-    return this._accessories[name];
-  }
+export interface AccessoryPluginConstructor {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    new(logger: Logging, config: AccessoryConfig): AccessoryPlugin;
 }
 
-API.prototype.registerAccessory = function(pluginName, accessoryName, constructor, configurationRequestHandler) {
-  var fullName = pluginName + "." + accessoryName;
-  
-  if (this._accessories[fullName])
-    throw new Error("Attempting to register an accessory '" + fullName + "' which has already been registered!");
+export interface AccessoryPlugin {
 
-  log.info("Registering accessory '%s'", fullName);
+    identify?(): void;
 
-  this._accessories[fullName] = constructor;
+    getServices(): Service[];
 
-  // The plugin supports configuration
-  if (configurationRequestHandler) {
-    this._configurableAccessories[fullName] = configurationRequestHandler;
-  }
 }
 
-API.prototype.publishCameraAccessories = function(pluginName, accessories) {
-  for (var index in accessories) {
-    var accessory = accessories[index];
-    if (!(accessory instanceof PlatformAccessory)) {
-      throw new Error(pluginName + " attempt to register an accessory that isn\'t PlatformAccessory!");
-    }
-    accessory._associatedPlugin = pluginName;
-  }
-
-  this.emit('publishExternalAccessories', accessories);
+export interface PlatformPluginConstructor {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    new(logger: Logging, config: PlatformConfig | null, api: API): PlatformPlugin; // config=null for dynamic plugins which did not get mentioned in the config.json
 }
 
-API.prototype.publishExternalAccessories = function(pluginName, accessories) {
-  for (var index in accessories) {
-    var accessory = accessories[index];
-    if (!(accessory instanceof PlatformAccessory)) {
-      throw new Error(pluginName + " attempt to register an accessory that isn\'t PlatformAccessory!");
-    }
-    accessory._associatedPlugin = pluginName;
-  }
+export interface PlatformPlugin { // also referred to as "dynamic" platform plugin
 
-  this.emit('publishExternalAccessories', accessories);
+    configureAccessory(accessory: PlatformAccessory): void;
+
 }
 
-API.prototype.platform = function(name) {
-  
-  // if you passed the "short form" name like "Lockitron" instead of "homebridge-lockitron.Lockitron",
-  // see if it matches exactly one platform.
-  if (name.indexOf('.') == -1) {
-    var found = [];
-    for (var fullName in this._platforms) {
-      if (fullName.split(".")[1] == name)
-        found.push(fullName);
-    }
-    
-    if (found.length == 1) {
-      return this._platforms[found[0]];
-    }
-    else if (found.length > 1) {
-      throw new Error("The requested platform '" + name + "' has been registered multiple times. Please be more specific by writing one of: " + found.join(", "));
-    }
-    else {
-      throw new Error("The requested platform '" + name + "' was not registered by any plugin.");
-    }
-  }
-  else {
+export interface ConfigurablePlatformPlugin extends PlatformPlugin {
 
-    if (!this._platforms[name])
-      throw new Error("The requested platform '" + name + "' was not registered by any plugin.");
-    
-    return this._platforms[name];
-  }
+    configurationRequestHandler(context: PlatformContext, request: null | PluginRequest, responseHandler: PluginResponseHandler): void;
+
 }
 
-API.prototype.registerPlatform = function(pluginName, platformName, constructor, dynamic) {
-  var fullName = pluginName + "." + platformName;
-  
-  if (this._platforms[fullName])
-    throw new Error("Attempting to register a platform '" + fullName + "' which has already been registered!");
+export interface LegacyPlatformPlugin {
 
-  log.info("Registering platform '%s'", fullName);
+    accessories(callback: (foundAccessories: AccessoryPlugin[]) => void): void;
 
-  this._platforms[fullName] = constructor;
-
-  if (dynamic) {
-    this._dynamicPlatforms[fullName] = constructor;
-  }
 }
 
-API.prototype.registerPlatformAccessories = function(pluginName, platformName, accessories) {
-  for (var index in accessories) {
-    var accessory = accessories[index];
-    if (!(accessory instanceof PlatformAccessory)) {
-      throw new Error(pluginName + " - " + platformName + " attempt to register an accessory that isn\'t PlatformAccessory!");
+export enum APIEvent {
+    DID_FINISH_LAUNCHING = "didFinishLaunching",
+    SHUTDOWN = "shutdown",
+}
+
+export enum InternalAPIEvent {
+    PUBLISH_EXTERNAL_ACCESSORIES = "publishExternalAccessories",
+    REGISTER_PLATFORM_ACCESSORIES = "registerPlatformAccessories",
+    UPDATE_PLATFORM_ACCESSORIES = "updatePlatformAccessories",
+    UNREGISTER_PLATFORM_ACCESSORIES = "unregisterPlatformAccessories",
+}
+
+export declare interface API {
+
+    on(event: "didFinishLaunching", listener: () => void): this;
+    on(event: "shutdown", listener: () => void): this;
+
+}
+
+export interface API {
+
+    readonly version: number;
+    readonly serverVersion: string;
+
+    // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
+    readonly user: typeof User;
+    readonly hap: typeof hapNodeJs;
+    readonly hapLegacyTypes: typeof hapNodeJs.LegacyTypes; // used for older accessories/platforms
+    readonly platformAccessory: typeof PlatformAccessory;
+    // ------------------------------------------------------------------------
+
+    registerAccessory(pluginName: PluginName, accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void;
+
+    registerPlatform(pluginName: PluginName, platformName: PlatformName, constructor: PlatformPluginConstructor, dynamic?: boolean): void;
+    registerPlatformAccessories(pluginName: PlatformName, platformName: PlatformName, accessories: PlatformAccessory[]): void;
+    updatePlatformAccessories(accessories: PlatformAccessory[]): void;
+    unregisterPlatformAccessories(pluginName: PluginName, platformName: PlatformName, accessories: PlatformAccessory[]): void;
+
+    /**
+     * @deprecated use {@link publishExternalAccessories} directly to publish a standalone Accessory
+     */
+    publishCameraAccessories(pluginName: PluginName, accessories: PlatformAccessory[]): void;
+    publishExternalAccessories(pluginName: PluginName, accessories: PlatformAccessory[]): void;
+
+}
+
+export declare interface HomebridgeAPI {
+
+
+    on(event: "didFinishLaunching", listener: () => void): this;
+    on(event: "shutdown", listener: () => void): this;
+
+    // Internal events (using enums directly to restrict access)
+    on(event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this;
+    on(event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this;
+    on(event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this;
+    on(event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this;
+
+
+    emit(event: "didFinishLaunching"): boolean;
+    emit(event: "shutdown"): boolean;
+
+    emit(event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
+    emit(event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
+    emit(event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
+    emit(event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
+
+}
+
+export class HomebridgeAPI extends EventEmitter implements API {
+
+    public readonly version = 2.4; // homebridge API version
+    public readonly serverVersion = getVersion(); // homebridge node module version
+
+    // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
+    readonly user = User;
+    readonly hap = hapNodeJs;
+    readonly hapLegacyTypes = hapNodeJs.LegacyTypes; // used for older accessories/platforms
+    readonly platformAccessory = PlatformAccessory;
+    // ------------------------------------------------------------------------
+
+    private readonly _accessories: Record<AccessoryIdentifier, AccessoryPluginConstructor> = {};
+    private readonly _platforms: Record<PlatformIdentifier, PlatformPluginConstructor> = {};
+
+    // private readonly _configurableAccessories: Record<AccessoryIdentifier, ConfigurablePlatformPlugin> = {}; // accessory configuration is not (yet) supported by BridgeSetupManager
+    readonly _dynamicPlatforms: Map<PlatformIdentifier, PlatformPluginConstructor> = new Map();
+
+    constructor() {
+      super();
     }
-    accessory._associatedPlugin = pluginName;
-    accessory._associatedPlatform = platformName;
-  }
 
-  this.emit('registerPlatformAccessories', accessories);
-}
-
-API.prototype.updatePlatformAccessories = function(accessories) {
-  this.emit('updatePlatformAccessories', accessories);
-}
-
-API.prototype.unregisterPlatformAccessories = function(pluginName, platformName, accessories) {
-  for (var index in accessories) {
-    var accessory = accessories[index];
-    if (!(accessory instanceof PlatformAccessory)) {
-      throw new Error(pluginName + " - " + platformName + " attempt to unregister an accessory that isn\'t PlatformAccessory!");
+    static isConfigurablePlugin(plugin: PlatformPlugin): plugin is ConfigurablePlatformPlugin {
+      return "configurationRequestHandler" in plugin;
     }
-  }
-  this.emit('unregisterPlatformAccessories', accessories);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    static isLegacyPlatformPlugin(platformPlugin: any): platformPlugin is LegacyPlatformPlugin {
+      return "accessories" in platformPlugin;
+    }
+
+    static getAccessoryName(identifier: AccessoryIdentifier): AccessoryName {
+      return identifier.split(".")[1];
+    }
+
+    static getPlatformName(identifier: PlatformIdentifier): PlatformIdentifier {
+      return identifier.split(".")[1];
+    }
+
+    static getPluginName(identifier: AccessoryIdentifier | PlatformIdentifier): PluginName {
+      return identifier.split(".")[0];
+    }
+
+    signalFinished(): void {
+      this.emit(APIEvent.DID_FINISH_LAUNCHING);
+    }
+
+    signalShutdown(): void {
+      this.emit(APIEvent.SHUTDOWN);
+    }
+
+    accessory(name: AccessoryIdentifier | AccessoryName): AccessoryPluginConstructor {
+      if (name.indexOf(".") === -1) { // see if it matches exactly one accessory
+        const found = Object.keys(this._accessories)
+          .filter(identifier => HomebridgeAPI.getAccessoryName(identifier) === name);
+
+        if (found.length === 1) {
+          return this._accessories[found[0]];
+        } else if (found.length > 1) {
+          throw new Error(`The requested accessory '${name}' has been registered multiple times. Please be more specific by writing one of: ${found.join(", ")}`);
+        } else {
+          throw new Error(`The requested accessory '${name}' was not registered by any plugin.`);
+        }
+      } else {
+        if (!this._accessories[name]) {
+          throw new Error(`The requested accessory '${name}' was not registered by any plugin.`);
+        }
+
+        return this._accessories[name];
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    registerAccessory(pluginName: PluginName, accessoryName: AccessoryName, constructor: AccessoryPluginConstructor, configurationRequestHandler?: undefined): void {
+      const fullName: AccessoryIdentifier = pluginName + "." + accessoryName;
+
+      if (this._accessories[fullName]) {
+        throw new Error(`Attempting to register an accessory '${fullName}' which has already been registered!`);
+      }
+
+      log.info("Registering accessory '%s'", fullName);
+
+      this._accessories[fullName] = constructor;
+
+      /* // accessory configuration is not (yet) supported by BridgeSetupManager
+        // The plugin supports configuration
+        if (configurationRequestHandler) {
+            this._configurableAccessories[fullName] = configurationRequestHandler;
+        }
+        */
+    }
+
+    publishCameraAccessories(pluginName: PluginName, accessories: PlatformAccessory[]): void {
+      this.publishExternalAccessories(pluginName, accessories);
+    }
+
+    publishExternalAccessories(pluginName: PluginName, accessories: PlatformAccessory[]): void {
+      accessories.forEach(accessory => {
+        // noinspection SuspiciousTypeOfGuard
+        if (!(accessory instanceof PlatformAccessory)) {
+          throw new Error(`${pluginName} attempt to register an accessory that isn't PlatformAccessory!`);
+        }
+
+        accessory._associatedPlugin = pluginName;
+      });
+
+      this.emit(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories);
+    }
+
+    platform(name: PlatformIdentifier | PlatformName): PlatformPluginConstructor {
+      if (name.indexOf(".") === -1) { // see if it matches exactly one platform
+        const found = Object.keys(this._platforms)
+          .filter(identifier => HomebridgeAPI.getPlatformName(identifier) === name);
+
+        if (found.length === 1) {
+          return this._platforms[found[0]];
+        } else if (found.length > 1) {
+          throw new Error(`The requested platform '${name}' has been registered multiple times. Please be more specific by writing one of: ${found.join(", ")}`);
+        } else {
+          throw new Error(`The requested platform '${name}' was not registered by any plugin.`);
+        }
+      } else {
+        if (!this._platforms[name]) {
+          throw new Error(`The requested platform '${name}' was not registered by any plugin.`);
+        }
+
+        return this._platforms[name];
+      }
+    }
+
+    registerPlatform(pluginName: PluginName, platformName: PlatformName, constructor: PlatformPluginConstructor, dynamic?: boolean): void {
+      const fullName = pluginName + "." + platformName;
+
+      if (this._platforms[fullName]) {
+        throw new Error(`Attempting to register a platform '${fullName}' which has already been registered!`);
+      }
+
+      log.info("Registering platform '%s'", fullName);
+
+      this._platforms[fullName] = constructor;
+
+      if (dynamic) {
+        this._dynamicPlatforms.set(fullName, constructor);
+      }
+    }
+
+    registerPlatformAccessories(pluginName: PlatformName, platformName: PlatformName, accessories: PlatformAccessory[]): void {
+      accessories.forEach(accessory => {
+        // noinspection SuspiciousTypeOfGuard
+        if (!(accessory instanceof PlatformAccessory)) {
+          throw new Error(`${pluginName} - ${platformName} attempt to register an accessory that isn't PlatformAccessory!`);
+        }
+
+        accessory._associatedPlugin = pluginName;
+        accessory._associatedPlatform = platformName;
+      });
+
+      this.emit(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories);
+    }
+
+    updatePlatformAccessories(accessories: PlatformAccessory[]): void {
+      this.emit(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories);
+    }
+
+    unregisterPlatformAccessories(pluginName: PluginName, platformName: PlatformName, accessories: PlatformAccessory[]): void {
+      accessories.forEach(accessory => {
+        // noinspection SuspiciousTypeOfGuard
+        if (!(accessory instanceof PlatformAccessory)) {
+          throw new Error(`${pluginName} - ${platformName} attempt to unregister an accessory that isn't PlatformAccessory!`);
+        }
+      });
+
+      this.emit(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories);
+    }
+
+
 }

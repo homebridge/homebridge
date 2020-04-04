@@ -1,12 +1,8 @@
-var fs = require('fs');
-var path = require('path');
+import fs from "fs";
+import path from "path";
 
-'use strict';
-
-module.exports = getVersion();
-
-function getVersion() {
-  var packageJSONPath = path.join(__dirname, '../package.json');
-  var packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
+export default function getVersion(): string {
+  const packageJSONPath = path.join(__dirname, "../package.json");
+  const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, { encoding: "utf8" }));
   return packageJSON.version;
 }

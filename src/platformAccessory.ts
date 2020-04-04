@@ -1,257 +1,148 @@
-var uuid = require("hap-nodejs").uuid;
-var Accessory = require("hap-nodejs").Accessory;
-var Service = require("hap-nodejs").Service;
-var Characteristic = require("hap-nodejs").Characteristic;
-var inherits = require('util').inherits;
-var EventEmitter = require('events').EventEmitter;
+import { EventEmitter } from "events";
+import {
+  Accessory,
+  AccessoryEventTypes,
+  Categories,
+  LegacyCameraSource,
+  SerializedAccessory,
+  Service,
+  WithUUID,
+} from "hap-nodejs";
+import { PlatformName, PluginName } from "./api";
 
-'use strict';
+export interface SerializedPlatformAccessory extends SerializedAccessory {
 
-module.exports = {
-  PlatformAccessory: PlatformAccessory
+    plugin: PluginName;
+    platform: PlatformName;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    context: Record<string, any>;
+
 }
 
-function PlatformAccessory(displayName, UUID, category) {
-  if (!displayName) throw new Error("Accessories must be created with a non-empty displayName.");
-  if (!UUID) throw new Error("Accessories must be created with a valid UUID.");
-  if (!uuid.isValid(UUID)) throw new Error("UUID '" + UUID + "' is not a valid UUID. Try using the provided 'generateUUID' function to create a valid UUID from any arbitrary string, like a serial number.");
-
-  this.displayName = displayName;
-  this.UUID = UUID;
-  this.category = category || Accessory.Categories.OTHER;
-  this.services = [];
-  this.reachable = false;
-  this.context = {};
-
-  this._associatedPlugin;
-  this._associatedPlatform;
-  this._associatedHAPAccessory;
-
-  this
-    .addService(Service.AccessoryInformation)
-    .setCharacteristic(Characteristic.Name, displayName)
-    .setCharacteristic(Characteristic.Manufacturer, "Default-Manufacturer")
-    .setCharacteristic(Characteristic.Model, "Default-Model")
-    .setCharacteristic(Characteristic.SerialNumber, "Default-SerialNumber");
+export enum PlatformAccessoryEvent {
+    IDENTIFY = "identify",
 }
 
-inherits(PlatformAccessory, EventEmitter);
+export declare interface PlatformAccessory {
 
-PlatformAccessory.prototype.addService = function(service) {
-  // service might be a constructor like `Service.AccessoryInformation` instead of an instance
-  // of Service. Coerce if necessary.
-  if (typeof service === 'function')
-    service = new (Function.prototype.bind.apply(service, arguments));
-  
-  // check for UUID+subtype conflict
-  for (var index in this.services) {
-    var existing = this.services[index];
-    if (existing.UUID === service.UUID) {
-      // OK we have two Services with the same UUID. Check that each defines a `subtype` property and that each is unique.
-      if (!service.subtype)
-        throw new Error("Cannot add a Service with the same UUID '" + existing.UUID + "' as another Service in this Accessory without also defining a unique 'subtype' property.");
-      
-      if (service.subtype.toString() === existing.subtype.toString())
-        throw new Error("Cannot add a Service with the same UUID '" + existing.UUID + "' and subtype '" + existing.subtype + "' as another Service in this Accessory.");
+    on(event: "identify", listener: () => void): this;
+
+    emit(event: "identify"): boolean;
+
+}
+
+export class PlatformAccessory extends EventEmitter {
+
+    // somewhat ugly way to inject custom Accessory object, while not changing the publicly exposed constructor signature
+    private static injectedAccessory?: Accessory;
+
+    _associatedPlugin?: PluginName;
+    _associatedPlatform?: PlatformName; // not present for external accessories
+
+    _associatedHAPAccessory: Accessory;
+
+    // ---------------- HAP Accessory mirror ----------------
+    displayName: string;
+    UUID: string;
+    category: Categories;
+    services: Service[] = [];
+    // ------------------------------------------------------
+
+    /**
+     * This is a way for Plugin developers to store custom data with their accessory
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    public context: Record<string, any> = {}; // providing something to store
+
+    constructor(displayName: string, uuid: string, category?: Categories) {
+      super();
+      this._associatedHAPAccessory = PlatformAccessory.injectedAccessory
+        ? PlatformAccessory.injectedAccessory
+        : new Accessory(displayName, uuid);
+
+      this.displayName = this._associatedHAPAccessory.displayName;
+      this.UUID = this._associatedHAPAccessory.UUID;
+      this.category = category || Categories.OTHER;
+      this.services = this._associatedHAPAccessory.services;
+
+      // forward identify event
+      this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired, callback) => {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+        // @ts-ignore
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        this.emit(PlatformAccessoryEvent.IDENTIFY, () => {}); // empty callback for backwards compatibility
+        callback();
+      });
     }
-  }
 
-  this.services.push(service);
-
-  if (this._associatedHAPAccessory) {
-    this._associatedHAPAccessory.addService(service);
-  }
-  return service;
-}
-
-PlatformAccessory.prototype.removeService = function(service) {
-  var targetServiceIndex;
-
-  for (var index in this.services) {
-    var existingService = this.services[index];
-    
-    if (existingService === service) {
-      targetServiceIndex = index;
-      break;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    public addService(service: Service | typeof Service, ...constructorArgs: any[]): Service {
+      return this._associatedHAPAccessory.addService(service, ...constructorArgs);
     }
-  }
 
-  if (targetServiceIndex) {
-    this.services.splice(targetServiceIndex, 1);
-    service.removeAllListeners();
-
-    if (this._associatedHAPAccessory) {
+    public removeService(service: Service): void {
       this._associatedHAPAccessory.removeService(service);
     }
-  }
-}
 
-/**
- * searchs for a Service in the services collection and returns the first Service object that matches.
- * If multiple services of the same type are present in one accessory, use getServiceByUUIDAndSubType instead.
- * @param {ServiceConstructor|string} name
- * @returns Service
- */
-PlatformAccessory.prototype.getService = function(name) {
-  for (var index in this.services) {
-    var service = this.services[index];
-    
-    if (typeof name === 'string' && (service.displayName === name || service.name === name))
-      return service;
-    else if (typeof name === 'function' && ((service instanceof name) || (name.UUID === service.UUID)))
-      return service;
-  }
-}
-
-/**
- * searchs for a Service in the services collection and returns the first Service object that matches.
- * If multiple services of the same type are present in one accessory, use getServiceByUUIDAndSubType instead.
- * @param {string} UUID Can be an UUID, a service.displayName, or a constructor of a Service
- * @param {string} subtype A subtype string to match
- * @returns Service
- */
-PlatformAccessory.prototype.getServiceByUUIDAndSubType = function(UUID, subtype) {
-  for (var index in this.services) {
-    var service = this.services[index];
-    
-    if (typeof UUID === 'string' && (service.displayName === UUID || service.name === UUID) && service.subtype === subtype )
-      return service;
-    else if (typeof UUID === 'function' && ((service instanceof UUID) || (UUID.UUID === service.UUID)) && service.subtype === subtype)
-      return service;
-  }
-}
-
-
-PlatformAccessory.prototype.updateReachability = function(reachable) {
-  this.reachable = reachable;
-
-  if (this._associatedHAPAccessory) {
-    this._associatedHAPAccessory.updateReachability(reachable);
-  }
-}
-
-PlatformAccessory.prototype.configureCameraSource = function(cameraSource) {
-  this.cameraSource = cameraSource;
-  for (var index in cameraSource.services) {
-    var service = cameraSource.services[index];
-    this.addService(service);
-  }
-}
-
-PlatformAccessory.prototype._prepareAssociatedHAPAccessory = function () {
-  this._associatedHAPAccessory = new Accessory(this.displayName, this.UUID);
-
-  if (this.cameraSource) {
-    this._associatedHAPAccessory.configureCameraSource(this.cameraSource);
-  }
-
-  this._associatedHAPAccessory._sideloadServices(this.services);
-  this._associatedHAPAccessory.category = this.category;
-  this._associatedHAPAccessory.reachable = this.reachable;
-  this._associatedHAPAccessory.on('identify', function(paired, callback) {
-    if (this.listeners('identify').length > 0) {
-    // allow implementors to identify this Accessory in whatever way is appropriate, and pass along
-    // the standard callback for completion.
-      this.emit('identify', paired, callback);
-    } else {
-      callback();
-    }
-  }.bind(this));
-}
-
-PlatformAccessory.prototype._dictionaryPresentation = function() {
-  var accessory = {};
-
-  accessory.plugin = this._associatedPlugin;
-  accessory.platform = this._associatedPlatform;
-  accessory.displayName = this.displayName;
-  accessory.UUID = this.UUID;
-  accessory.category = this.category;
-  accessory.context = this.context;
-
-  var services = [];
-  var linkedServices = {};
-  for (var index in this.services) {
-    var service = this.services[index];
-    var servicePresentation = {};
-    servicePresentation.displayName = service.displayName;
-    servicePresentation.UUID = service.UUID;
-    servicePresentation.subtype = service.subtype;
-
-    var linkedServicesPresentation = [];
-    for (var linkedServiceIdx in service.linkedServices) {
-      var linkedService = service.linkedServices[linkedServiceIdx];
-      linkedServicesPresentation.push(linkedService.UUID + (linkedServices.subtype || ""));
-    }
-    linkedServices[service.UUID + (service.subtype || "")] = linkedServicesPresentation;
-
-    var characteristics = [];
-    for (var cIndex in service.characteristics) {
-      var characteristic = service.characteristics[cIndex];
-      var characteristicPresentation = {};
-      characteristicPresentation.displayName = characteristic.displayName;
-      characteristicPresentation.UUID = characteristic.UUID;
-      characteristicPresentation.props = characteristic.props;
-      characteristicPresentation.value = characteristic.value;
-      characteristicPresentation.eventOnlyCharacteristic = characteristic.eventOnlyCharacteristic;
-      characteristics.push(characteristicPresentation);
-    }
-    
-    servicePresentation.characteristics = characteristics;
-    services.push(servicePresentation);
-  }
-
-  accessory.linkedServices = linkedServices;
-  accessory.services = services;
-  return accessory;
-}
-
-PlatformAccessory.prototype._configFromData = function(data) {
-  this._associatedPlugin = data.plugin;
-  this._associatedPlatform = data.platform;
-  this.displayName = data.displayName;
-  this.UUID = data.UUID;
-  this.category = data.category;
-  this.context = data.context;
-  this.reachable = false;
-
-  var services = [];
-  var servicesMap = {};
-
-  for (var index in data.services) {
-    var service = data.services[index];
-    var hapService = new Service(service.displayName, service.UUID, service.subtype);
-
-    var characteristics = [];
-    for (var cIndex in service.characteristics) {
-      var characteristic = service.characteristics[cIndex];
-      var hapCharacteristic = new Characteristic(characteristic.displayName, characteristic.UUID, characteristic.props);
-      hapCharacteristic.eventOnlyCharacteristic = characteristic.eventOnlyCharacteristic;
-      hapCharacteristic.value = characteristic.value;
-      characteristics.push(hapCharacteristic);
+    public getService<T extends WithUUID<typeof Service>>(name: string | T): Service | undefined {
+      return this._associatedHAPAccessory.getService(name);
     }
 
-    hapService._sideloadCharacteristics(characteristics);
-
-    servicesMap[service.UUID + (service.subtype || "")] = hapService;
-    services.push(hapService);
-  }
-
-  if (data.linkedServices) {
-    var linkedServices = data.linkedServices;
-    for (var key in linkedServices) {
-      var primaryService = servicesMap[key];
-      if (primaryService) {
-        var linkedServiceKeys = linkedServices[key];
-        for (var linkedServiceKey in linkedServiceKeys) {
-          var linkedService = servicesMap[linkedServiceKeys[linkedServiceKey]];
-          if (linkedService) {
-            primaryService.addLinkedService(linkedService);
-          }
-        }
-      }
+    /**
+     *
+     * @param uuid
+     * @param subType
+     * @deprecated use {@link getServiceById} directly
+     */
+    public getServiceByUUIDAndSubType<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
+      return this.getServiceById(uuid, subType);
     }
-  }
 
-  this.services = services;
+    public getServiceById<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
+      return this._associatedHAPAccessory.getServiceById(uuid, subType);
+    }
+
+    /**
+     *
+     * @param reachable
+     * @deprecated reachability isn't supported anymore
+     */
+    public updateReachability(reachable: boolean): void {
+      this._associatedHAPAccessory.updateReachability(reachable);
+    }
+
+    /**
+     *
+     * @param cameraSource
+     * @deprecated see {@link Accessory.configureCameraSource}
+     */
+    public configureCameraSource(cameraSource: LegacyCameraSource): void {
+      this._associatedHAPAccessory.configureCameraSource(cameraSource);
+    }
+
+    // private
+    static serialize(accessory: PlatformAccessory): SerializedPlatformAccessory {
+      return {
+        plugin: accessory._associatedPlugin!,
+        platform: accessory._associatedPlatform!,
+        context: accessory.context,
+        ...Accessory.serialize(accessory._associatedHAPAccessory),
+      };
+    }
+
+    static deserialize(json: SerializedPlatformAccessory): PlatformAccessory {
+      const accessory = Accessory.deserialize(json);
+
+      PlatformAccessory.injectedAccessory = accessory;
+      const platformAccessory = new PlatformAccessory(accessory.displayName, accessory.UUID);
+      PlatformAccessory.injectedAccessory = undefined;
+
+      platformAccessory._associatedPlugin = json.plugin;
+      platformAccessory._associatedPlatform = json.platform;
+      platformAccessory.context = json.context;
+
+      return platformAccessory;
+    }
+
 }

@@ -1,18 +1,18 @@
-var crypto = require('crypto');
+import crypto from "crypto";
 
-'use strict';
+const validMac = /^([0-9A-F]{2}:){5}([0-9A-F]{2})$/;
 
-module.exports = {
-  generate: generate
+export type MacAddress = string;
+
+export function validMacAddress(address: string): boolean {
+  return validMac.test(address);
 }
 
-function generate(data) {
-  var sha1sum = crypto.createHash('sha1');
+export function generate(data: string | Buffer | NodeJS.TypedArray | DataView): MacAddress {
+  const sha1sum = crypto.createHash("sha1");
   sha1sum.update(data);
-  var s = sha1sum.digest('hex');
-  var i = -1;
-  return 'xx:xx:xx:xx:xx:xx'.replace(/[x]/g, function(c) {
-    i += 1;
-    return s[i];
-  }).toUpperCase();
-};
+  const s = sha1sum.digest("hex");
+
+  let i = 0;
+  return "xx:xx:xx:xx:xx:xx".replace(/[x]/g, () => s[i++]).toUpperCase();
+}
