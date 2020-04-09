@@ -20,7 +20,6 @@ import {
   AccessoryName,
   AccessoryPlugin,
   AccessoryPluginConstructor,
-  ConfigurablePlatformPlugin,
   HomebridgeAPI,
   InternalAPIEvent,
   LegacyPlatformPlugin,
@@ -29,10 +28,8 @@ import {
   PlatformPlugin,
   PlatformPluginConstructor,
   PluginIdentifier,
-  PluginType,
 } from "./api";
 import { PlatformAccessory, SerializedPlatformAccessory } from "./platformAccessory";
-import { BridgeSetupManager, BridgeSetupManagerEvent } from "./setupmanager/bridgeSetupManager";
 import getVersion from "./version";
 import { Plugin, PluginManager } from "./plugin";
 import * as mac from "./util/mac";
@@ -110,9 +107,7 @@ export class Server {
     private _nextExternalPort?: number;
 
     private readonly _activeDynamicPlugins: Map<PlatformName | PlatformIdentifier, PlatformPlugin> = new Map();
-    private readonly _configurablePlatformPlugins: Map<PlatformName | PlatformIdentifier, ConfigurablePlatformPlugin> = new Map();
     private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map();
-    private readonly _setupManager: BridgeSetupManager;
     private readonly _allowInsecureAccess: boolean;
 
     private _asyncCalls = 0;
@@ -140,10 +135,6 @@ export class Server {
 
       this._externalPorts = this._config.ports;
 
-      this._setupManager = new BridgeSetupManager(this._configurablePlatformPlugins);
-      this._setupManager.on(BridgeSetupManagerEvent.NEW_CONFIG, this._handleNewConfig.bind(this));
-      this._setupManager.on(BridgeSetupManagerEvent.REQUEST_CURRENT_CONFIG, callback => callback(this._config));
-
       // Server is "secure by default", meaning it creates a top-level Bridge accessory that
       // will not allow unauthenticated requests. This matches the behavior of actual HomeKit
       // accessories. However you can set this to true to allow all requests without authentication,
@@ -164,7 +155,6 @@ export class Server {
         this._loadAccessories();
       }
       this._configCachedPlatformAccessories();
-      this._bridge.addService(this._setupManager.getService());
 
       this._asyncWait = false;
 
@@ -393,10 +383,6 @@ export class Server {
 
         if (platformInstance.configureAccessory !== undefined) {
           this._activeDynamicPlugins.set(platformType, platformInstance); // // platformType is here type "PlatformName"
-
-          if (HomebridgeAPI.isConfigurablePlugin(platformInstance)) {
-            this._configurablePlatformPlugins.set(platformType, platformInstance); // platformType is here type "PlatformName"
-          }
         } else if (HomebridgeAPI.isLegacyPlatformPlugin(platformInstance)) {
           // Plugin 1.0, load accessories
           this._loadPlatformAccessories(platformInstance, platformLogger, platformType);
@@ -592,79 +578,6 @@ export class Server {
       }
 
       this.api.signalShutdown();
-    }
-
-    private _handleNewConfig(type: PluginType, name: PlatformName | PlatformIdentifier, replace: boolean, config: AccessoryConfig | PlatformConfig): void {
-      if (type === PluginType.ACCESSORY) {
-        // TODO: Load new accessory
-        const accessoryConfig = config as AccessoryConfig;
-
-        if (!replace) {
-          this._config.accessories.push(accessoryConfig);
-        } else {
-          let targetName;
-          if (name.indexOf(".") !== -1) {
-            targetName = name.split(".")[1];
-          }
-
-          let found = false;
-          for (const index in this._config.accessories) {
-            const existingConfig = this._config.accessories[index];
-
-            if (existingConfig.accessory === name) {
-              this._config.accessories[index] = accessoryConfig;
-              found = true;
-              break;
-            }
-
-            if (targetName && (existingConfig.accessory === targetName)) {
-              this._config.accessories[index] = accessoryConfig;
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            this._config.accessories.push(accessoryConfig);
-          }
-        }
-      } else if (type === PluginType.PLATFORM) {
-        const platformConfig = config as PlatformConfig;
-
-        if (!replace) {
-          this._config.platforms.push(platformConfig);
-        } else {
-          let targetName;
-          if (name.indexOf(".") !== -1) {
-            targetName = name.split(".")[1];
-          }
-
-          let found = false;
-          for (const index in this._config.platforms) {
-            const existingConfig = this._config.platforms[index];
-
-            if (existingConfig.platform === name) {
-              this._config.platforms[index] = platformConfig;
-              found = true;
-              break;
-            }
-
-            if (targetName && (existingConfig.platform === targetName)) {
-              this._config.platforms[index] = platformConfig;
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            this._config.platforms.push(platformConfig);
-          }
-        }
-      }
-
-      const serializedConfig = JSON.stringify(this._config, null, "  ");
-      const configPath = User.configPath();
-      fs.writeFileSync(configPath, serializedConfig, "utf8");
     }
 
     private _printSetupInfo(pin: string): void {
