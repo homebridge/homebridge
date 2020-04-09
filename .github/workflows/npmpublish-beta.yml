@@ -10,17 +10,18 @@ on:
 
 jobs:
   build:
+    
+    strategy:
+      matrix:
+        node-version: [10.x, 12.x, 13.x]
+    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:
-          node-version: 12
+          node-version: ${{ matrix.node-version }}
       - run: npm ci
-
-    strategy:
-      matrix:
-        node-version: [10.x, 12.x, 13.x]
 
   publish-npm:
     needs: build
@@ -29,7 +30,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 10
           registry-url: https://registry.npmjs.org/
       - run: npm ci
       - run: node .github/workflows/prerelease.js
