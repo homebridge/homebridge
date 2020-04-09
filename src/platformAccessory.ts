@@ -1,8 +1,8 @@
 import { EventEmitter } from "events";
 import {
   Accessory,
-  AccessoryEventTypes,
-  Categories,
+  AccessoryEventTypes, CameraController,
+  Categories, Controller, ControllerConstructor,
   LegacyCameraSource,
   SerializedAccessory,
   Service,
@@ -117,8 +117,12 @@ export class PlatformAccessory extends EventEmitter {
      * @param cameraSource
      * @deprecated see {@link Accessory.configureCameraSource}
      */
-    public configureCameraSource(cameraSource: LegacyCameraSource): void {
-      this._associatedHAPAccessory.configureCameraSource(cameraSource);
+    public configureCameraSource(cameraSource: LegacyCameraSource): CameraController {
+      return this._associatedHAPAccessory.configureCameraSource(cameraSource);
+    }
+
+    public configureControllerSupport(controller: Controller | ControllerConstructor): void {
+      this._associatedHAPAccessory.configureController(controller);
     }
 
     // private
