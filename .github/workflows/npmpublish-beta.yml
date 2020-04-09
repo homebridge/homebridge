@@ -1,6 +1,9 @@
 # This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
 # For more information see: https://help.github.com/actions/language-and-framework-guides/publishing-nodejs-packages
 
+# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
+# For more information see: https://help.github.com/actions/language-and-framework-guides/publishing-nodejs-packages
+
 name: Publish Beta
 
 on:
@@ -10,17 +13,12 @@ on:
 
 jobs:
   build:
-    
-    strategy:
-      matrix:
-        node-version: [10.x, 12.x, 13.x]
-    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 10
       - run: npm ci
 
   publish-npm:
