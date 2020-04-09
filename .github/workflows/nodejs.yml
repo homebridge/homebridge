@@ -18,8 +18,12 @@ jobs:
         id: cache
         with:
           path: node_modules
-          node-version: ${{ matrix.node-version }}
           key: ${{ runner.OS }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
 
       - name: Install NPM
         if: steps.cache.outputs.cache-hit != 'true'
