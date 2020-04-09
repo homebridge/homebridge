@@ -32,7 +32,6 @@ export interface PluginInitializer {
 }
 
 export interface AccessoryPluginConstructor {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     new(logger: Logging, config: AccessoryConfig): AccessoryPlugin;
 }
 
@@ -45,8 +44,7 @@ export interface AccessoryPlugin {
 }
 
 export interface PlatformPluginConstructor {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    new(logger: Logging, config: PlatformConfig | null, api: API): PlatformPlugin; // config=null for dynamic plugins which did not get mentioned in the config.json
+    new(logger: Logging, config: PlatformConfig, api: API): PlatformPlugin;
 }
 
 export interface PlatformPlugin { // also referred to as "dynamic" platform plugin
@@ -152,7 +150,6 @@ export class HomebridgeAPI extends EventEmitter implements API {
     private readonly _platforms: Record<PlatformIdentifier, PlatformPluginConstructor> = {};
 
     // private readonly _configurableAccessories: Record<AccessoryIdentifier, ConfigurablePlatformPlugin> = {}; // accessory configuration is not (yet) supported by BridgeSetupManager
-    readonly _dynamicPlatforms: Map<PlatformIdentifier, PlatformPluginConstructor> = new Map();
 
     constructor() {
       super();
@@ -266,7 +263,7 @@ export class HomebridgeAPI extends EventEmitter implements API {
       }
     }
 
-    registerPlatform(pluginName: PluginName, platformName: PlatformName, constructor: PlatformPluginConstructor, dynamic?: boolean): void {
+    registerPlatform(pluginName: PluginName, platformName: PlatformName, constructor: PlatformPluginConstructor): void {
       const fullName = pluginName + "." + platformName;
 
       if (this._platforms[fullName]) {
@@ -276,10 +273,6 @@ export class HomebridgeAPI extends EventEmitter implements API {
       log.info("Registering platform '%s'", fullName);
 
       this._platforms[fullName] = constructor;
-
-      if (dynamic) {
-        this._dynamicPlatforms.set(fullName, constructor);
-      }
     }
 
     registerPlatformAccessories(pluginName: PlatformName, platformName: PlatformName, accessories: PlatformAccessory[]): void {
