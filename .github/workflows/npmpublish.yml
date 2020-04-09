@@ -5,19 +5,14 @@ on:
     types: [created]
 jobs:
   build:
-    
-    strategy:
-      matrix:
-        node-version: [10.x, 12.x, 13.x]
-    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-node@v1
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 10
       - run: npm ci
-        
+
   publish-npm:
     runs-on: ubuntu-latest
     steps:
