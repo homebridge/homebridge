@@ -22,9 +22,14 @@ jobs:
 
       - name: Install NPM
         if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          npm ci
-          npm build
-          npm test
+        run: npm ci
+
+      - name: Build
+        run: npm build
+        env:
+          CI: true
+
+      - name: Test
+        run: npm test
         env:
           CI: true
