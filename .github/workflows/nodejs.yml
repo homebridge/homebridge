@@ -18,6 +18,7 @@ jobs:
         id: cache
         with:
           path: node_modules
+          node-version: ${{ matrix.node-version }}
           key: ${{ runner.OS }}-node-modules-${{ hashFiles('**/package-lock.json') }}
 
       - name: Install NPM
