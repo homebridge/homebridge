@@ -1,0 +1,40 @@
+name: NodeJS
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [10.x, 12.x, 13.x]
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Cache Node Modules
+        uses: actions/cache@v1
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.OS }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install NPM
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Build
+        run: npm build
+        env:
+          CI: true
+
+      - name: Test
+        run: npm test
+        env:
+          CI: true
