@@ -121,7 +121,7 @@ export class PlatformAccessory extends EventEmitter {
       return this._associatedHAPAccessory.configureCameraSource(cameraSource);
     }
 
-    public configureControllerSupport(controller: Controller | ControllerConstructor): void {
+    public configureController(controller: Controller | ControllerConstructor): void {
       this._associatedHAPAccessory.configureController(controller);
     }
 
