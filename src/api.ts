@@ -5,7 +5,6 @@ import * as hapNodeJs from "hap-nodejs";
 import { Service } from "hap-nodejs";
 import { PlatformAccessory } from "./platformAccessory";
 import { User } from "./user";
-import { PlatformContext, PluginRequest, PluginResponseHandler } from "./setupmanager/bridgeSetupApi";
 import { AccessoryConfig, PlatformConfig } from "./server";
 
 const log = Logger.internal;
@@ -50,12 +49,6 @@ export interface PlatformPluginConstructor {
 export interface PlatformPlugin { // also referred to as "dynamic" platform plugin
 
     configureAccessory(accessory: PlatformAccessory): void;
-
-}
-
-export interface ConfigurablePlatformPlugin extends PlatformPlugin {
-
-    configurationRequestHandler(context: PlatformContext, request: null | PluginRequest, responseHandler: PluginResponseHandler): void;
 
 }
 
@@ -149,14 +142,9 @@ export class HomebridgeAPI extends EventEmitter implements API {
     private readonly _accessories: Record<AccessoryIdentifier, AccessoryPluginConstructor> = {};
     private readonly _platforms: Record<PlatformIdentifier, PlatformPluginConstructor> = {};
 
-    // private readonly _configurableAccessories: Record<AccessoryIdentifier, ConfigurablePlatformPlugin> = {}; // accessory configuration is not (yet) supported by BridgeSetupManager
 
     constructor() {
       super();
-    }
-
-    static isConfigurablePlugin(plugin: PlatformPlugin): plugin is ConfigurablePlatformPlugin {
-      return "configurationRequestHandler" in plugin;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -216,13 +204,6 @@ export class HomebridgeAPI extends EventEmitter implements API {
       log.info("Registering accessory '%s'", fullName);
 
       this._accessories[fullName] = constructor;
-
-      /* // accessory configuration is not (yet) supported by BridgeSetupManager
-        // The plugin supports configuration
-        if (configurationRequestHandler) {
-            this._configurableAccessories[fullName] = configurationRequestHandler;
-        }
-        */
     }
 
     publishCameraAccessories(pluginName: PluginName, accessories: PlatformAccessory[]): void {

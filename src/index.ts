@@ -1,7 +1,6 @@
 export * from "hap-nodejs";
 
 export { LogLevel, Logging, Logger } from "./logger";
-export * from "./setupmanager/bridgeSetupApi"; // export types for bridge setup manager (request/response formats, etc)
 export * from "./user";
 export * from "./platformAccessory";
 export { // basically everything but the actual API implementation
@@ -20,7 +19,6 @@ export { // basically everything but the actual API implementation
   AccessoryPlugin,
   PlatformPluginConstructor,
   PlatformPlugin,
-  ConfigurablePlatformPlugin,
   LegacyPlatformPlugin,
 
   APIEvent,
