@@ -163,7 +163,6 @@ export class Server {
       if (this._config.accessories.length > 0) {
         this._loadAccessories();
       }
-      this._loadDynamicPlatforms();
       this._configCachedPlatformAccessories();
       this._bridge.addService(this._setupManager.getService());
 
@@ -405,24 +404,6 @@ export class Server {
           throw new Error(`Detected malformed Platform in your config.json at position ${index + 1}! Please contact Platform developer!`);
         }
       });
-    }
-
-    private _loadDynamicPlatforms(): void {
-      for (const [name, platformConstructor] of this.api._dynamicPlatforms.entries()) {
-        if (this._activeDynamicPlugins.has(name) || this._activeDynamicPlugins.has(HomebridgeAPI.getPlatformName(name))) {
-          continue;
-        }
-
-        console.log("Load " + name);
-
-        const platformLogger = Logger.withPrefix(name);
-        const platformInstance = new platformConstructor(platformLogger, null, this.api);
-        this._activeDynamicPlugins.set(name, platformInstance); // name is here type "PlatformIdentifier"
-
-        if (HomebridgeAPI.isConfigurablePlugin(platformInstance)) {
-          this._configurablePlatformPlugins.set(name, platformInstance); // name is here type "PlatformIdentifier"
-        }
-      }
     }
 
     private _configCachedPlatformAccessories(): void {
