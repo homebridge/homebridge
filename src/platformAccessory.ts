@@ -55,11 +55,15 @@ export class PlatformAccessory extends EventEmitter {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     public context: Record<string, any> = {}; // providing something to store
 
-    constructor(displayName: string, uuid: string, category?: Categories) {
+    constructor(displayName: string, uuid: string, category?: Categories) { // category is only useful for external accessories
       super();
       this._associatedHAPAccessory = PlatformAccessory.injectedAccessory
         ? PlatformAccessory.injectedAccessory
         : new Accessory(displayName, uuid);
+
+      if (category) {
+        this._associatedHAPAccessory.category = category;
+      }
 
       this.displayName = this._associatedHAPAccessory.displayName;
       this.UUID = this._associatedHAPAccessory.UUID;
