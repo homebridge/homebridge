@@ -1,0 +1,51 @@
+name: NodeJS
+
+on:
+  push:
+    branches: master
+  pull_request:
+  release: # Run when release is created
+    types: [created]
+
+jobs:
+  build:
+
+    strategy:
+      matrix:
+        node-version: [10.x, 12.x, 13.x]
+        os: [ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v1
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: npm install, build and test
+        run: |
+          npm ci
+          npm run build --if-present
+          npm test
+        env:
+          CI: true
+
+  publish-npm:
+    # publish only if we are on our own repo, event was 'release' (a tag was created) and the tag starts with "v" (aka version tag)
+    if: github.repository == 'donavanbecker/homebridge-honeywell-home' && github.event_name == 'release' && startsWith(github.ref, 'refs/tags/v')
+
+    needs: build # only run if build succeeds
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 10 # use the minimum required version
+          registry-url: https://registry.npmjs.org/
+      - run: npm ci
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
