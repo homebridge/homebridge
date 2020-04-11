@@ -129,7 +129,7 @@ export declare interface HomebridgeAPI {
 
 export class HomebridgeAPI extends EventEmitter implements API {
 
-    public readonly version = 2.4; // homebridge API version
+    public readonly version = 2.5; // homebridge API version
     public readonly serverVersion = getVersion(); // homebridge node module version
 
     // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
