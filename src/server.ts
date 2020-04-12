@@ -480,6 +480,7 @@ export class Server {
           if (service instanceof Service.AccessoryInformation) {
             const existingService = accessory.getService(Service.AccessoryInformation)!;
 
+            service.setCharacteristic(Characteristic.Name, displayName); // ensure display name is set
             // pull out any values you may have defined
             existingService.replaceCharacteristicsFromService(service);
           } else {
