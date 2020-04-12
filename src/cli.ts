@@ -2,19 +2,20 @@ import "source-map-support/register"; // registering node-source-map-support for
 import commander from "commander";
 import getVersion from "./version";
 import { Logger } from "./logger";
-import { PluginManager } from "./plugin";
 import { User } from "./user";
-import { Server } from "./server";
-import Signals = NodeJS.Signals;
+import { HomebridgeOptions, Server } from "./server";
 import { init } from "hap-nodejs";
+import Signals = NodeJS.Signals;
 
 const log = Logger.internal;
 
 // noinspection JSUnusedGlobalSymbols
 export = function cli(): void {
-  let cleanCachedAccessories = false;
   let insecureAccess = false;
   let hideQRCode = false;
+  let cleanCachedAccessories = false;
+  let customPluginPath: string | undefined = undefined;
+
   let shuttingDown = false;
 
   commander
@@ -22,7 +23,7 @@ export = function cli(): void {
     .option("-C, --color", "force color in logging", () => Logger.forceColor())
     .option("-D, --debug", "turn on debug level logging", () => Logger.setDebugEnabled(true))
     .option("-I, --insecure", "allow unauthenticated requests (for easier hacking)", () => insecureAccess = true)
-    .option("-P, --plugin-path [path]", "look for plugins installed at [path] as well as the default locations ([path] can also point to a single plugin)", path => PluginManager.addPluginPath(path))
+    .option("-P, --plugin-path [path]", "look for plugins installed at [path] as well as the default locations ([path] can also point to a single plugin)", path => customPluginPath = path)
     .option("-Q, --no-qrcode", "do not issue QRcode in logging", () => hideQRCode = true)
     .option("-R, --remove-orphans", "remove cached accessories for which plugin is not loaded", () => cleanCachedAccessories = true)
     .option("-T, --no-timestamp", "do not issue timestamps in logging", () => Logger.setTimestampEnabled(false))
@@ -32,7 +33,14 @@ export = function cli(): void {
   // Initialize HAP-NodeJS with a custom persist directory
   init(User.persistPath());
 
-  const server = new Server({cleanCachedAccessories:cleanCachedAccessories, insecureAccess:insecureAccess, hideQRCode:hideQRCode});
+  const options: HomebridgeOptions = {
+    cleanCachedAccessories: cleanCachedAccessories,
+    insecureAccess: insecureAccess,
+    hideQRCode: hideQRCode,
+    customPluginPath: customPluginPath,
+  };
+
+  const server = new Server(options);
 
   const signalHandler = (signal: Signals, signalNum: number): void => {
     if (shuttingDown) {
@@ -42,7 +50,7 @@ export = function cli(): void {
 
     log.info("Got %s, shutting down Homebridge...", signal);
 
-    server._teardown();
+    server.teardown();
     setTimeout(() => process.exit(128 + signalNum), 5000);
   };
   process.on("SIGINT", signalHandler.bind(undefined, "SIGINT", 2));
@@ -58,5 +66,5 @@ export = function cli(): void {
     }
   });
 
-  server.run();
+  server.start();
 }
