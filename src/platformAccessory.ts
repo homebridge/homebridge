@@ -37,7 +37,7 @@ export class PlatformAccessory extends EventEmitter {
     // somewhat ugly way to inject custom Accessory object, while not changing the publicly exposed constructor signature
     private static injectedAccessory?: Accessory;
 
-    _associatedPlugin?: PluginName;
+    _associatedPlugin?: PluginName; // present as soon as it is registered
     _associatedPlatform?: PlatformName; // not present for external accessories
 
     _associatedHAPAccessory: Accessory;
