@@ -200,7 +200,7 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   publishExternalAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {
     if (!PluginManager.isQualifiedPluginIdentifier(pluginIdentifier)) {
-      log.warn(`One of your plugins incorrectly registered an external accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`);
+      log.info(`One of your plugins incorrectly registered an external accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`);
     }
 
     accessories.forEach(accessory => {

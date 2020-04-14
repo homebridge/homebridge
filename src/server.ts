@@ -456,10 +456,10 @@ export class Server {
 
         const platform = plugin.getActivePlatform(accessory._associatedPlatform!);
         if (!platform) {
-          log.error("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
+          log.warn("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
         }
       } else {
-        log.error("A platform configure a new accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
+        log.warn("A platform configure a new accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
 
       return accessory._associatedHAPAccessory;
@@ -521,8 +521,8 @@ export class Server {
       if (plugin) {
         hapAccessory.getService(Service.AccessoryInformation)!
           .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
-      } else {
-        log.error("A platform configured a external accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
+      } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) { // we did already complain in api.ts if it wasn't a qualified name
+        log.warn("A platform configured a external accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
 
       hapAccessory.on(AccessoryEventTypes.LISTENING, (port: number) => {
