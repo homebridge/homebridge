@@ -247,7 +247,7 @@ export class PluginManager {
     } else {
       const translation = this.pluginIdentifierTranslation.get(pluginIdentifier);
       if (translation) {
-        return this.plugins.get(pluginIdentifier);
+        return this.plugins.get(translation);
       }
     }
 
