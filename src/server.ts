@@ -338,7 +338,7 @@ export class Server {
       if (platform.configureAccessory === undefined && HomebridgeAPI.isLegacyPlatformPlugin(platform)) {
         // Plugin 1.0, load accessories
         promises.push(this.loadPlatformAccessories(platform, platformIdentifier));
-      } else {
+      } else if (platform.configureAccessory === undefined) {
         throw new Error(`Detected malformed PlatformPlugin in your config.json at position ${index + 1}! Please contact Platform developer!`);
       }
     });
