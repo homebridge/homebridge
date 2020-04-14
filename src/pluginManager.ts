@@ -1,13 +1,11 @@
 import {
   AccessoryIdentifier,
   AccessoryName,
-  AccessoryPlugin,
   AccessoryPluginConstructor,
   HomebridgeAPI,
   InternalAPIEvent,
   PlatformIdentifier,
   PlatformName,
-  PlatformPlugin,
   PlatformPluginConstructor,
   PluginIdentifier,
   PluginName,
@@ -17,13 +15,12 @@ import fs from "fs";
 import { Plugin } from "./plugin";
 import { Logger } from "./logger";
 import { execSync } from "child_process";
-import { PlatformAccessory } from "./platformAccessory";
-import { AccessoryConfig, PlatformConfig } from "./server";
 
 const log = Logger.internal;
 
 export interface PackageJSON { // incomplete type for package.json (just stuff we use here)
   name: string;
+  version: string;
   keywords?: string[];
 
   main?: string;
@@ -95,10 +92,18 @@ export class PluginManager {
   }
 
   public static getAccessoryName(identifier: AccessoryIdentifier): AccessoryName {
+    if (identifier.indexOf(".") === -1) {
+      return identifier;
+    }
+
     return identifier.split(".")[1];
   }
 
   public static getPlatformName(identifier: PlatformIdentifier): PlatformIdentifier {
+    if (identifier.indexOf(".") === -1) {
+      return identifier;
+    }
+
     return identifier.split(".")[1];
   }
 
@@ -183,9 +188,8 @@ export class PluginManager {
     plugins.push(this.currentInitializingPlugin);
   }
 
-  public createAccessory(accessoryIdentifier: AccessoryIdentifier | AccessoryName, displayName: string, config: AccessoryConfig): AccessoryPlugin {
+  public getPluginForAccessory(accessoryIdentifier: AccessoryIdentifier | AccessoryName): Plugin {
     let plugin: Plugin;
-    console.log("found  identifier: " + accessoryIdentifier);
     if (accessoryIdentifier.indexOf(".") === -1) { // see if it matches exactly one accessory
       const found = this.accessoryToPluginMap.get(accessoryIdentifier);
 
@@ -207,10 +211,10 @@ export class PluginManager {
       plugin = this.getPlugin(pluginIdentifier)!;
     }
 
-    return plugin.createAccessory(PluginManager.getAccessoryName(accessoryIdentifier), displayName, config);
+    return plugin;
   }
 
-  public createPlatform(platformIdentifier: PlatformIdentifier | PlatformName, displayName: string, config: PlatformConfig): PlatformPlugin {
+  public getPluginForPlatform(platformIdentifier: PlatformIdentifier | PlatformName): Plugin {
     let plugin: Plugin;
     if (platformIdentifier.indexOf(".") === -1) { // see if it matches exactly one platform
       const found = this.platformToPluginMap.get(platformIdentifier);
@@ -233,7 +237,7 @@ export class PluginManager {
       plugin = this.getPlugin(pluginIdentifier)!;
     }
 
-    return plugin.createPlatforms(PluginManager.getPlatformName(platformIdentifier), displayName, config, this.api);
+    return plugin;
   }
 
   public hasPluginRegistered(pluginIdentifier: PluginIdentifier): boolean {
@@ -252,17 +256,6 @@ export class PluginManager {
     }
 
     return undefined;
-  }
-
-  /**
-   * Tries to call the configureAccessory handler of the associated Platform.
-   * Returns true if the Platform for the given accessory was found.
-   *
-   * @param accessory {PlatformAccessory} the accessory to configure
-   */
-  public configurePlatformAccessory(accessory: PlatformAccessory): boolean {
-    const plugin = this.getPlugin(accessory._associatedPlugin!);
-    return !!plugin && plugin.configurePlatformAccessory(accessory);
   }
 
   private loadInstalledPlugins(): void{ // Gets all plugins installed on the local system

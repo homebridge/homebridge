@@ -3,10 +3,11 @@ import { satisfies } from "semver";
 import getVersion from "./version";
 import { Logger } from "./logger";
 import {
+  AccessoryIdentifier,
   AccessoryName,
-  AccessoryPlugin,
   AccessoryPluginConstructor,
   API,
+  PlatformIdentifier,
   PlatformName,
   PlatformPlugin,
   PlatformPluginConstructor,
@@ -14,9 +15,7 @@ import {
   PluginInitializer,
   PluginName,
 } from "./api";
-import { PackageJSON } from "./pluginManager";
-import { PlatformAccessory } from "./platformAccessory";
-import { AccessoryConfig, PlatformConfig } from "./server";
+import { PackageJSON, PluginManager } from "./pluginManager";
 
 const log = Logger.internal;
 
@@ -28,7 +27,12 @@ export class Plugin {
   private readonly pluginName: PluginName;
   private readonly scope?: string; // npm package scope
   private readonly pluginPath: string; // like "/usr/local/lib/node_modules/homebridge-lockitron"
-  private readonly packageJson: PackageJSON;
+
+  // ------------------ package.json content ------------------
+  readonly version: string;
+  private readonly main: string;
+  private readonly engines?: Record<string, string>;
+  // ----------------------------------------------------------
 
   private pluginInitializer?: PluginInitializer; // default exported function from the plugin that initializes it
 
@@ -39,9 +43,18 @@ export class Plugin {
 
   constructor(name: PluginName, path: string, packageJSON: PackageJSON, scope?: string) {
     this.pluginName = name;
-    this.pluginPath = path;
-    this.packageJson = packageJSON;
     this.scope = scope;
+    this.pluginPath = path;
+
+    this.version = packageJSON.version || "0.0.0";
+    this.main = packageJSON.main || "./index.js"; // figure out the main module - index.js unless otherwise specified
+
+    // very temporary fix for first wave of plugins
+    if (packageJSON.peerDependencies && (!packageJSON.engines || !packageJSON.engines.homebridge)) {
+      packageJSON.engines = packageJSON.engines || {};
+      packageJSON.engines.homebridge = packageJSON.peerDependencies.homebridge;
+    }
+    this.engines = packageJSON.engines;
   }
 
   public getPluginIdentifier(): PluginIdentifier { // return full plugin name with scope prefix
@@ -72,64 +85,49 @@ export class Plugin {
     this.registeredPlatforms.set(name, constructor);
   }
 
-  public createAccessory(name: AccessoryName, displayName: string, config: AccessoryConfig): AccessoryPlugin {
+  public getAccessoryConstructor(accessoryIdentifier: AccessoryIdentifier | AccessoryName): AccessoryPluginConstructor {
+    const name: AccessoryName = PluginManager.getAccessoryName(accessoryIdentifier);
+
     const constructor = this.registeredAccessories.get(name);
     if (!constructor) {
       throw new Error(`The requested accessory '${name}' was not registered by the plugin '${this.getPluginIdentifier()}'.`);
     }
 
-    const logger = Logger.withPrefix(displayName);
-    logger("Initializing %s accessory...", name);
-
-    return new constructor(logger, config);
+    return constructor;
   }
 
-  public createPlatforms(name: PlatformName, displayName: string, config: PlatformConfig, api: API): PlatformPlugin {
+  public getPlatformConstructor(platformIdentifier: PlatformIdentifier | PlatformName): PlatformPluginConstructor {
+    const name: PlatformName = PluginManager.getPlatformName(platformIdentifier);
+
     const constructor = this.registeredPlatforms.get(name);
     if (!constructor) {
       throw new Error(`The requested platform '${name}' was not registered by the plugin '${this.getPluginIdentifier()}'.`);
     }
+
     if (this.activePlatformPlugins.has(name)) {
       throw new Error(`The platform '${name}' from the plugin '${this.getPluginIdentifier()}' was already initialized!`);
     }
 
-    const logger = Logger.withPrefix(displayName);
-    logger("Initializing %s platform...", name);
-
-    const platform = new constructor(logger, config, api);
-    if (platform.configureAccessory !== undefined) {
-      this.activePlatformPlugins.set(name, platform);
-    }
-
-    return platform;
+    return constructor;
   }
 
-  public configurePlatformAccessory(accessory: PlatformAccessory): boolean {
-    const platform = this.activePlatformPlugins.get(accessory._associatedPlatform!);
-    if (!platform) {
-      return false;
-    } else {
-      platform.configureAccessory(accessory);
-      return true;
-    }
+  public assignPlatformPlugin(platformIdentifier: PlatformIdentifier | PlatformName, platformPlugin: PlatformPlugin): void {
+    const name: PlatformName = PluginManager.getPlatformName(platformIdentifier);
+    this.activePlatformPlugins.set(name, platformPlugin);
+  }
+
+  public getActivePlatform(platformName: PlatformName): PlatformPlugin | undefined {
+    return this.activePlatformPlugins.get(platformName);
   }
 
   public load(): void {
-    const packageJson = this.packageJson;
-
-    // very temporary fix for first wave of plugins
-    if (packageJson.peerDependencies && (!packageJson.engines || !packageJson.engines.homebridge)) {
-      packageJson.engines = this.packageJson.engines || {};
-      packageJson.engines.homebridge = packageJson.peerDependencies.homebridge;
-    }
-
     // pluck out the HomeBridge version requirement
-    if (!packageJson.engines || !packageJson.engines.homebridge) {
+    if (!this.engines || !this.engines.homebridge) {
       throw new Error(`Plugin ${this.pluginPath} does not contain the 'homebridge' package in 'engines'.`);
     }
 
-    const versionRequired = packageJson.engines.homebridge;
-    const nodeVersionRequired = packageJson.engines.node;
+    const versionRequired = this.engines.homebridge;
+    const nodeVersionRequired = this.engines.node;
 
     // make sure the version is satisfied by the currently running version of HomeBridge
     if (!satisfies(getVersion(), versionRequired, { includePrerelease: true })) {
@@ -143,9 +141,7 @@ not satisfy the current HomeBridge version of ${getVersion()}. You may need to u
 not satisfy the current Node version of ${process.version}. You may need to upgrade your installation of Node.`);
     }
 
-    // figure out the main module - index.js unless otherwise specified
-    const main = this.packageJson.main || "./index.js";
-    const mainPath = path.join(this.pluginPath, main);
+    const mainPath = path.join(this.pluginPath, this.main);
 
     // try to require() it and grab the exported initialization hook
     // eslint-disable-next-line @typescript-eslint/no-var-requires

@@ -18,13 +18,13 @@ import { User } from "./user";
 import {
   AccessoryIdentifier,
   AccessoryName,
-  AccessoryPlugin,
+  AccessoryPlugin, AccessoryPluginConstructor,
   HomebridgeAPI,
   InternalAPIEvent,
   LegacyPlatformPlugin,
   PlatformIdentifier,
   PlatformName,
-  PlatformPlugin,
+  PlatformPlugin, PlatformPluginConstructor,
   PluginIdentifier,
 } from "./api";
 import { PlatformAccessory, SerializedPlatformAccessory } from "./platformAccessory";
@@ -32,6 +32,7 @@ import getVersion from "./version";
 import * as mac from "./util/mac";
 import { MacAddress } from "./util/mac";
 import { PluginManager, PluginManagerOptions } from "./pluginManager";
+import { Plugin } from "./plugin";
 
 const accessoryStorage: LocalStorage = storage.create();
 const log = Logger.internal;
@@ -258,14 +259,19 @@ export class Server {
 
   private restoreCachedPlatformAccessories(): void {
     this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(accessory => {
-      const success = this.pluginManager.configurePlatformAccessory(accessory);
+      const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
+      const platformPlugin = plugin && plugin.getActivePlatform(accessory._associatedPlatform!);
 
-      if (!success) {
+      if (!platformPlugin) {
         console.log(`Failed to find plugin to handle accessory ${accessory._associatedHAPAccessory.displayName}`);
         if (this.cleanCachedAccessories) {
           console.log(`Removing orphaned accessory ${accessory._associatedHAPAccessory.displayName}`);
           return false; // filter it from the list
         }
+      } else {
+        platformPlugin.configureAccessory(accessory);
+        accessory.getService(Service.AccessoryInformation)!
+          .setCharacteristic(Characteristic.FirmwareRevision, plugin!.version);
       }
 
       this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory);
@@ -302,16 +308,23 @@ export class Server {
         return;
       }
 
-      let accessoryInstance: AccessoryPlugin;
+      let plugin: Plugin;
+      let constructor: AccessoryPluginConstructor;
       try {
-        accessoryInstance = this.pluginManager.createAccessory(accessoryIdentifier, displayName, accessoryConfig);
+        plugin = this.pluginManager.getPluginForAccessory(accessoryIdentifier);
+        constructor = plugin.getAccessoryConstructor(accessoryIdentifier);
       } catch (error) {
         log.warn("Error loading accessory requested in your config.json at position %d", index + 1);
         throw error; // error message contains more information
       }
 
+      const logger = Logger.withPrefix(displayName);
+      logger("Initializing %s accessory...", accessoryIdentifier);
+
+      const accessoryInstance: AccessoryPlugin = new constructor(logger, accessoryConfig);
+
       //pass accessoryIdentifier for UUID generation, and optional parameter uuid_base which can be used instead of displayName for UUID generation
-      const accessory = this.createHAPAccessory(accessoryInstance, displayName, accessoryIdentifier, accessoryConfig.uuid_base);
+      const accessory = this.createHAPAccessory(plugin, accessoryInstance, displayName, accessoryIdentifier, accessoryConfig.uuid_base);
 
       // add it to the bridge
       this.bridge.addBridgedAccessory(accessory);
@@ -332,18 +345,27 @@ export class Server {
       const platformIdentifier: PlatformName | PlatformIdentifier = platformConfig.platform;
       const displayName = platformConfig.name || platformIdentifier;
 
-      let platform: PlatformPlugin;
+      let plugin: Plugin;
+      let constructor: PlatformPluginConstructor;
       try {
-        platform = this.pluginManager.createPlatform(platformIdentifier, displayName, platformConfig);
+        plugin = this.pluginManager.getPluginForPlatform(platformIdentifier);
+        constructor = plugin.getPlatformConstructor(platformIdentifier);
       } catch (error) {
         log.warn("Error loading platform requested in your config.json at position %d", index + 1);
         throw error; // error message contains more information
       }
 
-      if (platform.configureAccessory === undefined && HomebridgeAPI.isLegacyPlatformPlugin(platform)) {
+      const logger = Logger.withPrefix(displayName);
+      logger("Initializing %s platform...", platformIdentifier);
+
+      const platform: PlatformPlugin = new constructor(logger, platformConfig, this.api);
+
+      if (platform.configureAccessory !== undefined) {
+        plugin.assignPlatformPlugin(platformIdentifier, platform);
+      } else if (HomebridgeAPI.isLegacyPlatformPlugin(platform)) {
         // Plugin 1.0, load accessories
-        promises.push(this.loadPlatformAccessories(platform, platformIdentifier));
-      } else if (platform.configureAccessory === undefined) {
+        promises.push(this.loadPlatformAccessories(plugin, platform, platformIdentifier));
+      } else {
         throw new Error(`Detected malformed PlatformPlugin in your config.json at position ${index + 1}! Please contact Platform developer!`);
       }
     });
@@ -351,7 +373,7 @@ export class Server {
     return Promise.all(promises);
   }
 
-  private async loadPlatformAccessories(platformInstance: LegacyPlatformPlugin, platformType: PlatformName | PlatformIdentifier): Promise<void> {
+  private async loadPlatformAccessories(plugin: Plugin, platformInstance: LegacyPlatformPlugin, platformType: PlatformName | PlatformIdentifier): Promise<void> {
     // Plugin 1.0, load accessories
     return new Promise(resolve => {
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
@@ -366,7 +388,7 @@ export class Server {
 
           log.info("Initializing platform accessory '%s'...", accessoryName);
 
-          const accessory: Accessory = this.createHAPAccessory(accessoryInstance, accessoryName, platformType, uuidBase);
+          const accessory: Accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryName, platformType, uuidBase);
           this.bridge.addBridgedAccessory(accessory);
         });
 
@@ -375,7 +397,7 @@ export class Server {
     });
   }
 
-  private createHAPAccessory(accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory {
+  private createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory {
     const services = (accessoryInstance.getServices() || []).filter(service => !!service);
 
     if (!(services[0] instanceof Service)) {
@@ -416,6 +438,9 @@ export class Server {
         }
       });
 
+      accessory.getService(Service.AccessoryInformation)!
+        .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+
       return accessory;
     }
   }
@@ -423,6 +448,20 @@ export class Server {
   private handleRegisterPlatformAccessories(accessories: PlatformAccessory[]): void {
     const hapAccessories = accessories.map(accessory => {
       this.cachedPlatformAccessories.push(accessory);
+
+      const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
+      if (plugin) {
+        accessory.getService(Service.AccessoryInformation)!
+          .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+
+        const platform = plugin.getActivePlatform(accessory._associatedPlatform!);
+        if (!platform) {
+          log.error("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
+        }
+      } else {
+        log.error("A platform configure a new accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
+      }
+
       return accessory._associatedHAPAccessory;
     });
 
@@ -476,6 +515,14 @@ export class Server {
         throw new Error(`Accessory ${hapAccessory.displayName} experienced an address collision.`);
       } else {
         this.publishedExternalAccessories.set(advertiseAddress, accessory);
+      }
+
+      const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
+      if (plugin) {
+        hapAccessory.getService(Service.AccessoryInformation)!
+          .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+      } else {
+        log.error("A platform configured a external accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
 
       hapAccessory.on(AccessoryEventTypes.LISTENING, (port: number) => {

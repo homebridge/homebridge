@@ -8,149 +8,149 @@ import {
   Service,
   WithUUID,
 } from "hap-nodejs";
-import { PlatformName, PluginName } from "./api";
+import { PlatformName, PluginIdentifier, PluginName } from "./api";
 
 export interface SerializedPlatformAccessory extends SerializedAccessory {
 
-    plugin: PluginName;
-    platform: PlatformName;
+  plugin: PluginName;
+  platform: PlatformName;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    context: Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  context: Record<string, any>;
 
 }
 
 export enum PlatformAccessoryEvent {
-    IDENTIFY = "identify",
+  IDENTIFY = "identify",
 }
 
 export declare interface PlatformAccessory {
 
-    on(event: "identify", listener: () => void): this;
+  on(event: "identify", listener: () => void): this;
 
-    emit(event: "identify"): boolean;
+  emit(event: "identify"): boolean;
 
 }
 
 export class PlatformAccessory extends EventEmitter {
 
-    // somewhat ugly way to inject custom Accessory object, while not changing the publicly exposed constructor signature
-    private static injectedAccessory?: Accessory;
+  // somewhat ugly way to inject custom Accessory object, while not changing the publicly exposed constructor signature
+  private static injectedAccessory?: Accessory;
 
-    _associatedPlugin?: PluginName; // present as soon as it is registered
-    _associatedPlatform?: PlatformName; // not present for external accessories
+  _associatedPlugin?: PluginIdentifier; // present as soon as it is registered
+  _associatedPlatform?: PlatformName; // not present for external accessories
 
-    _associatedHAPAccessory: Accessory;
+  _associatedHAPAccessory: Accessory;
 
-    // ---------------- HAP Accessory mirror ----------------
-    displayName: string;
-    UUID: string;
-    category: Categories;
-    services: Service[] = [];
-    // ------------------------------------------------------
+  // ---------------- HAP Accessory mirror ----------------
+  displayName: string;
+  UUID: string;
+  category: Categories;
+  services: Service[] = [];
+  // ------------------------------------------------------
 
-    /**
-     * This is a way for Plugin developers to store custom data with their accessory
-     */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    public context: Record<string, any> = {}; // providing something to store
+  /**
+   * This is a way for Plugin developers to store custom data with their accessory
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public context: Record<string, any> = {}; // providing something to store
 
-    constructor(displayName: string, uuid: string, category?: Categories) { // category is only useful for external accessories
-      super();
-      this._associatedHAPAccessory = PlatformAccessory.injectedAccessory
-        ? PlatformAccessory.injectedAccessory
-        : new Accessory(displayName, uuid);
+  constructor(displayName: string, uuid: string, category?: Categories) { // category is only useful for external accessories
+    super();
+    this._associatedHAPAccessory = PlatformAccessory.injectedAccessory
+      ? PlatformAccessory.injectedAccessory
+      : new Accessory(displayName, uuid);
 
-      if (category) {
-        this._associatedHAPAccessory.category = category;
-      }
-
-      this.displayName = this._associatedHAPAccessory.displayName;
-      this.UUID = this._associatedHAPAccessory.UUID;
-      this.category = category || Categories.OTHER;
-      this.services = this._associatedHAPAccessory.services;
-
-      // forward identify event
-      this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired, callback) => {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        this.emit(PlatformAccessoryEvent.IDENTIFY, () => {}); // empty callback for backwards compatibility
-        callback();
-      });
+    if (category) {
+      this._associatedHAPAccessory.category = category;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    public addService(service: Service | typeof Service, ...constructorArgs: any[]): Service {
-      return this._associatedHAPAccessory.addService(service, ...constructorArgs);
-    }
+    this.displayName = this._associatedHAPAccessory.displayName;
+    this.UUID = this._associatedHAPAccessory.UUID;
+    this.category = category || Categories.OTHER;
+    this.services = this._associatedHAPAccessory.services;
 
-    public removeService(service: Service): void {
-      this._associatedHAPAccessory.removeService(service);
-    }
+    // forward identify event
+    this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired, callback) => {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+      // @ts-ignore
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      this.emit(PlatformAccessoryEvent.IDENTIFY, () => {}); // empty callback for backwards compatibility
+      callback();
+    });
+  }
 
-    public getService<T extends WithUUID<typeof Service>>(name: string | T): Service | undefined {
-      return this._associatedHAPAccessory.getService(name);
-    }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public addService(service: Service | typeof Service, ...constructorArgs: any[]): Service {
+    return this._associatedHAPAccessory.addService(service, ...constructorArgs);
+  }
 
-    /**
-     *
-     * @param uuid
-     * @param subType
-     * @deprecated use {@link getServiceById} directly
-     */
-    public getServiceByUUIDAndSubType<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
-      return this.getServiceById(uuid, subType);
-    }
+  public removeService(service: Service): void {
+    this._associatedHAPAccessory.removeService(service);
+  }
 
-    public getServiceById<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
-      return this._associatedHAPAccessory.getServiceById(uuid, subType);
-    }
+  public getService<T extends WithUUID<typeof Service>>(name: string | T): Service | undefined {
+    return this._associatedHAPAccessory.getService(name);
+  }
 
-    /**
-     *
-     * @param reachable
-     * @deprecated reachability isn't supported anymore
-     */
-    public updateReachability(reachable: boolean): void {
-      this._associatedHAPAccessory.updateReachability(reachable);
-    }
+  /**
+   *
+   * @param uuid
+   * @param subType
+   * @deprecated use {@link getServiceById} directly
+   */
+  public getServiceByUUIDAndSubType<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
+    return this.getServiceById(uuid, subType);
+  }
 
-    /**
-     *
-     * @param cameraSource
-     * @deprecated see {@link Accessory.configureCameraSource}
-     */
-    public configureCameraSource(cameraSource: LegacyCameraSource): CameraController {
-      return this._associatedHAPAccessory.configureCameraSource(cameraSource);
-    }
+  public getServiceById<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
+    return this._associatedHAPAccessory.getServiceById(uuid, subType);
+  }
 
-    public configureController(controller: Controller | ControllerConstructor): void {
-      this._associatedHAPAccessory.configureController(controller);
-    }
+  /**
+   *
+   * @param reachable
+   * @deprecated reachability isn't supported anymore
+   */
+  public updateReachability(reachable: boolean): void {
+    this._associatedHAPAccessory.updateReachability(reachable);
+  }
 
-    // private
-    static serialize(accessory: PlatformAccessory): SerializedPlatformAccessory {
-      return {
-        plugin: accessory._associatedPlugin!,
-        platform: accessory._associatedPlatform!,
-        context: accessory.context,
-        ...Accessory.serialize(accessory._associatedHAPAccessory),
-      };
-    }
+  /**
+   *
+   * @param cameraSource
+   * @deprecated see {@link Accessory.configureCameraSource}
+   */
+  public configureCameraSource(cameraSource: LegacyCameraSource): CameraController {
+    return this._associatedHAPAccessory.configureCameraSource(cameraSource);
+  }
 
-    static deserialize(json: SerializedPlatformAccessory): PlatformAccessory {
-      const accessory = Accessory.deserialize(json);
+  public configureController(controller: Controller | ControllerConstructor): void {
+    this._associatedHAPAccessory.configureController(controller);
+  }
 
-      PlatformAccessory.injectedAccessory = accessory;
-      const platformAccessory = new PlatformAccessory(accessory.displayName, accessory.UUID);
-      PlatformAccessory.injectedAccessory = undefined;
+  // private
+  static serialize(accessory: PlatformAccessory): SerializedPlatformAccessory {
+    return {
+      plugin: accessory._associatedPlugin!,
+      platform: accessory._associatedPlatform!,
+      context: accessory.context,
+      ...Accessory.serialize(accessory._associatedHAPAccessory),
+    };
+  }
 
-      platformAccessory._associatedPlugin = json.plugin;
-      platformAccessory._associatedPlatform = json.platform;
-      platformAccessory.context = json.context;
+  static deserialize(json: SerializedPlatformAccessory): PlatformAccessory {
+    const accessory = Accessory.deserialize(json);
 
-      return platformAccessory;
-    }
+    PlatformAccessory.injectedAccessory = accessory;
+    const platformAccessory = new PlatformAccessory(accessory.displayName, accessory.UUID);
+    PlatformAccessory.injectedAccessory = undefined;
+
+    platformAccessory._associatedPlugin = json.plugin;
+    platformAccessory._associatedPlatform = json.platform;
+    platformAccessory.context = json.context;
+
+    return platformAccessory;
+  }
 
 }
