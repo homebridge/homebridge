@@ -255,7 +255,11 @@ export class Server {
   }
 
   private restoreCachedPlatformAccessories(): void {
-    this.cachedPlatformAccessories = this.cachedPlatformAccessories!.filter(accessory => {
+    if (!this.cachedPlatformAccessories) {
+      return;
+    }
+
+    this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(accessory => {
       const success = this.pluginManager.configurePlatformAccessory(accessory);
 
       if (!success) {
@@ -272,7 +276,7 @@ export class Server {
   }
 
   private saveCachedPlatformAccessoriesOnDisk(): void {
-    if (!this.cachedPlatformAccessories) { // do not overwrite if not initialized yet
+    if (!this.cachedPlatformAccessories) { // do not overwrite if not initialized yet or array simply doesn't exist (yet)
       return;
     }
 
