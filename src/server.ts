@@ -105,7 +105,7 @@ export class Server {
   private readonly externalPorts?: ExternalPortsConfiguration;
   private nextExternalPort?: number;
 
-  private cachedPlatformAccessories?: PlatformAccessory[];
+  private cachedPlatformAccessories: PlatformAccessory[] = [];
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map();
 
   constructor(options: HomebridgeOptions = {}) {
@@ -255,10 +255,6 @@ export class Server {
   }
 
   private restoreCachedPlatformAccessories(): void {
-    if (!this.cachedPlatformAccessories) {
-      return;
-    }
-
     this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(accessory => {
       const success = this.pluginManager.configurePlatformAccessory(accessory);
 
@@ -276,7 +272,7 @@ export class Server {
   }
 
   private saveCachedPlatformAccessoriesOnDisk(): void {
-    if (!this.cachedPlatformAccessories) { // do not overwrite if not initialized yet or array simply doesn't exist (yet)
+    if (this.cachedPlatformAccessories.length === 0) { // do not overwrite if not initialized yet or array simply doesn't exist (yet)
       return;
     }
 
@@ -421,7 +417,7 @@ export class Server {
 
   private handleRegisterPlatformAccessories(accessories: PlatformAccessory[]): void {
     const hapAccessories = accessories.map(accessory => {
-      this.cachedPlatformAccessories!.push(accessory);
+      this.cachedPlatformAccessories.push(accessory);
       return accessory._associatedHAPAccessory;
     });
 
@@ -437,9 +433,9 @@ export class Server {
 
   private handleUnregisterPlatformAccessories(accessories: PlatformAccessory[]): void {
     const hapAccessories = accessories.map(accessory => {
-      const index = this.cachedPlatformAccessories!.indexOf(accessory);
+      const index = this.cachedPlatformAccessories.indexOf(accessory);
       if (index >= 0) {
-        this.cachedPlatformAccessories!.splice(index, 1);
+        this.cachedPlatformAccessories.splice(index, 1);
       }
 
       return accessory._associatedHAPAccessory;
