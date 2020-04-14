@@ -106,6 +106,7 @@ export class Server {
   private nextExternalPort?: number;
 
   private cachedPlatformAccessories: PlatformAccessory[] = [];
+  private cachedAccessoriesFileCreated = false;
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map();
 
   constructor(options: HomebridgeOptions = {}) {
@@ -251,6 +252,7 @@ export class Server {
       this.cachedPlatformAccessories = cachedAccessories.map(serialized => {
         return PlatformAccessory.deserialize(serialized);
       });
+      this.cachedAccessoriesFileCreated = true;
     }
   }
 
@@ -272,12 +274,15 @@ export class Server {
   }
 
   private saveCachedPlatformAccessoriesOnDisk(): void {
-    if (this.cachedPlatformAccessories.length === 0) { // do not overwrite if not initialized yet or array simply doesn't exist (yet)
-      return;
-    }
+    if (this.cachedPlatformAccessories.length > 0) {
+      this.cachedAccessoriesFileCreated = true;
 
-    const serializedAccessories = this.cachedPlatformAccessories.map(accessory => PlatformAccessory.serialize(accessory));
-    accessoryStorage.setItemSync("cachedAccessories", serializedAccessories);
+      const serializedAccessories = this.cachedPlatformAccessories.map(accessory => PlatformAccessory.serialize(accessory));
+      accessoryStorage.setItemSync("cachedAccessories", serializedAccessories);
+    } else if (this.cachedAccessoriesFileCreated) {
+      this.cachedAccessoriesFileCreated = false;
+      accessoryStorage.removeItemSync("cachedAccessories");
+    }
   }
 
   private _loadAccessories(): void {
