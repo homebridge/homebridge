@@ -56,7 +56,7 @@ export = function cli(): void {
   process.on("SIGINT", signalHandler.bind(undefined, "SIGINT", 2));
   process.on("SIGTERM", signalHandler.bind(undefined, "SIGTERM", 15));
 
-  process.on("uncaughtException", error => {
+  const errorHandler = (error: Error): void => {
     if (error.stack) {
       log.error(error.stack);
     }
@@ -64,7 +64,7 @@ export = function cli(): void {
     if (!shuttingDown) {
       process.kill(process.pid, "SIGTERM");
     }
-  });
-
-  server.start();
+  };
+  process.on("uncaughtException", errorHandler);
+  server.start().catch(errorHandler);
 }
