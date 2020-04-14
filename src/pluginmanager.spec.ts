@@ -44,7 +44,7 @@ describe(PluginManager, () => {
 
     it("should extract plugin name correctly", function() {
       const accessoryId = "homebridge-example-plugin.example";
-      expect(PluginManager.getPluginName(accessoryId)).toBe("homebridge-example-plugin");
+      expect(PluginManager.getPluginIdentifier(accessoryId)).toBe("homebridge-example-plugin");
     });
   });
 

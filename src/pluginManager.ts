@@ -58,6 +58,8 @@ export class PluginManager {
   private readonly activePlugins?: PluginIdentifier[];
 
   private readonly plugins: Map<PluginIdentifier, Plugin> = new Map();
+  // we have some plugins which simply pass a wrong or misspelled plugin name to the api calls, this translation tries to mitigate this
+  private readonly pluginIdentifierTranslation: Map<PluginIdentifier, PluginIdentifier> = new Map();
   private readonly accessoryToPluginMap: Map<AccessoryName, Plugin[]> = new Map();
   private readonly platformToPluginMap: Map<PlatformName, Plugin[]> = new Map();
 
@@ -100,7 +102,7 @@ export class PluginManager {
     return identifier.split(".")[1];
   }
 
-  public static getPluginName(identifier: AccessoryIdentifier | PlatformIdentifier): PluginName {
+  public static getPluginIdentifier(identifier: AccessoryIdentifier | PlatformIdentifier): PluginIdentifier {
     return identifier.split(".")[0];
   }
 
@@ -148,6 +150,7 @@ export class PluginManager {
 
     if (pluginIdentifier && pluginIdentifier !== this.currentInitializingPlugin.getPluginIdentifier()) {
       log.error(`Plugin '${this.currentInitializingPlugin.getPluginIdentifier()}' tried to register with an incorrect plugin identifier: '${pluginIdentifier}'`);
+      this.pluginIdentifierTranslation.set(pluginIdentifier, this.currentInitializingPlugin.getPluginIdentifier());
     }
 
     this.currentInitializingPlugin.registerAccessory(name, constructor);
@@ -167,6 +170,7 @@ export class PluginManager {
 
     if (pluginIdentifier && pluginIdentifier !== this.currentInitializingPlugin.getPluginIdentifier()) {
       log.error(`Plugin '${this.currentInitializingPlugin.getPluginIdentifier()}' tried to register with an incorrect plugin identifier: '${pluginIdentifier}'`);
+      this.pluginIdentifierTranslation.set(pluginIdentifier, this.currentInitializingPlugin.getPluginIdentifier());
     }
 
     this.currentInitializingPlugin.registerPlatform(name, constructor);
@@ -195,12 +199,12 @@ export class PluginManager {
         accessoryIdentifier = plugin.getPluginIdentifier() + "." + accessoryIdentifier;
       }
     } else {
-      const pluginName = PluginManager.getPluginName(accessoryIdentifier);
-      if (!this.plugins.has(pluginName)) {
-        throw new Error(`The requested plugin '${pluginName}' was not registered.`);
+      const pluginIdentifier = PluginManager.getPluginIdentifier(accessoryIdentifier);
+      if (!this.hasPluginRegistered(pluginIdentifier)) {
+        throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`);
       }
 
-      plugin = this.plugins.get(pluginName)!;
+      plugin = this.getPlugin(pluginIdentifier)!;
     }
 
     return plugin.createAccessory(PluginManager.getAccessoryName(accessoryIdentifier), displayName, config);
@@ -221,15 +225,33 @@ export class PluginManager {
         platformIdentifier = plugin.getPluginIdentifier() + "." + platformIdentifier;
       }
     } else {
-      const pluginName = PluginManager.getPluginName(platformIdentifier);
-      if (!this.plugins.has(pluginName)) {
-        throw new Error(`The requested plugin '${pluginName}' was not registered.`);
+      const pluginIdentifier = PluginManager.getPluginIdentifier(platformIdentifier);
+      if (!this.hasPluginRegistered(pluginIdentifier)) {
+        throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`);
       }
 
-      plugin = this.plugins.get(pluginName)!;
+      plugin = this.getPlugin(pluginIdentifier)!;
     }
 
     return plugin.createPlatforms(PluginManager.getPlatformName(platformIdentifier), displayName, config, this.api);
+  }
+
+  public hasPluginRegistered(pluginIdentifier: PluginIdentifier): boolean {
+    return this.plugins.has(pluginIdentifier) || this.pluginIdentifierTranslation.has(pluginIdentifier);
+  }
+
+  public getPlugin(pluginIdentifier: PluginIdentifier): Plugin | undefined {
+    const plugin = this.plugins.get(pluginIdentifier);
+    if (plugin) {
+      return plugin;
+    } else {
+      const translation = this.pluginIdentifierTranslation.get(pluginIdentifier);
+      if (translation) {
+        return this.plugins.get(pluginIdentifier);
+      }
+    }
+
+    return undefined;
   }
 
   /**
@@ -239,7 +261,7 @@ export class PluginManager {
    * @param accessory {PlatformAccessory} the accessory to configure
    */
   public configurePlatformAccessory(accessory: PlatformAccessory): boolean {
-    const plugin = this.plugins.get(accessory._associatedPlugin!);
+    const plugin = this.getPlugin(accessory._associatedPlugin!);
     return !!plugin && plugin.configurePlatformAccessory(accessory);
   }
 
