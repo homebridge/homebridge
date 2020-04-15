@@ -140,19 +140,24 @@ export class Server {
   }
 
   public async start(): Promise<void> {
+    const promises: Promise<void>[] = [];
+
     this.loadCachedPlatformAccessoriesFromDisk();
     this.pluginManager.initializeInstalledPlugins();
 
     if (this.config.platforms.length > 0) {
-      await this.loadPlatforms();
+      promises.push(...this.loadPlatforms());
     }
     if (this.config.accessories.length > 0) {
       this._loadAccessories();
     }
     this.restoreCachedPlatformAccessories();
 
-    this.publishBridge();
     this.api.signalFinished();
+
+    // wait for all platforms to publish their accessories before we publish the bridge
+    await Promise.all(promises)
+      .then(() => this.publishBridge());
   }
 
   private publishBridge(): void {
@@ -332,7 +337,7 @@ export class Server {
     });
   }
 
-  private async loadPlatforms(): Promise<void[]> {
+  private loadPlatforms(): Promise<void>[] {
     log.info("Loading " + this.config.platforms.length + " platforms...");
 
     const promises: Promise<void>[] = [];
@@ -371,7 +376,7 @@ export class Server {
       }
     });
 
-    return Promise.all(promises);
+    return promises;
   }
 
   private async loadPlatformAccessories(plugin: Plugin, platformInstance: LegacyPlatformPlugin, platformType: PlatformName | PlatformIdentifier): Promise<void> {
