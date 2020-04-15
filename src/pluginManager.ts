@@ -285,8 +285,9 @@ export class PluginManager {
 
             const absolutePath = path.join(searchPath, scopeDirectory);
             fs.readdirSync(absolutePath)
+              .filter(name => PluginManager.isQualifiedPluginIdentifier(name))
               .filter(name => fs.statSync(path.resolve(absolutePath, name)).isDirectory())
-              .forEach(name => relativePluginPaths.push(path.join(scopeDirectory, name)));
+              .forEach(name => relativePluginPaths.push(scopeDirectory + "/" + name));
           });
 
         relativePluginPaths
