@@ -39,7 +39,7 @@ export class Plugin {
   private readonly registeredAccessories: Map<AccessoryName, AccessoryPluginConstructor> = new Map();
   private readonly registeredPlatforms: Map<PlatformName, PlatformPluginConstructor> = new Map();
 
-  private readonly activePlatformPlugins: Map<PlatformName, PlatformPlugin> = new Map();
+  private readonly activePlatformPlugins: Map<PlatformName, PlatformPlugin[]> = new Map();
 
   constructor(name: PluginName, path: string, packageJSON: PackageJSON, scope?: string) {
     this.pluginName = name;
@@ -105,7 +105,8 @@ export class Plugin {
     }
 
     if (this.activePlatformPlugins.has(name)) {
-      throw new Error(`The platform '${name}' from the plugin '${this.getPluginIdentifier()}' was already initialized!`);
+      log.error("The platform " + name + " from the plugin " + this.getPluginIdentifier() + " seems to be configured " +
+        "multiple times in your config.json. This behaviour was deprecated in homebridge v1.0.0 and will be removed in v2.0.0!");
     }
 
     return constructor;
@@ -113,10 +114,19 @@ export class Plugin {
 
   public assignPlatformPlugin(platformIdentifier: PlatformIdentifier | PlatformName, platformPlugin: PlatformPlugin): void {
     const name: PlatformName = PluginManager.getPlatformName(platformIdentifier);
-    this.activePlatformPlugins.set(name, platformPlugin);
+
+    let platforms = this.activePlatformPlugins.get(name);
+    if (!platforms) {
+      platforms = [];
+      this.activePlatformPlugins.set(name, platforms);
+    }
+
+    // the last platform published should be at the first position for easy access
+    // we just try to mimic pre 1.0.0 behavior
+    platforms.unshift(platformPlugin);
   }
 
-  public getActivePlatform(platformName: PlatformName): PlatformPlugin | undefined {
+  public getActivePlatforms(platformName: PlatformName): PlatformPlugin[] | undefined {
     return this.activePlatformPlugins.get(platformName);
   }
 
