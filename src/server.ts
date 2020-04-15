@@ -12,7 +12,7 @@ import {
   PublishInfo,
   Service,
   uuid,
-} from "hap-nodejs";
+} from "./";
 import { Logger } from "./logger";
 import { User } from "./user";
 import {
