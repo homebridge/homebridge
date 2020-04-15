@@ -260,16 +260,17 @@ export class Server {
   private restoreCachedPlatformAccessories(): void {
     this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(accessory => {
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
-      const platformPlugin = plugin && plugin.getActivePlatform(accessory._associatedPlatform!);
+      const platformPlugins = plugin && plugin.getActivePlatforms(accessory._associatedPlatform!);
 
-      if (!platformPlugin) {
-        console.log(`Failed to find plugin to handle accessory ${accessory._associatedHAPAccessory.displayName}`);
+      if (!platformPlugins) {
+        log.info(`Failed to find plugin to handle accessory ${accessory._associatedHAPAccessory.displayName}`);
         if (this.cleanCachedAccessories) {
-          console.log(`Removing orphaned accessory ${accessory._associatedHAPAccessory.displayName}`);
+          log.info(`Removing orphaned accessory ${accessory._associatedHAPAccessory.displayName}`);
           return false; // filter it from the list
         }
       } else {
-        platformPlugin.configureAccessory(accessory);
+        // we always use the last registered
+        platformPlugins[0].configureAccessory(accessory);
         accessory.getService(Service.AccessoryInformation)!
           .setCharacteristic(Characteristic.FirmwareRevision, plugin!.version);
       }
@@ -454,8 +455,8 @@ export class Server {
         accessory.getService(Service.AccessoryInformation)!
           .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
 
-        const platform = plugin.getActivePlatform(accessory._associatedPlatform!);
-        if (!platform) {
+        const platforms = plugin.getActivePlatforms(accessory._associatedPlatform!);
+        if (!platforms) {
           log.warn("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
         }
       } else {

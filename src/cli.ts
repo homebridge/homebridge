@@ -4,9 +4,9 @@ import getVersion, { getRequiredNodeVersion } from "./version";
 import { Logger } from "./logger";
 import { User } from "./user";
 import { HomebridgeOptions, Server } from "./server";
-import { init } from "hap-nodejs";
-import Signals = NodeJS.Signals;
 import { satisfies } from "semver";
+import { HAPStorage } from "hap-nodejs";
+import Signals = NodeJS.Signals;
 
 const log = Logger.internal;
 
@@ -38,7 +38,7 @@ export = function cli(): void {
     .parse(process.argv);
 
   // Initialize HAP-NodeJS with a custom persist directory
-  init(User.persistPath());
+  HAPStorage.setCustomStoragePath(User.persistPath());
 
   const options: HomebridgeOptions = {
     cleanCachedAccessories: cleanCachedAccessories,
