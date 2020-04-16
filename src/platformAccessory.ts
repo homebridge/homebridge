@@ -1,13 +1,16 @@
 import { EventEmitter } from "events";
 import {
   Accessory,
-  AccessoryEventTypes, CameraController,
-  Categories, Controller, ControllerConstructor,
+  AccessoryEventTypes,
+  CameraController,
+  Categories,
+  Controller,
+  ControllerConstructor,
   LegacyCameraSource,
   SerializedAccessory,
   Service,
   WithUUID,
-} from "hap-nodejs";
+} from "./";
 import { PlatformName, PluginIdentifier, PluginName } from "./api";
 
 export interface SerializedPlatformAccessory extends SerializedAccessory {

@@ -1,10 +1,7 @@
 import { EventEmitter } from "events";
 import getVersion from "./version";
-import { Logger, Logging } from "./logger";
-import * as hapNodeJs from "hap-nodejs";
-import { Service } from "hap-nodejs";
-import { PlatformAccessory } from "./platformAccessory";
-import { User } from "./user";
+import * as hapNodeJs from "./";
+import { Logger, Logging, PlatformAccessory, Service, User } from "./";
 import { AccessoryConfig, PlatformConfig } from "./server";
 import { PluginManager } from "./pluginManager";
 

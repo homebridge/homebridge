@@ -1,5 +1,12 @@
-import { PlatformAccessory, SerializedPlatformAccessory } from "./platformAccessory";
-import { Accessory, Categories, RemoteController, Service, uuid } from "hap-nodejs";
+import {
+  Accessory,
+  Categories,
+  PlatformAccessory,
+  RemoteController,
+  SerializedPlatformAccessory,
+  Service,
+  uuid,
+} from "./";
 
 function createAccessory(name = "TestAccessory", category?: Categories): PlatformAccessory {
   const accessoryUUID = uuid.generate("test.uuid." + name);
