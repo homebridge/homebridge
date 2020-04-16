@@ -50,6 +50,10 @@ export class PlatformAccessory extends EventEmitter {
   UUID: string;
   category: Categories;
   services: Service[] = [];
+  /**
+   * @deprecated reachability has no effect and isn't supported anymore
+   */
+  reachable = false;
   // ------------------------------------------------------
 
   /**
@@ -113,9 +117,10 @@ export class PlatformAccessory extends EventEmitter {
   /**
    *
    * @param reachable
-   * @deprecated reachability isn't supported anymore
+   * @deprecated reachability has no effect and isn't supported anymore
    */
   public updateReachability(reachable: boolean): void {
+    this.reachable = reachable;
     this._associatedHAPAccessory.updateReachability(reachable);
   }
 
