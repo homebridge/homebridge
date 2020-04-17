@@ -1,4 +1,4 @@
-import { AccessoryPlugin, HomebridgeAPI, InternalAPIEvent, PlatformPlugin } from "./api";
+import { AccessoryPlugin, HomebridgeAPI, InternalAPIEvent, DynamicPlatformPlugin } from "./api";
 import { PlatformAccessory, Service } from "./";
 
 const api = new HomebridgeAPI();
@@ -12,7 +12,7 @@ class ExampleAccessory implements AccessoryPlugin {
 
 }
 
-class ExamplePlatform implements PlatformPlugin {
+class ExamplePlatform implements DynamicPlatformPlugin {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   configureAccessory(accessory: PlatformAccessory): void {
