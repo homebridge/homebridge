@@ -18,8 +18,9 @@ export { // basically everything but the actual API implementation
   AccessoryPluginConstructor,
   AccessoryPlugin,
   PlatformPluginConstructor,
-  PlatformPlugin,
-  LegacyPlatformPlugin,
+  DynamicPlatformPlugin,
+  StaticPlatformPlugin,
+  IndependentPlatformPlugin,
 
   APIEvent,
   API,

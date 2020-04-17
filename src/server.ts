@@ -18,14 +18,16 @@ import { User } from "./user";
 import {
   AccessoryIdentifier,
   AccessoryName,
-  AccessoryPlugin, AccessoryPluginConstructor,
+  AccessoryPlugin,
+  AccessoryPluginConstructor,
   HomebridgeAPI,
   InternalAPIEvent,
-  LegacyPlatformPlugin,
   PlatformIdentifier,
   PlatformName,
-  PlatformPlugin, PlatformPluginConstructor,
+  PlatformPlugin,
+  PlatformPluginConstructor,
   PluginIdentifier,
+  StaticPlatformPlugin,
 } from "./api";
 import { PlatformAccessory, SerializedPlatformAccessory } from "./platformAccessory";
 import getVersion from "./version";
@@ -265,7 +267,7 @@ export class Server {
   private restoreCachedPlatformAccessories(): void {
     this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(accessory => {
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
-      const platformPlugins = plugin && plugin.getActivePlatforms(accessory._associatedPlatform!);
+      const platformPlugins = plugin && plugin.getActiveDynamicPlatforms(accessory._associatedPlatform!);
 
       if (!platformPlugins) {
         log.info(`Failed to find plugin to handle accessory ${accessory._associatedHAPAccessory.displayName}`);
@@ -327,7 +329,7 @@ export class Server {
       const logger = Logger.withPrefix(displayName);
       logger("Initializing %s accessory...", accessoryIdentifier);
 
-      const accessoryInstance: AccessoryPlugin = new constructor(logger, accessoryConfig);
+      const accessoryInstance: AccessoryPlugin = new constructor(logger, accessoryConfig, this.api);
 
       //pass accessoryIdentifier for UUID generation, and optional parameter uuid_base which can be used instead of displayName for UUID generation
       const accessory = this.createHAPAccessory(plugin, accessoryInstance, displayName, accessoryIdentifier, accessoryConfig.uuid_base);
@@ -366,20 +368,20 @@ export class Server {
 
       const platform: PlatformPlugin = new constructor(logger, platformConfig, this.api);
 
-      if (platform.configureAccessory !== undefined) {
-        plugin.assignPlatformPlugin(platformIdentifier, platform);
-      } else if (HomebridgeAPI.isLegacyPlatformPlugin(platform)) {
-        // Plugin 1.0, load accessories
+      if (HomebridgeAPI.isDynamicPlatformPlugin(platform)) {
+        plugin.assignDynamicPlatform(platformIdentifier, platform);
+      } else if (HomebridgeAPI.isStaticPlatformPlugin(platform)) { // Plugin 1.0, load accessories
         promises.push(this.loadPlatformAccessories(plugin, platform, platformIdentifier));
       } else {
-        throw new Error(`Detected malformed PlatformPlugin in your config.json at position ${index + 1}! Please contact Platform developer!`);
+        // otherwise it's a IndependentPlatformPlugin which doesn't expose any methods at all.
+        // We just call the constructor and let it be enabled.
       }
     });
 
     return promises;
   }
 
-  private async loadPlatformAccessories(plugin: Plugin, platformInstance: LegacyPlatformPlugin, platformType: PlatformName | PlatformIdentifier): Promise<void> {
+  private async loadPlatformAccessories(plugin: Plugin, platformInstance: StaticPlatformPlugin, platformType: PlatformName | PlatformIdentifier): Promise<void> {
     // Plugin 1.0, load accessories
     return new Promise(resolve => {
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
@@ -460,7 +462,7 @@ export class Server {
         accessory.getService(Service.AccessoryInformation)!
           .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
 
-        const platforms = plugin.getActivePlatforms(accessory._associatedPlatform!);
+        const platforms = plugin.getActiveDynamicPlatforms(accessory._associatedPlatform!);
         if (!platforms) {
           log.warn("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
         }

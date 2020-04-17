@@ -9,7 +9,7 @@ import {
   API,
   PlatformIdentifier,
   PlatformName,
-  PlatformPlugin,
+  DynamicPlatformPlugin,
   PlatformPluginConstructor,
   PluginIdentifier,
   PluginInitializer,
@@ -39,7 +39,7 @@ export class Plugin {
   private readonly registeredAccessories: Map<AccessoryName, AccessoryPluginConstructor> = new Map();
   private readonly registeredPlatforms: Map<PlatformName, PlatformPluginConstructor> = new Map();
 
-  private readonly activePlatformPlugins: Map<PlatformName, PlatformPlugin[]> = new Map();
+  private readonly activeDynamicPlatforms: Map<PlatformName, DynamicPlatformPlugin[]> = new Map();
 
   constructor(name: PluginName, path: string, packageJSON: PackageJSON, scope?: string) {
     this.pluginName = name;
@@ -104,21 +104,21 @@ export class Plugin {
       throw new Error(`The requested platform '${name}' was not registered by the plugin '${this.getPluginIdentifier()}'.`);
     }
 
-    if (this.activePlatformPlugins.has(name)) {
-      log.error("The platform " + name + " from the plugin " + this.getPluginIdentifier() + " seems to be configured " +
+    if (this.activeDynamicPlatforms.has(name)) { // if it's a dynamic platform check that it is not enabled multiple times
+      log.error("The dynamic platform " + name + " from the plugin " + this.getPluginIdentifier() + " seems to be configured " +
         "multiple times in your config.json. This behaviour was deprecated in homebridge v1.0.0 and will be removed in v2.0.0!");
     }
 
     return constructor;
   }
 
-  public assignPlatformPlugin(platformIdentifier: PlatformIdentifier | PlatformName, platformPlugin: PlatformPlugin): void {
+  public assignDynamicPlatform(platformIdentifier: PlatformIdentifier | PlatformName, platformPlugin: DynamicPlatformPlugin): void {
     const name: PlatformName = PluginManager.getPlatformName(platformIdentifier);
 
-    let platforms = this.activePlatformPlugins.get(name);
+    let platforms = this.activeDynamicPlatforms.get(name);
     if (!platforms) {
       platforms = [];
-      this.activePlatformPlugins.set(name, platforms);
+      this.activeDynamicPlatforms.set(name, platforms);
     }
 
     // the last platform published should be at the first position for easy access
@@ -126,8 +126,8 @@ export class Plugin {
     platforms.unshift(platformPlugin);
   }
 
-  public getActivePlatforms(platformName: PlatformName): PlatformPlugin[] | undefined {
-    return this.activePlatformPlugins.get(platformName);
+  public getActiveDynamicPlatforms(platformName: PlatformName): DynamicPlatformPlugin[] | undefined {
+    return this.activeDynamicPlatforms.get(platformName);
   }
 
   public load(): void {

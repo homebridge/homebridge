@@ -22,42 +22,109 @@ export enum PluginType {
   PLATFORM = "platform",
 }
 
+/**
+ * The {PluginInitializer} is a method which must be the default export for every homebridge plugin.
+ * It is called once the plugin is loaded from disk.
+ */
 export interface PluginInitializer {
 
+  /**
+   * When the initializer is called the plugin must use the provided api instance and call the appropriate
+   * register methods - {@link API.registerAccessory} or {@link API.registerPlatform} - in order to
+   * correctly register for the following startup sequence.
+   *
+   * @param {API} api
+   */
   (api: API): void;
 
 }
 
 export interface AccessoryPluginConstructor {
-  new(logger: Logging, config: AccessoryConfig): AccessoryPlugin;
+  new(logger: Logging, config: AccessoryConfig, api: API): AccessoryPlugin;
 }
 
 export interface AccessoryPlugin {
 
+  /**
+   * Optional method which will be called if a 'identify' of a Accessory is requested by HomeKit.
+   */
   identify?(): void;
 
+  /**
+   * This method will be called once on startup to query all services to be exposed by the Accessory.
+   * All event handlers for characteristics should be set up before the array is returned.
+   *
+   * @returns {Service[]} services - returned services will be added to the Accessory
+   */
   getServices(): Service[];
 
 }
 
 export interface PlatformPluginConstructor {
-  new(logger: Logging, config: PlatformConfig, api: API): PlatformPlugin;
+  new(logger: Logging, config: PlatformConfig, api: API): DynamicPlatformPlugin | StaticPlatformPlugin | IndependentPlatformPlugin;
 }
 
-export interface PlatformPlugin { // also referred to as "dynamic" platform plugin
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface PlatformPlugin {} // not exported to the public in index.ts
 
+/**
+ * Platform that is able to dynamically add or remove accessories.
+ * All configured accessories are stored to disk and recreated on startup.
+ * Accessories can be added or removed by using {@link API.registerPlatformAccessories} or {@link API.unregisterPlatformAccessories}.
+ */
+export interface DynamicPlatformPlugin extends PlatformPlugin {
+
+  /**
+   * This method is called for every PlatformAccessory, which is recreated from disk on startup.
+   * It should be used to properly initialize the Accessory and setup all event handlers for
+   * all services and their characteristics.
+   *
+   * @param {PlatformAccessory} accessory which needs to be configured
+   */
   configureAccessory(accessory: PlatformAccessory): void;
 
 }
 
-export interface LegacyPlatformPlugin {
+/**
+ * Platform that exposes all available characteristics at the start of the plugin.
+ * The set of accessories can not change at runtime.
+ * The bridge waits for all callbacks to return before it is published and accessible by HomeKit controllers.
+ */
+export interface StaticPlatformPlugin extends PlatformPlugin {
 
+  /**
+   * This method is called once at startup. The Platform should pass all accessories which need to be created
+   * to the callback in form of a {@link AccessoryPlugin}.
+   * The Platform must respond in a timely manner as otherwise the startup of the bridge would be unnecessarily delayed.
+   *
+   * @param {(foundAccessories: AccessoryPlugin[]) => void} callback
+   */
   accessories(callback: (foundAccessories: AccessoryPlugin[]) => void): void;
 
 }
 
+/**
+ * Platform that does not aim to add any accessories to the main bridge accessory.
+ * This platform should be used if for example a plugin aims to only expose external accessories.
+ * It should also be used when the platform doesn't intend to expose any accessories at all, like plugins
+ * providing a UI for homebridge.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface IndependentPlatformPlugin extends PlatformPlugin {
+  // does not expose any methods
+}
+
 export enum APIEvent {
+  /**
+   * Event is fired once homebridge has finished with booting up and initializing all components and plugins.
+   * When this event is fired it is possible that the Bridge accessory isn't published yet, if homebridge still needs
+   * to wait for some {@see StaticPlatformPlugin | StaticPlatformPlugins} to finish accessory creation.
+   */
   DID_FINISH_LAUNCHING = "didFinishLaunching",
+  /**
+   * This event is fired when homebridge got shutdown. This could be a regular shutdown or a unexpected crash.
+   * At this stage all Accessories are already unpublished and all PlatformAccessories are already saved to disk!
+   */
   SHUTDOWN = "shutdown",
 }
 
@@ -152,8 +219,11 @@ export class HomebridgeAPI extends EventEmitter implements API {
     super();
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public static isLegacyPlatformPlugin(platformPlugin: any): platformPlugin is LegacyPlatformPlugin {
+  public static isDynamicPlatformPlugin(platformPlugin: PlatformPlugin): platformPlugin is DynamicPlatformPlugin {
+    return "configureAccessory" in platformPlugin;
+  }
+
+  public static isStaticPlatformPlugin(platformPlugin: PlatformPlugin): platformPlugin is StaticPlatformPlugin {
     return "accessories" in platformPlugin;
   }
 
