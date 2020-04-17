@@ -276,10 +276,12 @@ export class Server {
           return false; // filter it from the list
         }
       } else {
-        // we always use the last registered
-        platformPlugins[0].configureAccessory(accessory);
+        // we set the current plugin version before configureAccessory is called, so the dev has the opportunity to override it
         accessory.getService(Service.AccessoryInformation)!
           .setCharacteristic(Characteristic.FirmwareRevision, plugin!.version);
+
+        // we always use the last registered
+        platformPlugins[0].configureAccessory(accessory);
       }
 
       this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory);
@@ -433,6 +435,9 @@ export class Server {
         });
       }
 
+      accessory.getService(Service.AccessoryInformation)!
+        .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+
       services.forEach(service => {
         // if you returned an AccessoryInformation service, merge its values with ours
         if (service instanceof Service.AccessoryInformation) {
@@ -446,9 +451,6 @@ export class Server {
         }
       });
 
-      accessory.getService(Service.AccessoryInformation)!
-        .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
-
       return accessory;
     }
   }
@@ -459,8 +461,10 @@ export class Server {
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
       if (plugin) {
-        accessory.getService(Service.AccessoryInformation)!
-          .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+        const informationService = accessory.getService(Service.AccessoryInformation)!;
+        if (!informationService.testCharacteristic(Characteristic.FirmwareRevision)) {
+          informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+        }
 
         const platforms = plugin.getActiveDynamicPlatforms(accessory._associatedPlatform!);
         if (!platforms) {
@@ -527,8 +531,10 @@ export class Server {
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
       if (plugin) {
-        hapAccessory.getService(Service.AccessoryInformation)!
-          .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+        const informationService = hapAccessory.getService(Service.AccessoryInformation)!;
+        if (!informationService.testCharacteristic(Characteristic.FirmwareRevision)) {
+          informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+        }
       } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) { // we did already complain in api.ts if it wasn't a qualified name
         log.warn("A platform configured a external accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
