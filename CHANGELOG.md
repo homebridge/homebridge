@@ -47,7 +47,13 @@ updated to 0.6.0 with some changes highlighted here:
     * Fixed a bug in the encryption layer, which would sometimes encrypt events in the wrong order causing corrupted responses. 
         This issue typically affected service which expose their state using 'target' characteristics 
         and 'current' characteristics like Doors, Locks and Windows.
-    * Many, many more bug fixes and improvements like better HAP specification compatibility.
+    * Improved HAP specification compatibility, while noting the following changes affecting compatibility:
+        * For `/characteristics` `PUT` request the HAP server will return `204 No Content` if all characteristic writes
+        succeeded and `207 Multi-Status` if at least one write failed or when a write-response is delivered.
+        * For `/characteristics` `GET` request the HAP server will return `200 Success` if all characteristic reads
+        succeeded and `207 Multi-Status` if at least one write failed. 
+        * The HAP server will now return short UUIDs for Apple predefined services and characteristics for the `/accessories` route.
+    * Many, many more bug fixes and improvements.
 
 ### Other Changes
 
