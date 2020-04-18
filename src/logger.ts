@@ -13,7 +13,7 @@ import chalk, { Level } from "chalk";
  *
  * Messages with DEBUG level are only displayed if explicitly enabled.
  */
-export enum LogLevel {
+export const enum LogLevel {
   INFO = "info",
   WARN = "warn",
   ERROR = "error",

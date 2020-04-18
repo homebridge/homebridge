@@ -23,7 +23,7 @@ export interface SerializedPlatformAccessory extends SerializedAccessory {
 
 }
 
-export enum PlatformAccessoryEvent {
+export const enum PlatformAccessoryEvent {
   IDENTIFY = "identify",
 }
 

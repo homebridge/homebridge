@@ -1,4 +1,8 @@
+import * as hapNodeJs from "hap-nodejs";
 export * from "hap-nodejs";
+
+export type HAP = typeof hapNodeJs;
+export type HAPLegacyTypes = typeof hapNodeJs.LegacyTypes;
 
 export { LogLevel, Logging, Logger } from "./logger";
 export * from "./user";

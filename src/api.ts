@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import getVersion from "./version";
-import * as hapNodeJs from "./";
-import { Logger, Logging, PlatformAccessory, Service, User } from "./";
+import * as hapNodeJs from "hap-nodejs";
+import { HAP, HAPLegacyTypes, Logger, Logging, PlatformAccessory, Service, User } from "./";
 import { AccessoryConfig, PlatformConfig } from "./server";
 import { PluginManager } from "./pluginManager";
 
@@ -17,7 +17,7 @@ export type PlatformName = string;
 export type AccessoryIdentifier = string; // format: "PluginIdentifier.AccessoryName"
 export type PlatformIdentifier = string; // format: "PluginIdentifier.PlatformName"
 
-export enum PluginType {
+export const enum PluginType {
   ACCESSORY = "accessory",
   PLATFORM = "platform",
 }
@@ -114,7 +114,7 @@ export interface IndependentPlatformPlugin extends PlatformPlugin {
   // does not expose any methods
 }
 
-export enum APIEvent {
+export const enum APIEvent {
   /**
    * Event is fired once homebridge has finished with booting up and initializing all components and plugins.
    * When this event is fired it is possible that the Bridge accessory isn't published yet, if homebridge still needs
@@ -128,7 +128,7 @@ export enum APIEvent {
   SHUTDOWN = "shutdown",
 }
 
-export enum InternalAPIEvent {
+export const enum InternalAPIEvent {
   REGISTER_ACCESSORY = "registerAccessory",
   REGISTER_PLATFORM = "registerPlatform",
 
@@ -152,8 +152,8 @@ export interface API {
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
   readonly user: typeof User;
-  readonly hap: typeof hapNodeJs;
-  readonly hapLegacyTypes: typeof hapNodeJs.LegacyTypes; // used for older accessories/platforms
+  readonly hap: HAP;
+  readonly hapLegacyTypes: HAPLegacyTypes; // used for older accessories/platforms
   readonly platformAccessory: typeof PlatformAccessory;
   // ------------------------------------------------------------------------
 
