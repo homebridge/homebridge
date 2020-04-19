@@ -14,7 +14,8 @@
     "outDir": "./lib",
     "rootDir": "./src",
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "preserveConstEnums": true
   },
   "include": [
     "src/"
