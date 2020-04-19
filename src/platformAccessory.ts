@@ -157,6 +157,7 @@ export class PlatformAccessory extends EventEmitter {
     platformAccessory._associatedPlugin = json.plugin;
     platformAccessory._associatedPlatform = json.platform;
     platformAccessory.context = json.context;
+    platformAccessory.category = json.category;
 
     return platformAccessory;
   }
