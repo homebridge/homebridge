@@ -18,13 +18,16 @@ assignees: ''
 **Describe Your Problem:**
 <!-- A clear and concise description of what problem you are trying to solve. -->
 
-**Logs:**
-<!-- Paste relevant output between the two ``` lines below -->
+[**Logs:**]()
+<!-- Please paste any relevant log output into a gist or using hastebin-->
+<!-- If using hastebin or other text sharing website please make the lifespan long-->
+<!-- Paste the link between the two () above -->
 <!-- Remove any sensitive information, passwords, etc. -->
 <!-- Please include the beginning of the log where the homebridge initialization happens -->
+<!-- If needing to link multiple log files please do so between the ``` lines below -->
 
 ```
-Show the Homebridge logs here.
+Secondary Homebridge Logs here
 ```
 
 **Homebridge Config:**
