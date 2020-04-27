@@ -42,7 +42,7 @@ const log = Logger.internal;
 export interface HomebridgeOptions {
 
   config?: HomebridgeConfig;
-  cleanCachedAccessories?: boolean;
+  keepOrphanedCachedAccessories?: boolean;
   hideQRCode?: boolean;
   insecureAccess?: boolean;
   customPluginPath?: string;
@@ -101,7 +101,7 @@ export class Server {
   private readonly bridge: Bridge;
 
   private readonly config: HomebridgeConfig;
-  private readonly cleanCachedAccessories: boolean;
+  private readonly keepOrphanedCachedAccessories: boolean;
   private readonly hideQRCode: boolean;
   private readonly allowInsecureAccess: boolean;
 
@@ -116,7 +116,7 @@ export class Server {
     accessoryStorage.initSync({ dir: User.cachedAccessoryPath() }); // Setup Accessory Cache Storage
 
     this.config = options.config || Server._loadConfig();
-    this.cleanCachedAccessories = options.cleanCachedAccessories || false;
+    this.keepOrphanedCachedAccessories = options.keepOrphanedCachedAccessories || false;
     this.hideQRCode = options.hideQRCode || false;
     // Server is "secure by default", meaning it creates a top-level Bridge accessory that
     // will not allow unauthenticated requests. This matches the behavior of actual HomeKit
@@ -271,7 +271,7 @@ export class Server {
 
       if (!platformPlugins) {
         log.info(`Failed to find plugin to handle accessory ${accessory._associatedHAPAccessory.displayName}`);
-        if (this.cleanCachedAccessories) {
+        if (!this.keepOrphanedCachedAccessories) {
           log.info(`Removing orphaned accessory ${accessory._associatedHAPAccessory.displayName}`);
           return false; // filter it from the list
         }
