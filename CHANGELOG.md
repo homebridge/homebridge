@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.0.1 (2020-04-27)
+
+### Notable Changes
+
+* [#2522](https://github.com/homebridge/homebridge/pull/2522) Allow plugins that have strict Homebridge version requirements to still load, instead an error message will be posted in the Homebridge logs letting users know they may face issues using the current version of the plugin.
+
 ## v1.0.0 (2020-04-27)
 
 ### Breaking Changes
