@@ -2,17 +2,20 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
-## NEXT
-
-**Important notice:** The update to the underlying HAP-NodeJS library brings many fixes to the HomeKit Accessory Protocol. 
-One of those is the permission management of people you may have added to your Home. It is strongly recommended that 
-you remove every person added to your Home and then invite them back into your home.
-This will ensure that permissions for all people in your home are downgraded correctly.
+## v1.0.0 (2020-04-27)
 
 ### Breaking Changes
 
+* **The minimum Node.js version required is now `v10.17.0`.**
+* **Important notice:** The update to the underlying HAP-NodeJS library brings many fixes to the HomeKit Accessory Protocol. One of those is the permission management of people you may have added to your Home. It is strongly recommended that you remove every person added to your Home and then invite them back into your home. This will ensure that permissions for all people in your home are downgraded correctly.
 * [#2481](https://github.com/homebridge/homebridge/pull/2481) - Platforms will no longer load unless they have been explicitly configured in the `config.json`
 * [#2482](https://github.com/homebridge/homebridge/pull/2482) - Dropped support for the `BridgeSetupManager`
+
+If you encounter any issues in v1.0.0 you can rollback to v0.4.53 using this command:
+
+```
+sudo npm install -g --unsafe-perm homebridge@0.4.53
+```
 
 ### Notable Changes
 
@@ -57,3 +60,12 @@ updated to 0.6.0 with some changes highlighted here:
 
 ### Other Changes
 
+* Homebridge now exports TypeScript types that can be used in the development of plugins.
+    * See the [homebridge-examples](https://github.com/homebridge/homebridge-examples) repo for examples of how to do this.
+    * We also have create a [plugin template](https://github.com/homebridge/homebridge-plugin-template) you can use as a base for your own plugins.
+
+## v0.4.53 (2020-03-18)
+
+### Notable Changes
+
+* Added the ability to use [scoped npm](https://docs.npmjs.com/using-npm/scope.html) modules as Homebridge plugins. This means plugin developers can now publish Homebridge plugins to npm under their own user or npm organisation, such as `@username/homebridge-plugin`.
