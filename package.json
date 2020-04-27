@@ -1,7 +1,7 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "0.4.53",
+  "version": "1.0.0",
   "scripts": {
     "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
     "lint": "eslint 'src/**/*.{js,ts,json}'",
@@ -21,7 +21,7 @@
   "bugs": {
     "url": "http://github.com/homebridge/homebridge/issues"
   },
-  "license": "ISC",
+  "license": "Apache-2.0",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "bin": {
