@@ -258,6 +258,20 @@ export class PluginManager {
     return undefined;
   }
 
+  public getPluginByActiveDynamicPlatform(platformName: PlatformName): Plugin | undefined {
+    const found = (this.platformToPluginMap.get(platformName) || [])
+      .filter(plugin => !!plugin.getActiveDynamicPlatform(platformName));
+
+    if (found.length === 0) {
+      return undefined;
+    } else if (found.length > 1) {
+      const plugins = found.map(plugin => plugin.getPluginIdentifier()).join(", ");
+      throw new Error(`'${platformName}' is an ambiguous platform name. It was registered by multiple plugins: ${plugins}`);
+    } else {
+      return found[0];
+    }
+  }
+
   private loadInstalledPlugins(): void{ // Gets all plugins installed on the local system
     this.searchPaths.forEach(searchPath => { // search for plugins among all known paths
       if (!fs.existsSync(searchPath)) { // just because this path is in require.main.paths doesn't mean it necessarily exists!
