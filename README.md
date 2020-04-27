@@ -41,6 +41,7 @@ HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7f
 
 The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge as a service so it automatically starts on boot:
 
+* [Official Homebridge Raspberry Pi Image](https://github.com/homebridge/homebridge-raspbian-image/wiki/Getting-Started)
 * [Setup Homebridge on a Raspberry Pi (Raspbian)](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Raspbian)
 * [Setup Homebridge on Debian or Ubuntu Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux)
 * [Setup Homebridge on macOS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-macOS)
@@ -50,7 +51,7 @@ The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains st
 
 #### Quick Overview
 
-1. **Node v4.3.2 or greater is required.** Check by running: `node -v`. The plugins you use may require newer versions.
+1. **Node v10.17.0 or greater is required.** Check by running: `node -v`. The plugins you use may require newer versions.
 2. Install Homebridge using: `npm install -g --unsafe-perm homebridge`
 3. Install the plugins using: `npm install -g <plugin-name>`
 4. Create the `config.json` file.
@@ -103,7 +104,7 @@ Homebridge is now ready to receive commands from iOS.
 
 ## Installing Plugins
 
-Plugins are NodeJS modules published through NPM and tagged with the keyword `homebridge-plugin`. They must have a name with the prefix `homebridge-`, like **homebridge-mysmartlock**.
+Plugins are Node.js modules published through NPM and tagged with the keyword `homebridge-plugin`. They must have a name with the prefix `homebridge-`, like **homebridge-mysmartlock**.
 
 Plugins can publish Accessories and/or Platforms. Accessories are individual devices, like a smart switch or a garage door. Platforms act like a single device but can expose a set of devices, like a house full of smart lightbulbs.
 
@@ -117,13 +118,13 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ## Adding Homebridge to iOS
 
-HomeKit itself is actually not an app; it's a "database" similar to HealthKit and PassKit. Where HealthKit has the companion _Health_ app and PassKit has the _Wallet_ app, HomeKit has the _Home_ app, introduced with iOS 10.
+1. Open the Home <img src="https://user-images.githubusercontent.com/3979615/78010622-4ea1d380-738e-11ea-8a17-e6a465eeec35.png" height="16.42px"> app on your device.
+2. Tap the Home tab, then tap <img src="https://user-images.githubusercontent.com/3979615/78010869-9aed1380-738e-11ea-9644-9f46b3633026.png" height="16.42px">.
+3. Tap *Add Accessory*, then scan the QR code shown in the Homebridge UI or your Homebridge logs.
 
-If you are a member of the iOS developer program, you might also find Apple's [HomeKit Catalog](https://developer.apple.com/library/ios/samplecode/HomeKitCatalog/Introduction/Intro.html) app to be useful, as it provides straightforward and comprehensive management of all HomeKit database "objects".
+If the bridge does not have any accessories yet, you may receive a message saying *Additional Set-up Required*, this is ok, as you add plugins they will show up in the Home app without the need to pair again (except for Cameras and TVs).
 
-Using the Home app, or most other HomeKit apps, you should be able to add the single accessory "Homebridge", assuming that you're still running Homebridge and you're on the same Wifi network. Adding this accessory will automatically add all accessories and platforms defined in `config.json`.
-
-When you attempt to add Homebridge, it will ask for a "PIN code". The default code is `031-45-154` (but this can be changed, see `config-sample.json`).
+Cameras and most TV devices are exposed as separate accessories and each needs to be paired separately. See [this wiki article](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-add-homebridge-cameras--tvs) for instructions.
 
 ## Interacting with your Devices
 
@@ -139,9 +140,7 @@ There are two basic types of plugins:
 * Single accessories: controls, for example, a single light bulb.
 * Platform accessories: a "meta" accessory that controls many sub-accessories. For example, a bridge that translates to many other devices on a specialized channel.
 
-There are many existing plugins you can study; you might start with the included [Example Plugins](https://github.com/homebridge/homebridge/tree/master/example-plugins). Right now this contains a single plugin that registers a platform that offers fake light accessories. This is a good example of how to use the Homebridge Plugin API. You can also find an example plugin that [publishes an individual accessory](https://github.com/homebridge/homebridge/tree/6500912f54a70ff479e63e2b72760ab589fa558a/example-plugins/homebridge-lockitron).
-
-For more example on how to construct HomeKit Services and Characteristics, see the many Accessories in the [Legacy Plugins](https://github.com/nfarina/homebridge-legacy-plugins/tree/master/accessories) repository.
+There are many existing plugins you can study; you might start with the [Homebridge Example Plugins](https://github.com/homebridge/homebridge-examples). The [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin-template) project also provides a base you can use to create your own *platform* plugin.
 
 You can also view the [full list of supported HomeKit Services and Characteristics in the HAP-NodeJS protocol repository](https://github.com/KhaosT/HAP-NodeJS/blob/master/src/lib/gen/HomeKit.ts).
 
@@ -155,16 +154,27 @@ Check out the [`homebridge-tesla`](https://github.com/nfarina/homebridge-tesla) 
 
 ## Plugin Development
 
-When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. You can tell Homebridge to look for your plugin at a specific location using the command-line parameter `-P`. For example, if you are in the Homebridge directory (as checked out from Github), you might type:
+When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time.
+
+Run this command inside your plugin project folder so your global install of Homebridge can discover it:
+
 
 ```shell
-DEBUG=* ./bin/homebridge -D -P ../my-great-plugin/
+npm link
 ```
 
-This will start up Homebridge and load your in-development plugin from a nearby directory. Note that you can also direct Homebridge to load your configuration from somewhere besides the default `~/.homebridge`, for example:
+*You can undo this using the `npm unlink` command.*
+
+Then start Homebridge in debug mode:
 
 ```shell
-DEBUG=* ./bin/homebridge -D -U ~/.homebridge-dev -P ../my-great-plugin/
+homebridge -D
+```
+
+This will start up Homebridge and load your in-development plugin. Note that you can also direct Homebridge to load your configuration from somewhere besides the default `~/.homebridge`, for example:
+
+```shell
+homebridge -D -U ~/.homebridge-dev
 ```
 
 This is very useful when you are already using your development machine to host a "real" Homebridge instance (with all your accessories) that you don't want to disturb.
