@@ -126,8 +126,10 @@ export class Plugin {
     platforms.unshift(platformPlugin);
   }
 
-  public getActiveDynamicPlatforms(platformName: PlatformName): DynamicPlatformPlugin[] | undefined {
-    return this.activeDynamicPlatforms.get(platformName);
+  public getActiveDynamicPlatform(platformName: PlatformName): DynamicPlatformPlugin | undefined {
+    const platforms = this.activeDynamicPlatforms.get(platformName);
+    // we always use the last registered
+    return platforms && platforms[0];
   }
 
   public load(): void {

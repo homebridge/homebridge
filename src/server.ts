@@ -266,13 +266,35 @@ export class Server {
 
   private restoreCachedPlatformAccessories(): void {
     this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(accessory => {
-      const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
-      const platformPlugins = plugin && plugin.getActiveDynamicPlatforms(accessory._associatedPlatform!);
+      let plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
+      if (!plugin) { // a little explainer here. This section is basically here to resolve plugin name changes of dynamic platform plugins
+        try {
+          // resolve platform accessories by searching for plugins which registered a dynamic platform for the given name
+          plugin = this.pluginManager.getPluginByActiveDynamicPlatform(accessory._associatedPlatform!);
+
+          if (plugin) { // if it's undefined the no plugin was found
+            // could improve on this by calculating the Levenshtein distance to only allow platform ownership changes
+            // when something like a typo happened. Are there other reasons the name could change?
+            // And how would we define the threshold?
+
+            log.info("When searching for the associated plugin of the accessory '" + accessory.displayName + "' " +
+              "it seems like the plugin name changed from '" + accessory._associatedPlatform + "' to '" +
+              plugin.getPluginIdentifier() + "'. Plugin association is now being transformed!");
+
+            accessory._associatedPlugin = plugin.getPluginIdentifier(); // update the assosicated plugin to the new one
+          }
+        } catch (error) { // error is thrown if multiple plugins where found for the given platform name
+          log.info("Could not find the associated plugin for the accessory '" + accessory.displayName + "'. " +
+            "Tried to find the plugin by the platform name but " + error.message);
+        }
+      }
+
+      const platformPlugins = plugin && plugin.getActiveDynamicPlatform(accessory._associatedPlatform!);
 
       if (!platformPlugins) {
-        log.info(`Failed to find plugin to handle accessory ${accessory._associatedHAPAccessory.displayName}`);
+        log.info(`Failed to find plugin to handle accessory ${accessory.displayName}`);
         if (this.cleanCachedAccessories) {
-          log.info(`Removing orphaned accessory ${accessory._associatedHAPAccessory.displayName}`);
+          log.info(`Removing orphaned accessory ${accessory.displayName}`);
           return false; // filter it from the list
         }
       } else {
@@ -280,8 +302,7 @@ export class Server {
         accessory.getService(Service.AccessoryInformation)!
           .setCharacteristic(Characteristic.FirmwareRevision, plugin!.version);
 
-        // we always use the last registered
-        platformPlugins[0].configureAccessory(accessory);
+        platformPlugins.configureAccessory(accessory);
       }
 
       this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory);
@@ -466,7 +487,7 @@ export class Server {
           informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
         }
 
-        const platforms = plugin.getActiveDynamicPlatforms(accessory._associatedPlatform!);
+        const platforms = plugin.getActiveDynamicPlatform(accessory._associatedPlatform!);
         if (!platforms) {
           log.warn("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
         }
