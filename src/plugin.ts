@@ -141,8 +141,10 @@ export class Plugin {
 
     // make sure the version is satisfied by the currently running version of HomeBridge
     if (!satisfies(getVersion(), versionRequired, { includePrerelease: true })) {
-      throw new Error(`Plugin ${this.pluginPath} requires a HomeBridge version of ${versionRequired} which does \
-not satisfy the current HomeBridge version of ${getVersion()}. You may need to upgrade your installation of HomeBridge.`);
+      // TODO - change this back to an error
+      log.error(`The plugin "${this.pluginName}" requires a Homebridge version of ${versionRequired} which does \
+not satisfy the current Homebridge version of ${getVersion()}. You may need to update this plugin (or Homebridge) to a newer version. \
+You may face unexpected issues or stablity problems running this plugin.`);
     }
 
     // make sure the version is satisfied by the currently running version of Node
