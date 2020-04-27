@@ -21,20 +21,16 @@ sudo npm install -g --unsafe-perm homebridge@0.4.53
 
 * [#2476](https://github.com/homebridge/homebridge/pull/2476) - Project converted to Typescript by [@Supereg](https://github.com/Supereg)
 * Homebridge API version was bumped to `2.5` with the following additions:
-    * The signatures of `registerAccessory` and `registerPlatform` have been adjusted. The plugin name, which was passed
-    as the first argument, can now be left out and will be determined automatically by homebridge.
-    * The `PlatformAccessory` class received a new method `configureController` which can be used to access the new 
-    Controller API (used for Apple TV Remotes and Cameras) introduced with HAP-NodeJS 0.6.0
-    * Cameras can now be added to the bridge using a `DynamicPlatformPlugin` and the methods `configureCameraSource` or 
-    `configureController` of the `PlatformAccessory` (removing the need to create an external accessory)
+    * The signatures of `registerAccessory` and `registerPlatform` have been adjusted. The plugin name, which was passed as the first argument, can now be left out and will be determined automatically by homebridge.
+    * The `PlatformAccessory` class received a new method `configureController` which can be used to access the new Controller API (used for Apple TV Remotes and Cameras) introduced with HAP-NodeJS 0.6.0
+    * Cameras can now be added to the bridge using a `DynamicPlatformPlugin` and the methods `configureCameraSource` or `configureController` of the `PlatformAccessory` (removing the need to create an external accessory)
     * The hidden service and primary service properties are now properly restored for cached accessories
 * [#2391](https://github.com/homebridge/homebridge/pull/2391) - [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS) 
 updated to 0.6.0 with some changes highlighted here:
     * HAP-NodeJS was converted to Typescript as well (thanks to [@hassankhan](https://github.com/hassankhan))
     * Support for exposing Cameras through a Bridge was added
     * Support for Apple TV Remotes (with and without Siri Voice transmission) using the new RemoteController API
-    * Introduction of the new CameraController API which improves on the existing API and opens the way for a possible 
-    future introduction of an API for HomeKit Secure Video
+    * Introduction of the new CameraController API which improves on the existing API and opens the way for a possible future introduction of an API for HomeKit Secure Video
     * Introduced new APIs to mark a service as primary service
     * Added new characteristic property `adminOnlyAccess` to limit certain access rights to the home-owner
     * Added new services and characteristics for:
@@ -51,10 +47,8 @@ updated to 0.6.0 with some changes highlighted here:
         This issue typically affected service which expose their state using 'target' characteristics 
         and 'current' characteristics like Doors, Locks and Windows.
     * Improved HAP specification compatibility, while noting the following changes affecting compatibility:
-        * For `/characteristics` `PUT` request the HAP server will return `204 No Content` if all characteristic writes
-        succeeded and `207 Multi-Status` if at least one write failed or when a write-response is delivered.
-        * For `/characteristics` `GET` request the HAP server will return `200 Success` if all characteristic reads
-        succeeded and `207 Multi-Status` if at least one write failed. 
+        * For `/characteristics` `PUT` request the HAP server will return `204 No Content` if all characteristic writes succeeded and `207 Multi-Status` if at least one write failed or when a write-response is delivered.
+        * For `/characteristics` `GET` request the HAP server will return `200 Success` if all characteristic reads  succeeded and `207 Multi-Status` if at least one write failed. 
         * The HAP server will now return short UUIDs for Apple predefined services and characteristics for the `/accessories` route.
     * Many, many more bug fixes and improvements.
 
