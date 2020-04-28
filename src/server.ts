@@ -7,7 +7,7 @@ import {
   AccessoryEventTypes,
   AccessoryLoader,
   Bridge,
-  Characteristic,
+  Characteristic, Logging,
   once,
   PublishInfo,
   Service,
@@ -357,8 +357,11 @@ export class Server {
       //pass accessoryIdentifier for UUID generation, and optional parameter uuid_base which can be used instead of displayName for UUID generation
       const accessory = this.createHAPAccessory(plugin, accessoryInstance, displayName, accessoryIdentifier, accessoryConfig.uuid_base);
 
-      // add it to the bridge
-      this.bridge.addBridgedAccessory(accessory);
+      if (accessory) {
+        this.bridge.addBridgedAccessory(accessory);
+      } else {
+        logger("Accessory %s returned empty set of services. Won't adding it to the bridge!", accessoryIdentifier);
+      }
     });
   }
 
@@ -394,7 +397,7 @@ export class Server {
       if (HomebridgeAPI.isDynamicPlatformPlugin(platform)) {
         plugin.assignDynamicPlatform(platformIdentifier, platform);
       } else if (HomebridgeAPI.isStaticPlatformPlugin(platform)) { // Plugin 1.0, load accessories
-        promises.push(this.loadPlatformAccessories(plugin, platform, platformIdentifier));
+        promises.push(this.loadPlatformAccessories(plugin, platform, platformIdentifier, logger));
       } else {
         // otherwise it's a IndependentPlatformPlugin which doesn't expose any methods at all.
         // We just call the constructor and let it be enabled.
@@ -404,12 +407,12 @@ export class Server {
     return promises;
   }
 
-  private async loadPlatformAccessories(plugin: Plugin, platformInstance: StaticPlatformPlugin, platformType: PlatformName | PlatformIdentifier): Promise<void> {
+  private async loadPlatformAccessories(plugin: Plugin, platformInstance: StaticPlatformPlugin, platformType: PlatformName | PlatformIdentifier, logger: Logging): Promise<void> {
     // Plugin 1.0, load accessories
     return new Promise(resolve => {
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
         // loop through accessories adding them to the list and registering them
-        accessories.forEach(accessoryInstance => {
+        accessories.forEach((accessoryInstance, index) => {
           // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
           // @ts-ignore
           const accessoryName = accessoryInstance.name; // assume this property was set
@@ -419,8 +422,13 @@ export class Server {
 
           log.info("Initializing platform accessory '%s'...", accessoryName);
 
-          const accessory: Accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryName, platformType, uuidBase);
-          this.bridge.addBridgedAccessory(accessory);
+          const accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryName, platformType, uuidBase);
+
+          if (accessory) {
+            this.bridge.addBridgedAccessory(accessory);
+          } else {
+            logger("Platform %s returned an accessory at index %d with an empty set of services. Won't adding it to the bridge!", platformType, index);
+          }
         });
 
         resolve();
@@ -428,8 +436,12 @@ export class Server {
     });
   }
 
-  private createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory {
+  private createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory | undefined {
     const services = (accessoryInstance.getServices() || []).filter(service => !!service);
+
+    if (services.length === 0) { // check that we only add valid services
+      return undefined;
+    }
 
     if (!(services[0] instanceof Service)) {
       // The returned "services" for this accessory is assumed to be the old style: a big array
