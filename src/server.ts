@@ -456,21 +456,22 @@ export class Server {
         });
       }
 
-      accessory.getService(Service.AccessoryInformation)!
-        .setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
-
+      const informationService = accessory.getService(Service.AccessoryInformation)!;
       services.forEach(service => {
         // if you returned an AccessoryInformation service, merge its values with ours
         if (service instanceof Service.AccessoryInformation) {
-          const existingService = accessory.getService(Service.AccessoryInformation)!;
-
           service.setCharacteristic(Characteristic.Name, displayName); // ensure display name is set
           // pull out any values you may have defined
-          existingService.replaceCharacteristicsFromService(service);
+          informationService.replaceCharacteristicsFromService(service);
         } else {
           accessory.addService(service);
         }
       });
+
+      if (informationService.getCharacteristic(Characteristic.FirmwareRevision).value === "0.0.0") {
+        // overwrite the default value with the actual plugin version
+        informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
+      }
 
       return accessory;
     }
@@ -483,7 +484,8 @@ export class Server {
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
       if (plugin) {
         const informationService = accessory.getService(Service.AccessoryInformation)!;
-        if (!informationService.testCharacteristic(Characteristic.FirmwareRevision)) {
+        if (informationService.getCharacteristic(Characteristic.FirmwareRevision).value === "0.0.0") {
+          // overwrite the default value with the actual plugin version
           informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
         }
 
@@ -553,7 +555,8 @@ export class Server {
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
       if (plugin) {
         const informationService = hapAccessory.getService(Service.AccessoryInformation)!;
-        if (!informationService.testCharacteristic(Characteristic.FirmwareRevision)) {
+        if (informationService.getCharacteristic(Characteristic.FirmwareRevision).value === "0.0.0") {
+          // overwrite the default value with the actual plugin version
           informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
         }
       } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) { // we did already complain in api.ts if it wasn't a qualified name
