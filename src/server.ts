@@ -278,7 +278,7 @@ export class Server {
             // And how would we define the threshold?
 
             log.info("When searching for the associated plugin of the accessory '" + accessory.displayName + "' " +
-              "it seems like the plugin name changed from '" + accessory._associatedPlatform + "' to '" +
+              "it seems like the plugin name changed from '" + accessory._associatedPlugin + "' to '" +
               plugin.getPluginIdentifier() + "'. Plugin association is now being transformed!");
 
             accessory._associatedPlugin = plugin.getPluginIdentifier(); // update the assosicated plugin to the new one
