@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.0.2 (2020-04-28)
+
+### Bug Fixes
+
+* [#2527](https://github.com/homebridge/homebridge/pull/2527) Improve cached accessory resolution.
+* [#2528](https://github.com/homebridge/homebridge/pull/2528) Removing orphaned cached accessories is now the default behavior.
+    * The `-R` flag was deprecated. A new `-K`/`--keep-orphans` flag was introduced to disable this behavior.
+
 ## v1.0.1 (2020-04-27)
 
 ### Notable Changes
