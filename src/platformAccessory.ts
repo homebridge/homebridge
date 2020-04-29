@@ -121,7 +121,6 @@ export class PlatformAccessory extends EventEmitter {
    */
   public updateReachability(reachable: boolean): void {
     this.reachable = reachable;
-    this._associatedHAPAccessory.updateReachability(reachable);
   }
 
   /**
