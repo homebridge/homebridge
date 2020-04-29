@@ -35,6 +35,7 @@ import * as mac from "./util/mac";
 import { MacAddress } from "./util/mac";
 import { PluginManager, PluginManagerOptions } from "./pluginManager";
 import { Plugin } from "./plugin";
+import { CharacteristicEventTypes } from "hap-nodejs";
 
 const accessoryStorage: LocalStorage = storage.create();
 const log = Logger.internal;
@@ -473,7 +474,11 @@ export class Server {
         // if you returned an AccessoryInformation service, merge its values with ours
         if (service instanceof Service.AccessoryInformation) {
           service.setCharacteristic(Characteristic.Name, displayName); // ensure display name is set
-          // pull out any values you may have defined
+          // ensure the plugin has not hooked already some listeners (some weird ones do).
+          // Otherwise they would override our identify listener registered by the HAP-NodeJS accessory
+          service.getCharacteristic(Characteristic.Identify).removeAllListeners(CharacteristicEventTypes.SET);
+
+          // pull out any values and listeners (get and set) you may have defined
           informationService.replaceCharacteristicsFromService(service);
         } else {
           accessory.addService(service);
