@@ -82,7 +82,7 @@ export class PlatformAccessory extends EventEmitter {
       // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
       // @ts-ignore
       // eslint-disable-next-line @typescript-eslint/no-empty-function
-      this.emit(PlatformAccessoryEvent.IDENTIFY, () => {}); // empty callback for backwards compatibility
+      this.emit(PlatformAccessoryEvent.IDENTIFY, paired, () => {}); // empty callback for backwards compatibility
       callback();
     });
   }
