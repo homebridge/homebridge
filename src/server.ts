@@ -7,13 +7,13 @@ import {
   AccessoryEventTypes,
   AccessoryLoader,
   Bridge,
-  Characteristic, Logging,
+  Characteristic,
   once,
   PublishInfo,
   Service,
   uuid,
-} from "./";
-import { Logger } from "./logger";
+} from "hap-nodejs";
+import { Logger, Logging } from "./logger";
 import { User } from "./user";
 import {
   AccessoryIdentifier,
@@ -627,3 +627,4 @@ export class Server {
   }
 
 }
+ 
