@@ -10,7 +10,7 @@ import {
   SerializedAccessory,
   Service,
   WithUUID,
-} from "./";
+} from "hap-nodejs";
 import { PlatformName, PluginIdentifier, PluginName } from "./api";
 
 export interface SerializedPlatformAccessory extends SerializedAccessory {
