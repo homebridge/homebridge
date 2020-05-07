@@ -1,12 +1,17 @@
 import { EventEmitter } from "events";
-import getVersion from "./version";
 import * as hapNodeJs from "hap-nodejs";
-import { HAP, HAPLegacyTypes, Logger, Logging, PlatformAccessory, Service, User } from "./";
+import getVersion from "./version";
+import { PlatformAccessory } from "./platformAccessory"; 
+import { User } from "./user";
+import { Logger, Logging } from "./logger";
+import { Service } from "hap-nodejs";
 import { AccessoryConfig, PlatformConfig } from "./server";
 import { PluginManager } from "./pluginManager";
 
 const log = Logger.internal;
 
+export type HAP = typeof hapNodeJs;
+export type HAPLegacyTypes = typeof hapNodeJs.LegacyTypes;
 
 export type PluginIdentifier = PluginName | ScopedPluginName;
 export type PluginName = string; // plugin name like "homebridge-dummy"
