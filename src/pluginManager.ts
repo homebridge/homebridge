@@ -127,7 +127,7 @@ export class PluginManager {
         return;
       }
 
-      log.info(`Loaded plugin: ${identifier}`);
+      log.info(`Loaded plugin: ${identifier}@${plugin.version}`);
 
       try {
         this.currentInitializingPlugin = plugin;
