@@ -1,4 +1,10 @@
 /**
+ * Export HAP
+ */
+import type { API } from "./api";
+export type HAP = API["hap"];
+
+/**
  * Export API const enums
  */
 export {

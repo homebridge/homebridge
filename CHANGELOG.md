@@ -6,11 +6,13 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Notable Changes
 
-* Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.7.1.
+* Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.7.3.
     * Moved to the built in Node.js crypto library for *chacha20-poly1305* encryption and decryption. This gives a 10x performance boost when doing crypto.
     * All debuggers are now prefixed with the library name, `HAP-NodeJS:`.
     * [v0.7.0 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.0)
     * [v0.7.1 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.1)
+    * [v0.7.2 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.2)
+    * [v0.7.3 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.3)
 
 ### Bug Fixes
 
