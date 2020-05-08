@@ -134,23 +134,11 @@ One final thing to remember is that Siri will almost always prefer its default p
 
 ## Writing Plugins
 
+The https://developers.homebridge.io website contains the Homebridge API reference, available service and characteristic types, and plugin examples.
+
 For a great introduction to writing plugins with some example code, check out [Frédéric Barthelet's excellent blog post](https://blog.theodo.com/2017/08/make-siri-perfect-home-companion-devices-not-supported-apple-homekit/).
 
-There are two basic types of plugins:
-* Single accessories: controls, for example, a single light bulb.
-* Platform accessories: a "meta" accessory that controls many sub-accessories. For example, a bridge that translates to many other devices on a specialized channel.
-
 There are many existing plugins you can study; you might start with the [Homebridge Example Plugins](https://github.com/homebridge/homebridge-examples). The [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin-template) project also provides a base you can use to create your own *platform* plugin.
-
-You can also view the [full list of supported HomeKit Services and Characteristics in the HAP-NodeJS protocol repository](https://github.com/KhaosT/HAP-NodeJS/blob/master/src/lib/gen/HomeKit.ts).
-
-See more examples on how to create Platform classes in the [Legacy Plugins](https://github.com/nfarina/homebridge-legacy-plugins/tree/master/platforms) repository.
-
-## Writing Plugins (ES6/TypeScript)
-
-Your plugin may need to perform a lot of asynchronous communication with 3rd-party services. To avoid "callback hell", you might try using next-generation JavaScript features like **async/await**.
-
-Check out the [`homebridge-tesla`](https://github.com/nfarina/homebridge-tesla) plugin for an example of how to write code in [TypeScript](https://github.com/nfarina/homebridge-tesla) or [ES6+Flow](https://github.com/nfarina/homebridge-tesla/tree/c9ddde85f60790614e5dd1960897a56cb93fde13) and transpile with [Babel](https://babeljs.io) and [Rollup](http://rollupjs.org) for distribution.
 
 ## Plugin Development
 
