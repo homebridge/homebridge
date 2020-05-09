@@ -1,4 +1,5 @@
 import path from "path";
+import assert from "assert";
 import { satisfies } from "semver";
 import getVersion from "./version";
 import { Logger } from "./logger";
@@ -31,7 +32,10 @@ export class Plugin {
   // ------------------ package.json content ------------------
   readonly version: string;
   private readonly main: string;
-  private readonly engines?: Record<string, string>;
+  private loadContext?: { // used to store data for a limited time until the load method is called, will be reset afterwards
+    engines?: Record<string, string>;
+    dependencies?: Record<string, string>;
+  }
   // ----------------------------------------------------------
 
   private pluginInitializer?: PluginInitializer; // default exported function from the plugin that initializes it
@@ -54,7 +58,11 @@ export class Plugin {
       packageJSON.engines = packageJSON.engines || {};
       packageJSON.engines.homebridge = packageJSON.peerDependencies.homebridge;
     }
-    this.engines = packageJSON.engines;
+
+    this.loadContext = {
+      engines: packageJSON.engines,
+      dependencies: packageJSON.dependencies,
+    };
   }
 
   public getPluginIdentifier(): PluginIdentifier { // return full plugin name with scope prefix
@@ -133,26 +141,37 @@ export class Plugin {
   }
 
   public load(): void {
+    const context = this.loadContext!;
+    assert(context, "Reached illegal state. Plugin state is undefined!");
+    this.loadContext = undefined; // free up memory
+
     // pluck out the HomeBridge version requirement
-    if (!this.engines || !this.engines.homebridge) {
+    if (!context.engines || !context.engines.homebridge) {
       throw new Error(`Plugin ${this.pluginPath} does not contain the 'homebridge' package in 'engines'.`);
     }
 
-    const versionRequired = this.engines.homebridge;
-    const nodeVersionRequired = this.engines.node;
+    const versionRequired = context.engines.homebridge;
+    const nodeVersionRequired = context.engines.node;
 
     // make sure the version is satisfied by the currently running version of HomeBridge
     if (!satisfies(getVersion(), versionRequired, { includePrerelease: true })) {
       // TODO - change this back to an error
       log.error(`The plugin "${this.pluginName}" requires a Homebridge version of ${versionRequired} which does \
 not satisfy the current Homebridge version of ${getVersion()}. You may need to update this plugin (or Homebridge) to a newer version. \
-You may face unexpected issues or stablity problems running this plugin.`);
+You may face unexpected issues or stability problems running this plugin.`);
     }
 
     // make sure the version is satisfied by the currently running version of Node
     if (nodeVersionRequired && !satisfies(process.version, nodeVersionRequired)) {
-      log.warn(`Plugin ${this.pluginPath} requires Node version of ${nodeVersionRequired} which does \
+      log.warn(`The plugin "${this.pluginName}" requires Node version of ${nodeVersionRequired} which does \
 not satisfy the current Node version of ${process.version}. You may need to upgrade your installation of Node.`);
+    }
+
+    const dependencies = context.dependencies || {};
+    if (dependencies.homebridge || dependencies["hap-nodejs"]) {
+      log.error(`The plugin "${this.pluginName}" defines 'homebridge' and/or 'hap-nodejs' in their 'dependencies' section, \
+meaning they carry an additional copy of homebridge and hap-nodejs. This not only wastes disk space, but also can cause \
+major incompatibility issues and thus is considered bad practice. Please inform the developer to update their plugin!`);
     }
 
     const mainPath = path.join(this.pluginPath, this.main);
