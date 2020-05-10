@@ -1,10 +1,10 @@
 import { EventEmitter } from "events";
 import * as hapNodeJs from "hap-nodejs";
-import { Service } from "hap-nodejs";
 import getVersion from "./version";
-import { PlatformAccessory, PlatformBridge } from "./platformAccessory";
+import { PlatformAccessory } from "./platformAccessory"; 
 import { User } from "./user";
 import { Logger, Logging } from "./logger";
+import { Service } from "hap-nodejs";
 import { AccessoryConfig, PlatformConfig } from "./server";
 import { PluginManager } from "./pluginManager";
 
@@ -160,7 +160,6 @@ export interface API {
   readonly hap: HAP;
   readonly hapLegacyTypes: HAPLegacyTypes; // used for older accessories/platforms
   readonly platformAccessory: typeof PlatformAccessory;
-  readonly platformBridge: typeof PlatformBridge;
   // ------------------------------------------------------------------------
 
   registerAccessory(accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void;
@@ -211,7 +210,7 @@ export declare interface HomebridgeAPI {
 
 export class HomebridgeAPI extends EventEmitter implements API {
 
-  public readonly version = 2.6; // homebridge API version
+  public readonly version = 2.5; // homebridge API version
   public readonly serverVersion = getVersion(); // homebridge node module version
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
@@ -219,7 +218,6 @@ export class HomebridgeAPI extends EventEmitter implements API {
   readonly hap = hapNodeJs;
   readonly hapLegacyTypes = hapNodeJs.LegacyTypes; // used for older accessories/platforms
   readonly platformAccessory = PlatformAccessory;
-  readonly platformBridge = PlatformBridge;
   // ------------------------------------------------------------------------
 
   constructor() {
@@ -294,10 +292,6 @@ export class HomebridgeAPI extends EventEmitter implements API {
       // noinspection SuspiciousTypeOfGuard
       if (!(accessory instanceof PlatformAccessory)) {
         throw new Error(`${pluginIdentifier} - ${platformName} attempt to register an accessory that isn't PlatformAccessory!`);
-      }
-
-      if (accessory instanceof PlatformBridge) {
-        throw new Error(`${pluginIdentifier} - ${platformName} attempt to register a bridge accessory to be added to the main bridge!`);
       }
 
       accessory._associatedPlugin = pluginIdentifier;

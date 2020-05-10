@@ -1,21 +1,9 @@
 import { Service, Categories, Accessory, RemoteController, uuid } from "hap-nodejs";
-import { PlatformAccessory, PlatformBridge, SerializedPlatformAccessory } from "./platformAccessory";
+import { PlatformAccessory, SerializedPlatformAccessory } from "./platformAccessory";
 
 function createAccessory(name = "TestAccessory", category?: Categories): PlatformAccessory {
   const accessoryUUID = uuid.generate("test.uuid." + name);
   const accessory = new PlatformAccessory(name, accessoryUUID, category);
-  accessory._associatedPlatform = "TestPlatform";
-  accessory._associatedPlugin = "TestPlugin";
-  accessory.context = {
-    "test": "context",
-    "doing": 234,
-  };
-  return accessory;
-}
-
-function createBridge(name = "TestBridge"): PlatformBridge {
-  const accessoryUUID = uuid.generate("test.uuid." + name);
-  const accessory = new PlatformBridge(name, accessoryUUID);
   accessory._associatedPlatform = "TestPlatform";
   accessory._associatedPlugin = "TestPlugin";
   accessory.context = {
@@ -153,22 +141,4 @@ describe(PlatformAccessory, () => {
     });
   });
 
-});
-
-describe(PlatformBridge, () => {
-
-
-  describe(PlatformBridge.serialize, () => {
-    it("should be unsupported", function() {
-      expect(() => PlatformBridge.serialize(createBridge())).toThrow(Error);
-    });
-  });
-
-  describe(PlatformBridge.deserialize, () => {
-    it("should be unsupported", function() {
-      const sampleJson = PlatformAccessory.serialize(createAccessory());
-      expect(() => PlatformBridge.deserialize(sampleJson)).toThrow(Error);
-    });
-  });
-  
 });
