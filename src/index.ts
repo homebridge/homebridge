@@ -48,6 +48,7 @@ export {
  */
 export type {
   PlatformAccessory,
+  PlatformBridge,
 } from "./platformAccessory";
 
 /**

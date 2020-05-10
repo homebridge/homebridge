@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Notable Changes
 
+* Bumped the api version to `2.6` with the following changes:
+    * Added the class `PlatformBridge` (which can be accessed via `api.platformBridge`) to add support to 
+        expose external bridge accessories. This allows plugin makers to better replicate device like the hue bridge,
+        which now can be exposed as their own HomeKit bridge accessory, needing separate pairing. 
 * Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.7.3.
     * Moved to the built in Node.js crypto library for *chacha20-poly1305* encryption and decryption. This gives a 10x performance boost when doing crypto.
     * All debuggers are now prefixed with the library name, `HAP-NodeJS:`.
