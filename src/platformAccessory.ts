@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import {
   Accessory,
   AccessoryEventTypes,
+  Bridge,
   CameraController,
   Categories,
   Controller,
@@ -38,18 +39,18 @@ export declare interface PlatformAccessory {
 export class PlatformAccessory extends EventEmitter {
 
   // somewhat ugly way to inject custom Accessory object, while not changing the publicly exposed constructor signature
-  private static injectedAccessory?: Accessory;
+  protected static injectedAccessory?: Accessory;
 
   _associatedPlugin?: PluginIdentifier; // present as soon as it is registered
   _associatedPlatform?: PlatformName; // not present for external accessories
 
-  _associatedHAPAccessory: Accessory;
+  readonly _associatedHAPAccessory: Accessory;
 
   // ---------------- HAP Accessory mirror ----------------
-  displayName: string;
-  UUID: string;
+  readonly displayName: string;
+  readonly UUID: string;
   category: Categories;
-  services: Service[] = [];
+  readonly services: Service[] = [];
   /**
    * @deprecated reachability has no effect and isn't supported anymore
    */
@@ -159,6 +160,65 @@ export class PlatformAccessory extends EventEmitter {
     platformAccessory.category = json.category;
 
     return platformAccessory;
+  }
+
+}
+
+/**
+ * This class can be used to create a Bridge accessory.
+ * It cannot be added to the main homebridge Bridge accessory.
+ *
+ * It can only exposed as an external accessory, thus serialize and deserialize is unsupported!
+ */
+export class PlatformBridge extends PlatformAccessory {
+
+  private readonly bridgedAccessories: PlatformAccessory[];
+
+  constructor(displayName: string, uuid: string) {
+    PlatformAccessory.injectedAccessory = PlatformAccessory.injectedAccessory || new Bridge(displayName, uuid);
+    super(displayName, uuid, Categories.BRIDGE);
+    PlatformAccessory.injectedAccessory = undefined;
+
+    this.bridgedAccessories = [];
+  }
+
+  public addBridgedAccessory(...accessories: PlatformAccessory[]): void {
+    this.bridgedAccessories.push(...accessories);
+
+    this._associatedHAPAccessory.addBridgedAccessories(accessories.map(accessory => accessory._associatedHAPAccessory));
+  }
+
+  public removeBridgedAccessory(...accessories: PlatformAccessory[]): void {
+    accessories.forEach(accessory => {
+      const index = this.bridgedAccessories.indexOf(accessory);
+      if (index >= 0) {
+        this.bridgedAccessories.splice(index, 1);
+      }
+    });
+
+    this._associatedHAPAccessory.removeBridgedAccessories(accessories.map(accessory => accessory._associatedHAPAccessory));
+  }
+
+  public getBridgedAccessoryByUUID(uuid: string): PlatformAccessory | undefined {
+    for (const accessory of this.bridgedAccessories) {
+      if (accessory.UUID === uuid) {
+        return accessory;
+      }
+    }
+
+    return undefined;
+  }
+
+  // private
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  static serialize(accessory: PlatformAccessory): SerializedPlatformAccessory {
+    throw new Error("'serialize' on a PlatformBridge is an unsupported operation!");
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  static deserialize(json: SerializedPlatformAccessory): PlatformAccessory {
+    throw new Error("'deserialize' on a PlatformBridge is an unsupported operation!");
   }
 
 }
