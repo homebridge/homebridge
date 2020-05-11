@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Notable Changes
 
+* Bumped API version to `2.6` with the following changes:
+    * AccessoryPlugins and Accessory objects returned by StaticPlatformPlugins can now define the optional 
+        `getControllers` method to configure controllers like the RemoteController or CameraController
 * Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.7.3.
     * Moved to the built in Node.js crypto library for *chacha20-poly1305* encryption and decryption. This gives a 10x performance boost when doing crypto.
     * All debuggers are now prefixed with the library name, `HAP-NodeJS:`.
