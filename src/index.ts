@@ -2,6 +2,7 @@
  * Export HAP
  */
 import type { API } from "./api";
+
 export type HAP = API["hap"];
 
 /**
@@ -106,6 +107,7 @@ export {
   DataStreamServerEvents,
   DataStreamStatus,
   DefaultControllerType,
+  Formats,
   H264Level,
   H264Profile,
   HAPServerEventTypes,
@@ -181,7 +183,6 @@ export type {
   Events,
   Float32,
   Float64,
-  Formats,
   FrameHandler,
   GlobalEventHandler,
   GlobalRequestHandler,
