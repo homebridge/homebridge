@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
-## v1.0.5 (2020-05-17)
+## v1.1.0 (2020-05-17)
 
 *Reminder: Node.js v10.17.0 or later is **required** to run Homebridge.*
 
