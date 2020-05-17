@@ -1,5 +1,6 @@
+import { Service } from "hap-nodejs";
 import { AccessoryPlugin, HomebridgeAPI, InternalAPIEvent, DynamicPlatformPlugin } from "./api";
-import { PlatformAccessory, Service } from "./";
+import { PlatformAccessory } from "./platformAccessory";
 
 const api = new HomebridgeAPI();
 const emitSpy = jest.spyOn(api, "emit");

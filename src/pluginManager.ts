@@ -26,6 +26,7 @@ export interface PackageJSON { // incomplete type for package.json (just stuff w
   main?: string;
 
   engines?: Record<string, string>;
+  dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
 }
@@ -127,7 +128,7 @@ export class PluginManager {
         return;
       }
 
-      log.info(`Loaded plugin: ${identifier}`);
+      log.info(`Loaded plugin: ${identifier}@${plugin.version}`);
 
       try {
         this.currentInitializingPlugin = plugin;

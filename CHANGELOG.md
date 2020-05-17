@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.1.0 (2020-05-17)
+
+*Reminder: Node.js v10.17.0 or later is **required** to run Homebridge.*
+
+### Notable Changes
+
+* Bumped API version to `2.6` with the following changes:
+    * AccessoryPlugins and Accessory objects returned by StaticPlatformPlugins can now define the optional 
+        `getControllers` method to configure controllers like the RemoteController or CameraController
+* Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.7.3.
+    * Moved to the built in Node.js crypto library for *chacha20-poly1305* encryption and decryption. This gives a 10x performance boost when doing crypto.
+    * All debuggers are now prefixed with the library name, `HAP-NodeJS:`.
+    * [v0.7.0 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.0)
+    * [v0.7.1 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.1)
+    * [v0.7.2 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.2)
+    * [v0.7.3 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.3)
+
+### Bug Fixes
+
+* [#2551](https://github.com/homebridge/homebridge/issues/2551) Fixed a breaking change to the `identify` event on PlatformAccessory.
+
+### For Developers
+
+**Plugins Using TypeScript:** Homebridge now only exports *types* that are safe to use in your code and won't result in the `homebridge` library being a runtime dependency. If you have been using types correctly then you will not be impacted by this change.
+
+## v1.0.4 (2020-04-30)
+
+### Bug Fixes
+
+* Fixed a crash that could occur if a plugin called `updateReachability` before the accessory was added to the bridge (https://github.com/devbobo/homebridge-arlo/issues/40#issuecomment-620928214)
+* Fixed a crash that could occur while pairing when running plugins (like homebridge-nest) which register a AccessoryInformation service that already has added a Identify listener of HAP-NodeJS (https://github.com/homebridge/homebridge/issues/2548)
+* Fixed mdns advertising to include all (and only) reachable addresses for the given machine
+
+## v1.0.3 (2020-04-29)
+
+* Some users were seemingly unable to pair new homebridge instances or encountered "no response" for all of their accessories if plugins chose to supply an empty serial number for their accessory information. This is now resolved.
+* Added a check that plugins can't expose a accessory with an empty set of services (which would also cause HomeKit reject the accessory)
+
 ## v1.0.2 (2020-04-28)
 
 ### Bug Fixes

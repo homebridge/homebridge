@@ -7,13 +7,13 @@ import {
   AccessoryEventTypes,
   AccessoryLoader,
   Bridge,
-  Characteristic, Logging,
+  Characteristic,
   once,
   PublishInfo,
   Service,
   uuid,
-} from "./";
-import { Logger } from "./logger";
+} from "hap-nodejs";
+import { Logger, Logging } from "./logger";
 import { User } from "./user";
 import {
   AccessoryIdentifier,
@@ -438,9 +438,12 @@ export class Server {
   }
 
   private createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory | undefined {
-    const services = (accessoryInstance.getServices() || []).filter(service => !!service);
+    const services = (accessoryInstance.getServices() || [])
+      .filter(service => !!service); // filter out undefined values; a common mistake
+    const controllers = (accessoryInstance.getControllers && accessoryInstance.getControllers() || [])
+      .filter(controller => !!controller);
 
-    if (services.length === 0) { // check that we only add valid services
+    if (services.length === 0 && controllers.length === 0) { // check that we only add valid accessory with at least one service
       return undefined;
     }
 
@@ -489,6 +492,10 @@ export class Server {
         // overwrite the default value with the actual plugin version
         informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
       }
+
+      controllers.forEach(controller => {
+        accessory.configureController(controller);
+      });
 
       return accessory;
     }
