@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
-## NEXT
+## v1.0.5 (2020-05-17)
+
+*Reminder: Node.js v10.17.0 or later is **required** to run Homebridge.*
 
 ### Notable Changes
 
@@ -19,7 +21,7 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Bug Fixes
 
-* [#2551](https://github.com/homebridge/homebridge/issue/2551) Fixed a breaking change to the `identify` event on PlatformAccessory.
+* [#2551](https://github.com/homebridge/homebridge/issues/2551) Fixed a breaking change to the `identify` event on PlatformAccessory.
 
 ### For Developers
 
