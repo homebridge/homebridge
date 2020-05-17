@@ -132,7 +132,7 @@ Once your device has been added to HomeKit, you should be able to tell Siri to c
 
 One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos accessory is "Speakers".
 
-## Writing Plugins
+## Plugin Development
 
 The https://developers.homebridge.io website contains the Homebridge API reference, available service and characteristic types, and plugin examples.
 
@@ -140,11 +140,7 @@ For a great introduction to writing plugins with some example code, check out [F
 
 There are many existing plugins you can study; you might start with the [Homebridge Example Plugins](https://github.com/homebridge/homebridge-examples). The [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin-template) project also provides a base you can use to create your own *platform* plugin.
 
-## Plugin Development
-
-When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time.
-
-Run this command inside your plugin project folder so your global install of Homebridge can discover it:
+When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. Run this command inside your plugin project folder so your global install of Homebridge can discover it:
 
 
 ```shell
