@@ -177,7 +177,7 @@ Two reasons why Homebridge may not be discoverable:
 
 ### Limitations
 
- * One installation of Homebridge can only expose 150 accessories due to a HomeKit limit. You can however run multiple Homebridge instances by pointing them to different config and persistence paths (see issue #827).
+ * One installation of Homebridge can only expose 150 accessories due to a HomeKit limit. You can however run multiple Homebridge instances by pointing them to different config and persistence paths (see issue [#827](https://github.com/homebridge/homebridge/issues/827)).
  * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
 
 ## Why Homebridge?
