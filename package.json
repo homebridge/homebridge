@@ -1,7 +1,7 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "scripts": {
     "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
     "lint": "eslint 'src/**/*.{js,ts,json}'",
