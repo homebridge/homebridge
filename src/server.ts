@@ -7,7 +7,9 @@ import {
   AccessoryEventTypes,
   AccessoryLoader,
   Bridge,
+  Categories,
   Characteristic,
+  CharacteristicEventTypes,
   once,
   PublishInfo,
   Service,
@@ -35,7 +37,6 @@ import * as mac from "./util/mac";
 import { MacAddress } from "./util/mac";
 import { PluginManager, PluginManagerOptions } from "./pluginManager";
 import { Plugin } from "./plugin";
-import { CharacteristicEventTypes } from "hap-nodejs";
 
 const accessoryStorage: LocalStorage = storage.create();
 const log = Logger.internal;
@@ -180,7 +181,7 @@ export class Server {
       username: bridgeConfig.username,
       port: bridgeConfig.port,
       pincode: bridgeConfig.pin,
-      category: Accessory.Categories.BRIDGE,
+      category: Categories.BRIDGE,
       mdns: this.config.mdns,
     };
 
@@ -414,10 +415,10 @@ export class Server {
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
         // loop through accessories adding them to the list and registering them
         accessories.forEach((accessoryInstance, index) => {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-ignore
           const accessoryName = accessoryInstance.name; // assume this property was set
-          // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-ignore
           const uuidBase: string | undefined = accessoryInstance.uuid_base; // optional base uuid
 
@@ -464,7 +465,7 @@ export class Server {
       // listen for the identify event if the accessory instance has defined an identify() method
       if (accessoryInstance.identify) {
         accessory.on(AccessoryEventTypes.IDENTIFY, (paired, callback) => {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-ignore
           // eslint-disable-next-line @typescript-eslint/no-empty-function
           accessoryInstance.identify!(() => {}); // empty callback for backwards compatibility

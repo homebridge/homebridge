@@ -79,7 +79,7 @@ export class PlatformAccessory extends EventEmitter {
 
     // forward identify event
     this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired, callback) => {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       this.emit(PlatformAccessoryEvent.IDENTIFY, paired, () => {}); // empty callback for backwards compatibility

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import util from "util";
-import chalk, { Level } from "chalk";
+import chalk from "chalk";
 
 /**
  * Log levels to indicate importance of the logged message.
@@ -93,7 +93,7 @@ export class Logger {
       log.prefix = logger.prefix;
 
 
-      /* eslint "@typescript-eslint/ban-ts-ignore": "off" */
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       const logging: Logging = log; // i aimed to not use ts-ignore in this project, but this evil "thing" above is hell
       Logger.loggerCache.set(prefix, logging);
@@ -123,7 +123,7 @@ export class Logger {
    * Forces color in logging output, even if it seems like color is unsupported.
    */
   public static forceColor(): void {
-    chalk.level = Level.Basic;
+    chalk.level = 1; // `1` - Basic 16 colors support.
   }
 
 
@@ -213,5 +213,5 @@ export function setTimestampEnabled(enabled = true): void {
  * @deprecated please use {@link Logger.forceColor} directly
  */
 export function forceColor(): void {
-  chalk.level = Level.Basic;
+  chalk.level = 1; // `1` - Basic 16 colors support.
 }
