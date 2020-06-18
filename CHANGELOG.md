@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.1.1 (2020-06-17)
+
+### Bug Fixes
+
+* Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.7.4 (see [v0.7.4 release notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.4))
+
 ## v1.1.0 (2020-05-17)
 
 *Reminder: Node.js v10.17.0 or later is **required** to run Homebridge.*
