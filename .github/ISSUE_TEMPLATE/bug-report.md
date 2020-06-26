@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Create a report to help us improve.
+about: Raise a bug related to Homebridge. If you are having an issue with a certain plugin, please raise the issue on that plugin's project page instead.
 title: ''
 labels: bug
 assignees: ''

@@ -1,6 +1,6 @@
 ---
 name: Support Request
-about: Need help installing Homebridge?
+about: Need help installing Homebridge? If you are having an issue with a certain plugin, please raise the issue on that plugin's project page instead.
 title: ''
 labels: question
 assignees: ''
