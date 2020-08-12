@@ -340,7 +340,7 @@ export class PluginManager {
     }
 
     const plugin = new Plugin(name, absolutePath, packageJson, scope);
-    this.plugins.set(name, plugin);
+    this.plugins.set(identifier, plugin);
     return plugin;
   }
 
