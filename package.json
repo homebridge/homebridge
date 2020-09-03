@@ -40,8 +40,8 @@
   "preferGlobal": true,
   "dependencies": {
     "chalk": "^4.1.0",
-    "commander": "5.1.0",
-    "hap-nodejs": "^0.8.0-beta.16",
+    "commander": "6.1.0",
+    "hap-nodejs": "^0.8.0-beta.17",
     "node-persist": "^0.0.11",
     "qrcode-terminal": "^0.12.0",
     "semver": "^7.3.2",
@@ -49,18 +49,17 @@
   },
   "devDependencies": {
     "@types/debug": "^4.1.5",
-    "@types/ip": "^1.1.0",
-    "@types/jest": "^26.0.0",
-    "@types/node": "10.17.18",
-    "@types/semver": "^7.2.0",
-    "@typescript-eslint/eslint-plugin": "^3.3.0",
-    "@typescript-eslint/parser": "^3.3.0",
-    "eslint": "^7.2.0",
-    "eslint-plugin-jest": "^23.13.2",
-    "jest": "^26.0.1",
+    "@types/jest": "^26.0.13",
+    "@types/node": "10.17.29",
+    "@types/semver": "^7.3.3",
+    "@typescript-eslint/eslint-plugin": "^4.0.1",
+    "@typescript-eslint/parser": "^4.0.1",
+    "eslint": "^7.8.1",
+    "eslint-plugin-jest": "^23.20.0",
+    "jest": "^26.4.2",
     "rimraf": "^3.0.2",
-    "ts-jest": "^26.1.0",
-    "ts-node": "^8.10.2",
-    "typescript": "^3.9.5"
+    "ts-jest": "^26.3.0",
+    "ts-node": "^9.0.0",
+    "typescript": "^4.0.2"
   }
 }
