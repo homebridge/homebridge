@@ -27,6 +27,7 @@ export = function cli(): void {
 
   commander
     .version(getVersion())
+    .storeOptionsAsProperties(false) // https://github.com/tj/commander.js/pull/1275
     .option("-C, --color", "force color in logging", () => Logger.forceColor())
     .option("-D, --debug", "turn on debug level logging", () => Logger.setDebugEnabled(true))
     .option("-I, --insecure", "allow unauthenticated requests (for easier hacking)", () => insecureAccess = true)
