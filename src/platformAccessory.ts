@@ -13,13 +13,13 @@ import {
 } from "hap-nodejs";
 import { PlatformName, PluginIdentifier, PluginName } from "./api";
 
-export interface SerializedPlatformAccessory extends SerializedAccessory {
+export type UnknownContext = Record<string, unknown>;
+
+export interface SerializedPlatformAccessory<T extends UnknownContext = UnknownContext> extends SerializedAccessory {
 
   plugin: PluginName;
   platform: PlatformName;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  context: Record<string, any>;
+  context: T;
 
 }
 
@@ -35,7 +35,8 @@ export declare interface PlatformAccessory {
 
 }
 
-export class PlatformAccessory extends EventEmitter {
+
+export class PlatformAccessory<T extends UnknownContext = UnknownContext>  extends EventEmitter {
 
   // somewhat ugly way to inject custom Accessory object, while not changing the publicly exposed constructor signature
   private static injectedAccessory?: Accessory;
@@ -59,8 +60,7 @@ export class PlatformAccessory extends EventEmitter {
   /**
    * This is a way for Plugin developers to store custom data with their accessory
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public context: Record<string, any> = {}; // providing something to store
+  public context: T = {} as T; // providing something to store
 
   constructor(displayName: string, uuid: string, category?: Categories) { // category is only useful for external accessories
     super();
