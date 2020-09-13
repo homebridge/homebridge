@@ -23,4 +23,4 @@ const publishTag = semver.gt(package.version, latestNpmTag, { includePrerelease:
 
 // save the package.json
 package.version = publishTag;
-fs.writeFileSync('package.json', JSON.stringify(package, null, 4));
+fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
