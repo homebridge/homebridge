@@ -1,11 +1,8 @@
-name: Node-CI
+name: Node-CI Beta
 
 on:
   push:
-    branches: master
-  pull_request:
-  release:
-    types: [released]
+    branches: beta
 
 jobs:
   build:
@@ -32,8 +29,7 @@ jobs:
           CI: true
 
   publish-npm:
-    # publish only if we are on our own repo
-    if: github.repository == 'homebridge/homebridge' && github.event_name == 'release'
+    if: github.repository == 'homebridge/homebridge'
 
     needs: build # only run if build succeeds
 
@@ -46,6 +42,8 @@ jobs:
           node-version: 10 # use the minimum required version
           registry-url: https://registry.npmjs.org/
       - run: npm ci
-      - run: npm publish
+      - run: node .github/workflows/prerelease.js
+      - run: npm --no-git-tag-version version pre --preid=beta
+      - run: npm publish --tag=beta
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}

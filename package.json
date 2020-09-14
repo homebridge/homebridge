@@ -2,6 +2,14 @@
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
   "version": "1.2.0-beta.0",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "license": "Apache-2.0",
+  "author": "Nick Farina",
+  "maintainers": [
+    "oznu <dev@oz.nu>",
+    "Andreas Bauer <mail@anderl-bauer.de>"
+  ],
   "scripts": {
     "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
     "lint": "eslint 'src/**/*.{js,ts,json}'",
@@ -11,9 +19,6 @@
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean"
   },
-  "author": {
-    "name": "Nick Farina"
-  },
   "repository": {
     "type": "git",
     "url": "git://github.com/homebridge/homebridge.git"
@@ -21,9 +26,6 @@
   "bugs": {
     "url": "http://github.com/homebridge/homebridge/issues"
   },
-  "license": "Apache-2.0",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
   "bin": {
     "homebridge": "bin/homebridge"
   },
@@ -41,7 +43,7 @@
   "dependencies": {
     "chalk": "^4.1.0",
     "commander": "5.1.0",
-    "hap-nodejs": "^0.8.0-beta.18",
+    "hap-nodejs": "~0.8.0",
     "node-persist": "^0.0.11",
     "qrcode-terminal": "^0.12.0",
     "semver": "^7.3.2",
@@ -50,12 +52,12 @@
   "devDependencies": {
     "@types/debug": "^4.1.5",
     "@types/jest": "^26.0.13",
-    "@types/node": "10.17.29",
+    "@types/node": "10.17.32",
     "@types/semver": "^7.3.3",
-    "@typescript-eslint/eslint-plugin": "^4.0.1",
-    "@typescript-eslint/parser": "^4.0.1",
-    "eslint": "^7.8.1",
-    "eslint-plugin-jest": "^23.20.0",
+    "@typescript-eslint/eslint-plugin": "^4.1.1",
+    "@typescript-eslint/parser": "^4.1.1",
+    "eslint": "^7.9.0",
+    "eslint-plugin-jest": "^24.0.1",
     "jest": "^26.4.2",
     "rimraf": "^3.0.2",
     "ts-jest": "^26.3.0",
