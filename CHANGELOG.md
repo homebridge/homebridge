@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.2.0 (2020-09-14)
+
+### Notable Changes
+
+* Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.8.0 (see [HAP-NodeJS release notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.8.0)).  
+This includes the rewritten bonjour/mdns library `ciao`, which improves Accessory discovery on the local network ([#2619](https://github.com/homebridge/homebridge/issues/2619)).
+* Add ability to type an accessory context using generics ([2664](https://github.com/homebridge/homebridge/pull/2664))
+
+## v1.1.6 (2020-09-07)
+
+### Bug Fixes
+
+* Fixed an incompatibility introduced in v1.1.3 with the `commander ` library
+
+## v1.1.3 (2020-09-03)
+
+### Bug Fixes
+
+* Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.7.9 (see [HAP-NodeJS release notes](https://github.com/homebridge/HAP-NodeJS/releases)):
+  * IP addresses for camera streaming endpoints are automatically and more reliably set
+  * Added latest changes made to iOS 14 beta 4 and 5
+
+## v1.1.2 (2020-08-12)
+
+### Bug Fixes
+
+* [#2646](https://github.com/homebridge/homebridge/pull/2646) - Fixed an issue with scoped plugin registration / cached accessory restoration.
+
 ## v1.1.1 (2020-06-17)
 
 ### Bug Fixes
