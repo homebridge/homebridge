@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.2.1 (2020-09-15)
+
+### Bug Fixes
+
+* Fixed a bug related to mdns discovery where on some machines (FreeBSD and some containerized installs) the accessory is not correctly advertised on the local network
+
 ## v1.2.0 (2020-09-14)
 
 ### Notable Changes
