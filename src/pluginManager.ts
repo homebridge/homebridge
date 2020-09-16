@@ -15,7 +15,6 @@ import fs from "fs";
 import { Plugin } from "./plugin";
 import { Logger } from "./logger";
 import { execSync } from "child_process";
-import { dir } from "console";
 
 const log = Logger.internal;
 
