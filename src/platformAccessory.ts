@@ -13,7 +13,8 @@ import {
 } from "hap-nodejs";
 import { PlatformName, PluginIdentifier, PluginName } from "./api";
 
-export type UnknownContext = Record<string, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type UnknownContext = Record<string, any>;
 
 export interface SerializedPlatformAccessory<T extends UnknownContext = UnknownContext> extends SerializedAccessory {
 
