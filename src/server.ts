@@ -410,7 +410,15 @@ export class Server {
   private async loadPlatformAccessories(plugin: Plugin, platformInstance: StaticPlatformPlugin, platformType: PlatformName | PlatformIdentifier, logger: Logging): Promise<void> {
     // Plugin 1.0, load accessories
     return new Promise(resolve => {
+      // warn the user if the static platform is blocking the startup of Homebridge for to long
+      const loadDelayWarningInterval = setInterval(() => {
+        logger.warn("%s is taking a long time to load and preventing Homebridge from starting.", plugin.getPluginIdentifier());
+      }, 20000);
+
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
+        // clear the load delay warning interval
+        clearInterval(loadDelayWarningInterval);
+
         // loop through accessories adding them to the list and registering them
         accessories.forEach((accessoryInstance, index) => {
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
