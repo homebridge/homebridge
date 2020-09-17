@@ -288,7 +288,14 @@ export class PluginManager {
         }
       } else { // read through each directory in this node_modules folder
         const relativePluginPaths = fs.readdirSync(searchPath) // search for directories only
-          .filter(relativePath => fs.statSync(path.resolve(searchPath, relativePath)).isDirectory());
+          .filter(relativePath => {
+            try {
+              return fs.statSync(path.resolve(searchPath, relativePath)).isDirectory();
+            } catch (e) {
+              log.debug(`Ignoring path ${path.resolve(searchPath, relativePath)} - ${e.message}`);
+              return false;
+            }
+          });
 
         // expand out @scoped plugins
         relativePluginPaths.slice()
@@ -301,7 +308,14 @@ export class PluginManager {
             const absolutePath = path.join(searchPath, scopeDirectory);
             fs.readdirSync(absolutePath)
               .filter(name => PluginManager.isQualifiedPluginIdentifier(name))
-              .filter(name => fs.statSync(path.resolve(absolutePath, name)).isDirectory())
+              .filter(name => {
+                try {
+                  return fs.statSync(path.resolve(absolutePath, name)).isDirectory();
+                } catch (e) {
+                  log.debug(`Ignoring path ${path.resolve(absolutePath, name)} - ${e.message}`);
+                  return false;
+                }
+              })
               .forEach(name => relativePluginPaths.push(scopeDirectory + "/" + name));
           });
 
