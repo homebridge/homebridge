@@ -292,6 +292,7 @@ export class PluginManager {
             try {
               return fs.statSync(path.resolve(searchPath, relativePath)).isDirectory();
             } catch (e) {
+              log.debug(`Ignoring path ${path.resolve(searchPath, relativePath)} - ${e.message}`);
               return false;
             }
           });
@@ -311,6 +312,7 @@ export class PluginManager {
                 try {
                   return fs.statSync(path.resolve(absolutePath, name)).isDirectory();
                 } catch (e) {
+                  log.debug(`Ignoring path ${path.resolve(absolutePath, name)} - ${e.message}`);
                   return false;
                 }
               })
