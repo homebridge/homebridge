@@ -172,7 +172,7 @@ export class Server {
     info.setCharacteristic(Characteristic.FirmwareRevision, getVersion());
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
-      log.info("Homebridge is running on port %s.", port);
+      log.info("Homebridge v%s is running on port %s.", getVersion(), port);
     });
 
     const publishInfo: PublishInfo = {
