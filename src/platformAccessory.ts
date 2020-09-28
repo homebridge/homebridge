@@ -8,7 +8,7 @@ import {
   ControllerConstructor,
   LegacyCameraSource,
   SerializedAccessory,
-  Service,
+  Service, VoidCallback,
   WithUUID,
 } from "hap-nodejs";
 import { PlatformName, PluginIdentifier, PluginName } from "./api";
@@ -79,7 +79,7 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
     this.services = this._associatedHAPAccessory.services;
 
     // forward identify event
-    this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired, callback) => {
+    this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       // eslint-disable-next-line @typescript-eslint/no-empty-function

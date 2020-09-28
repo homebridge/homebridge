@@ -13,7 +13,7 @@ import {
   once,
   PublishInfo,
   Service,
-  uuid,
+  uuid, VoidCallback,
 } from "hap-nodejs";
 import { Logger, Logging } from "./logger";
 import { User } from "./user";
@@ -470,7 +470,7 @@ export class Server {
 
       // listen for the identify event if the accessory instance has defined an identify() method
       if (accessoryInstance.identify) {
-        accessory.on(AccessoryEventTypes.IDENTIFY, (paired, callback) => {
+        accessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-ignore
           // eslint-disable-next-line @typescript-eslint/no-empty-function
