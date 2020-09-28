@@ -2,6 +2,7 @@
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
   "version": "1.2.3",
+  "betaVersion": "1.2.4",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "license": "Apache-2.0",
