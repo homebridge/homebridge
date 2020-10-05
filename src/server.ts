@@ -9,7 +9,7 @@ import {
   Bridge,
   Categories,
   Characteristic,
-  CharacteristicEventTypes,
+  CharacteristicEventTypes, CharacteristicWarningType,
   once,
   PublishInfo,
   Service,
@@ -281,7 +281,9 @@ export class Server {
               "it seems like the plugin name changed from '" + accessory._associatedPlugin + "' to '" +
               plugin.getPluginIdentifier() + "'. Plugin association is now being transformed!");
 
-            accessory._associatedPlugin = plugin.getPluginIdentifier(); // update the assosicated plugin to the new one
+            accessory._associatedPlugin = plugin.getPluginIdentifier(); // update the associated plugin to the new one
+
+            accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, Server.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory));
           }
         } catch (error) { // error is thrown if multiple plugins where found for the given platform name
           log.info("Could not find the associated plugin for the accessory '" + accessory.displayName + "'. " +
@@ -500,6 +502,8 @@ export class Server {
         informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
       }
 
+      accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, Server.printCharacteristicWriteWarning.bind(this, plugin, accessory));
+
       controllers.forEach(controller => {
         accessory.configureController(controller);
       });
@@ -524,6 +528,8 @@ export class Server {
         if (!platforms) {
           log.warn("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
         }
+
+        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, Server.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory));
       } else {
         log.warn("A platform configured a new accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
@@ -590,6 +596,8 @@ export class Server {
           // overwrite the default value with the actual plugin version
           informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
         }
+
+        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, Server.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory));
       } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) { // we did already complain in api.ts if it wasn't a qualified name
         log.warn("A platform configured a external accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
@@ -607,6 +615,36 @@ export class Server {
         mdns: this.config.mdns,
       }, this.allowInsecureAccess);
     });
+  }
+
+  private static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, type: CharacteristicWarningType, iid: number): void {
+    // eslint-disable-next-line
+    // @ts-expect-error
+    const characteristic = accessory.getCharacteristicByIID(iid);
+    const name = characteristic?.displayName || iid;
+
+    switch (type) {
+      case CharacteristicWarningType.SLOW_READ:
+        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " +
+          "The read handler for the characteristic '" + name + "' on the accessory '" + accessory.displayName + "' is slow to respond.");
+        break;
+      case CharacteristicWarningType.SLOW_WRITE:
+        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " +
+          "The write handler for the characteristic '" + name + "' on the accessory '" + accessory.displayName + "' is slow to respond.");
+        break;
+      case CharacteristicWarningType.TIMEOUT_READ:
+        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " +
+          "The read handler for the characteristic '" + name + "' on the accessory '" + accessory.displayName + "' didn't respond at all!");
+        break;
+      case CharacteristicWarningType.TIMEOUT_WRITE:
+        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " +
+          "The write handler for the characteristic '" + name + "' on the accessory '" + accessory.displayName + "' didn't respond at all!");
+        break;
+      default:
+        log.warn("Received warning '" + type + " for the plugin '" + plugin.getPluginIdentifier() + "' for the characteristic '" + name +
+          "' on the accessory '" + accessory.displayName + "'!");
+        break;
+    }
   }
 
   teardown(): void {
