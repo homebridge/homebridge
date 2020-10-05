@@ -140,12 +140,14 @@ export class Logger {
   }
 
   public debug(message: string, ...parameters: any[]): void {
-    if (Logger.debugEnabled) {
-      this.log(LogLevel.DEBUG, message, ...parameters);
-    }
+    this.log(LogLevel.DEBUG, message, ...parameters);
   }
 
   public log(level: LogLevel, message: string, ...parameters: any[]): void {
+    if (!Logger.debugEnabled) {
+      return;
+    }
+
     message = util.format(message, ...parameters);
 
     let loggingFunction = console.log;
