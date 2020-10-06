@@ -144,7 +144,7 @@ export class Logger {
   }
 
   public log(level: LogLevel, message: string, ...parameters: any[]): void {
-    if (!Logger.debugEnabled) {
+    if (level === LogLevel.DEBUG && !Logger.debugEnabled) {
       return;
     }
 
