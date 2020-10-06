@@ -1,13 +1,14 @@
 <p align="center">
-  <a href="https://github.com/homebridge/homebridge"><img src="https://raw.githubusercontent.com/homebridge/branding/master/logos/homebridge-color-round-stylized.png" height="140"></a>
+  <a href="https://homebridge.io"><img src="https://raw.githubusercontent.com/homebridge/branding/master/logos/homebridge-color-round-stylized.png" height="140"></a>
 </p>
 
 <span align="center">
 
 # Homebridge
 
-<a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge" ></a>
-<a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge" ></a>
+<a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge?label=stable"></a>
+<a href="https://github.com/homebridge/homebridge/wiki/Homebridge-Beta-Testing"><img title="npm version" src="https://badgen.net/npm/v/homebridge/beta?label=beta"></a>
+<a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge"></a>
 
 </span>
 
@@ -39,7 +40,7 @@ HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7f
 
 ## Installation
 
-The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge as a service so it automatically starts on boot:
+The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge and the [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x) as a service so it automatically starts on boot:
 
 * [Official Homebridge Raspberry Pi Image](https://github.com/homebridge/homebridge-raspbian-image/wiki/Getting-Started)
 * [Setup Homebridge on a Raspberry Pi (Raspbian)](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Raspbian)
@@ -49,58 +50,17 @@ The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains st
 * [Setup Homebridge on Docker (Linux)](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker)
 * [Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
 
-#### Quick Overview
-
-1. **Node v10.17.0 or greater is required.** Check by running: `node -v`. The plugins you use may require newer versions.
-2. Install Homebridge using: `npm install -g --unsafe-perm homebridge`
-3. Install the plugins using: `npm install -g <plugin-name>`
-4. Create the `config.json` file.
-
-#### Installation Details
-
-Homebridge is published through [NPM](https://www.npmjs.com/package/homebridge) and should be installed "globally" by typing:
+On other platforms, ensure you have **Node.js v10.17.0** or later installed and run:
 
 ```console
 sudo npm install -g --unsafe-perm homebridge
 ```
 
-Now you should be able to run Homebridge:
+Then start Homebridge in your terminal window by running:
 
 ```console
-$ homebridge
-No plugins found. See the README for information on installing plugins.
+homebridge
 ```
-
-Homebridge will complain if you don't have any Plugins installed, since it will essentially be useless, although you can still "pair" with it. See the next section "Installing Plugins" for more info.
-
-Once you've installed a Plugin or two, you can run Homebridge again:
-
-```console
-$ homebridge
-Couldn't find a config.json file [snip]
-```
-
-However, Homebridge won't do anything until you've created a `config.json` file containing your accessories and/or platforms. You can start by copying and modifying the included `config-sample.json` file which includes declarations for some example accessories and platforms. Each Plugin will have its own expected configuration; the documentation for Plugins should give you some real-world examples for that plugin.
-
-**NOTE**: Your `config.json` file MUST be inside of `.homebridge`, which is inside of your home folder. On macOS and Linux, the full path for your `config.json` would be `~/.homebridge/config.json`. Any error messages will contain the exact path where your config is expected to be found.
-
-**REALLY IMPORTANT**: You must use a "plain text" editor to create or modify `config.json`. Do NOT use apps like TextEdit on macOS or Wordpad on Windows. Apps like these will corrupt the formatting of the file in hard-to-debug ways, making improper `"` signs is an example. I suggest using the free [Atom text editor](http://atom.io).
-
-Once you've added your config file, you should be able to run Homebridge again:
-
-```console
-$ homebridge
-Loaded plugin: homebridge-lockitron
-Registering accessory 'Lockitron'
----
-Loaded config.json with 1 accessories and 0 platforms.
----
-Loading 0 platforms...
-Loading 1 accessories...
-[Back Door] Initializing Lockitron accessory...
-```
-
-Homebridge is now ready to receive commands from iOS.
 
 ## Installing Plugins
 
@@ -108,10 +68,10 @@ Plugins are Node.js modules published through NPM and tagged with the keyword `h
 
 Plugins can publish Accessories and/or Platforms. Accessories are individual devices, like a smart switch or a garage door. Platforms act like a single device but can expose a set of devices, like a house full of smart lightbulbs.
 
-You install Plugins the same way you installed Homebridge - as a global NPM module. For example:
+You install Plugins using the [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x), or the same way you installed Homebridge - as a global NPM module. For example:
 
 ```console
-sudo npm install -g homebridge-lockitron
+sudo npm install -g homebridge-dummy
 ```
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
@@ -136,9 +96,9 @@ One final thing to remember is that Siri will almost always prefer its default p
 
 The https://developers.homebridge.io website contains the Homebridge API reference, available service and characteristic types, and plugin examples.
 
-For a great introduction to writing plugins with some example code, check out [Frédéric Barthelet's excellent blog post](https://blog.theodo.com/2017/08/make-siri-perfect-home-companion-devices-not-supported-apple-homekit/).
+The [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin-template) project provides a base you can use to create your own *platform* plugin.
 
-There are many existing plugins you can study; you might start with the [Homebridge Example Plugins](https://github.com/homebridge/homebridge-examples). The [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin-template) project also provides a base you can use to create your own *platform* plugin.
+There are many existing plugins you can study; you might start with the [Homebridge Example Plugins](https://github.com/homebridge/homebridge-examples) or a plugin that already implements the device type you need.
 
 When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. Run this command inside your plugin project folder so your global install of Homebridge can discover it:
 
@@ -167,17 +127,17 @@ This is very useful when you are already using your development machine to host 
 
 ### My iOS App Can't Find Homebridge
 
-Two reasons why Homebridge may not be discoverable:
+Three reasons why Homebridge may not be discoverable:
 
-  1. Homebridge server thinks it's been paired with, but iOS thinks otherwise. Fix: deleted `persist/` directory which is next to your `config.json`.
+  1. Homebridge server thinks it's been paired with, but iOS thinks otherwise. To fix this, [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge).
 
-  2. iOS device has gotten your Homebridge `username` (looks like a MAC address) "stuck" somehow, where it's in the database but inactive. Fix: change your `username` in the "bridge" section of `config.json` to be some new value.
+  2. iOS device has gotten your Homebridge `username` (looks like a MAC address) "stuck" somehow, where it's in the database but inactive. To fix this, change your `username` in the "bridge" section of `config.json` to be some new value, or [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge) using the [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x).
   
-  3. iOS DNS cache has gone stale or gotten misconfigured. Fix: Turn airplane mode on and back off to flush the DNS cache. (This is a temporary fix, but can be repeated when the problem recurs. No permanent fix is as yet known/confirmed. If you're experiencing this as a recurrent issue, it likely affects other bonjour and .local DNS resolution services, for which cycling airplane mode will also temporarily resolve.)
+  3. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache. This is a temporary fix, but can be repeated when the problem recurs. No permanent fix is as yet known/confirmed. If you're experiencing this as a recurrent issue, it likely affects other bonjour and .local DNS resolution services, for which cycling airplane mode will also temporarily resolve.
 
 ### Limitations
 
- * One installation of Homebridge can only expose 150 accessories due to a HomeKit limit. You can however run multiple Homebridge instances by pointing them to different config and persistence paths (see issue [#827](https://github.com/homebridge/homebridge/issues/827)).
+ * One installation of Homebridge can only expose 150 accessories due to a HomeKit limit. You can however run [Multiple Homebridge Instances](https://github.com/oznu/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
  * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
 
 ## Why Homebridge?
@@ -188,4 +148,4 @@ Technically, the device manufacturers should be the ones implementing the HomeKi
 
 Homebridge was originally created by [Nick Farina](https://twitter.com/nfarina).
 
-The original HomeKit API work was done by [Khaos Tian](https://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/KhaosT/HAP-NodeJS) project.
+The original HomeKit API work was done by [Khaos Tian](https://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS) project.
