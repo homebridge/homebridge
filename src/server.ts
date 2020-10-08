@@ -9,11 +9,15 @@ import {
   Bridge,
   Categories,
   Characteristic,
-  CharacteristicEventTypes, CharacteristicWarningType,
+  CharacteristicEventTypes,
+  CharacteristicWarningType,
+  InterfaceName,
+  IPAddress,
   once,
   PublishInfo,
   Service,
-  uuid, VoidCallback,
+  uuid,
+  VoidCallback,
 } from "hap-nodejs";
 import { Logger, Logging } from "./logger";
 import { User } from "./user";
@@ -54,8 +58,11 @@ export interface HomebridgeOptions {
 export interface HomebridgeConfig {
   bridge: BridgeConfiguration;
 
+  /**
+   * @deprecated
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mdns?: any; // forwarded to "bonjour-hap"
+  mdns?: any; // this is deprecated and not used anymore
 
   accessories: AccessoryConfig[];
   platforms: PlatformConfig[];
@@ -71,6 +78,8 @@ export interface BridgeConfiguration {
   username: MacAddress;
   pin: string; // format like "000-00-000"
   port?: number;
+
+  bind?: (InterfaceName | IPAddress) | (InterfaceName | IPAddress)[];
 
   setupID?: string[4];
 
@@ -175,12 +184,14 @@ export class Server {
       log.info("Homebridge v%s is running on port %s.", getVersion(), port);
     });
 
+    // noinspection JSDeprecatedSymbols
     const publishInfo: PublishInfo = {
       username: bridgeConfig.username,
       port: bridgeConfig.port,
       pincode: bridgeConfig.pin,
       category: Categories.BRIDGE,
-      mdns: this.config.mdns,
+      bind: bridgeConfig.bind,
+      mdns: this.config.mdns, // this is deprecated now
     };
 
     if (bridgeConfig.setupID && bridgeConfig.setupID.length === 4) {
@@ -607,12 +618,14 @@ export class Server {
         log.info("Please add [%s] manually in Home app. Setup Code: %s", hapAccessory.displayName, accessoryPin);
       });
 
+      // noinspection JSDeprecatedSymbols
       hapAccessory.publish({
         username: advertiseAddress,
         pincode: accessoryPin,
         category: accessory.category,
         port: accessoryPort,
-        mdns: this.config.mdns,
+        bind: this.config.bridge.bind,
+        mdns: this.config.mdns, // this is deprecated and not used anymore
       }, this.allowInsecureAccess);
     });
   }
