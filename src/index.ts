@@ -117,7 +117,6 @@ export {
   SRTPCryptoSuites,
   ServiceEventTypes,
   SiriAudioSessionEvents,
-  SiriInputType,
   Status,
   StreamRequestTypes,
   TargetCategory,
