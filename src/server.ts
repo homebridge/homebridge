@@ -630,32 +630,24 @@ export class Server {
     });
   }
 
-  private static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, type: CharacteristicWarningType, iid: number): void {
-    // eslint-disable-next-line
-    // @ts-expect-error
-    const characteristic = accessory.getCharacteristicByIID(iid);
-    const name = characteristic?.displayName || iid;
-
+  private static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, characteristic: Characteristic, type: CharacteristicWarningType, message: string): void {
     switch (type) {
       case CharacteristicWarningType.SLOW_READ:
-        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " +
-          "The read handler for the characteristic '" + name + "' on the accessory '" + accessory.displayName + "' is slow to respond.");
-        break;
       case CharacteristicWarningType.SLOW_WRITE:
-        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " +
-          "The write handler for the characteristic '" + name + "' on the accessory '" + accessory.displayName + "' is slow to respond.");
+        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " + message);
         break;
       case CharacteristicWarningType.TIMEOUT_READ:
-        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " +
-          "The read handler for the characteristic '" + name + "' on the accessory '" + accessory.displayName + "' didn't respond at all!");
-        break;
       case CharacteristicWarningType.TIMEOUT_WRITE:
-        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " +
-          "The write handler for the characteristic '" + name + "' on the accessory '" + accessory.displayName + "' didn't respond at all!");
+        log.error("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " + message);
         break;
-      default:
-        log.warn("Received warning '" + type + " for the plugin '" + plugin.getPluginIdentifier() + "' for the characteristic '" + name +
-          "' on the accessory '" + accessory.displayName + "'!");
+      case CharacteristicWarningType.WARN_MESSAGE:
+        log.info("Received warning for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + characteristic.displayName + "': " + message);
+        break;
+      case CharacteristicWarningType.ERROR_MESSAGE:
+        log.error("Received error for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + characteristic.displayName + "': " + message);
+        break;
+      default: // generic message for yet unknown types
+        log.info("Received warning '" + type + " for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + characteristic.displayName + "': " + message);
         break;
     }
   }
