@@ -1,12 +1,13 @@
 import { EventEmitter } from "events";
 import * as hapNodeJs from "hap-nodejs";
 import { Controller, Service } from "hap-nodejs";
-import { getBetaRevision, getServerVersion } from "./version";
+import getVersion from "./version";
 import { PlatformAccessory } from "./platformAccessory";
 import { User } from "./user";
 import { Logger, Logging } from "./logger";
 import { AccessoryConfig, PlatformConfig } from "./server";
 import { PluginManager } from "./pluginManager";
+import semver from "semver";
 
 const log = Logger.internal;
 
@@ -173,18 +174,8 @@ export interface API {
   readonly version: number;
   /**
    * The current homebridge semver version.
-   *
-   * Note: for beta versions like "1.3.0-beta.4" this property will always return the full release string "1.3.0".
-   * To check if current release is a beta version refer to {@link betaRevision}.
    */
   readonly serverVersion: string;
-  /**
-   * If current running version is a beta version this property will reflect the revision of that specific release.
-   * For example for the beta version 1.3.0-beta.4 {@link serverVersion} will return the current version "1.3.0"
-   * and the property {@link betaRevision} will return the revision number 4.
-   * If the current running version is a stable release the property will be null.
-   */
-  readonly betaRevision: null | number
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
   readonly user: typeof User;
@@ -242,8 +233,7 @@ export declare interface HomebridgeAPI {
 export class HomebridgeAPI extends EventEmitter implements API {
 
   public readonly version = 2.7; // homebridge API version
-  public readonly serverVersion = getServerVersion(); // homebridge node module version
-  public readonly betaRevision: null | number = getBetaRevision();
+  public readonly serverVersion = getVersion(); // homebridge node module version
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
   readonly user = User;
@@ -254,6 +244,22 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   constructor() {
     super();
+  }
+
+  /**
+   * Returns true if the current running homebridge version is greater or equal to the
+   * passed version string.
+   *
+   * Example:
+   * We assume the homebridge version 1.3.0-beta.12 and the following example calls below
+   *  versionGreaterOrEqual("1.2.0"); will return true
+   *  versionGreaterOrEqual("1.3.0"); will return false (the RELEASE version 1.3.0 is bigger than the BETA version 1.3.0-beta.12)
+   *  versionGreaterOrEqual("1.3.0-beta.8); will return true
+   *
+   * @param version
+   */
+  public versionGreaterOrEqual(version: string): boolean {
+    return semver.gte(this.serverVersion, version);
   }
 
   public static isDynamicPlatformPlugin(platformPlugin: PlatformPlugin): platformPlugin is DynamicPlatformPlugin {
