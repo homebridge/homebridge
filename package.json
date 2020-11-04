@@ -44,7 +44,7 @@
   "dependencies": {
     "chalk": "^4.1.0",
     "commander": "5.1.0",
-    "hap-nodejs": "~0.9.0-beta.41",
+    "hap-nodejs": "~0.9.0-beta.46",
     "node-persist": "^0.0.11",
     "qrcode-terminal": "^0.12.0",
     "semver": "^7.3.2",

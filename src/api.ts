@@ -1,10 +1,10 @@
 import { EventEmitter } from "events";
 import * as hapNodeJs from "hap-nodejs";
-import getVersion from "./version";
+import { Controller, Service } from "hap-nodejs";
+import { getBetaRevision, getServerVersion } from "./version";
 import { PlatformAccessory } from "./platformAccessory";
 import { User } from "./user";
 import { Logger, Logging } from "./logger";
-import { Controller, Service } from "hap-nodejs";
 import { AccessoryConfig, PlatformConfig } from "./server";
 import { PluginManager } from "./pluginManager";
 
@@ -167,8 +167,24 @@ export declare interface API {
 
 export interface API {
 
+  /**
+   * The homebridge API version as a floating point number.
+   */
   readonly version: number;
+  /**
+   * The current homebridge semver version.
+   *
+   * Note: for beta versions like "1.3.0-beta.4" this property will always return the full release string "1.3.0".
+   * To check if current release is a beta version refer to {@link betaRevision}.
+   */
   readonly serverVersion: string;
+  /**
+   * If current running version is a beta version this property will reflect the revision of that specific release.
+   * For example for the beta version 1.3.0-beta.4 {@link serverVersion} will return the current version "1.3.0"
+   * and the property {@link betaRevision} will return the revision number 4.
+   * If the current running version is a stable release the property will be null.
+   */
+  readonly betaRevision: null | number
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
   readonly user: typeof User;
@@ -225,8 +241,9 @@ export declare interface HomebridgeAPI {
 
 export class HomebridgeAPI extends EventEmitter implements API {
 
-  public readonly version = 2.6; // homebridge API version
-  public readonly serverVersion = getVersion(); // homebridge node module version
+  public readonly version = 2.7; // homebridge API version
+  public readonly serverVersion = getServerVersion(); // homebridge node module version
+  public readonly betaRevision: null | number = getBetaRevision();
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
   readonly user = User;
