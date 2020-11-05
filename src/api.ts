@@ -184,6 +184,20 @@ export interface API {
   readonly platformAccessory: typeof PlatformAccessory;
   // ------------------------------------------------------------------------
 
+  /**
+   * Returns true if the current running homebridge version is greater or equal to the
+   * passed version string.
+   *
+   * Example:
+   * We assume the homebridge version 1.3.0-beta.12 ({@link serverVersion}) and the following example calls below
+   *  versionGreaterOrEqual("1.2.0"); will return true
+   *  versionGreaterOrEqual("1.3.0"); will return false (the RELEASE version 1.3.0 is bigger than the BETA version 1.3.0-beta.12)
+   *  versionGreaterOrEqual("1.3.0-beta.8); will return true
+   *
+   * @param version
+   */
+  versionGreaterOrEqual(version: string): boolean;
+
   registerAccessory(accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void;
   registerAccessory(pluginIdentifier: PluginIdentifier, accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void;
 
@@ -246,18 +260,6 @@ export class HomebridgeAPI extends EventEmitter implements API {
     super();
   }
 
-  /**
-   * Returns true if the current running homebridge version is greater or equal to the
-   * passed version string.
-   *
-   * Example:
-   * We assume the homebridge version 1.3.0-beta.12 and the following example calls below
-   *  versionGreaterOrEqual("1.2.0"); will return true
-   *  versionGreaterOrEqual("1.3.0"); will return false (the RELEASE version 1.3.0 is bigger than the BETA version 1.3.0-beta.12)
-   *  versionGreaterOrEqual("1.3.0-beta.8); will return true
-   *
-   * @param version
-   */
   public versionGreaterOrEqual(version: string): boolean {
     return semver.gte(this.serverVersion, version);
   }
