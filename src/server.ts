@@ -87,13 +87,15 @@ export interface BridgeConfiguration {
   model?: string;
 }
 
-export interface AccessoryConfig extends Record<string, unknown> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface AccessoryConfig extends Record<string, any> {
   accessory: AccessoryName | AccessoryIdentifier;
   name: string;
   uuid_base?: string;
 }
 
-export interface PlatformConfig extends Record<string, unknown>  {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface PlatformConfig extends Record<string, any>  {
   platform: PlatformName | PlatformIdentifier;
   name?: string;
 }
