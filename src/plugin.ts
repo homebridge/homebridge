@@ -163,8 +163,8 @@ You may face unexpected issues or stability problems running this plugin.`);
 
     // make sure the version is satisfied by the currently running version of Node
     if (nodeVersionRequired && !satisfies(process.version, nodeVersionRequired)) {
-      log.warn(`The plugin "${this.pluginName}" requires Node version of ${nodeVersionRequired} which does \
-not satisfy the current Node version of ${process.version}. You may need to upgrade your installation of Node.`);
+      log.warn(`The plugin "${this.pluginName}" requires Node.js version of ${nodeVersionRequired} which does \
+not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://git.io/JTKEF`);
     }
 
     const dependencies = context.dependencies || {};
