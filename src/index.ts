@@ -94,8 +94,8 @@ export {
   AccessControlEvent,
   AccessLevel,
   AccessoryEventTypes,
-  AmbientLightningControllerEvents,
-  AmbientLightningControllerMode,
+  AdaptiveLightingControllerEvents,
+  AdaptiveLightingControllerMode,
   AudioBitrate,
   AudioCodecTypes,
   AudioSamplerate,
@@ -148,7 +148,7 @@ export type {
 export type {
   AccessControlManagement,
   // Accessory,
-  AmbientLightningController,
+  AdaptiveLightingController,
   // Bridge,
   CameraController,
   Characteristic,
@@ -184,9 +184,9 @@ export type {
  * Export HAP-NodeJS interfaces as type only
  */
 export type {
-  ActiveAmbientLightningTransition,
-  AmbientLightningOptions,
-  AmbientLightningTransitionCurveEntry,
+  ActiveAdaptiveLightingTransition,
+  AdaptiveLightingOptions,
+  AdaptiveLightingTransitionCurveEntry,
   BrightnessAdjustmentMultiplierRange,
   CameraControllerOptions,
   CameraStreamingDelegate,
