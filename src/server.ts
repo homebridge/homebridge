@@ -194,6 +194,7 @@ export class Server {
       category: Categories.BRIDGE,
       bind: bridgeConfig.bind,
       mdns: this.config.mdns, // this is deprecated now
+      addIdentifyingMaterial: true,
     };
 
     if (bridgeConfig.setupID && bridgeConfig.setupID.length === 4) {
@@ -628,6 +629,7 @@ export class Server {
         port: accessoryPort,
         bind: this.config.bridge.bind,
         mdns: this.config.mdns, // this is deprecated and not used anymore
+        addIdentifyingMaterial: true,
       }, this.allowInsecureAccess);
     });
   }
