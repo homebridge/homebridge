@@ -1,0 +1,12 @@
+{
+  "out": "docs",
+  "includes": "src",
+  "exclude": ["src/**/*.spec.ts"],
+
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeExternals": true,
+  "hideGenerator": true,
+  "includeVersion": false,
+  "listInvalidSymbolLinks": true
+}

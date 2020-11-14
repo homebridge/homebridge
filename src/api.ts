@@ -159,13 +159,6 @@ export const enum InternalAPIEvent {
   UNREGISTER_PLATFORM_ACCESSORIES = "unregisterPlatformAccessories",
 }
 
-export declare interface API {
-
-  on(event: "didFinishLaunching", listener: () => void): this;
-  on(event: "shutdown", listener: () => void): this;
-
-}
-
 export interface API {
 
   /**
@@ -212,6 +205,9 @@ export interface API {
    */
   publishCameraAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
   publishExternalAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
+
+  on(event: "didFinishLaunching", listener: () => void): this;
+  on(event: "shutdown", listener: () => void): this;
 
 }
 

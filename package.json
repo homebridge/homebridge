@@ -18,7 +18,8 @@
     "test": "jest",
     "clean": "rimraf lib/",
     "prepublishOnly": "npm run build",
-    "postpublish": "npm run clean"
+    "postpublish": "npm run clean",
+    "docs": "rimraf docs && typedoc src/index.ts"
   },
   "repository": {
     "type": "git",
@@ -44,7 +45,7 @@
   "dependencies": {
     "chalk": "^4.1.0",
     "commander": "5.1.0",
-    "hap-nodejs": "^0.9.0-beta.65",
+    "hap-nodejs": "^0.9.0-beta.67",
     "node-persist": "^0.0.11",
     "qrcode-terminal": "^0.12.0",
     "semver": "^7.3.2",
@@ -63,6 +64,7 @@
     "rimraf": "^3.0.2",
     "ts-jest": "^26.3.0",
     "ts-node": "^9.0.0",
-    "typescript": "^4.0.2"
+    "typescript": "^4.0.2",
+    "typedoc": "0.20.0-beta.8"
   }
 }
