@@ -1,0 +1,31 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended", // uses the recommended rules from the @typescript-eslint/eslint-plugin
+    "plugin:jest/recommended" // enables eslint-plugin-jest
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2018,
+    "sourceType": "module"
+  },
+  "ignorePatterns": [
+    "bin/",
+    "lib/"
+  ],
+  "rules": {
+    "quotes": ["error", "double"],
+    "indent": ["error", 2, { "SwitchCase": 1 }],
+    "linebreak-style": ["error", "unix"],
+    "semi": ["error", "always"],
+
+    "comma-dangle": ["error", "always-multiline"],
+    "dot-notation": "error",
+    "eqeqeq": "error",
+    "curly": ["error", "all"],
+    "brace-style": ["error"],
+
+    "@typescript-eslint/no-non-null-assertion": "off" // currently disabled, hap-nodejs has some bad typing (like getCharacteristic) for this to be enabled
+  }
+}

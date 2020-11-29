@@ -1,37 +1,67 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "0.2.15",
+  "version": "1.2.3",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "license": "Apache-2.0",
+  "author": "Nick Farina",
+  "maintainers": [
+    "oznu <dev@oz.nu>",
+    "Andreas Bauer <mail@anderl-bauer.de>"
+  ],
   "scripts": {
-    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true"
-  },
-  "author": {
-    "name": "Nick Farina"
+    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
+    "lint": "eslint 'src/**/*.{js,ts,json}'",
+    "build": "npm run clean && tsc",
+    "test": "jest",
+    "clean": "rimraf lib/",
+    "prepublishOnly": "npm run build",
+    "postpublish": "npm run clean"
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/nfarina/homebridge.git"
+    "url": "git://github.com/homebridge/homebridge.git"
   },
   "bugs": {
-    "url": "http://github.com/nfarina/homebridge/issues"
+    "url": "http://github.com/homebridge/homebridge/issues"
   },
-  "licenses": [
-    {
-      "type": "ISC",
-      "url": "http://github.com/nfarina/homebridge/blob/master/LICENSE"
-    }
-  ],
   "bin": {
     "homebridge": "bin/homebridge"
   },
   "engines": {
-    "node": ">=0.12.0"
+    "node": ">=10.17.0"
   },
+  "files": [
+    "README.md",
+    "config-sample.json",
+    "LICENSE",
+    "lib",
+    "bin"
+  ],
   "preferGlobal": true,
   "dependencies": {
-    "chalk": "^1.1.1",
-    "commander": "2.8.1",
-    "hap-nodejs": "0.0.7",
-    "semver": "5.0.3"
+    "chalk": "^4.1.0",
+    "commander": "5.1.0",
+    "hap-nodejs": "~0.8.2",
+    "node-persist": "^0.0.11",
+    "qrcode-terminal": "^0.12.0",
+    "semver": "^7.3.2",
+    "source-map-support": "^0.5.19"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.5",
+    "@types/jest": "^26.0.13",
+    "@types/node": "10.17.32",
+    "@types/semver": "^7.3.3",
+    "@typescript-eslint/eslint-plugin": "^4.1.1",
+    "@typescript-eslint/parser": "^4.1.1",
+    "eslint": "^7.9.0",
+    "eslint-plugin-jest": "^24.0.1",
+    "jest": "^26.4.2",
+    "rimraf": "^3.0.2",
+    "ts-jest": "^26.3.0",
+    "ts-node": "^9.0.0",
+    "typescript": "^4.0.2"
   }
 }

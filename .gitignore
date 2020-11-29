@@ -10,3 +10,9 @@ npm-debug.log
 # Ignore any extra plugins in the example directory that aren't in Git already
 # (this is a sandbox for the user)
 example-plugins
+lib
+
+.idea
+
+# possible local testing storage
+.homebridge
