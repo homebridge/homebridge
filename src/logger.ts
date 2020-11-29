@@ -140,9 +140,7 @@ export class Logger {
   }
 
   public debug(message: string, ...parameters: any[]): void {
-    if (Logger.debugEnabled) {
-      this.log(LogLevel.DEBUG, message, ...parameters);
-    }
+    this.log(LogLevel.DEBUG, message, ...parameters);
   }
 
   public log(level: LogLevel, message: string, ...parameters: any[]): void {
@@ -172,7 +170,9 @@ export class Logger {
       message = chalk.white(`[${date.toLocaleString()}] `) + message;
     }
 
-    loggingFunction(message);
+    if(level !== LogLevel.DEBUG || Logger.debugEnabled) {
+      loggingFunction(message);
+    }
   }
 
 }
