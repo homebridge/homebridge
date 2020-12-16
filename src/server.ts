@@ -195,6 +195,7 @@ export class Server {
       bind: bridgeConfig.bind,
       mdns: this.config.mdns, // this is deprecated now
       addIdentifyingMaterial: true,
+      useLegacyAdvertiser: this.config.mdns?.legacyAdvertiser,
     };
 
     if (bridgeConfig.setupID && bridgeConfig.setupID.length === 4) {
@@ -630,6 +631,7 @@ export class Server {
         bind: this.config.bridge.bind,
         mdns: this.config.mdns, // this is deprecated and not used anymore
         addIdentifyingMaterial: true,
+        useLegacyAdvertiser: this.config.mdns?.legacyAdvertiser,
       }, this.allowInsecureAccess);
     });
   }
