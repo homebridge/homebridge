@@ -52,13 +52,13 @@ The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains st
 
 On other platforms, ensure you have **Node.js v10.17.0** or later installed and run:
 
-```console
+```shell
 sudo npm install -g --unsafe-perm homebridge
 ```
 
 Then start Homebridge in your terminal window by running:
 
-```console
+```shell
 homebridge
 ```
 
@@ -70,7 +70,7 @@ Plugins can publish Accessories and/or Platforms. Accessories are individual dev
 
 You install Plugins using the [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x), or the same way you installed Homebridge - as a global NPM module. For example:
 
-```console
+```shell
 sudo npm install -g homebridge-dummy
 ```
 
