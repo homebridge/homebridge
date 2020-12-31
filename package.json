@@ -19,7 +19,7 @@
     "clean": "rimraf lib/",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
-    "docs": "rimraf docs && typedoc src/index.ts"
+    "docs": "typedoc src/index.ts"
   },
   "repository": {
     "type": "git",

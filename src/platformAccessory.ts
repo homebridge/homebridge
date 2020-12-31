@@ -127,7 +127,7 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
   /**
    *
    * @param cameraSource
-   * @deprecated see [Accessory.configureCameraSource]{@link https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#configurecamerasource}
+   * @deprecated see {@link https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#configurecamerasource | Accessory.configureCameraSource}
    */
   public configureCameraSource(cameraSource: LegacyCameraSource): CameraController {
     return this._associatedHAPAccessory.configureCameraSource(cameraSource);
