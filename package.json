@@ -64,7 +64,7 @@
     "rimraf": "^3.0.2",
     "ts-jest": "^26.4.4",
     "ts-node": "^9.1.1",
-    "typescript": "^4.1.3",
-    "typedoc": "0.20.0-beta.32"
+    "typedoc": "0.20.5",
+    "typescript": "^4.1.3"
   }
 }
