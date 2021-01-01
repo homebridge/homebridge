@@ -182,10 +182,13 @@ export interface API {
    * passed version string.
    *
    * Example:
+   *
    * We assume the homebridge version 1.3.0-beta.12 ({@link serverVersion}) and the following example calls below
-   *  versionGreaterOrEqual("1.2.0"); will return true
-   *  versionGreaterOrEqual("1.3.0"); will return false (the RELEASE version 1.3.0 is bigger than the BETA version 1.3.0-beta.12)
-   *  versionGreaterOrEqual("1.3.0-beta.8); will return true
+   * ```
+   *  versionGreaterOrEqual("1.2.0"); // will return true
+   *  versionGreaterOrEqual("1.3.0"); // will return false (the RELEASE version 1.3.0 is bigger than the BETA version 1.3.0-beta.12)
+   *  versionGreaterOrEqual("1.3.0-beta.8); // will return true
+   * ```
    *
    * @param version
    */
