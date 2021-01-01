@@ -50,6 +50,7 @@ export {
  */
 export type {
   PlatformAccessory,
+  UnknownContext,
 } from "./platformAccessory";
 
 /**
@@ -229,7 +230,6 @@ export type  {
   Camera,
   CameraStreamingOptions,
   CharacteristicChange,
-  CharacteristicEvents, // TODO remove
   CharacteristicGetCallback,
   CharacteristicGetHandler,
   CharacteristicSetCallback,
@@ -237,9 +237,7 @@ export type  {
   CharacteristicValue,
   ControllerType,
   ErrorHandler,
-  EventAccessory, // TODO remove
   EventHandler,
-  EventService, // TODO remove
   FrameHandler,
   GlobalEventHandler,
   GlobalRequestHandler,
