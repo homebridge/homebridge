@@ -636,6 +636,7 @@ export class Server {
     });
   }
 
+  // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
   private static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, characteristic: Characteristic, type: CharacteristicWarningType, message: string): void {
     switch (type) {
       case CharacteristicWarningType.SLOW_READ:
