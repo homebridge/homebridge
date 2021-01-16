@@ -437,7 +437,7 @@ export class Server {
       try {
         constructor = plugin.getPlatformConstructor(platformIdentifier);
       } catch (error) {
-        log.error(`Error loading the platform "${platformIdentifier} requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`);
+        log.error(`Error loading the platform "${platformIdentifier}" requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`);
         log.error(error); // error message contains more information and full stack trace
         return;
       }
