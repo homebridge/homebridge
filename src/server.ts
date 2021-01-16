@@ -69,6 +69,13 @@ export interface HomebridgeConfig {
 
   plugins?: PluginIdentifier[]; // array to define set of active plugins
 
+  /**
+   * Array of disabled plugins.
+   * Unlike the plugins[] config which prevents plugins from being initialised at all, disabled plugins still have their alias loaded so
+   * we can match config blocks of disabled plugins and show an appropriate message in the logs.
+   */
+  disabledPlugins?: PluginIdentifier[]; // 
+
   // This section is used to control the range of ports (inclusive) that separate accessory (like camera or television) should be bind to
   ports?: ExternalPortsConfiguration;
 }
@@ -145,6 +152,7 @@ export class Server {
 
     const pluginManagerOptions: PluginManagerOptions = {
       activePlugins: this.config.plugins,
+      disabledPlugins: this.config.disabledPlugins,
       customPluginPath: options.customPluginPath,
     };
     this.pluginManager = new PluginManager(this.api, pluginManagerOptions);
@@ -358,12 +366,26 @@ export class Server {
 
       let plugin: Plugin;
       let constructor: AccessoryPluginConstructor;
+
       try {
         plugin = this.pluginManager.getPluginForAccessory(accessoryIdentifier);
+      } catch (error) {
+        log.error(`No plugin was found for the accessory "${accessoryIdentifier}" in your config.json at position ${index + 1}. Please make sure the plugin is installed correctly.`);
+        return;
+      }
+
+      // check the plugin is not disabled
+      if (plugin.disabled) {
+        log.warn(`Ignoring config for the accessory "${accessoryIdentifier}" in your config.json as the plugin "${plugin.getPluginIdentifier()}" has been disabled.`);
+        return;
+      }
+
+      try {
         constructor = plugin.getAccessoryConstructor(accessoryIdentifier);
       } catch (error) {
-        log.warn("Error loading accessory requested in your config.json at position %d", index + 1);
-        throw error; // error message contains more information
+        log.error(`Error loading the accessory "${accessoryIdentifier} requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`);
+        log.error(error); // error message contains more information and full stack trace
+        return;
       }
 
       const logger = Logger.withPrefix(displayName);
@@ -398,12 +420,26 @@ export class Server {
 
       let plugin: Plugin;
       let constructor: PlatformPluginConstructor;
+
       try {
         plugin = this.pluginManager.getPluginForPlatform(platformIdentifier);
+      } catch (error) {
+        log.error(`No plugin was found for the platform "${platformIdentifier}" in your config.json at position ${index + 1}. Please make sure the plugin is installed correctly.`);
+        return;
+      }
+
+      // check the plugin is not disabled
+      if (plugin.disabled) {
+        log.warn(`Ignoring config for the platform "${platformIdentifier}" in your config.json as the plugin "${plugin.getPluginIdentifier()}" has been disabled.`);
+        return;
+      }
+
+      try {
         constructor = plugin.getPlatformConstructor(platformIdentifier);
       } catch (error) {
-        log.warn("Error loading platform requested in your config.json at position %d", index + 1);
-        throw error; // error message contains more information
+        log.error(`Error loading the platform "${platformIdentifier} requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`);
+        log.error(error); // error message contains more information and full stack trace
+        return;
       }
 
       const logger = Logger.withPrefix(displayName);

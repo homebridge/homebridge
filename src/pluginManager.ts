@@ -40,6 +40,10 @@ export interface PluginManagerOptions {
    * When defined, only plugins specified here will be initialized.
    */
   activePlugins?: PluginIdentifier[];
+  /**
+   * Plugins that are marked as disabled and whos corresponding config blocks should be ignored
+   */
+  disabledPlugins?: PluginIdentifier[];
 }
 
 /**
@@ -54,6 +58,7 @@ export class PluginManager {
 
   private readonly searchPaths: Set<string> = new Set(); // unique set of search paths we will use to discover installed plugins
   private readonly activePlugins?: PluginIdentifier[];
+  private readonly disabledPlugins?: PluginIdentifier[];
 
   private readonly plugins: Map<PluginIdentifier, Plugin> = new Map();
   // we have some plugins which simply pass a wrong or misspelled plugin name to the api calls, this translation tries to mitigate this
@@ -72,6 +77,7 @@ export class PluginManager {
       }
 
       this.activePlugins = options.activePlugins;
+      this.disabledPlugins = options.disabledPlugins;
     }
 
     this.loadDefaultPaths();
@@ -128,7 +134,15 @@ export class PluginManager {
         return;
       }
 
-      log.info(`Loaded plugin: ${identifier}@${plugin.version}`);
+      if (Array.isArray(this.disabledPlugins) && this.disabledPlugins.includes(plugin.getPluginIdentifier())) {
+        plugin.disabled = true;
+      }
+
+      if (plugin.disabled) {
+        log.warn(`Disabled plugin: ${identifier}@${plugin.version}`);
+      } else {
+        log.info(`Loaded plugin: ${identifier}@${plugin.version}`);
+      }
 
       try {
         this.currentInitializingPlugin = plugin;

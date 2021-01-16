@@ -29,6 +29,8 @@ export class Plugin {
   private readonly scope?: string; // npm package scope
   private readonly pluginPath: string; // like "/usr/local/lib/node_modules/homebridge-lockitron"
 
+  public disabled = false; // mark the plugin as disabled
+
   // ------------------ package.json content ------------------
   readonly version: string;
   private readonly main: string;
@@ -78,7 +80,9 @@ export class Plugin {
       throw new Error(`Plugin '${this.getPluginIdentifier()}' tried to register an accessory '${name}' which has already been registered!`);
     }
 
-    log.info("Registering accessory '%s'", this.getPluginIdentifier() + "." + name);
+    if (!this.disabled) {
+      log.info("Registering accessory '%s'", this.getPluginIdentifier() + "." + name);
+    }
 
     this.registeredAccessories.set(name, constructor);
   }
@@ -88,7 +92,9 @@ export class Plugin {
       throw new Error(`Plugin '${this.getPluginIdentifier()}' tried to register a platform '${name}' which has already been registered!`);
     }
 
-    log.info("Registering platform '%s'", this.getPluginIdentifier() + "." + name);
+    if (!this.disabled) {
+      log.info("Registering platform '%s'", this.getPluginIdentifier() + "." + name);
+    }
 
     this.registeredPlatforms.set(name, constructor);
   }
