@@ -133,8 +133,24 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
     return this._associatedHAPAccessory.configureCameraSource(cameraSource);
   }
 
+  /**
+   * Configures a new controller for the given accessory.
+   * See {@link https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#configurecontroller | Accessory.configureController}.
+   *
+   * @param controller
+   */
   public configureController(controller: Controller | ControllerConstructor): void {
     this._associatedHAPAccessory.configureController(controller);
+  }
+
+  /**
+   * Removes a configured controller from the given accessory.
+   * See {@link https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#removecontroller | Accessory.removeController}.
+   *
+   * @param controller
+   */
+  public removeController(controller: Controller): void {
+    this._associatedHAPAccessory.removeController(controller)
   }
 
   // private
