@@ -150,6 +150,11 @@ export class Server {
     this.pluginManager = new PluginManager(this.api, pluginManagerOptions);
 
     this.bridge = new Bridge(this.config.bridge.name, uuid.generate("HomeBridge"));
+    this.bridge.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, () => {
+      // We register characteristic warning handlers on every bridged accessory (to have a reference to the plugin).
+      // For Bridges the warnings will propagate to the main Bridge accessory, thus we need to silence them here.
+      // Other wise those would be printed twice (by us and HAP-NodeJS as it detects no handlers on the bridge).
+    });
   }
 
   public async start(): Promise<void> {
