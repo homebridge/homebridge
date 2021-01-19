@@ -40,6 +40,10 @@ export interface PluginManagerOptions {
    * When defined, only plugins specified here will be initialized.
    */
   activePlugins?: PluginIdentifier[];
+  /**
+   * Plugins that are marked as disabled and whos corresponding config blocks should be ignored
+   */
+  disabledPlugins?: PluginIdentifier[];
 }
 
 /**
@@ -54,6 +58,7 @@ export class PluginManager {
 
   private readonly searchPaths: Set<string> = new Set(); // unique set of search paths we will use to discover installed plugins
   private readonly activePlugins?: PluginIdentifier[];
+  private readonly disabledPlugins?: PluginIdentifier[];
 
   private readonly plugins: Map<PluginIdentifier, Plugin> = new Map();
   // we have some plugins which simply pass a wrong or misspelled plugin name to the api calls, this translation tries to mitigate this
@@ -72,6 +77,7 @@ export class PluginManager {
       }
 
       this.activePlugins = options.activePlugins;
+      this.disabledPlugins = Array.isArray(options.disabledPlugins) ? options.disabledPlugins : undefined;
     }
 
     this.loadDefaultPaths();
@@ -128,7 +134,15 @@ export class PluginManager {
         return;
       }
 
-      log.info(`Loaded plugin: ${identifier}@${plugin.version}`);
+      if (this.disabledPlugins && this.disabledPlugins.includes(plugin.getPluginIdentifier())) {
+        plugin.disabled = true;
+      }
+
+      if (plugin.disabled) {
+        log.warn(`Disabled plugin: ${identifier}@${plugin.version}`);
+      } else {
+        log.info(`Loaded plugin: ${identifier}@${plugin.version}`);
+      }
 
       try {
         this.currentInitializingPlugin = plugin;
@@ -192,17 +206,24 @@ export class PluginManager {
   public getPluginForAccessory(accessoryIdentifier: AccessoryIdentifier | AccessoryName): Plugin {
     let plugin: Plugin;
     if (accessoryIdentifier.indexOf(".") === -1) { // see if it matches exactly one accessory
-      const found = this.accessoryToPluginMap.get(accessoryIdentifier);
+      let found = this.accessoryToPluginMap.get(accessoryIdentifier);
 
       if (!found) {
-        throw new Error(`The requested accessory '${accessoryIdentifier}' was not registered by any plugin.`);
-      } else if (found.length > 1) {
-        const options = found.map(plugin => plugin.getPluginIdentifier() + "." + accessoryIdentifier).join(", ");
-        throw new Error(`The requested accessory '${accessoryIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`);
-      } else {
-        plugin = found[0];
-        accessoryIdentifier = plugin.getPluginIdentifier() + "." + accessoryIdentifier;
+        throw new Error(`No plugin was found for the accessory "${accessoryIdentifier}" in your config.json. Please make sure the corresponding plugin is installed correctly.`);
       }
+
+      if (found.length > 1) {
+        const options = found.map(plugin => plugin.getPluginIdentifier() + "." + accessoryIdentifier).join(", ");
+        // check if only one of the multiple platforms is not disabled
+        found = found.filter(plugin => !plugin.disabled);
+        if (found.length !== 1) {
+          throw new Error(`The requested accessory '${accessoryIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`);
+        }
+      } 
+
+      plugin = found[0];
+      accessoryIdentifier = plugin.getPluginIdentifier() + "." + accessoryIdentifier;
+
     } else {
       const pluginIdentifier = PluginManager.getPluginIdentifier(accessoryIdentifier);
       if (!this.hasPluginRegistered(pluginIdentifier)) {
@@ -218,17 +239,24 @@ export class PluginManager {
   public getPluginForPlatform(platformIdentifier: PlatformIdentifier | PlatformName): Plugin {
     let plugin: Plugin;
     if (platformIdentifier.indexOf(".") === -1) { // see if it matches exactly one platform
-      const found = this.platformToPluginMap.get(platformIdentifier);
+      let found = this.platformToPluginMap.get(platformIdentifier);
 
-      if (!found) {
-        throw new Error(`The requested platform '${platformIdentifier}' was not registered by any plugin.`);
-      } else if (found.length > 1) {
-        const options = found.map(plugin => plugin.getPluginIdentifier() + "." + platformIdentifier).join(", ");
-        throw new Error(`The requested platform '${platformIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`);
-      } else {
-        plugin = found[0];
-        platformIdentifier = plugin.getPluginIdentifier() + "." + platformIdentifier;
+      if(!found) {
+        throw new Error(`No plugin was found for the platform "${platformIdentifier}" in your config.json. Please make sure the corresponding plugin is installed correctly.`);
       }
+
+      if (found.length > 1) {
+        const options = found.map(plugin => plugin.getPluginIdentifier() + "." + platformIdentifier).join(", ");
+        // check if only one of the multiple platforms is not disabled
+        found = found.filter(plugin => !plugin.disabled);
+        if (found.length !== 1) {
+          throw new Error(`The requested platform '${platformIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`);
+        }
+      }
+
+      plugin = found[0];
+      platformIdentifier = plugin.getPluginIdentifier() + "." + platformIdentifier;
+
     } else {
       const pluginIdentifier = PluginManager.getPluginIdentifier(platformIdentifier);
       if (!this.hasPluginRegistered(pluginIdentifier)) {
