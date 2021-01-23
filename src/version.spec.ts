@@ -3,7 +3,7 @@ import fs, { PathLike } from "fs";
 import path from "path";
 
 describe("version", () => {
-  describe(getVersion, () => {
+  describe("getVersion", () => {
     it("should read correct version from package.json", function() {
       const expectedVersion = "1.1.28";
       const expectedPath = path.resolve(__dirname, "../package.json");
@@ -29,7 +29,7 @@ describe("version", () => {
     });
   });
 
-  describe(getRequiredNodeVersion, () => {
+  describe("getRequiredNodeVersion", () => {
     it("should read correct node version from package.json", function() {
       const expectedVersion = ">=10.17.0";
       const expectedPath = path.resolve(__dirname, "../package.json");

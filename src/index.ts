@@ -58,12 +58,18 @@ export type {
  */
 export type {
   HomebridgeOptions,
+} from "./server";
+
+/**
+ * Export bridge types
+ */
+export type {
   HomebridgeConfig,
   BridgeConfiguration,
   AccessoryConfig,
   PlatformConfig,
   ExternalPortsConfiguration,
-} from "./server";
+} from "./bridgeService";
 
 /**
  * Export User Types

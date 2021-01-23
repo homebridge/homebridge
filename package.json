@@ -17,6 +17,7 @@
     "build": "npm run clean && tsc",
     "test": "jest",
     "clean": "rimraf lib/",
+    "watch": "nodemon",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
     "docs": "typedoc src/index.ts"
@@ -45,14 +46,15 @@
   "dependencies": {
     "chalk": "^4.1.0",
     "commander": "5.1.0",
+    "fs-extra": "^9.1.0",
     "hap-nodejs": "^0.9.0-beta.114",
-    "node-persist": "^0.0.11",
     "qrcode-terminal": "^0.12.0",
     "semver": "^7.3.4",
     "source-map-support": "^0.5.19"
   },
   "devDependencies": {
     "@types/debug": "^4.1.5",
+    "@types/fs-extra": "^9.0.6",
     "@types/jest": "^26.0.19",
     "@types/node": "10.17.50",
     "@types/semver": "^7.3.4",
@@ -61,6 +63,7 @@
     "eslint": "^7.17.0",
     "eslint-plugin-jest": "^24.1.3",
     "jest": "^26.6.3",
+    "nodemon": "^2.0.7",
     "rimraf": "^3.0.2",
     "ts-jest": "^26.4.4",
     "ts-node": "^9.1.1",

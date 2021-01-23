@@ -13,7 +13,7 @@ function createAccessory(name = "TestAccessory", category?: Categories): Platfor
   return accessory;
 }
 
-describe(PlatformAccessory, () => {
+describe("PlatformAccessory", () => {
 
   describe("properties", () => {
 
@@ -43,7 +43,7 @@ describe(PlatformAccessory, () => {
 
   });
 
-  describe(PlatformAccessory.prototype.addService, () => {
+  describe("PlatformAccessory.prototype.addService", () => {
     it("should forward add service", function() {
       const accessory = createAccessory();
       const service = new Service.Switch();
@@ -61,7 +61,7 @@ describe(PlatformAccessory, () => {
     });
   });
 
-  describe(PlatformAccessory.prototype.removeService, () => {
+  describe("PlatformAccessory.prototype.removeService", () => {
     it("should forward remove service", function() {
       const accessory = createAccessory();
       const service = new Service.Switch();
@@ -72,7 +72,7 @@ describe(PlatformAccessory, () => {
     });
   });
 
-  describe(PlatformAccessory.prototype.getService, () => {
+  describe("PlatformAccessory.prototype.getService", () => {
     it("should retrieve AccessoryInformation service", function() {
       const accessory = createAccessory();
       const requested = Service.AccessoryInformation;
@@ -85,7 +85,7 @@ describe(PlatformAccessory, () => {
     });
   });
 
-  describe(PlatformAccessory.prototype.getServiceById, () => {
+  describe("PlatformAccessory.prototype.getServiceById", () => {
     it("should forward service retrieval by id", function() {
       const accessory = createAccessory();
       const spy = jest.spyOn(accessory._associatedHAPAccessory, "getServiceById");
@@ -96,7 +96,7 @@ describe(PlatformAccessory, () => {
     });
   });
 
-  describe(PlatformAccessory.prototype.configureController, () => {
+  describe("PlatformAccessory.prototype.configureController", () => {
     it("should forward configureController correctly", function() {
       const accessory = createAccessory();
       const spy = jest.spyOn(accessory._associatedHAPAccessory, "configureController").mockImplementationOnce(() => {
@@ -109,7 +109,7 @@ describe(PlatformAccessory, () => {
     });
   });
 
-  describe(PlatformAccessory.serialize, () => {
+  describe("PlatformAccessory.serialize", () => {
     it("should serialize accessory correctly", function() {
       const accessory = createAccessory();
       accessory.addService(Service.Lightbulb);
@@ -124,7 +124,7 @@ describe(PlatformAccessory, () => {
     });
   });
 
-  describe(PlatformAccessory.deserialize, () => {
+  describe("PlatformAccessory.deserialize", () => {
     it("should deserialize serialized accessory correctly", function() {
       const accessory = createAccessory();
       accessory.addService(Service.Lightbulb);

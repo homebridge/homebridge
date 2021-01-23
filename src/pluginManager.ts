@@ -144,23 +144,27 @@ export class PluginManager {
         log.info(`Loaded plugin: ${identifier}@${plugin.version}`);
       }
 
-      try {
-        this.currentInitializingPlugin = plugin;
-        plugin.initialize(this.api); // call the plugin's initializer and pass it our API instance
-      } catch (error) {
-        log.error("====================");
-        log.error(`ERROR INITIALIZING PLUGIN ${identifier}:`);
-        log.error(error.stack);
-        log.error("====================");
-
-        this.plugins.delete(identifier);
-        return;
-      }
+      this.initializePlugin(plugin, identifier);
 
       log.info("---");
     });
 
     this.currentInitializingPlugin = undefined;
+  }
+
+  public initializePlugin(plugin: Plugin, identifier: string): void {
+    try {
+      this.currentInitializingPlugin = plugin;
+      plugin.initialize(this.api); // call the plugin's initializer and pass it our API instance
+    } catch (error) {
+      log.error("====================");
+      log.error(`ERROR INITIALIZING PLUGIN ${identifier}:`);
+      log.error(error.stack);
+      log.error("====================");
+
+      this.plugins.delete(identifier);
+      return;
+    }
   }
 
   private handleRegisterAccessory(name: AccessoryName, constructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier): void {
@@ -369,7 +373,7 @@ export class PluginManager {
     }
   }
 
-  private loadPlugin(absolutePath: string): Plugin {
+  public loadPlugin(absolutePath: string): Plugin {
     const packageJson: PackageJSON = PluginManager.loadPackageJSON(absolutePath);
 
     const identifier: PluginIdentifier = packageJson.name;

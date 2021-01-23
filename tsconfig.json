@@ -15,7 +15,8 @@
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
-    "preserveConstEnums": true
+    "preserveConstEnums": true,
+    "skipLibCheck": true
   },
   "include": [
     "src/"
