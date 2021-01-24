@@ -159,7 +159,10 @@ export class ChildPluginFork {
   }
 }
 
-const pluginFork = new ChildPluginFork();
+/**
+ * Start Self
+ */
+const childPluginFork = new ChildPluginFork();
 
 /**
  * Handle incoming IPC messages from the parent Homebridge process
@@ -171,11 +174,11 @@ process.on("message", (message: ChildProcessMessageEvent<unknown>) => {
 
   switch (message.id) {
     case ChildProcessMessageEventType.LOAD: {
-      pluginFork.loadPlugin(message.data as ChildProcessLoadEventData);
+      childPluginFork.loadPlugin(message.data as ChildProcessLoadEventData);
       break;
     }
     case ChildProcessMessageEventType.START: {
-      pluginFork.startBridge();
+      childPluginFork.startBridge();
       break;
     }
   }
@@ -193,7 +196,12 @@ const signalHandler = (signal: NodeJS.Signals, signalNum: number): void => {
 
   Logger.internal.info("Got %s, shutting down plugin child process...", signal);
 
-  pluginFork.shutdown();
+  try {
+    childPluginFork.shutdown();
+  } catch (e) {
+    // do nothing
+  }
+  
   setTimeout(() => process.exit(128 + signalNum), 5000);
 };
 
@@ -205,6 +213,7 @@ process.on("SIGTERM", signalHandler.bind(undefined, "SIGTERM", 15));
  */
 setInterval(() => {
   if (!process.connected) {
-    process.kill(1);
+    Logger.internal.info("Parent process not connected, terminating process...");
+    process.exit(1);
   }
 }, 5000);
