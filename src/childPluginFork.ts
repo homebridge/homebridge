@@ -26,8 +26,9 @@ import {
 } from "./bridgeService";
 
 export class ChildPluginFork {
-  private api: HomebridgeAPI;
-  private pluginManager: PluginManager;
+  private bridgeService!: BridgeService;
+  private api!: HomebridgeAPI;
+  private pluginManager!: PluginManager;
 
   private type!: PluginType;
   private plugin!: Plugin;
@@ -37,11 +38,8 @@ export class ChildPluginFork {
   private bridgeOptions!: BridgeOptions;
   private homebridgeConfig!: HomebridgeConfig;
 
-  public bridgeService!: BridgeService;
-
   constructor() {
-    this.api = new HomebridgeAPI();
-    this.pluginManager = new PluginManager(this.api);
+    // tell the parent process we are ready to accept plugin config
     this.sendMessage(ChildProcessMessageEventType.READY);
   }
 
@@ -79,12 +77,16 @@ export class ChildPluginFork {
       Logger.forceColor();
     }
 
-    if (this.bridgeOptions.customPluginPath) {
-      User.setStoragePath(this.bridgeOptions.customPluginPath);
+    if (this.bridgeOptions.customStoragePath) {
+      User.setStoragePath(this.bridgeOptions.customStoragePath);
     }
 
     // Initialize HAP-NodeJS with a custom persist directory
     HAPStorage.setCustomStoragePath(User.persistPath());
+
+    // load api
+    this.api = new HomebridgeAPI();
+    this.pluginManager = new PluginManager(this.api);
 
     // load plugin
     this.plugin = this.pluginManager.loadPlugin(data.pluginPath);

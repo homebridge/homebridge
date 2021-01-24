@@ -153,8 +153,12 @@ export class ChildPluginService {
       this.args.push("-K");
     }
 
+    if (this.bridgeOptions.customStoragePath) {
+      this.args.push("-U", this.bridgeOptions.customStoragePath);
+    }
+
     if (this.bridgeOptions.customPluginPath) {
-      this.args.push("-U", this.bridgeOptions.customPluginPath);
+      this.args.push("-P", this.bridgeOptions.customPluginPath);
     }
   }
 
@@ -179,6 +183,7 @@ export class ChildPluginService {
       noLogTimestamps: this.bridgeOptions.noLogTimestamps,
       debugModeEnabled: this.bridgeOptions.debugModeEnabled,
       forceColourLogging: this.bridgeOptions.forceColourLogging,
+      customStoragePath: this.bridgeOptions.customStoragePath,
       customPluginPath: this.bridgeOptions.customPluginPath,
     };
 
