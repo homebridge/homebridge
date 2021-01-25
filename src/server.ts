@@ -217,7 +217,7 @@ export class Server {
       try {
         constructor = plugin.getAccessoryConstructor(accessoryIdentifier);
       } catch (error) {
-        log.error(`Error loading the accessory "${accessoryIdentifier} requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`);
+        log.error(`Error loading the accessory "${accessoryIdentifier}" requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`);
         log.error(error); // error message contains more information and full stack trace
         return;
       }
@@ -252,7 +252,11 @@ export class Server {
       const accessory = this.bridgeService.createHAPAccessory(plugin, accessoryInstance, displayName, accessoryIdentifier, accessoryConfig.uuid_base);
 
       if (accessory) {
-        this.bridgeService.bridge.addBridgedAccessory(accessory);
+        try {
+          this.bridgeService.bridge.addBridgedAccessory(accessory);
+        } catch (e) {
+          logger.error(`Error loading the accessory "${accessoryIdentifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, e.message);
+        }
       } else {
         logger("Accessory %s returned empty set of services. Won't adding it to the bridge!", accessoryIdentifier);
       }
