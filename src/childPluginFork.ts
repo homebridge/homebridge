@@ -96,7 +96,7 @@ export class ChildPluginFork {
     this.sendMessage(ChildProcessMessageEventType.LOADED);
   }
 
-  startBridge(): void {
+  async startBridge(): Promise<void> {
     this.bridgeService = new BridgeService(
       this.api,
       this.pluginManager,
@@ -118,7 +118,7 @@ export class ChildPluginFork {
       if (HomebridgeAPI.isDynamicPlatformPlugin(platform)) {
         plugin.assignDynamicPlatform(this.identifier, platform);
       } else if (HomebridgeAPI.isStaticPlatformPlugin(platform)) { // Plugin 1.0, load accessories
-        this.bridgeService.loadPlatformAccessories(plugin, platform, this.identifier, logger);
+        await this.bridgeService.loadPlatformAccessories(plugin, platform, this.identifier, logger);
       } else {
         // otherwise it's a IndependentPlatformPlugin which doesn't expose any methods at all.
         // We just call the constructor and let it be enabled.

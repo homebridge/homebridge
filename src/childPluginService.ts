@@ -167,11 +167,11 @@ export class ChildPluginService {
       name: this.bridgeConfig.name || this.pluginConfig.name || this.plugin.getPluginIdentifier(),
       port: this.bridgeConfig.port,
       username: this.bridgeConfig.username,
-      pin: this.homebridgeConfig.bridge.pin,
+      pin: this.bridgeConfig.pin || this.homebridgeConfig.bridge.pin,
       bind: this.homebridgeConfig.bridge.bind,
-      setupID: this.homebridgeConfig.bridge.setupID,
-      manufacturer: this.homebridgeConfig.bridge.manufacturer,
-      model: this.homebridgeConfig.bridge.model,
+      setupID: this.bridgeConfig.setupID,
+      manufacturer: this.bridgeConfig.manufacturer || this.homebridgeConfig.bridge.manufacturer,
+      model: this.bridgeConfig.model || this.homebridgeConfig.bridge.model,
     };
 
     const bridgeOptions: BridgeOptions = {
