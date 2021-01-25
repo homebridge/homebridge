@@ -256,9 +256,10 @@ export class Server {
           this.bridgeService.bridge.addBridgedAccessory(accessory);
         } catch (e) {
           logger.error(`Error loading the accessory "${accessoryIdentifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, e.message);
+          return;
         }
       } else {
-        logger("Accessory %s returned empty set of services. Won't adding it to the bridge!", accessoryIdentifier);
+        logger.info("Accessory %s returned empty set of services; not adding it to the bridge.", accessoryIdentifier);
       }
     });
   }
