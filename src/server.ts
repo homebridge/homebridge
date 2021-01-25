@@ -2,6 +2,7 @@ import fs from "fs";
 import chalk from "chalk";
 import qrcode from "qrcode-terminal";
 
+import { MacAddress } from "hap-nodejs";
 import * as mac from "./util/mac";
 import { Logger } from "./logger";
 import { User } from "./user";
@@ -52,6 +53,9 @@ export class Server {
 
   private readonly config: HomebridgeConfig;
   private readonly hideQRCode: boolean;
+  
+  // used to check for duplicate usernames in child plugins
+  private readonly bridgeUsernameCache: MacAddress[] = [];
 
   constructor(
     private options: HomebridgeOptions = {},
@@ -69,6 +73,9 @@ export class Server {
       customPluginPath: options.customPluginPath,
     };
     this.pluginManager = new PluginManager(this.api, pluginManagerOptions);
+
+    // add the main bridge username to the username cache for duplicate tracking
+    this.bridgeUsernameCache.push(this.config.bridge.username.toUpperCase());
 
     // create new bridge service
     const bridgeConfig: BridgeOptions = {
@@ -219,6 +226,14 @@ export class Server {
       logger("Initializing %s accessory...", accessoryIdentifier);
 
       if (accessoryConfig._bridge) {
+        try {
+          this.validateExternalBridgeConfig(PluginType.PLATFORM, accessoryIdentifier, accessoryConfig._bridge);
+          this.bridgeUsernameCache.push(accessoryConfig._bridge.username.toUpperCase());
+        } catch (error) {
+          log.error(error.message);
+          return;
+        }
+
         return new ChildPluginService(
           PluginType.ACCESSORY,
           accessoryIdentifier,
@@ -286,6 +301,14 @@ export class Server {
       logger("Initializing %s platform...", platformIdentifier);
 
       if (platformConfig._bridge) {
+        try {
+          this.validateExternalBridgeConfig(PluginType.PLATFORM, platformIdentifier, platformConfig._bridge);
+          this.bridgeUsernameCache.push(platformConfig._bridge.username.toUpperCase());
+        } catch (error) {
+          log.error(error.message);
+          return;
+        }
+
         return new ChildPluginService(
           PluginType.PLATFORM,
           platformIdentifier,
@@ -311,6 +334,25 @@ export class Server {
     });
 
     return promises;
+  }
+
+  /**
+   * Validate an external bridge config
+   */
+  private validateExternalBridgeConfig(type: PluginType, identifier: string, bridgeConfig: BridgeConfiguration): void {
+    if (!mac.validMacAddress(bridgeConfig.username)) {
+      throw new Error(
+        `Error loading the ${type} "${identifier}" requested in your config.json - ` +
+        `not a valid username in _bridge.username: "${bridgeConfig.username}". Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`,
+      );
+    }
+
+    if (this.bridgeUsernameCache.includes(bridgeConfig.username.toUpperCase())) {
+      throw new Error(
+        `Error loading the ${identifier} "${identifier}" requested in your config.json - ` +
+        `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each external platform/accessory must have it's own unique username.`,
+      );
+    }
   }
 
   teardown(): void {

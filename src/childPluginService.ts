@@ -176,7 +176,7 @@ export class ChildPluginService {
 
     const bridgeOptions: BridgeOptions = {
       cachedAccessoriesDir: User.cachedAccessoryPath(),
-      cachedAccessoriesItemName: "cachedAccessories." + this.bridgeConfig.username.replace(/:/g, ""),
+      cachedAccessoriesItemName: "cachedAccessories." + this.bridgeConfig.username.replace(/:/g, "").toUpperCase(),
       keepOrphanedCachedAccessories: this.bridgeOptions.keepOrphanedCachedAccessories,
       hideQRCode: this.bridgeOptions.hideQRCode,
       insecureAccess: this.bridgeOptions.insecureAccess,
