@@ -29,7 +29,12 @@ export class StorageService {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public setItemSync(itemName: string, data: Record<any, any> | Array<any>): Promise<void> {
+  public setItemSync(itemName: string, data: Record<any, any> | Array<any>): void {
+    return fs.writeJsonSync(path.resolve(this.baseDirectory, itemName), data);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public setItem(itemName: string, data: Record<any, any> | Array<any>): Promise<void> {
     return fs.writeJson(path.resolve(this.baseDirectory, itemName), data);
   }
 
