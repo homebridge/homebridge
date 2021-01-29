@@ -400,7 +400,6 @@ export class Server {
 
   teardown(): void {
     this.bridgeService.teardown();
-    this.ipcService.stop();
   }
 
   private printSetupInfo(pin: string): void {

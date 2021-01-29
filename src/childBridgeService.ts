@@ -1,5 +1,6 @@
 import child_process from "child_process";
 import path from "path";
+import fs from "fs-extra";
 
 import { HomebridgeAPI, PluginType } from "./api";
 import { Logger } from "./logger";
@@ -74,6 +75,9 @@ export class ChildBridgeService {
     this.startChildProcess();
   }
 
+  /**
+   * Start the child bridge process
+   */
   private startChildProcess(): void {
     this.child = child_process.fork(path.resolve(__dirname, "childBridgeFork.js"), this.args, {
       silent: true,
@@ -125,6 +129,11 @@ export class ChildBridgeService {
     });
   }
 
+  /**
+   * Helper function to send a message to the child process
+   * @param type 
+   * @param data 
+   */
   private sendMessage<T = unknown>(type: ChildProcessMessageEventType, data?: T): void {
     if (this.child && this.child.connected) {
       this.child.send({
@@ -168,6 +177,9 @@ export class ChildBridgeService {
     }
   }
 
+  /**
+   * Tell the child process to load the given plugin
+   */
   private loadPlugin(): void {
     const bridgeConfig: BridgeConfiguration = {
       name: this.bridgeConfig.name || this.pluginConfig.name || this.plugin.getPluginIdentifier(),
@@ -204,21 +216,66 @@ export class ChildBridgeService {
     });
   }
 
+  /**
+   * Tell the child bridge to start broadcasting
+   */
   private startBridge(): void {
     this.sendMessage(ChildProcessMessageEventType.START);
   }
 
+  /**
+   * Send sigterm to the child bridge
+   */
   private teardown(): void {
     if (this.child && this.child.connected) {
       this.child.kill("SIGTERM");
     }
   }
 
+  /**
+   * Restarts the child bridge process
+   */
   public restartBridge(): void {
     this.log.warn("Restarting child bridge...");
+    this.refreshConfig();
     this.teardown();
   }
+
+  /**
+   * Read the config.json file from disk and refresh the plugin config block for just this plugin
+   */
+  public async refreshConfig(): Promise<void> {
+    try {
+      const homebridgeConfig: HomebridgeConfig = await fs.readJson(User.configPath());
+
+      if (this.type === PluginType.PLATFORM) {
+        const config = homebridgeConfig.platforms?.find(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username);
+        if (config) {
+          this.pluginConfig = config;
+          this.bridgeConfig = this.pluginConfig._bridge || this.bridgeConfig;
+        } else {
+          this.log.warn("Platform config could not be found, using existing config.");
+        }
+      } else if (this.type === PluginType.ACCESSORY) {
+        const config = homebridgeConfig.accessories?.find(x => x.accessory === this.identifier && x._bridge?.username === this.bridgeConfig.username);
+        if (config) {
+          this.pluginConfig = config;
+          this.bridgeConfig = this.pluginConfig._bridge || this.bridgeConfig;
+        } else {
+          this.log.warn("Accessory config could not be found, using existing config.");
+        }
+      }
+
+    } catch (e) {
+      this.log.error("Failed to refresh plugin config:", e.message);
+    }
+  }
   
+  /**
+   * Called when the child bridge process exits, if Homebridge is not shutting down, it will restart the process
+   * @param code 
+   * @param signal 
+   */
   private handleProcessClose(code: number, signal: string): void {
     this.log(`Process Ended. Code: ${code}, Signal: ${signal}`);
     
