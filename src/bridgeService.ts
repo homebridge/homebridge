@@ -55,6 +55,7 @@ export interface BridgeConfiguration {
   setupID?: string[4];
   manufacturer?: string;
   model?: string;
+  disableIpc?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

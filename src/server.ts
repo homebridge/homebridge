@@ -30,6 +30,7 @@ import {
   PluginType,
 } from "./api";
 import { ChildBridgeService } from "./childBridgeService";
+import { IpcApiEvent, IpcService } from "./ipcService";
 
 const log = Logger.internal;
 
@@ -50,6 +51,7 @@ export class Server {
   private readonly api: HomebridgeAPI;
   private readonly pluginManager: PluginManager;
   private readonly bridgeService: BridgeService;
+  private readonly ipcService: IpcService;
 
   private readonly config: HomebridgeConfig;
   private readonly hideQRCode: boolean;
@@ -65,6 +67,8 @@ export class Server {
 
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI(); 
+
+    this.ipcService = new IpcService();
 
     // create new plugin manager
     const pluginManagerOptions: PluginManagerOptions = {
@@ -92,6 +96,10 @@ export class Server {
   }
 
   public async start(): Promise<void> {
+    if (this.config.bridge.disableIpc !== true) {
+      this.initializeIpcEventHandlers();
+    }
+
     const promises: Promise<void>[] = [];
 
     this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
@@ -374,8 +382,25 @@ export class Server {
     }
   }
 
+  /**
+   * Takes care of the IPC Events sent to Homebridge
+   */
+  private initializeIpcEventHandlers() {
+    // start ipc service
+    this.ipcService.start();
+
+    // handle restart child bridge event
+    this.ipcService.on(IpcApiEvent.RESTART_CHILD_BRIDGE, (username) => {
+      if (typeof username === "string") {
+        const childBridge = this.childBridges.get(username.toUpperCase());
+        childBridge?.restartBridge();
+      }
+    });
+  }
+
   teardown(): void {
     this.bridgeService.teardown();
+    this.ipcService.stop();
   }
 
   private printSetupInfo(pin: string): void {

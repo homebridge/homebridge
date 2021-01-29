@@ -213,6 +213,11 @@ export class ChildBridgeService {
       this.child.kill("SIGTERM");
     }
   }
+
+  public restartBridge(): void {
+    this.log.warn("Restarting child bridge...");
+    this.teardown();
+  }
   
   private handleProcessClose(code: number, signal: string): void {
     this.log(`Process Ended. Code: ${code}, Signal: ${signal}`);
