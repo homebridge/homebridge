@@ -487,12 +487,12 @@ export class BridgeService {
   }
 
   teardown(): void {
-    this.saveCachedPlatformAccessoriesOnDisk();
-
     this.bridge.unpublish();
     for (const accessory of this.publishedExternalAccessories.values()) {
       accessory._associatedHAPAccessory.unpublish();
     }
+
+    this.saveCachedPlatformAccessoriesOnDisk();
 
     this.api.signalShutdown();
   }
