@@ -15,7 +15,7 @@ import {
   ChildProcessMessageEventType,
   ChildProcessMessageEvent,
   ChildProcessLoadEventData,
-} from "./childPluginService";
+} from "./childBridgeService";
 import {
   AccessoryConfig,
   BridgeConfiguration,
@@ -25,7 +25,7 @@ import {
   PlatformConfig,
 } from "./bridgeService";
 
-export class ChildPluginFork {
+export class ChildBridgeFork {
   private bridgeService!: BridgeService;
   private api!: HomebridgeAPI;
   private pluginManager!: PluginManager;
@@ -162,7 +162,7 @@ export class ChildPluginFork {
 /**
  * Start Self
  */
-const childPluginFork = new ChildPluginFork();
+const childPluginFork = new ChildBridgeFork();
 
 /**
  * Handle incoming IPC messages from the parent Homebridge process
@@ -194,7 +194,7 @@ const signalHandler = (signal: NodeJS.Signals, signalNum: number): void => {
   }
   shuttingDown = true;
 
-  Logger.internal.info("Got %s, shutting down plugin child process...", signal);
+  Logger.internal.info("Got %s, shutting down child bridge process...", signal);
 
   try {
     childPluginFork.shutdown();

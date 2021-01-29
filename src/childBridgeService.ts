@@ -51,9 +51,10 @@ export interface ChildProcessLoadEventData {
 }
 
 /**
- * Manages the child processes of plugins being exposed as seperate forked bridges.
+ * Manages the child processes of platforms/accessories being exposed as seperate forked bridges.
+ * A child bridge runs a single platform or accessory.
  */
-export class ChildPluginService {
+export class ChildBridgeService {
   private child?: child_process.ChildProcess;
   private log = Logger.withPrefix(this.pluginConfig?.name || this.plugin.getPluginIdentifier());
   private args: string[] = [];
@@ -74,7 +75,7 @@ export class ChildPluginService {
   }
 
   private startChildProcess(): void {
-    this.child = child_process.fork(path.resolve(__dirname, "childPluginFork.js"), this.args, {
+    this.child = child_process.fork(path.resolve(__dirname, "childBridgeFork.js"), this.args, {
       silent: true,
     });
 
@@ -89,6 +90,10 @@ export class ChildPluginService {
     this.child.on("exit", () => {
       this.log.error("Child process ended");
     });
+    
+    this.child.on("error", (e) => {
+      this.log.error("Child process error", e);
+    });
 
     this.child.on("close", (code, signal) => {
       this.handleProcessClose(code, signal);
@@ -96,6 +101,7 @@ export class ChildPluginService {
 
     this.api.on("shutdown", () => {
       this.shuttingDown = true;
+      this.teardown();
     });
 
     // handle incoming ipc messages from the child process
@@ -200,6 +206,12 @@ export class ChildPluginService {
 
   private startBridge(): void {
     this.sendMessage(ChildProcessMessageEventType.START);
+  }
+
+  private teardown(): void {
+    if (this.child && this.child.connected) {
+      this.child.kill("SIGTERM");
+    }
   }
   
   private handleProcessClose(code: number, signal: string): void {

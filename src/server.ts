@@ -29,7 +29,7 @@ import {
   PlatformPluginConstructor,
   PluginType,
 } from "./api";
-import { ChildPluginService } from "./childPluginService";
+import { ChildBridgeService } from "./childBridgeService";
 
 const log = Logger.internal;
 
@@ -54,8 +54,8 @@ export class Server {
   private readonly config: HomebridgeConfig;
   private readonly hideQRCode: boolean;
   
-  // used to check for duplicate usernames in child plugins
-  private readonly bridgeUsernameCache: MacAddress[] = [];
+  // used to keep track of child bridges
+  private readonly childBridges: Map<MacAddress, ChildBridgeService> = new Map();
 
   constructor(
     private options: HomebridgeOptions = {},
@@ -73,9 +73,6 @@ export class Server {
       customPluginPath: options.customPluginPath,
     };
     this.pluginManager = new PluginManager(this.api, pluginManagerOptions);
-
-    // add the main bridge username to the username cache for duplicate tracking
-    this.bridgeUsernameCache.push(this.config.bridge.username.toUpperCase());
 
     // create new bridge service
     const bridgeConfig: BridgeOptions = {
@@ -226,15 +223,17 @@ export class Server {
       logger("Initializing %s accessory...", accessoryIdentifier);
 
       if (accessoryConfig._bridge) {
+        // ensure the username is always uppercase
+        accessoryConfig._bridge.username = accessoryConfig._bridge.username.toUpperCase();
+
         try {
           this.validateExternalBridgeConfig(PluginType.PLATFORM, accessoryIdentifier, accessoryConfig._bridge);
-          this.bridgeUsernameCache.push(accessoryConfig._bridge.username.toUpperCase());
         } catch (error) {
           log.error(error.message);
           return;
         }
 
-        return new ChildPluginService(
+        const childBridge =  new ChildBridgeService(
           PluginType.ACCESSORY,
           accessoryIdentifier,
           plugin,
@@ -244,6 +243,9 @@ export class Server {
           this.options,
           this.api,
         );
+
+        this.childBridges.set(accessoryConfig._bridge.username, childBridge);
+        return;
       }
 
       const accessoryInstance: AccessoryPlugin = new constructor(logger, accessoryConfig, this.api);
@@ -306,15 +308,17 @@ export class Server {
       logger("Initializing %s platform...", platformIdentifier);
 
       if (platformConfig._bridge) {
+        // ensure the username is always uppercase
+        platformConfig._bridge.username = platformConfig._bridge.username.toUpperCase();
+
         try {
           this.validateExternalBridgeConfig(PluginType.PLATFORM, platformIdentifier, platformConfig._bridge);
-          this.bridgeUsernameCache.push(platformConfig._bridge.username.toUpperCase());
         } catch (error) {
           log.error(error.message);
           return;
         }
-
-        return new ChildPluginService(
+        
+        const childBridge = new ChildBridgeService(
           PluginType.PLATFORM,
           platformIdentifier,
           plugin, 
@@ -324,6 +328,9 @@ export class Server {
           this.options,
           this.api,
         );
+
+        this.childBridges.set(platformConfig._bridge.username, childBridge);
+        return;
       }
 
       const platform: PlatformPlugin = new constructor(logger, platformConfig, this.api);
@@ -352,10 +359,17 @@ export class Server {
       );
     }
 
-    if (this.bridgeUsernameCache.includes(bridgeConfig.username.toUpperCase())) {
+    if (this.childBridges.has(bridgeConfig.username)) {
       throw new Error(
         `Error loading the ${identifier} "${identifier}" requested in your config.json - ` +
         `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each external platform/accessory must have it's own unique username.`,
+      );
+    }
+
+    if (bridgeConfig.username === this.config.bridge.username.toUpperCase()) {
+      throw new Error(
+        `Error loading the ${identifier} "${identifier}" requested in your config.json - ` +
+        `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each external platform/accessory must have it's own unique username.`,
       );
     }
   }
