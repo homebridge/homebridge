@@ -92,7 +92,7 @@ export class ChildBridgeService {
     });
 
     this.child.on("exit", () => {
-      this.log.error("Child process ended");
+      this.log.warn("Child bridge process ended");
     });
     
     this.child.on("error", (e) => {
