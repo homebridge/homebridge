@@ -25,6 +25,8 @@ import {
   PlatformConfig,
 } from "./bridgeService";
 
+process.title = "homebridge: child bridge";
+
 export class ChildBridgeFork {
   private bridgeService!: BridgeService;
   private api!: HomebridgeAPI;
@@ -92,6 +94,9 @@ export class ChildBridgeFork {
     this.plugin = this.pluginManager.loadPlugin(data.pluginPath);
     this.plugin.load();
     this.pluginManager.initializePlugin(this.plugin, data.identifier);
+
+    // change process title to include plugin name
+    process.title = `homebridge: ${this.plugin.getPluginIdentifier()}`;
 
     this.sendMessage(ChildProcessMessageEventType.LOADED);
   }
