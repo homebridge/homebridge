@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs-extra";
 
 import { HomebridgeAPI, PluginType } from "./api";
+import { HomebridgeOptions } from "./server";
 import { Logger } from "./logger";
 import { Plugin } from "./plugin";
 import { User } from "./user";
@@ -68,7 +69,7 @@ export class ChildBridgeService {
     private pluginConfig: PlatformConfig | AccessoryConfig,
     private bridgeConfig: BridgeConfiguration,
     private homebridgeConfig: HomebridgeConfig,
-    private bridgeOptions: Partial<BridgeOptions>,
+    private homebridgeOptions: HomebridgeOptions,
     private api: HomebridgeAPI,
   ) {
     this.setProcessFlags();
@@ -128,6 +129,22 @@ export class ChildBridgeService {
       }
     });
   }
+  
+  /**
+   * Called when the child bridge process exits, if Homebridge is not shutting down, it will restart the process
+   * @param code 
+   * @param signal 
+   */
+  private handleProcessClose(code: number, signal: string): void {
+    this.log(`Process Ended. Code: ${code}, Signal: ${signal}`);
+
+    setTimeout(() => {
+      if (!this.shuttingDown) {
+        this.log("Restarting Process...");
+        this.startChildProcess();
+      }
+    }, 7000);
+  }
 
   /**
    * Helper function to send a message to the child process
@@ -148,32 +165,32 @@ export class ChildBridgeService {
    * These will be passed through to the forked process
    */
   private setProcessFlags(): void {
-    if (this.bridgeOptions.debugModeEnabled) {
+    if (this.homebridgeOptions.debugModeEnabled) {
       this.args.push("-D");
     }
 
-    if (this.bridgeOptions.forceColourLogging) {
+    if (this.homebridgeOptions.forceColourLogging) {
       this.args.push("-C");
     }
 
-    if (this.bridgeOptions.insecureAccess) {
+    if (this.homebridgeOptions.insecureAccess) {
       this.args.push("-I");
     }
 
-    if (this.bridgeOptions.noLogTimestamps) {
+    if (this.homebridgeOptions.noLogTimestamps) {
       this.args.push("-T");
     }
 
-    if (this.bridgeOptions.keepOrphanedCachedAccessories) {
+    if (this.homebridgeOptions.keepOrphanedCachedAccessories) {
       this.args.push("-K");
     }
 
-    if (this.bridgeOptions.customStoragePath) {
-      this.args.push("-U", this.bridgeOptions.customStoragePath);
+    if (this.homebridgeOptions.customStoragePath) {
+      this.args.push("-U", this.homebridgeOptions.customStoragePath);
     }
 
-    if (this.bridgeOptions.customPluginPath) {
-      this.args.push("-P", this.bridgeOptions.customPluginPath);
+    if (this.homebridgeOptions.customPluginPath) {
+      this.args.push("-P", this.homebridgeOptions.customPluginPath);
     }
   }
 
@@ -195,15 +212,10 @@ export class ChildBridgeService {
     const bridgeOptions: BridgeOptions = {
       cachedAccessoriesDir: User.cachedAccessoryPath(),
       cachedAccessoriesItemName: "cachedAccessories." + this.bridgeConfig.username.replace(/:/g, "").toUpperCase(),
-      keepOrphanedCachedAccessories: this.bridgeOptions.keepOrphanedCachedAccessories,
-      hideQRCode: this.bridgeOptions.hideQRCode,
-      insecureAccess: this.bridgeOptions.insecureAccess,
-      noLogTimestamps: this.bridgeOptions.noLogTimestamps,
-      debugModeEnabled: this.bridgeOptions.debugModeEnabled,
-      forceColourLogging: this.bridgeOptions.forceColourLogging,
-      customStoragePath: this.bridgeOptions.customStoragePath,
-      customPluginPath: this.bridgeOptions.customPluginPath,
     };
+
+    // shallow copy the homebridge options to the bridge options object
+    Object.assign(bridgeOptions, this.homebridgeOptions);
 
     this.sendMessage<ChildProcessLoadEventData>(ChildProcessMessageEventType.LOAD, {
       type: this.type,
@@ -270,20 +282,5 @@ export class ChildBridgeService {
       this.log.error("Failed to refresh plugin config:", e.message);
     }
   }
-  
-  /**
-   * Called when the child bridge process exits, if Homebridge is not shutting down, it will restart the process
-   * @param code 
-   * @param signal 
-   */
-  private handleProcessClose(code: number, signal: string): void {
-    this.log(`Process Ended. Code: ${code}, Signal: ${signal}`);
-    
-    setTimeout(() => { 
-      if (!this.shuttingDown) {
-        this.log("Restarting Process...");
-        this.startChildProcess();
-      }
-    }, 7000);
-  }
+
 }

@@ -35,7 +35,6 @@ import { IpcApiEvent, IpcService } from "./ipcService";
 const log = Logger.internal;
 
 export interface HomebridgeOptions {
-  config?: HomebridgeConfig;
   keepOrphanedCachedAccessories?: boolean;
   hideQRCode?: boolean;
   insecureAccess?: boolean;
@@ -47,14 +46,12 @@ export interface HomebridgeOptions {
 }
 
 export class Server {
-
   private readonly api: HomebridgeAPI;
   private readonly pluginManager: PluginManager;
   private readonly bridgeService: BridgeService;
   private readonly ipcService: IpcService;
 
   private readonly config: HomebridgeConfig;
-  private readonly hideQRCode: boolean;
   
   // used to keep track of child bridges
   private readonly childBridges: Map<MacAddress, ChildBridgeService> = new Map();
@@ -62,8 +59,7 @@ export class Server {
   constructor(
     private options: HomebridgeOptions = {},
   ) {
-    this.config = options.config || Server._loadConfig();
-    this.hideQRCode = options.hideQRCode || false;
+    this.config = Server.loadConfig();
 
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI(); 
@@ -80,11 +76,12 @@ export class Server {
 
     // create new bridge service
     const bridgeConfig: BridgeOptions = {
-      insecureAccess: options.insecureAccess,
-      keepOrphanedCachedAccessories: options.keepOrphanedCachedAccessories || false,
       cachedAccessoriesDir: User.cachedAccessoryPath(),
       cachedAccessoriesItemName: "cachedAccessories",
     };
+
+    // shallow copy the homebridge options to the bridge options object
+    Object.assign(bridgeConfig, this.options);
 
     this.bridgeService = new BridgeService(
       this.api,
@@ -120,12 +117,16 @@ export class Server {
       .then(() => this.publishBridge());
   }
 
+  public teardown(): void {
+    this.bridgeService.teardown();
+  }
+
   private publishBridge(): void {
     this.bridgeService.publishBridge();
     this.printSetupInfo(this.config.bridge.pin);
   }
 
-  private static _loadConfig(): HomebridgeConfig {
+  private static loadConfig(): HomebridgeConfig {
     // Look for the configuration file
     const configPath = User.configPath();
 
@@ -166,11 +167,11 @@ export class Server {
       }
     }
 
-    const bridge: Partial<BridgeConfiguration> = config.bridge || defaultBridge;
+    const bridge: BridgeConfiguration = config.bridge || defaultBridge;
     bridge.name = bridge.name || defaultBridge.name;
     bridge.username = bridge.username || defaultBridge.username;
     bridge.pin = bridge.pin || defaultBridge.pin;
-    config.bridge = bridge as BridgeConfiguration;
+    config.bridge = bridge;
 
     const username = config.bridge.username;
     if (!mac.validMacAddress(username)) {
@@ -398,15 +399,11 @@ export class Server {
     });
   }
 
-  teardown(): void {
-    this.bridgeService.teardown();
-  }
-
   private printSetupInfo(pin: string): void {
     console.log("Setup Payload:");
     console.log(this.bridgeService.bridge.setupURI());
 
-    if(!this.hideQRCode) {
+    if(!this.options.hideQRCode) {
       console.log("Scan this code with your HomeKit app on your iOS device to pair with Homebridge:");
       qrcode.setErrorLevel("M"); // HAP specifies level M or higher for ECC
       qrcode.generate(this.bridgeService.bridge.setupURI());
