@@ -1,7 +1,7 @@
 import { PluginManager } from "./pluginManager";
 
-describe(PluginManager, () => {
-  describe(PluginManager.isQualifiedPluginIdentifier, () => {
+describe("PluginManager", () => {
+  describe("PluginManager.isQualifiedPluginIdentifier", () => {
     it("should match normal plugin names", () => {
       expect(PluginManager.isQualifiedPluginIdentifier("homebridge-dummy-plugin")).toBeTruthy();
     });
@@ -11,7 +11,7 @@ describe(PluginManager, () => {
     });
   });
 
-  describe(PluginManager.extractPluginName, () => {
+  describe("PluginManager.extractPluginName", () => {
     it("should extract normal plugin names", function() {
       expect(PluginManager.extractPluginName("homebridge-dummy-plugin")).toBe("homebridge-dummy-plugin");
     });
@@ -21,7 +21,7 @@ describe(PluginManager, () => {
     });
   });
 
-  describe(PluginManager.extractPluginScope, () => {
+  describe("PluginManager.extractPluginScope", () => {
     it("should extract undefined for normal plugin names", function() {
       expect(PluginManager.extractPluginScope("homebridge-dummy-plugin")).toBeUndefined();
     });

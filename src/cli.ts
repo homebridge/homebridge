@@ -4,7 +4,8 @@ import { HAPStorage } from "hap-nodejs";
 import getVersion, { getRequiredNodeVersion } from "./version";
 import { User } from "./user";
 import { Logger } from "./logger";
-import { HomebridgeOptions, Server } from "./server";
+import { Server } from "./server";
+import { HomebridgeOptions } from "./server";
 import { satisfies } from "semver";
 import Signals = NodeJS.Signals;
 
@@ -22,13 +23,17 @@ export = function cli(): void {
   let hideQRCode = false;
   let keepOrphans = false;
   let customPluginPath: string | undefined = undefined;
+  let noLogTimestamps = false;
+  let debugModeEnabled = false;
+  let forceColourLogging = false;
+  let customStoragePath: string | undefined = undefined;
 
   let shuttingDown = false;
 
   commander
     .version(getVersion())
-    .option("-C, --color", "force color in logging", () => Logger.forceColor())
-    .option("-D, --debug", "turn on debug level logging", () => Logger.setDebugEnabled(true))
+    .option("-C, --color", "force color in logging", () => forceColourLogging = true)
+    .option("-D, --debug", "turn on debug level logging", () => debugModeEnabled = true)
     .option("-I, --insecure", "allow unauthenticated requests (for easier hacking)", () => insecureAccess = true)
     .option("-P, --plugin-path [path]", "look for plugins installed at [path] as well as the default locations ([path] can also point to a single plugin)", path => customPluginPath = path)
     .option("-Q, --no-qrcode", "do not issue QRcode in logging", () => hideQRCode = true)
@@ -37,9 +42,25 @@ export = function cli(): void {
         "Removing orphans is now the default behavior and can be turned off by supplying '-K' or '--keep-orphans'.");
     })
     .option("-K, --keep-orphans", "keep cached accessories for which the associated plugin is not loaded", () => keepOrphans = true)
-    .option("-T, --no-timestamp", "do not issue timestamps in logging", () => Logger.setTimestampEnabled(false))
-    .option("-U, --user-storage-path [path]", "look for homebridge user files at [path] instead of the default location (~/.homebridge)", path => User.setStoragePath(path))
+    .option("-T, --no-timestamp", "do not issue timestamps in logging", () => noLogTimestamps = true)
+    .option("-U, --user-storage-path [path]", "look for homebridge user files at [path] instead of the default location (~/.homebridge)", path => customStoragePath = path)
     .parse(process.argv);
+
+  if (noLogTimestamps) {
+    Logger.setTimestampEnabled(false); 
+  }
+
+  if (debugModeEnabled) {
+    Logger.setDebugEnabled(true);
+  }
+
+  if (forceColourLogging) {
+    Logger.forceColor();
+  }
+
+  if (customStoragePath) {
+    User.setStoragePath(customStoragePath);
+  }
 
   // Initialize HAP-NodeJS with a custom persist directory
   HAPStorage.setCustomStoragePath(User.persistPath());
@@ -49,6 +70,10 @@ export = function cli(): void {
     insecureAccess: insecureAccess,
     hideQRCode: hideQRCode,
     customPluginPath: customPluginPath,
+    noLogTimestamps: noLogTimestamps,
+    debugModeEnabled: debugModeEnabled,
+    forceColourLogging: forceColourLogging,
+    customStoragePath: customStoragePath,
   };
 
   const server = new Server(options);
@@ -60,9 +85,9 @@ export = function cli(): void {
     shuttingDown = true;
 
     log.info("Got %s, shutting down Homebridge...", signal);
+    setTimeout(() => process.exit(128 + signalNum), 5000);
 
     server.teardown();
-    setTimeout(() => process.exit(128 + signalNum), 5000);
   };
   process.on("SIGINT", signalHandler.bind(undefined, "SIGINT", 2));
   process.on("SIGTERM", signalHandler.bind(undefined, "SIGTERM", 15));

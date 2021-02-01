@@ -150,7 +150,7 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
    * @param controller
    */
   public removeController(controller: Controller): void {
-    this._associatedHAPAccessory.removeController(controller)
+    this._associatedHAPAccessory.removeController(controller);
   }
 
   // private

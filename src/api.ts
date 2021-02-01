@@ -5,7 +5,7 @@ import getVersion from "./version";
 import { PlatformAccessory } from "./platformAccessory";
 import { User } from "./user";
 import { Logger, Logging } from "./logger";
-import { AccessoryConfig, PlatformConfig } from "./server";
+import { AccessoryConfig, PlatformConfig } from "./bridgeService";
 import { PluginManager } from "./pluginManager";
 import semver from "semver";
 
