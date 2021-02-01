@@ -203,14 +203,22 @@ export class BridgeService {
     this.bridge.publish(publishInfo, this.allowInsecureAccess);
   }
 
-  public loadCachedPlatformAccessoriesFromDisk(): void {
-    const cachedAccessories = this.storageService.getItemSync<SerializedPlatformAccessory[]>(this.bridgeOptions.cachedAccessoriesItemName);
+  /**
+   * Attempt to load the cached accessories from disk.
+   */
+  public async loadCachedPlatformAccessoriesFromDisk(): Promise<void> {
+    try {
+      const cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.bridgeOptions.cachedAccessoriesItemName);
 
-    if (cachedAccessories) {
-      this.cachedPlatformAccessories = cachedAccessories.map(serialized => {
-        return PlatformAccessory.deserialize(serialized);
-      });
-      this.cachedAccessoriesFileCreated = true;
+      if (cachedAccessories) {
+        this.cachedPlatformAccessories = cachedAccessories.map(serialized => {
+          return PlatformAccessory.deserialize(serialized);
+        });
+        this.cachedAccessoriesFileCreated = true;
+      }
+    } catch (e) {
+      log.error("Failed to load cached accessories from disk:", e.message);
+      log.error("Not restoring cached accessories - some accessories may be reset.");
     }
   }
 
@@ -262,15 +270,23 @@ export class BridgeService {
     });
   }
 
+  /**
+   * Save the cached accessories back to disk.
+   */
   public saveCachedPlatformAccessoriesOnDisk(): void {
-    if (this.cachedPlatformAccessories.length > 0) {
-      this.cachedAccessoriesFileCreated = true;
+    try {
+      if (this.cachedPlatformAccessories.length > 0) {
+        this.cachedAccessoriesFileCreated = true;
 
-      const serializedAccessories = this.cachedPlatformAccessories.map(accessory => PlatformAccessory.serialize(accessory));
-      this.storageService.setItemSync(this.bridgeOptions.cachedAccessoriesItemName, serializedAccessories);
-    } else if (this.cachedAccessoriesFileCreated) {
-      this.cachedAccessoriesFileCreated = false;
-      this.storageService.removeItemSync(this.bridgeOptions.cachedAccessoriesItemName);
+        const serializedAccessories = this.cachedPlatformAccessories.map(accessory => PlatformAccessory.serialize(accessory));
+        this.storageService.setItemSync(this.bridgeOptions.cachedAccessoriesItemName, serializedAccessories);
+      } else if (this.cachedAccessoriesFileCreated) {
+        this.cachedAccessoriesFileCreated = false;
+        this.storageService.removeItemSync(this.bridgeOptions.cachedAccessoriesItemName);
+      }
+    } catch (e) {
+      log.error("Failed to save cached accessories to disk:", e.message);
+      log.error("Your accessories will not persist between restarts until this issue is resolved.");
     }
   }
 

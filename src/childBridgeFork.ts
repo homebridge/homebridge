@@ -1,6 +1,7 @@
 /**
  * This is a standalone script executed as a child process fork
  */
+process.title = "homebridge: child bridge";
 
 // registering node-source-map-support for typescript stack traces
 import "source-map-support/register"; 
@@ -24,8 +25,6 @@ import {
   HomebridgeConfig,
   PlatformConfig,
 } from "./bridgeService";
-
-process.title = "homebridge: child bridge";
 
 export class ChildBridgeFork {
   private bridgeService!: BridgeService;
@@ -111,7 +110,7 @@ export class ChildBridgeFork {
     );
 
     // load the cached accessories
-    this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
+    await this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
 
     if (this.type === PluginType.PLATFORM) {
       const plugin = this.pluginManager.getPluginForPlatform(this.identifier);

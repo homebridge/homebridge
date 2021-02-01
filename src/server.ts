@@ -99,7 +99,10 @@ export class Server {
 
     const promises: Promise<void>[] = [];
 
-    this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
+    // load the cached accessories
+    await this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
+
+    // initialize plugins
     this.pluginManager.initializeInstalledPlugins();
 
     if (this.config.platforms.length > 0) {
@@ -108,6 +111,8 @@ export class Server {
     if (this.config.accessories.length > 0) {
       this.loadAccessories();
     }
+
+    // restore cached accessories
     this.bridgeService.restoreCachedPlatformAccessories();
 
     this.api.signalFinished();
@@ -236,7 +241,7 @@ export class Server {
         accessoryConfig._bridge.username = accessoryConfig._bridge.username.toUpperCase();
 
         try {
-          this.validateExternalBridgeConfig(PluginType.PLATFORM, accessoryIdentifier, accessoryConfig._bridge);
+          this.validateChildBridgeConfig(PluginType.PLATFORM, accessoryIdentifier, accessoryConfig._bridge);
         } catch (error) {
           log.error(error.message);
           return;
@@ -321,7 +326,7 @@ export class Server {
         platformConfig._bridge.username = platformConfig._bridge.username.toUpperCase();
 
         try {
-          this.validateExternalBridgeConfig(PluginType.PLATFORM, platformIdentifier, platformConfig._bridge);
+          this.validateChildBridgeConfig(PluginType.PLATFORM, platformIdentifier, platformConfig._bridge);
         } catch (error) {
           log.error(error.message);
           return;
@@ -360,7 +365,7 @@ export class Server {
   /**
    * Validate an external bridge config
    */
-  private validateExternalBridgeConfig(type: PluginType, identifier: string, bridgeConfig: BridgeConfiguration): void {
+  private validateChildBridgeConfig(type: PluginType, identifier: string, bridgeConfig: BridgeConfiguration): void {
     if (!mac.validMacAddress(bridgeConfig.username)) {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - ` +

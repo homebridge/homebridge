@@ -11,21 +11,23 @@ export class StorageService {
   }
 
   public getItemSync<T>(itemName: string): T | null {
-    try {
-      const filePath = path.resolve(this.baseDirectory, itemName);
-      return fs.readJsonSync(filePath);
-    } catch (e) {
+    const filePath = path.resolve(this.baseDirectory, itemName);
+
+    if (!fs.pathExistsSync(filePath)) {
       return null;
     }
+
+    return fs.readJsonSync(filePath);
   }
 
   public async getItem<T>(itemName: string): Promise<T | null> {
-    try {
-      const filePath = path.resolve(this.baseDirectory, itemName);
-      return await fs.readJson(filePath);
-    } catch (e) {
+    const filePath = path.resolve(this.baseDirectory, itemName);
+
+    if (!await fs.pathExists(filePath)) {
       return null;
     }
+
+    return await fs.readJson(filePath);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
