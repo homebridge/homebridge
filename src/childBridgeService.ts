@@ -2,6 +2,8 @@ import child_process from "child_process";
 import path from "path";
 import fs from "fs-extra";
 
+import { MacAddress } from "hap-nodejs";
+import { IpcOutgoingEvent, IpcService } from "./ipcService";
 import { HomebridgeAPI, PluginType } from "./api";
 import { HomebridgeOptions } from "./server";
 import { Logger } from "./logger";
@@ -35,6 +37,28 @@ export const enum ChildProcessMessageEventType {
    * Sent to the child process telling it to start
    */
   START = "start",
+
+  /**
+   * Sent from the child process when the bridge is online
+   */
+  ONLINE = "online",
+}
+
+export const enum ChildBridgeStatus {
+  /**
+   * When the child bridge is loading, or restarting
+   */
+  PENDING = "pending",
+
+  /**
+   * The child bridge is online and has published it's accessory
+   */
+  OK = "ok",
+
+  /**
+   * The bridge is shutting down, or the process ended unexpectedly
+   */
+  DOWN = "down"
 }
 
 export interface ChildProcessMessageEvent<T> {
@@ -52,6 +76,15 @@ export interface ChildProcessLoadEventData {
   bridgeOptions: BridgeOptions;
 }
 
+export interface ChildMetadata {
+  status: ChildBridgeStatus;
+  username: MacAddress;
+  name: string;
+  plugin: string;
+  identifier: string;
+  pid?: number;
+}
+
 /**
  * Manages the child processes of platforms/accessories being exposed as seperate forked bridges.
  * A child bridge runs a single platform or accessory.
@@ -61,6 +94,7 @@ export class ChildBridgeService {
   private log = Logger.withPrefix(this.pluginConfig?.name || this.plugin.getPluginIdentifier());
   private args: string[] = [];
   private shuttingDown = false;
+  private lastBridgeStatus: ChildBridgeStatus = ChildBridgeStatus.PENDING;
 
   constructor(
     private type: PluginType,
@@ -71,15 +105,35 @@ export class ChildBridgeService {
     private homebridgeConfig: HomebridgeConfig,
     private homebridgeOptions: HomebridgeOptions,
     private api: HomebridgeAPI,
+    private ipcService: IpcService,
   ) {
     this.setProcessFlags();
     this.startChildProcess();
+
+    this.api.on("shutdown", () => {
+      this.shuttingDown = true;
+      this.teardown();
+    });
+    
+    // make sure we don't hit the max listeners limit
+    this.api.setMaxListeners(this.api.getMaxListeners() + 1);
+  }
+
+  private get bridgeStatus(): ChildBridgeStatus {
+    return this.lastBridgeStatus; 
+  }
+
+  private set bridgeStatus(value: ChildBridgeStatus) {
+    this.lastBridgeStatus = value;
+    this.ipcService.sendMessage(IpcOutgoingEvent.CHILD_BRIDGE_STATUS_UPDATE, this.getMetadata());
   }
 
   /**
    * Start the child bridge process
    */
   private startChildProcess(): void {
+    this.bridgeStatus = ChildBridgeStatus.PENDING;
+
     this.child = child_process.fork(path.resolve(__dirname, "childBridgeFork.js"), this.args, {
       silent: true,
     });
@@ -97,16 +151,13 @@ export class ChildBridgeService {
     });
     
     this.child.on("error", (e) => {
+      this.bridgeStatus = ChildBridgeStatus.DOWN;
       this.log.error("Child process error", e);
     });
 
     this.child.on("close", (code, signal) => {
+      this.bridgeStatus = ChildBridgeStatus.DOWN;
       this.handleProcessClose(code, signal);
-    });
-
-    this.api.on("shutdown", () => {
-      this.shuttingDown = true;
-      this.teardown();
     });
 
     // handle incoming ipc messages from the child process
@@ -124,6 +175,10 @@ export class ChildBridgeService {
         case ChildProcessMessageEventType.LOADED: {
           this.log("Loaded plugin successfully");
           this.startBridge();
+          break;
+        }
+        case ChildProcessMessageEventType.ONLINE: {
+          this.bridgeStatus = ChildBridgeStatus.OK;
           break;
         }
       }
@@ -240,6 +295,7 @@ export class ChildBridgeService {
    */
   private teardown(): void {
     if (this.child && this.child.connected) {
+      this.bridgeStatus = ChildBridgeStatus.DOWN;
       this.child.kill("SIGTERM");
     }
   }
@@ -281,6 +337,20 @@ export class ChildBridgeService {
     } catch (e) {
       this.log.error("Failed to refresh plugin config:", e.message);
     }
+  }
+
+  /**
+   * Returns metadata about this child bridge
+   */
+  public getMetadata(): ChildMetadata {
+    return {
+      status: this.bridgeStatus,
+      username: this.bridgeConfig.username,
+      name: this.bridgeConfig.name || this.pluginConfig.name || this.plugin.getPluginIdentifier(),
+      plugin: this.plugin.getPluginIdentifier(),
+      identifier: this.identifier,
+      pid: this.child?.pid,
+    };
   }
 
 }
