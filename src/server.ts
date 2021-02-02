@@ -30,7 +30,7 @@ import {
   PluginType,
 } from "./api";
 import { ChildBridgeService } from "./childBridgeService";
-import { IpcApiEvent, IpcService } from "./ipcService";
+import { IpcIncomingEvent, IpcOutgoingEvent, IpcService } from "./ipcService";
 
 const log = Logger.internal;
 
@@ -256,6 +256,7 @@ export class Server {
           this.config,
           this.options,
           this.api,
+          this.ipcService,
         );
 
         this.childBridges.set(accessoryConfig._bridge.username, childBridge);
@@ -341,6 +342,7 @@ export class Server {
           this.config,
           this.options,
           this.api,
+          this.ipcService,
         );
 
         this.childBridges.set(platformConfig._bridge.username, childBridge);
@@ -396,11 +398,18 @@ export class Server {
     this.ipcService.start();
 
     // handle restart child bridge event
-    this.ipcService.on(IpcApiEvent.RESTART_CHILD_BRIDGE, (username) => {
+    this.ipcService.on(IpcIncomingEvent.RESTART_CHILD_BRIDGE, (username) => {
       if (typeof username === "string") {
         const childBridge = this.childBridges.get(username.toUpperCase());
         childBridge?.restartBridge();
       }
+    });
+
+    this.ipcService.on(IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST, () => {
+      this.ipcService.sendMessage(
+        IpcOutgoingEvent.CHILD_BRIDGE_METADATA_RESPONSE,
+        Array.from(this.childBridges.values()).map(x => x.getMetadata()),
+      );
     });
   }
 

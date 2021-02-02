@@ -156,6 +156,9 @@ export class ChildBridgeFork {
 
     this.bridgeService.publishBridge();
     this.api.signalFinished();
+
+    // tell the parent we are online
+    this.sendMessage(ChildProcessMessageEventType.ONLINE);
   }
 
   shutdown(): void {
