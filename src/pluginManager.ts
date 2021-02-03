@@ -80,8 +80,6 @@ export class PluginManager {
       this.disabledPlugins = Array.isArray(options.disabledPlugins) ? options.disabledPlugins : undefined;
     }
 
-    this.loadDefaultPaths();
-
     this.api.on(InternalAPIEvent.REGISTER_ACCESSORY, this.handleRegisterAccessory.bind(this));
     this.api.on(InternalAPIEvent.REGISTER_PLATFORM, this.handleRegisterPlatform.bind(this));
   }
@@ -305,7 +303,12 @@ export class PluginManager {
     }
   }
 
-  private loadInstalledPlugins(): void{ // Gets all plugins installed on the local system
+  /**
+   * Gets all plugins installed on the local system
+   */
+  private loadInstalledPlugins(): void {
+    this.loadDefaultPaths();
+
     this.searchPaths.forEach(searchPath => { // search for plugins among all known paths
       if (!fs.existsSync(searchPath)) { // just because this path is in require.main.paths doesn't mean it necessarily exists!
         return;
