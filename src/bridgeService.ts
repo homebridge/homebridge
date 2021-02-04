@@ -37,14 +37,13 @@ import {
   PluginIdentifier,
   StaticPlatformPlugin,
 } from "./api";
+import {
+  ExternalPortService,
+  ExternalPortsConfiguration,
+} from "./externalPortService";
 import { HomebridgeOptions } from "./server";
 
 const log = Logger.internal;
-
-export interface ExternalPortsConfiguration {
-  start: number;
-  end: number;
-}
 
 export interface BridgeConfiguration {
   name: string;
@@ -109,9 +108,6 @@ export class BridgeService {
 
   private readonly allowInsecureAccess: boolean;
 
-  private readonly externalPorts?: ExternalPortsConfiguration;
-  private nextExternalPort?: number;
-
   private cachedPlatformAccessories: PlatformAccessory[] = [];
   private cachedAccessoriesFileCreated = false;
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map();
@@ -119,14 +115,13 @@ export class BridgeService {
   constructor(
     private api: HomebridgeAPI,
     private pluginManager: PluginManager,
+    private externalPortService: ExternalPortService,
     private bridgeOptions: BridgeOptions,
     private bridgeConfig: BridgeConfiguration,
     private config: HomebridgeConfig,
   ) {
     this.storageService = new StorageService(this.bridgeOptions.cachedAccessoriesDir);
     this.storageService.initSync();
-
-    this.externalPorts = this.config?.ports;
 
     // Server is "secure by default", meaning it creates a top-level Bridge accessory that
     // will not allow unauthenticated requests. This matches the behavior of actual HomeKit
@@ -340,27 +335,15 @@ export class BridgeService {
     this.saveCachedPlatformAccessoriesOnDisk();
   } 
   
-  handlePublishExternalAccessories(accessories: PlatformAccessory[]): void {
+  async handlePublishExternalAccessories(accessories: PlatformAccessory[]): Promise<void> {
     const accessoryPin = this.bridgeConfig.pin;
 
-    accessories.forEach(accessory => {
-      let accessoryPort = 0;
-
-      if (this.externalPorts) {
-        if (this.nextExternalPort === undefined) {
-          this.nextExternalPort = this.externalPorts.start;
-        }
-
-        if (this.nextExternalPort <= this.externalPorts.end) {
-          accessoryPort = this.nextExternalPort++;
-        } else {
-          // accessoryPort is still zero
-          log.warn("External port pool ran out of ports. Fallback to random assign.");
-        }
-      }
-
+    for (const accessory of accessories) {
       const hapAccessory = accessory._associatedHAPAccessory;
       const advertiseAddress = mac.generate(hapAccessory.UUID);
+
+      // get external port allocation
+      const accessoryPort = await this.externalPortService.requestPort(advertiseAddress);
 
       if (this.publishedExternalAccessories.has(advertiseAddress)) {
         throw new Error(`Accessory ${hapAccessory.displayName} experienced an address collision.`);
@@ -377,7 +360,8 @@ export class BridgeService {
         }
 
         hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory));
-      } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) { // we did already complain in api.ts if it wasn't a qualified name
+      } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) {
+        // we did already complain in api.ts if it wasn't a qualified name
         log.warn("A platform configured a external accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
 
@@ -397,7 +381,7 @@ export class BridgeService {
         addIdentifyingMaterial: true,
         useLegacyAdvertiser: this.config.mdns?.legacyAdvertiser ?? true,
       }, this.allowInsecureAccess);
-    });
+    }
   }
 
   public createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory | undefined {

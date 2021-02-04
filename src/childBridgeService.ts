@@ -4,6 +4,7 @@ import fs from "fs-extra";
 
 import { MacAddress } from "hap-nodejs";
 import { IpcOutgoingEvent, IpcService } from "./ipcService";
+import { ExternalPortService } from "./externalPortService";
 import { HomebridgeAPI, PluginType } from "./api";
 import { HomebridgeOptions } from "./server";
 import { Logger } from "./logger";
@@ -42,6 +43,16 @@ export const enum ChildProcessMessageEventType {
    * Sent from the child process when the bridge is online
    */
   ONLINE = "online",
+
+  /**
+   * Sent from the child when it wants to request port allocation for an external accessory
+   */
+  PORT_REQUEST = "portRequest",
+
+  /**
+   * Sent from the parent with the port allocation response
+   */
+  PORT_ALLOCATED= "portAllocated",
 }
 
 export const enum ChildBridgeStatus {
@@ -76,6 +87,15 @@ export interface ChildProcessLoadEventData {
   bridgeOptions: BridgeOptions;
 }
 
+export interface ChildProcessPortRequestEventData {
+  username: MacAddress;
+}
+
+export interface ChildProcessPortAllocatedEventData {
+  username: MacAddress;
+  port?: number;
+}
+
 export interface ChildMetadata {
   status: ChildBridgeStatus;
   username: MacAddress;
@@ -106,6 +126,7 @@ export class ChildBridgeService {
     private homebridgeOptions: HomebridgeOptions,
     private api: HomebridgeAPI,
     private ipcService: IpcService,
+    private externalPortService: ExternalPortService,
   ) {
     this.setProcessFlags();
     this.startChildProcess();
@@ -179,6 +200,10 @@ export class ChildBridgeService {
         }
         case ChildProcessMessageEventType.ONLINE: {
           this.bridgeStatus = ChildBridgeStatus.OK;
+          break;
+        }
+        case ChildProcessMessageEventType.PORT_REQUEST: {
+          this.handlePortRequest(message.data as ChildProcessPortRequestEventData);
           break;
         }
       }
@@ -288,6 +313,17 @@ export class ChildBridgeService {
    */
   private startBridge(): void {
     this.sendMessage(ChildProcessMessageEventType.START);
+  }
+
+  /**
+   * Handle external port requests from child
+   */
+  private async handlePortRequest(request: ChildProcessPortRequestEventData) {
+    const port = await this.externalPortService.requestPort(request.username);
+    this.sendMessage<ChildProcessPortAllocatedEventData>(ChildProcessMessageEventType.PORT_ALLOCATED, {
+      username: request.username,
+      port: port,
+    });
   }
 
   /**

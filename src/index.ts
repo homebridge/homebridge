@@ -68,8 +68,14 @@ export type {
   BridgeConfiguration,
   AccessoryConfig,
   PlatformConfig,
-  ExternalPortsConfiguration,
 } from "./bridgeService";
+
+/**
+ * Export port types
+ */
+export type {
+  ExternalPortsConfiguration,
+} from "./externalPortService";
 
 /**
  * Export User Types

@@ -7,6 +7,13 @@ import * as mac from "./util/mac";
 import { Logger } from "./logger";
 import { User } from "./user";
 import { Plugin } from "./plugin";
+import { ChildBridgeService } from "./childBridgeService";
+import { ExternalPortService } from "./externalPortService";
+import {
+  IpcIncomingEvent,
+  IpcOutgoingEvent,
+  IpcService,
+} from "./ipcService";
 import { 
   PluginManager, 
   PluginManagerOptions, 
@@ -29,8 +36,6 @@ import {
   PlatformPluginConstructor,
   PluginType,
 } from "./api";
-import { ChildBridgeService } from "./childBridgeService";
-import { IpcIncomingEvent, IpcOutgoingEvent, IpcService } from "./ipcService";
 
 const log = Logger.internal;
 
@@ -50,6 +55,7 @@ export class Server {
   private readonly pluginManager: PluginManager;
   private readonly bridgeService: BridgeService;
   private readonly ipcService: IpcService;
+  private readonly externalPortService: ExternalPortService;
 
   private readonly config: HomebridgeConfig;
   
@@ -63,8 +69,8 @@ export class Server {
 
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI(); 
-
     this.ipcService = new IpcService();
+    this.externalPortService = new ExternalPortService(this.config.ports);
 
     // create new plugin manager
     const pluginManagerOptions: PluginManagerOptions = {
@@ -86,6 +92,7 @@ export class Server {
     this.bridgeService = new BridgeService(
       this.api,
       this.pluginManager,
+      this.externalPortService,
       bridgeConfig,
       this.config.bridge,
       this.config,
@@ -257,6 +264,7 @@ export class Server {
           this.options,
           this.api,
           this.ipcService,
+          this.externalPortService,
         );
 
         this.childBridges.set(accessoryConfig._bridge.username, childBridge);
@@ -343,6 +351,7 @@ export class Server {
           this.options,
           this.api,
           this.ipcService,
+          this.externalPortService,
         );
 
         this.childBridges.set(platformConfig._bridge.username, childBridge);
