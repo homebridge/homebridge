@@ -87,6 +87,10 @@ export interface ChildProcessLoadEventData {
   bridgeOptions: BridgeOptions;
 }
 
+export interface ChildProcessPluginLoadedEventData {
+  version: string;
+}
+
 export interface ChildProcessPortRequestEventData {
   username: MacAddress;
 }
@@ -194,7 +198,8 @@ export class ChildBridgeService {
           break;
         }
         case ChildProcessMessageEventType.LOADED: {
-          this.log("Loaded plugin successfully");
+          const version = (message.data as ChildProcessPluginLoadedEventData).version;
+          this.log(`Loaded ${this.plugin.getPluginIdentifier()} v${version} successfully`);
           this.startBridge();
           break;
         }

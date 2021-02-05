@@ -19,6 +19,7 @@ import {
   ChildProcessLoadEventData,
   ChildProcessPortRequestEventData,
   ChildProcessPortAllocatedEventData,
+  ChildProcessPluginLoadedEventData,
 } from "./childBridgeService";
 import {
   AccessoryConfig,
@@ -104,7 +105,9 @@ export class ChildBridgeFork {
     // change process title to include plugin name
     process.title = `homebridge: ${this.plugin.getPluginIdentifier()}`;
 
-    this.sendMessage(ChildProcessMessageEventType.LOADED);
+    this.sendMessage<ChildProcessPluginLoadedEventData>(ChildProcessMessageEventType.LOADED, {
+      version: this.plugin.version,
+    });
   }
 
   async startBridge(): Promise<void> {
