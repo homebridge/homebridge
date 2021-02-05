@@ -109,7 +109,7 @@ export class BridgeService {
   private readonly allowInsecureAccess: boolean;
 
   private cachedPlatformAccessories: PlatformAccessory[] = [];
-  private cachedAccessoriesFileCreated = false;
+  private cachedAccessoriesFileLoaded = false;
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map();
 
   constructor(
@@ -176,7 +176,7 @@ export class BridgeService {
     info.setCharacteristic(Characteristic.FirmwareRevision, getVersion());
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
-      log.info("Homebridge v%s is running on port %s.", getVersion(), port);
+      log.info("Homebridge v%s (%s) is running on port %s.", getVersion(), bridgeConfig.name, port);
     });
 
     // noinspection JSDeprecatedSymbols
@@ -204,17 +204,17 @@ export class BridgeService {
   public async loadCachedPlatformAccessoriesFromDisk(): Promise<void> {
     try {
       const cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.bridgeOptions.cachedAccessoriesItemName);
-
       if (cachedAccessories) {
+        log.info(`Loaded cached accessories from ${this.bridgeOptions.cachedAccessoriesItemName} with ${cachedAccessories.length} accessories.`);
         this.cachedPlatformAccessories = cachedAccessories.map(serialized => {
           return PlatformAccessory.deserialize(serialized);
         });
-        this.cachedAccessoriesFileCreated = true;
       }
     } catch (e) {
       log.error("Failed to load cached accessories from disk:", e.message);
       log.error("Not restoring cached accessories - some accessories may be reset.");
     }
+    this.cachedAccessoriesFileLoaded = true;
   }
 
   public restoreCachedPlatformAccessories(): void {
@@ -270,14 +270,11 @@ export class BridgeService {
    */
   public saveCachedPlatformAccessoriesOnDisk(): void {
     try {
-      if (this.cachedPlatformAccessories.length > 0) {
-        this.cachedAccessoriesFileCreated = true;
-
+      // only save the cache file back to disk if we have already attempted to load it
+      // this should prevent the cache being deleted should homebridge be shutdown before it has finished launching
+      if (this.cachedAccessoriesFileLoaded) {
         const serializedAccessories = this.cachedPlatformAccessories.map(accessory => PlatformAccessory.serialize(accessory));
         this.storageService.setItemSync(this.bridgeOptions.cachedAccessoriesItemName, serializedAccessories);
-      } else if (this.cachedAccessoriesFileCreated) {
-        this.cachedAccessoriesFileCreated = false;
-        this.storageService.removeItemSync(this.bridgeOptions.cachedAccessoriesItemName);
       }
     } catch (e) {
       log.error("Failed to save cached accessories to disk:", e.message);

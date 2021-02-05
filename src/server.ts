@@ -194,8 +194,6 @@ export class Server {
     config.platforms = config.platforms || [];
     log.info("Loaded config.json with %s accessories and %s platforms.", config.accessories.length, config.platforms.length);
 
-    log.info("---");
-
     return config as HomebridgeConfig;
   }
 
