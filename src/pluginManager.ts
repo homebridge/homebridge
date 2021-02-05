@@ -117,6 +117,8 @@ export class PluginManager {
   }
 
   public initializeInstalledPlugins(): void {
+    log.info("---");
+
     this.loadInstalledPlugins();
 
     this.plugins.forEach((plugin: Plugin, identifier: PluginIdentifier) => {
