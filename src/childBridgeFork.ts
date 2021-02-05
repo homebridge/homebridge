@@ -7,15 +7,18 @@ process.title = "homebridge: child bridge";
 import "source-map-support/register"; 
 
 import { AccessoryPlugin, HomebridgeAPI, PlatformPlugin, PluginType } from "./api";
+import { ChildBridgeExternalPortService } from "./externalPortService";
 import { Plugin } from "./plugin";
 import { PluginManager } from "./pluginManager";
 import { Logger } from "./logger";
 import { User } from "./user";
-import { HAPStorage } from "hap-nodejs";
+import { HAPStorage, MacAddress } from "hap-nodejs";
 import {
   ChildProcessMessageEventType,
   ChildProcessMessageEvent,
   ChildProcessLoadEventData,
+  ChildProcessPortRequestEventData,
+  ChildProcessPortAllocatedEventData,
 } from "./childBridgeService";
 import {
   AccessoryConfig,
@@ -30,6 +33,7 @@ export class ChildBridgeFork {
   private bridgeService!: BridgeService;
   private api!: HomebridgeAPI;
   private pluginManager!: PluginManager;
+  private externalPortService!: ChildBridgeExternalPortService;
 
   private type!: PluginType;
   private plugin!: Plugin;
@@ -38,6 +42,8 @@ export class ChildBridgeFork {
   private bridgeConfig!: BridgeConfiguration;
   private bridgeOptions!: BridgeOptions;
   private homebridgeConfig!: HomebridgeConfig;
+
+  private portRequestCallback: Map<MacAddress, (port: number | undefined) => void> = new Map();
 
   constructor() {
     // tell the parent process we are ready to accept plugin config
@@ -88,6 +94,7 @@ export class ChildBridgeFork {
     // load api
     this.api = new HomebridgeAPI();
     this.pluginManager = new PluginManager(this.api);
+    this.externalPortService = new ChildBridgeExternalPortService(this);
 
     // load plugin
     this.plugin = this.pluginManager.loadPlugin(data.pluginPath);
@@ -104,6 +111,7 @@ export class ChildBridgeFork {
     this.bridgeService = new BridgeService(
       this.api,
       this.pluginManager,
+      this.externalPortService,
       this.bridgeOptions,
       this.bridgeConfig,
       this.homebridgeConfig,
@@ -161,6 +169,41 @@ export class ChildBridgeFork {
     this.sendMessage(ChildProcessMessageEventType.ONLINE);
   }
 
+  /**
+   * Request the next available external port from the parent process
+   * @param username
+   */
+  public async requestExternalPort(username: MacAddress): Promise<number | undefined> {
+    return new Promise((resolve) => {
+      const requestTimeout = setTimeout(() => {
+        Logger.internal.warn("Parent process did not respond to port allocation request within 5 seconds - assigning random port.");
+        resolve(undefined);
+      }, 5000);
+
+      // setup callback
+      const callback = (port: number | undefined) => {
+        clearTimeout(requestTimeout);
+        resolve(port);
+        this.portRequestCallback.delete(username);
+      };
+      this.portRequestCallback.set(username, callback);
+
+      // send port request
+      this.sendMessage<ChildProcessPortRequestEventData>(ChildProcessMessageEventType.PORT_REQUEST, { username });
+    });
+  }
+
+  /**
+   * Handles the port allocation response message from the parent process
+   * @param data 
+   */
+  public handleExternalResponse(data: ChildProcessPortAllocatedEventData): void {
+    const callback = this.portRequestCallback.get(data.username);
+    if (callback) {
+      callback(data.port);
+    }
+  }
+
   shutdown(): void {
     this.bridgeService.teardown();
   }
@@ -186,6 +229,10 @@ process.on("message", (message: ChildProcessMessageEvent<unknown>) => {
     }
     case ChildProcessMessageEventType.START: {
       childPluginFork.startBridge();
+      break;
+    }
+    case ChildProcessMessageEventType.PORT_ALLOCATED: {
+      childPluginFork.handleExternalResponse(message.data as ChildProcessPortAllocatedEventData);
       break;
     }
   }
