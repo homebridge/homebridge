@@ -202,19 +202,69 @@ export class BridgeService {
    * Attempt to load the cached accessories from disk.
    */
   public async loadCachedPlatformAccessoriesFromDisk(): Promise<void> {
+    let cachedAccessories: SerializedPlatformAccessory[] | null = null;
+
     try {
-      const cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.bridgeOptions.cachedAccessoriesItemName);
-      if (cachedAccessories) {
-        log.info(`Loaded cached accessories from ${this.bridgeOptions.cachedAccessoriesItemName} with ${cachedAccessories.length} accessories.`);
-        this.cachedPlatformAccessories = cachedAccessories.map(serialized => {
-          return PlatformAccessory.deserialize(serialized);
-        });
-      }
+      cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.bridgeOptions.cachedAccessoriesItemName);
     } catch (e) {
       log.error("Failed to load cached accessories from disk:", e.message);
-      log.error("Not restoring cached accessories - some accessories may be reset.");
+      if (e instanceof SyntaxError) {
+        // syntax error probably means invalid json / corrupted file; try and restore from backup
+        cachedAccessories = await this.restoreCachedAccessoriesBackup();
+      } else {
+        log.error("Not restoring cached accessories - some accessories may be reset.");
+      }
     }
+
+    if (cachedAccessories) {
+      log.info(`Loaded ${cachedAccessories.length} cached accessories from ${this.bridgeOptions.cachedAccessoriesItemName}.`);
+
+      this.cachedPlatformAccessories = cachedAccessories.map(serialized => {
+        return PlatformAccessory.deserialize(serialized);
+      });
+
+      if (cachedAccessories.length) {
+        // create a backup of the cache file
+        await this.createCachedAccessoriesBackup();
+      }
+    }
+
     this.cachedAccessoriesFileLoaded = true;
+  }
+
+  /**
+   * Return the name of the backup cache file
+   */
+  private get backupCacheFileName() {
+    return `.${this.bridgeOptions.cachedAccessoriesItemName}.bak`;
+  }
+
+  /**
+   * Create a backup of the cached file
+   * This is used if we ever have trouble reading the main cache file
+   */
+  private async createCachedAccessoriesBackup(): Promise<void> {
+    try {
+      await this.storageService.copyItem(this.bridgeOptions.cachedAccessoriesItemName, this.backupCacheFileName);
+    } catch (e) {
+      log.warn(`Failed to create a backup of the ${this.bridgeOptions.cachedAccessoriesItemName} cached accessories file:`, e.message);
+    }
+  }
+
+  /**
+   * Restore a cached accessories backup
+   * This is used if the main cache file has a JSON syntax error / is corrupted
+   */
+  private async restoreCachedAccessoriesBackup(): Promise<SerializedPlatformAccessory[] | null> {
+    try {
+      const cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.backupCacheFileName);
+      if (cachedAccessories && cachedAccessories.length) {
+        log.warn(`Recovered ${cachedAccessories.length} accessories from ${this.bridgeOptions.cachedAccessoriesItemName} cache backup.`);
+      }
+      return cachedAccessories;
+    } catch (e) {
+      return null;
+    }
   }
 
   public restoreCachedPlatformAccessories(): void {

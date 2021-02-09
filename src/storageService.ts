@@ -40,6 +40,14 @@ export class StorageService {
     return fs.writeJson(path.resolve(this.baseDirectory, itemName), data);
   }
 
+  public copyItem(srcItemName: string, destItemName: string): Promise<void> {
+    return fs.copyFile(path.resolve(this.baseDirectory, srcItemName), path.resolve(this.baseDirectory, destItemName));
+  }
+
+  public copyItemSync(srcItemName: string, destItemName: string): void {
+    return fs.copyFileSync(path.resolve(this.baseDirectory, srcItemName), path.resolve(this.baseDirectory, destItemName));
+  }
+
   public removeItemSync(itemName: string): void {
     return fs.removeSync(path.resolve(this.baseDirectory, itemName));
   }
