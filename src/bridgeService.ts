@@ -4,9 +4,9 @@ import { PluginManager } from "./pluginManager";
 import { StorageService } from "./storageService";
 import { Logger, Logging } from "./logger";
 import { Plugin } from "./plugin";
-import { 
-  PlatformAccessory, 
-  SerializedPlatformAccessory, 
+import {
+  PlatformAccessory,
+  SerializedPlatformAccessory,
 } from "./platformAccessory";
 import {
   Accessory,
@@ -15,7 +15,7 @@ import {
   Bridge,
   Categories,
   Characteristic,
-  CharacteristicEventTypes,
+  CharacteristicEventTypes, CharacteristicWarning,
   CharacteristicWarningType,
   InterfaceName,
   IPAddress,
@@ -24,7 +24,7 @@ import {
   PublishInfo,
   Service,
   uuid,
-  VoidCallback, 
+  VoidCallback,
 } from "hap-nodejs";
 import {
   AccessoryIdentifier,
@@ -144,26 +144,27 @@ export class BridgeService {
   }
 
   // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
-  public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, characteristic: Characteristic, type: CharacteristicWarningType, message: string): void {
-    switch (type) {
+  public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, warning: CharacteristicWarning): void {
+    switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
-        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " + message);
+        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " + warning.message);
         break;
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
-        log.error("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " + message);
+        log.error("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " + warning.message);
         break;
       case CharacteristicWarningType.WARN_MESSAGE:
-        log.info("Received warning for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + characteristic.displayName + "': " + message);
+        log.info("Received warning for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + warning.characteristic.displayName + "': " + warning.message);
         break;
       case CharacteristicWarningType.ERROR_MESSAGE:
-        log.error("Received error for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + characteristic.displayName + "': " + message);
+        log.error("Received error for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + warning.characteristic.displayName + "': " + warning.message);
         break;
       default: // generic message for yet unknown types
-        log.info("Received warning '" + type + " for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + characteristic.displayName + "': " + message);
+        log.info("Received warning '" + warning.type + " for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + warning.characteristic.displayName + "': " + warning.message);
         break;
     }
+    log.debug("Above characteristic warning was triggered at: " + warning.stack);
   }
 
   public publishBridge(): void {
@@ -380,8 +381,8 @@ export class BridgeService {
 
     this.bridge.removeBridgedAccessories(hapAccessories);
     this.saveCachedPlatformAccessoriesOnDisk();
-  } 
-  
+  }
+
   async handlePublishExternalAccessories(accessories: PlatformAccessory[]): Promise<void> {
     const accessoryPin = this.bridgeConfig.pin;
 
