@@ -286,8 +286,6 @@ export class BridgeService {
               plugin.getPluginIdentifier() + "'. Plugin association is now being transformed!");
 
             accessory._associatedPlugin = plugin.getPluginIdentifier(); // update the associated plugin to the new one
-
-            accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory));
           }
         } catch (error) { // error is thrown if multiple plugins where found for the given platform name
           log.info("Could not find the associated plugin for the accessory '" + accessory.displayName + "'. " +
@@ -296,6 +294,9 @@ export class BridgeService {
       }
 
       const platformPlugins = plugin && plugin.getActiveDynamicPlatform(accessory._associatedPlatform!);
+      if (plugin) {
+        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory));
+      }
 
       if (!platformPlugins) {
         log.info(`Failed to find plugin to handle accessory ${accessory._associatedHAPAccessory.displayName}`);
