@@ -22,7 +22,8 @@ import {
   BridgeService, 
   BridgeConfiguration, 
   HomebridgeConfig, 
-  BridgeOptions, 
+  BridgeOptions,
+  HomebridgeAdvertiser, 
 } from "./bridgeService";
 import {
   AccessoryIdentifier,
@@ -146,6 +147,7 @@ export class Server {
       name: "Homebridge",
       username: "CC:22:3D:E3:CE:30",
       pin: "031-45-154",
+      advertiser: HomebridgeAdvertiser.BONJOUR_HAP,
     };
 
     if (!fs.existsSync(configPath)) {
@@ -193,6 +195,23 @@ export class Server {
     config.accessories = config.accessories || [];
     config.platforms = config.platforms || [];
     log.info("Loaded config.json with %s accessories and %s platforms.", config.accessories.length, config.platforms.length);
+
+    if (config.bridge.advertiser) {
+      if (![
+        HomebridgeAdvertiser.BONJOUR_HAP,
+        HomebridgeAdvertiser.CIAO
+      ].includes(config.bridge.advertiser)) {
+        config.bridge.advertiser = HomebridgeAdvertiser.BONJOUR_HAP;
+        log.error(`Value provided in bridge.advertiser is not valid, reverting to "${HomebridgeAdvertiser.BONJOUR_HAP}".`);
+      }
+    } else {
+      config.bridge.advertiser = HomebridgeAdvertiser.BONJOUR_HAP;
+    }
+
+    // Warn existing Homebridge 1.3.0 beta users they need to swap to bridge.advertiser
+    if (config.mdns && config.mdns.legacyAdvertiser === false && config.bridge.advertiser === HomebridgeAdvertiser.BONJOUR_HAP) {
+      log.error(`The "mdns"."legacyAdvertiser" = false option has been removed. Please use "bridge"."advertiser" = "ciao" to enable the Ciao mDNS advertiser. You should remove the "mdns"."legacyAdvertiser" section from your config.json.`)
+    }
 
     return config as HomebridgeConfig;
   }

@@ -45,10 +45,16 @@ import { HomebridgeOptions } from "./server";
 
 const log = Logger.internal;
 
+export const enum HomebridgeAdvertiser {
+  BONJOUR_HAP = 'bonjour-hap',
+  CIAO = 'ciao',
+}
+
 export interface BridgeConfiguration {
   name: string;
   username: MacAddress;
   pin: string; // format like "000-00-000"
+  advertiser: HomebridgeAdvertiser;
   port?: number;
   bind?: (InterfaceName | IPAddress) | (InterfaceName | IPAddress)[];
   setupID?: string[4];
@@ -189,7 +195,7 @@ export class BridgeService {
       bind: bridgeConfig.bind,
       mdns: this.config.mdns, // this is deprecated now
       addIdentifyingMaterial: true,
-      useLegacyAdvertiser: this.config.mdns?.legacyAdvertiser ?? true,
+      useLegacyAdvertiser: bridgeConfig.advertiser === HomebridgeAdvertiser.BONJOUR_HAP,
     };
 
     if (bridgeConfig.setupID && bridgeConfig.setupID.length === 4) {
@@ -428,7 +434,7 @@ export class BridgeService {
         bind: this.bridgeConfig.bind,
         mdns: this.config.mdns, // this is deprecated and not used anymore
         addIdentifyingMaterial: true,
-        useLegacyAdvertiser: this.config.mdns?.legacyAdvertiser ?? true,
+        useLegacyAdvertiser: this.bridgeConfig.advertiser === HomebridgeAdvertiser.BONJOUR_HAP,
       }, this.allowInsecureAccess);
     }
   }
