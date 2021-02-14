@@ -25,6 +25,7 @@ import {
   Service,
   uuid,
   VoidCallback,
+  MDNSAdvertiser,
 } from "hap-nodejs";
 import {
   AccessoryIdentifier,
@@ -45,16 +46,11 @@ import { HomebridgeOptions } from "./server";
 
 const log = Logger.internal;
 
-export const enum HomebridgeAdvertiser {
-  BONJOUR_HAP = 'bonjour-hap',
-  CIAO = 'ciao',
-}
-
 export interface BridgeConfiguration {
   name: string;
   username: MacAddress;
   pin: string; // format like "000-00-000"
-  advertiser: HomebridgeAdvertiser;
+  advertiser: MDNSAdvertiser;
   port?: number;
   bind?: (InterfaceName | IPAddress) | (InterfaceName | IPAddress)[];
   setupID?: string[4];
@@ -195,7 +191,7 @@ export class BridgeService {
       bind: bridgeConfig.bind,
       mdns: this.config.mdns, // this is deprecated now
       addIdentifyingMaterial: true,
-      useLegacyAdvertiser: bridgeConfig.advertiser === HomebridgeAdvertiser.BONJOUR_HAP,
+      advertiser: bridgeConfig.advertiser,
     };
 
     if (bridgeConfig.setupID && bridgeConfig.setupID.length === 4) {
@@ -434,7 +430,7 @@ export class BridgeService {
         bind: this.bridgeConfig.bind,
         mdns: this.config.mdns, // this is deprecated and not used anymore
         addIdentifyingMaterial: true,
-        useLegacyAdvertiser: this.bridgeConfig.advertiser === HomebridgeAdvertiser.BONJOUR_HAP,
+        advertiser: this.bridgeConfig.advertiser,
       }, this.allowInsecureAccess);
     }
   }
