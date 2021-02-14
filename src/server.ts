@@ -2,7 +2,7 @@ import fs from "fs";
 import chalk from "chalk";
 import qrcode from "qrcode-terminal";
 
-import { MacAddress } from "hap-nodejs";
+import { MacAddress, MDNSAdvertiser } from "hap-nodejs";
 import * as mac from "./util/mac";
 import { Logger } from "./logger";
 import { User } from "./user";
@@ -22,7 +22,7 @@ import {
   BridgeService, 
   BridgeConfiguration, 
   HomebridgeConfig, 
-  BridgeOptions, 
+  BridgeOptions,
 } from "./bridgeService";
 import {
   AccessoryIdentifier,
@@ -146,6 +146,7 @@ export class Server {
       name: "Homebridge",
       username: "CC:22:3D:E3:CE:30",
       pin: "031-45-154",
+      advertiser: MDNSAdvertiser.BONJOUR,
     };
 
     if (!fs.existsSync(configPath)) {
@@ -193,6 +194,23 @@ export class Server {
     config.accessories = config.accessories || [];
     config.platforms = config.platforms || [];
     log.info("Loaded config.json with %s accessories and %s platforms.", config.accessories.length, config.platforms.length);
+
+    if (config.bridge.advertiser) {
+      if (![
+        MDNSAdvertiser.BONJOUR,
+        MDNSAdvertiser.CIAO,
+      ].includes(config.bridge.advertiser)) {
+        config.bridge.advertiser = MDNSAdvertiser.BONJOUR;
+        log.error(`Value provided in bridge.advertiser is not valid, reverting to "${MDNSAdvertiser.BONJOUR}".`);
+      }
+    } else {
+      config.bridge.advertiser = MDNSAdvertiser.BONJOUR;
+    }
+
+    // Warn existing Homebridge 1.3.0 beta users they need to swap to bridge.advertiser
+    if (config.mdns && config.mdns.legacyAdvertiser === false && config.bridge.advertiser === MDNSAdvertiser.BONJOUR) {
+      log.error(`The "mdns"."legacyAdvertiser" = false option has been removed. Please use "bridge"."advertiser" = "${MDNSAdvertiser.CIAO}" to enable the Ciao mDNS advertiser. You should remove the "mdns"."legacyAdvertiser" section from your config.json.`);
+    }
 
     return config as HomebridgeConfig;
   }

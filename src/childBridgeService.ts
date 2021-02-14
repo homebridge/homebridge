@@ -287,6 +287,7 @@ export class ChildBridgeService {
       name: this.bridgeConfig.name || this.pluginConfig.name || this.plugin.getPluginIdentifier(),
       port: this.bridgeConfig.port,
       username: this.bridgeConfig.username,
+      advertiser: this.homebridgeConfig.bridge.advertiser,
       pin: this.bridgeConfig.pin || this.homebridgeConfig.bridge.pin,
       bind: this.homebridgeConfig.bridge.bind,
       setupID: this.bridgeConfig.setupID,
