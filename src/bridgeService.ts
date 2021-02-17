@@ -2,7 +2,7 @@ import * as mac from "./util/mac";
 import getVersion from "./version";
 import { PluginManager } from "./pluginManager";
 import { StorageService } from "./storageService";
-import { Logger, Logging } from "./logger";
+import { Logger, Logging, getLogPrefix } from "./logger";
 import { Plugin } from "./plugin";
 import {
   PlatformAccessory,
@@ -147,26 +147,29 @@ export class BridgeService {
 
   // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
   public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, warning: CharacteristicWarning): void {
+    const wikiInfo = "See https://git.io/JtMGR for more info.";
     switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
-        log.warn("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " + warning.message);
+        log.warn(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
         break;
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
-        log.error("The plugin '" + plugin.getPluginIdentifier() + "' slows down requests made to homebridge! " + warning.message);
-        break;
+        log.error(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
+        break;   
       case CharacteristicWarningType.WARN_MESSAGE:
-        log.info("Received warning for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + warning.characteristic.displayName + "': " + warning.message);
+        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated warning from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
         break;
       case CharacteristicWarningType.ERROR_MESSAGE:
-        log.error("Received error for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + warning.characteristic.displayName + "': " + warning.message);
+        log.error(getLogPrefix(plugin.getPluginIdentifier()), `This plugin threw error from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
         break;
       default: // generic message for yet unknown types
-        log.info("Received warning '" + warning.type + " for the plugin '" + plugin.getPluginIdentifier() + "' from the characteristic '" + warning.characteristic.displayName + "': " + warning.message);
+        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated warning from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
         break;
     }
-    log.debug("Above characteristic warning was triggered at: " + warning.stack);
+    if (warning.stack) {
+      log.debug(getLogPrefix(plugin.getPluginIdentifier()), warning.stack);
+    }
   }
 
   public publishBridge(): void {

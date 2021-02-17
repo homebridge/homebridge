@@ -166,7 +166,7 @@ export class Logger {
     }
 
     if (this.prefix) {
-      message = chalk.cyan(`[${this.prefix}] `) + message;
+      message = getLogPrefix(this.prefix) + " " + message;
     }
 
     if (Logger.timestampEnabled) {
@@ -187,6 +187,14 @@ export class Logger {
  */
 export function withPrefix(prefix: string): Logging {
   return Logger.withPrefix(prefix);
+}
+
+/**
+ * Gets the prefix
+ * @param prefix 
+ */
+export function getLogPrefix(prefix: string): string {
+  return chalk.cyan(`[${prefix}]`);
 }
 
 /**
