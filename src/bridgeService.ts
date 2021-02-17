@@ -156,7 +156,7 @@ export class BridgeService {
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
         log.error(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
-        break;   
+        break;
       case CharacteristicWarningType.WARN_MESSAGE:
         log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated warning from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
         break;
@@ -438,7 +438,7 @@ export class BridgeService {
     }
   }
 
-  public createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory | undefined {
+  public createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: AccessoryName, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory | undefined {
     const services = (accessoryInstance.getServices() || [])
       .filter(service => !!service); // filter out undefined values; a common mistake
     const controllers = (accessoryInstance.getControllers && accessoryInstance.getControllers() || [])
@@ -518,12 +518,8 @@ export class BridgeService {
 
         // loop through accessories adding them to the list and registering them
         accessories.forEach((accessoryInstance, index) => {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          const accessoryName = accessoryInstance.name; // assume this property was set
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          const uuidBase: string | undefined = accessoryInstance.uuid_base; // optional base uuid
+          const accessoryName = accessoryInstance.name;
+          const uuidBase = accessoryInstance.uuid_base;
 
           log.info("Initializing platform accessory '%s'...", accessoryName);
 

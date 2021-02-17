@@ -52,6 +52,16 @@ export interface AccessoryPluginConstructor {
 export interface AccessoryPlugin {
 
   /**
+   * Display name for the Accessory.
+   */
+  name: AccessoryName;
+
+  /**
+   * Optional base value used to generate the UUID used for Accessory persistance. If empty the display name will be used as base instead.
+   */
+  uuid_base?: string;
+
+  /**
    * Optional method which will be called if a 'identify' of a Accessory is requested by HomeKit.
    */
   identify?(): void;

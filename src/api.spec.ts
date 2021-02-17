@@ -5,7 +5,13 @@ import { PlatformAccessory } from "./platformAccessory";
 const api = new HomebridgeAPI();
 const emitSpy = jest.spyOn(api, "emit");
 
+const pluginName = "homebridge-example";
+const accessoryName = "MyCoolAccessory";
+const platformName = "MyCoolPlatform";
+
 class ExampleAccessory implements AccessoryPlugin {
+
+  name = accessoryName
 
   getServices(): Service[] {
     return [new Service.Switch("TestSwitch")];
@@ -21,10 +27,6 @@ class ExamplePlatform implements DynamicPlatformPlugin {
   }
 
 }
-
-const pluginName = "homebridge-example";
-const accessoryName = "MyCoolAccessory";
-const platformName = "MyCoolPlatform";
 
 describe("HomebridgeAPI", () => {
   describe("HomebridgeAPI.prototype.registerAccessory", () => {
