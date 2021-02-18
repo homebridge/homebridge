@@ -49,13 +49,13 @@ The default for new users will be `Bonjour HAP`, you can swap between the two fr
 
 * Added the ability to disable individual plugins without having to remove their config from the `config.json` file.
 * Homebridge will no longer crash if a plugin cannot be found for a certain accessory / platform config block.
-* Improved stability with malfunctioning plugins or plugins which read/write handlers take too long to respond. You may have been there, where you whole Homebridge instance went down only because one plugin or accessory didn't behave properly. We invested some time to reduce the possibility of such scenarios or at least give hints were we can reliably detect that something gone wrong.
+* Improved stability with malfunctioning plugins or plugins which read/write handlers take too long to respond. You may have been there, where you whole Homebridge instance went down only because one plugin or accessory didn't behave properly. We have invested some time to reduce the possibility of such scenarios; or at least give hints where we can reliably detect that something gone wrong.
 * Plugin characteristics are now strictly validated, if an invalid value is passed in the bridge will now force it to a known good value and show a warning in the logs, this should prevent some of the "Not Responding" issues users have faced in the past.
 
 ### Changes For Developers
 
 * Added the ability to use promise-based characteristic getters and setters. Have a look at [characteristic.onGet](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#onget) and [characteristic.onSet](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#onset).
-* Added support for Characteristics with Additional Authorization, by using [characteristic.setupAdditionalAuthorization](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#setupadditionalauthorization). For those of you which may develop a iOS for you accessories and need that feature.
+* Added support for Characteristics with Additional Authorization, by using [characteristic.setupAdditionalAuthorization](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#setupadditionalauthorization).
 
 ## v1.2.1 (2020-09-15)
 
