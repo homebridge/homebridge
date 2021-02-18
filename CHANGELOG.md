@@ -56,6 +56,7 @@ The default for new users will be `Bonjour HAP`, you can swap between the two fr
 
 * Added the ability to use promise-based characteristic getters and setters. Have a look at [characteristic.onGet](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#onget) and [characteristic.onSet](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#onset).
 * Added support for Characteristics with Additional Authorization, by using [characteristic.setupAdditionalAuthorization](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#setupadditionalauthorization).
+* For a more detailed list, have a look at the release notes of `HAP-NodeJS` [v0.9.0](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.0).
 
 ## v1.2.1 (2020-09-15)
 
