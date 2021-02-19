@@ -63,7 +63,7 @@ call to the homebridge API object.
 
 ### Compatibility
 
-Homebridge v1.3.0 does not introduce breaking changes for existing plugins, while you may see [Characteristic Warnings](https://github.com/homebridge/homebridge/wiki/Characteristic-Warnings) in the logs, these are just issues that were already present prior to v1.3.0 - just hidden from view.
+Homebridge v1.3.0 does not introduce breaking changes for the majority of existing plugins, while you may see [Characteristic Warnings](https://github.com/homebridge/homebridge/wiki/Characteristic-Warnings) in the logs, these are just issues that were already present prior to v1.3.0 - just hidden from view. You should update your plugins before updating Homebridge.
 
 A large number of plugins have been tested during an extensive beta period, the results can be [viewed here](https://github.com/homebridge/homebridge/wiki/Homebridge-1.3.0-Release-Plugin-Testing-Status).
 
