@@ -61,6 +61,21 @@ The default for new users will be `Bonjour HAP`, you can swap between the two fr
 call to the homebridge API object.  
   This will from now on replace the float based API `version` number property.
 
+### Compatibility
+
+Homebridge v1.3.0 does not introduce breaking changes for existing plugins, while you may see [Characteristic Warnings](https://github.com/homebridge/homebridge/wiki/Characteristic-Warnings) in the logs, these are just issues that were already present prior to v1.3.0 - just hidden from view.
+
+A large number of plugins have been tested during an extensive beta period, the results can be [viewed here](https://github.com/homebridge/homebridge/wiki/Homebridge-1.3.0-Release-Plugin-Testing-Status).
+
+### Rolling Back
+
+If for any reason Homebridge v1.3.0 is not working for you, you can rollback to a previous version of Homebridge easily using the Homebridge UI:
+
+
+<p align="center">
+<img src="https://user-images.githubusercontent.com/64748380/102620583-d473d380-4103-11eb-827b-276a13503424.gif" width="600px">
+</p>
+
 ## v1.2.1 (2020-09-15)
 
 ### Bug Fixes
