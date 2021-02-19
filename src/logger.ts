@@ -140,12 +140,14 @@ export class Logger {
   }
 
   public debug(message: string, ...parameters: any[]): void {
-    if (Logger.debugEnabled) {
-      this.log(LogLevel.DEBUG, message, ...parameters);
-    }
+    this.log(LogLevel.DEBUG, message, ...parameters);
   }
 
   public log(level: LogLevel, message: string, ...parameters: any[]): void {
+    if (level === LogLevel.DEBUG && !Logger.debugEnabled) {
+      return;
+    }
+
     message = util.format(message, ...parameters);
 
     let loggingFunction = console.log;
@@ -164,7 +166,7 @@ export class Logger {
     }
 
     if (this.prefix) {
-      message = chalk.cyan(`[${this.prefix}] `) + message;
+      message = getLogPrefix(this.prefix) + " " + message;
     }
 
     if (Logger.timestampEnabled) {
@@ -185,6 +187,14 @@ export class Logger {
  */
 export function withPrefix(prefix: string): Logging {
   return Logger.withPrefix(prefix);
+}
+
+/**
+ * Gets the prefix
+ * @param prefix 
+ */
+export function getLogPrefix(prefix: string): string {
+  return chalk.cyan(`[${prefix}]`);
 }
 
 /**

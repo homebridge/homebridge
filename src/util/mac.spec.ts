@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { generate, validMacAddress } from "./mac";
 
 describe("mac", () => {
-  describe(validMacAddress, () => {
+  describe("validMacAddress", () => {
     it("should verify a valid mac address", function() {
       expect(validMacAddress("61:67:0F:6E:B0:48")).toBeTruthy();
     });
@@ -22,7 +22,7 @@ describe("mac", () => {
     });
   });
 
-  describe(generate, () => {
+  describe("generate", () => {
     it("should generate a valid mac address", function() {
       const seed = crypto.randomBytes(4);
       const generated = generate(crypto.randomBytes(4));

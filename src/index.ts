@@ -3,6 +3,7 @@
  */
 import type { API } from "./api";
 
+// noinspection JSUnusedGlobalSymbols
 export type HAP = API["hap"];
 
 /**
@@ -49,6 +50,7 @@ export {
  */
 export type {
   PlatformAccessory,
+  UnknownContext,
 } from "./platformAccessory";
 
 /**
@@ -56,12 +58,24 @@ export type {
  */
 export type {
   HomebridgeOptions,
+} from "./server";
+
+/**
+ * Export bridge types
+ */
+export type {
   HomebridgeConfig,
   BridgeConfiguration,
   AccessoryConfig,
   PlatformConfig,
+} from "./bridgeService";
+
+/**
+ * Export port types
+ */
+export type {
   ExternalPortsConfiguration,
-} from "./server";
+} from "./externalPortService";
 
 /**
  * Export User Types
@@ -84,14 +98,17 @@ export type {
 } from "./logger";
 
 /**
- * Export the const enums from hap-nodejs
+ * Export the CONST ENUMS from hap-nodejs
  * These get converted to their string value at compile time
  * and can be safely used directly.
  */
 export {
   Access,
-  CharacteristicEventTypes,
+  AccessControlEvent,
+  AccessLevel,
   AccessoryEventTypes,
+  AdaptiveLightingControllerEvents,
+  AdaptiveLightingControllerMode,
   AudioBitrate,
   AudioCodecTypes,
   AudioSamplerate,
@@ -101,25 +118,29 @@ export {
   ButtonType,
   CameraControllerEvents,
   Categories,
-  Codes,
+  ChangeReason,
+  CharacteristicEventTypes,
+  // CharacteristicWarningType,
   DataFormatTags,
-  DataStreamConnectionEvents,
-  DataStreamServerEvents,
+  DataSendCloseReason,
+  DataStreamConnectionEvent,
+  DataStreamServerEvent,
   DataStreamStatus,
   DefaultControllerType,
   Formats,
   H264Level,
   H264Profile,
+  // HAPHTTPCode,
+  // HAPPairingHTTPCode,
   HAPServerEventTypes,
+  HAPStatus,
+  HDSStatus,
   Perms,
   Protocols,
   RemoteControllerEvents,
-  ResourceTypes,
   SRTPCryptoSuites,
   ServiceEventTypes,
   SiriAudioSessionEvents,
-  SiriInputType,
-  Status,
   StreamRequestTypes,
   TargetCategory,
   TargetUpdates,
@@ -128,11 +149,86 @@ export {
 } from "hap-nodejs";
 
 /**
- * Export all other types from Hap-NodeJS
+ * Export HAP-NodeJS namespaces as type only
  */
 export type {
-  Accessory,
-  AccessoryLoader,
+  DataStreamParser,
+} from "hap-nodejs";
+
+/**
+ * Export HAP-NodeJS classes as type only
+ */
+export type {
+  AccessControlManagement,
+  // Accessory,
+  AdaptiveLightingController,
+  // Bridge,
+  CameraController,
+  Characteristic,
+  ColorUtils,
+  DataStreamConnection,
+  DataStreamManagement,
+  DataStreamReader,
+  DataStreamServer,
+  DataStreamWriter,
+  DoorbellController,
+  // Float32,
+  // Float64,
+  HAPServer,
+  HAPStorage,
+  HapStatusError,
+  HomeKitRemoteController,
+  // Int16,
+  // Int32,
+  // Int64,
+  // Int8,
+  LegacyCameraSourceAdapter,
+  RTPStreamManagement,
+  RemoteController,
+  // SecondsSince2001,
+  Service,
+  SiriAudioSession,
+  StreamController,
+  // UUID,
+  // ValueWrapper,
+} from "hap-nodejs";
+
+/**
+ * Export HAP-NodeJS interfaces as type only
+ */
+export type {
+  ActiveAdaptiveLightingTransition,
+  AdaptiveLightingOptions,
+  AdaptiveLightingTransitionCurveEntry,
+  BrightnessAdjustmentMultiplierRange,
+  CameraControllerOptions,
+  CameraStreamingDelegate,
+  CharacteristicOperationContext,
+  CharacteristicProps,
+  Controller,
+  ControllerConstructor,
+  ControllerContext,
+  ControllerServiceMap,
+  DataStreamProtocolHandler,
+  LegacyCameraSource,
+  ProxiedSourceResponse,
+  PublishInfo,
+  RTPProxyOptions,
+  SerializableController,
+  ServiceConfigurationChange,
+  SiriAudioStreamProducer,
+  SiriAudioStreamProducerConstructor,
+  SourceResponse,
+} from "hap-nodejs";
+
+/**
+ * Export HAP-NodeJS type aliases as type only
+ */
+export type  {
+  AccessoriesCallback,
+  AccessoryCharacteristicChange,
+  AddPairingCallback,
+  AdditionalAuthorizationHandler,
   Address,
   AudioCodec,
   AudioCodecConfiguration,
@@ -141,119 +237,64 @@ export type {
   AudioInfo,
   AudioStreamingCodec,
   AudioStreamingOptions,
-  Bridge,
   ButtonConfiguration,
   Callback,
   Camera,
-  CameraController,
-  CameraControllerEventMap,
-  CameraControllerOptions,
-  CameraControllerServiceMap,
-  CameraStreamingDelegate,
   CameraStreamingOptions,
-  Characteristic,
   CharacteristicChange,
-  CharacteristicData,
-  CharacteristicEvents,
   CharacteristicGetCallback,
-  CharacteristicProps,
+  CharacteristicGetHandler,
   CharacteristicSetCallback,
+  CharacteristicSetHandler,
   CharacteristicValue,
-  CharacteristicsWriteRequest,
-  Controller,
-  ControllerConstructor,
-  ControllerContext,
-  ControllerServiceMap,
   ControllerType,
-  DataSendCloseReason,
-  DataStreamConnection,
-  DataStreamConnectionEventMap,
-  DataStreamManagement,
-  DataStreamParser,
-  DataStreamProtocolHandler,
-  DataStreamReader,
-  DataStreamServer,
-  DataStreamServerEventMap,
-  DataStreamWriter,
-  EMPTY_TLV_TYPE,
   ErrorHandler,
-  EventAccessory,
   EventHandler,
-  EventService,
-  Events,
-  Float32,
-  Float64,
   FrameHandler,
   GlobalEventHandler,
   GlobalRequestHandler,
   H264CodecParameters,
-  HAPEncryption,
-  HAPServer,
-  HAPStorage,
-  HDSStatus,
-  HapCharacteristic,
-  HapService,
-  HomeKitRemoteController,
+  HAPHttpError,
+  HAPPincode,
+  IPAddress,
+  IPv4Address,
+  IPv6Address,
   IdentificationCallback,
-  Int16,
-  Int32,
-  Int64,
-  Int8,
-  LegacyCameraSource,
-  LegacyCameraSourceAdapter,
-  LegacyTypes,
+  IdentifyCallback,
+  InterfaceName,
+  ListPairingsCallback,
   MacAddress,
   NodeCallback,
   Nullable,
+  PairCallback,
   PairingsCallback,
   PrepareStreamCallback,
   PrepareStreamRequest,
   PrepareStreamResponse,
-  PrepareWriteRequest,
   PreparedDataStreamSession,
   PreparedStreamRequestCallback,
   PreparedStreamResponse,
   PrimitiveTypes,
-  ProxiedSourceResponse,
-  PublishInfo,
-  RTPProxyOptions,
-  RTPStreamManagement,
   RTPTime,
+  ReadCharacteristicsCallback,
   ReconfigureStreamRequest,
   ReconfiguredVideoInfo,
-  RemoteController,
-  RemoteControllerEventMap,
-  RemoteControllerServiceMap,
+  RemovePairingCallback,
   RequestHandler,
   Resolution,
-  Resource,
+  ResourceRequestCallback,
   ResponseHandler,
-  SecondsSince2001,
-  SerializableController,
-  SerializedAccessory,
-  SerializedCharacteristic,
-  SerializedControllerContext,
-  SerializedControllerState,
-  SerializedService,
   SerializedServiceMap,
-  Service,
   ServiceCharacteristicChange,
-  ServiceConfigurationChange,
   ServiceId,
   SessionIdentifier,
-  SiriAudioSession,
-  SiriAudioSessionEventMap,
-  SiriAudioStreamProducer,
-  SiriAudioStreamProducerConstructor,
   SnapshotRequest,
   SnapshotRequestCallback,
   Source,
-  SourceResponse,
   StartStreamRequest,
   StateChangeDelegate,
   StopStreamRequest,
   StreamAudioParams,
-  StreamController,
   StreamControllerOptions,
   StreamRequest,
   StreamRequestCallback,
@@ -262,32 +303,50 @@ export type {
   StreamingRequest,
   SupportedButtonConfiguration,
   SupportedConfiguration,
+  TLVEncodable,
   TargetConfiguration,
-  ToHAPOptions,
-  UUID,
-  ValueWrapper,
   VideoCodec,
   VideoInfo,
   VideoStreamingOptions,
   VoidCallback,
   WithUUID,
+  WriteCharacteristicsCallback,
+} from "hap-nodejs";
+
+/**
+ * Export HAP-NodeJS variables as type only
+ */
+export type {
+  // AccessoryLoader,
+  Codes,
+  LegacyTypes,
+  Status,
+  uuid,
+} from "hap-nodejs";
+
+/**
+ * Export HAP-NodeJS functions as type only
+ */
+export type {
   clone,
   decode,
   decodeList,
-  default,
+  decodeWithLists,
   encode,
-  init,
-  isSerializableController,
-  loadDirectory,
+  epochMillisFromMillisSince2001_01_01,
+  epochMillisFromMillisSince2001_01_01Buffer,
+  // init,
+  // isSerializableController,
+  // loadDirectory,
   once,
-  parseAccessoryJSON,
-  parseCharacteristicJSON,
-  parseServiceJSON,
-  readUInt16,
-  readUInt32,
-  readUInt64,
-  uuid,
-  writeUInt16,
-  writeUInt32,
-  writeUInt64,
+  // parseAccessoryJSON,
+  // parseCharacteristicJSON,
+  // parseServiceJSON,
+  // readUInt16,
+  // readUInt32,
+  // readUInt64,
+  // readUInt64BE,
+  // writeUInt16,
+  // writeUInt32,
+  // writeUInt64,
 } from "hap-nodejs";

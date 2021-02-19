@@ -26,8 +26,8 @@ const pluginName = "homebridge-example";
 const accessoryName = "MyCoolAccessory";
 const platformName = "MyCoolPlatform";
 
-describe(HomebridgeAPI, () => {
-  describe(HomebridgeAPI.prototype.registerAccessory, () => {
+describe("HomebridgeAPI", () => {
+  describe("HomebridgeAPI.prototype.registerAccessory", () => {
 
     it("should register accessory with legacy style signature", function() {
       api.registerAccessory(pluginName, accessoryName, ExampleAccessory);
@@ -41,7 +41,7 @@ describe(HomebridgeAPI, () => {
 
   });
 
-  describe(HomebridgeAPI.prototype.registerPlatform, () => {
+  describe("HomebridgeAPI.prototype.registerPlatform", () => {
 
     it("should register platform with legacy style signature", function() {
       api.registerPlatform(pluginName, platformName, ExamplePlatform);

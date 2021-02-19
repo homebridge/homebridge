@@ -1,7 +1,8 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "1.2.5",
+  "version": "1.3.0-beta.56",
+  "betaVersion": "1.3.0",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "license": "Apache-2.0",
@@ -16,8 +17,10 @@
     "build": "npm run clean && tsc",
     "test": "jest",
     "clean": "rimraf lib/",
+    "watch": "nodemon",
     "prepublishOnly": "npm run build",
-    "postpublish": "npm run clean"
+    "postpublish": "npm run clean",
+    "docs": "typedoc src/index.ts"
   },
   "repository": {
     "type": "git",
@@ -43,25 +46,28 @@
   "dependencies": {
     "chalk": "^4.1.0",
     "commander": "5.1.0",
-    "hap-nodejs": "~0.8.5",
-    "node-persist": "^0.0.11",
+    "fs-extra": "^9.1.0",
+    "hap-nodejs": "0.9.1",
     "qrcode-terminal": "^0.12.0",
-    "semver": "^7.3.2",
+    "semver": "^7.3.4",
     "source-map-support": "^0.5.19"
   },
   "devDependencies": {
     "@types/debug": "^4.1.5",
-    "@types/jest": "^26.0.13",
-    "@types/node": "10.17.32",
-    "@types/semver": "^7.3.3",
-    "@typescript-eslint/eslint-plugin": "^4.1.1",
-    "@typescript-eslint/parser": "^4.1.1",
-    "eslint": "^7.9.0",
-    "eslint-plugin-jest": "^24.0.1",
-    "jest": "^26.4.2",
+    "@types/fs-extra": "^9.0.6",
+    "@types/jest": "^26.0.19",
+    "@types/node": "10.17.50",
+    "@types/semver": "^7.3.4",
+    "@typescript-eslint/eslint-plugin": "^4.12.0",
+    "@typescript-eslint/parser": "^4.12.0",
+    "eslint": "^7.17.0",
+    "eslint-plugin-jest": "^24.1.3",
+    "jest": "^26.6.3",
+    "nodemon": "^2.0.7",
     "rimraf": "^3.0.2",
-    "ts-jest": "^26.3.0",
-    "ts-node": "^9.0.0",
-    "typescript": "^4.0.2"
+    "ts-jest": "^26.4.4",
+    "ts-node": "^9.1.1",
+    "typedoc": "0.20.14",
+    "typescript": "^4.1.3"
   }
 }

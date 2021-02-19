@@ -22,7 +22,7 @@
 
     "comma-dangle": ["error", "always-multiline"],
     "dot-notation": "error",
-    "eqeqeq": "error",
+    "eqeqeq": ["error", "always", {"null":  "ignore"}],
     "curly": ["error", "all"],
     "brace-style": ["error"],
 

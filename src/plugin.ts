@@ -29,6 +29,8 @@ export class Plugin {
   private readonly scope?: string; // npm package scope
   private readonly pluginPath: string; // like "/usr/local/lib/node_modules/homebridge-lockitron"
 
+  public disabled = false; // mark the plugin as disabled
+
   // ------------------ package.json content ------------------
   readonly version: string;
   private readonly main: string;
@@ -78,7 +80,9 @@ export class Plugin {
       throw new Error(`Plugin '${this.getPluginIdentifier()}' tried to register an accessory '${name}' which has already been registered!`);
     }
 
-    log.info("Registering accessory '%s'", this.getPluginIdentifier() + "." + name);
+    if (!this.disabled) {
+      log.info("Registering accessory '%s'", this.getPluginIdentifier() + "." + name);
+    }
 
     this.registeredAccessories.set(name, constructor);
   }
@@ -88,7 +92,9 @@ export class Plugin {
       throw new Error(`Plugin '${this.getPluginIdentifier()}' tried to register a platform '${name}' which has already been registered!`);
     }
 
-    log.info("Registering platform '%s'", this.getPluginIdentifier() + "." + name);
+    if (!this.disabled) {
+      log.info("Registering platform '%s'", this.getPluginIdentifier() + "." + name);
+    }
 
     this.registeredPlatforms.set(name, constructor);
   }
@@ -163,8 +169,8 @@ You may face unexpected issues or stability problems running this plugin.`);
 
     // make sure the version is satisfied by the currently running version of Node
     if (nodeVersionRequired && !satisfies(process.version, nodeVersionRequired)) {
-      log.warn(`The plugin "${this.pluginName}" requires Node version of ${nodeVersionRequired} which does \
-not satisfy the current Node version of ${process.version}. You may need to upgrade your installation of Node.`);
+      log.warn(`The plugin "${this.pluginName}" requires Node.js version of ${nodeVersionRequired} which does \
+not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://git.io/JTKEF`);
     }
 
     const dependencies = context.dependencies || {};

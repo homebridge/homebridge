@@ -1,12 +1,13 @@
 import { EventEmitter } from "events";
 import * as hapNodeJs from "hap-nodejs";
+import { Controller, Service } from "hap-nodejs";
 import getVersion from "./version";
 import { PlatformAccessory } from "./platformAccessory";
 import { User } from "./user";
 import { Logger, Logging } from "./logger";
-import { Controller, Service } from "hap-nodejs";
-import { AccessoryConfig, PlatformConfig } from "./server";
+import { AccessoryConfig, PlatformConfig } from "./bridgeService";
 import { PluginManager } from "./pluginManager";
+import semver from "semver";
 
 const log = Logger.internal;
 
@@ -158,16 +159,15 @@ export const enum InternalAPIEvent {
   UNREGISTER_PLATFORM_ACCESSORIES = "unregisterPlatformAccessories",
 }
 
-export declare interface API {
-
-  on(event: "didFinishLaunching", listener: () => void): this;
-  on(event: "shutdown", listener: () => void): this;
-
-}
-
 export interface API {
 
+  /**
+   * The homebridge API version as a floating point number.
+   */
   readonly version: number;
+  /**
+   * The current homebridge semver version.
+   */
   readonly serverVersion: string;
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
@@ -176,6 +176,23 @@ export interface API {
   readonly hapLegacyTypes: HAPLegacyTypes; // used for older accessories/platforms
   readonly platformAccessory: typeof PlatformAccessory;
   // ------------------------------------------------------------------------
+
+  /**
+   * Returns true if the current running homebridge version is greater or equal to the
+   * passed version string.
+   *
+   * Example:
+   *
+   * We assume the homebridge version 1.3.0-beta.12 ({@link serverVersion}) and the following example calls below
+   * ```
+   *  versionGreaterOrEqual("1.2.0"); // will return true
+   *  versionGreaterOrEqual("1.3.0"); // will return false (the RELEASE version 1.3.0 is bigger than the BETA version 1.3.0-beta.12)
+   *  versionGreaterOrEqual("1.3.0-beta.8); // will return true
+   * ```
+   *
+   * @param version
+   */
+  versionGreaterOrEqual(version: string): boolean;
 
   registerAccessory(accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void;
   registerAccessory(pluginIdentifier: PluginIdentifier, accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void;
@@ -191,6 +208,9 @@ export interface API {
    */
   publishCameraAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
   publishExternalAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
+
+  on(event: "didFinishLaunching", listener: () => void): this;
+  on(event: "shutdown", listener: () => void): this;
 
 }
 
@@ -225,7 +245,7 @@ export declare interface HomebridgeAPI {
 
 export class HomebridgeAPI extends EventEmitter implements API {
 
-  public readonly version = 2.6; // homebridge API version
+  public readonly version = 2.7; // homebridge API version
   public readonly serverVersion = getVersion(); // homebridge node module version
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
@@ -237,6 +257,10 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   constructor() {
     super();
+  }
+
+  public versionGreaterOrEqual(version: string): boolean {
+    return semver.gte(this.serverVersion, version);
   }
 
   public static isDynamicPlatformPlugin(platformPlugin: PlatformPlugin): platformPlugin is DynamicPlatformPlugin {

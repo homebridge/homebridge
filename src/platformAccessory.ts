@@ -8,7 +8,7 @@ import {
   ControllerConstructor,
   LegacyCameraSource,
   SerializedAccessory,
-  Service,
+  Service, VoidCallback,
   WithUUID,
 } from "hap-nodejs";
 import { PlatformName, PluginIdentifier, PluginName } from "./api";
@@ -79,7 +79,7 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
     this.services = this._associatedHAPAccessory.services;
 
     // forward identify event
-    this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired, callback) => {
+    this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -127,14 +127,30 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
   /**
    *
    * @param cameraSource
-   * @deprecated see {@link Accessory.configureCameraSource}
+   * @deprecated see {@link https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#configurecamerasource | Accessory.configureCameraSource}
    */
   public configureCameraSource(cameraSource: LegacyCameraSource): CameraController {
     return this._associatedHAPAccessory.configureCameraSource(cameraSource);
   }
 
+  /**
+   * Configures a new controller for the given accessory.
+   * See {@link https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#configurecontroller | Accessory.configureController}.
+   *
+   * @param controller
+   */
   public configureController(controller: Controller | ControllerConstructor): void {
     this._associatedHAPAccessory.configureController(controller);
+  }
+
+  /**
+   * Removes a configured controller from the given accessory.
+   * See {@link https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#removecontroller | Accessory.removeController}.
+   *
+   * @param controller
+   */
+  public removeController(controller: Controller): void {
+    this._associatedHAPAccessory.removeController(controller);
   }
 
   // private

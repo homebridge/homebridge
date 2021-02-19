@@ -2,6 +2,80 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.3.0 (2021-02-20)
+
+### Adaptive Lighting
+
+The new Adaptive Lightning feature introduced with iOS 14 can now be used by plugin developers. Most of the actively maintained plugins already secretly added support for it.
+
+### Child Bridges
+
+Child bridges allow any Homebridge platform or accessory to optionally run as its own independent accessory, separate from the main bridge, and in an isolated process. Running certain accessories in a child bridge can improve the general responsiveness and reliability of Homebridge.
+
+Why you might run a child bridge:
+
+* To isolate plugin code from the main bridge - in this mode the plugin will run in its own child process, preventing it from ever crashing the main bridge if a fatal exception occurs.
+    * If the child bridge process does crash, Homebridge will automatically restart it, without impacting the main bridge or other plugins.
+* To isolate slow plugins, preventing them from slowing down the main bridge or other plugins.
+* To gain the ability to restart individual accessories after a config change or plugin update without having to restart the main bridge or other plugins. 
+* To gain all the benefits of running multiple instances of Homebridge without the management overhead.
+
+Child bridge support is available for all existing plugins. You can enable it via the Homebridge UI on a acessory/platform basis from the "Bridge Settings" menu item:
+
+<p align="center">
+<img src="https://user-images.githubusercontent.com/3979615/108302130-73e23f00-71f7-11eb-9b1a-5caa4465c532.png" width="600px">
+</p>
+
+Learn more about child bridges here: https://github.com/homebridge/homebridge/wiki/Child-Bridges
+
+### mDNS Advertiser Selection
+
+Homebridge v1.3.0 ships with two different Bonjour/mDNS advertisers which users can choose from, `Ciao` and `Bonjour HAP`.
+
+* Homebridge v1.1.x shipped with `Bonjour HAP`
+* Homebridge v1.2.x shipped with `Ciao`
+
+The default for new users will be `Bonjour HAP`, you can swap between the two from the "Homebridge Settings" screen in the Homebridge UI:
+
+<p align="center">
+<img src="https://user-images.githubusercontent.com/3979615/108302458-21555280-71f8-11eb-8273-0e604ded60eb.png" width="600px">
+</p>
+
+### Breaking Changes
+
+* The `"mdns"."interface"` option has been removed, please use `"bridge"."bind"` instead. This new option takes an array of interface names or IP addresses. You can also configure this option using the "Network Interfaces" option under the Homebridge Settings section of the UI.
+
+### Other Notable Changes
+
+* Added the ability to disable individual plugins without having to remove their config from the `config.json` file.
+* Homebridge will no longer crash if a plugin cannot be found for a certain accessory / platform config block.
+* Improved stability with malfunctioning plugins or plugins which read/write handlers take too long to respond. You may have been there, where you whole Homebridge instance went down only because one plugin or accessory didn't behave properly. We have invested some time to reduce the possibility of such scenarios; or at least give hints where we can reliably detect that something gone wrong.
+* Plugin characteristics are now strictly validated, if an invalid value is passed in the bridge will now force it to a known good value and show a warning in the logs, this should prevent some of the "Not Responding" issues users have faced in the past.
+
+### Changes For Developers
+
+* Added the ability to use promise-based characteristic getters and setters. Have a look at [characteristic.onGet](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#onget) and [characteristic.onSet](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#onset).
+* Added support for Characteristics with Additional Authorization, by using [characteristic.setupAdditionalAuthorization](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#setupadditionalauthorization).
+* For a more detailed list, have a look at the release notes of `HAP-NodeJS` [v0.9.0](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.0).
+* Added a [API.versionGreaterOrEqual](https://developers.homebridge.io/homebridge/interfaces/api.html#versiongreaterorequal)
+call to the homebridge API object.  
+  This will from now on replace the float based API `version` number property.
+
+### Compatibility
+
+Homebridge v1.3.0 does not introduce breaking changes for the majority of existing plugins, while you may see [Characteristic Warnings](https://github.com/homebridge/homebridge/wiki/Characteristic-Warnings) in the logs, these are just issues that were already present prior to v1.3.0 - just hidden from view. You should update your plugins before updating Homebridge.
+
+A large number of plugins have been tested during an extensive beta period, the results can be [viewed here](https://github.com/homebridge/homebridge/wiki/Homebridge-1.3.0-Release-Plugin-Testing-Status).
+
+### Rolling Back
+
+If for any reason Homebridge v1.3.0 is not working for you, you can rollback to a previous version of Homebridge easily using the Homebridge UI:
+
+
+<p align="center">
+<img src="https://user-images.githubusercontent.com/64748380/102620583-d473d380-4103-11eb-827b-276a13503424.gif" width="600px">
+</p>
+
 ## v1.2.5 (2020-12-28)
 
 ### Bug Fixes
