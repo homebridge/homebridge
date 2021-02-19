@@ -76,6 +76,42 @@ If for any reason Homebridge v1.3.0 is not working for you, you can rollback to 
 <img src="https://user-images.githubusercontent.com/64748380/102620583-d473d380-4103-11eb-827b-276a13503424.gif" width="600px">
 </p>
 
+## v1.2.5 (2020-12-28)
+
+### Bug Fixes
+
+* Updated HAP-NodeJS to [v0.8.5](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.8.5) incorporating
+fixes made to the `ciao` mDNS library.  
+  Refer to the release notes of HAP-NodeJS for more techicnal details.
+
+## v1.2.4 (2020-12-05)
+
+### Bug Fixes
+
+* Updated the mdns library `ciao` to [v1.1.0](https://github.com/homebridge/ciao/releases/tag/v1.1.0)
+introducing further stability improvements.
+
+## v1.2.3 (2020-09-21)
+
+### Bug Fixes
+
+* Updated the mdns library `ciao` to the latest version
+    * Includes general bug fixes and stability improvements
+    * Improved compatibility with machines running avahi
+    * Fixed handling of updated ip addresses
+    * Fixes for Darwin system running in a VM
+
+## v1.2.2 (2020-09-16)
+
+### Bug Fixes
+
+* Added a warning when a plugin takes too long to load and prevents homebridge from starting.
+* Update hap-nodejs to v0.8.2 resolving some advertising issues on some uncommon platforms
+
+#### For Developers
+
+* Updated the typing of the accessory context to be any again to allow less strict typing. Though we encourage you to write your own Type Definition for better type safety!
+
 ## v1.2.1 (2020-09-15)
 
 ### Bug Fixes
