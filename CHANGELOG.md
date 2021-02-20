@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file. This projec
 
 ## v1.3.0 (2021-02-20)
 
+### Pre-Update Checklist
+
+Please make sure you have done the following before updating:
+
+* Updated all existing plugins to their latest version.
+* Create a [backup](https://github.com/homebridge/homebridge/wiki/Backup-and-Restore) of your Homebridge instance.
+* Review the [mDNS Options](https://github.com/homebridge/homebridge/wiki/mDNS-Options) that you may need to adjust after updating to Homebridge v1.3.0.
+
 ### Adaptive Lighting
 
 The new Adaptive Lightning feature introduced with iOS 14 can now be used by plugin developers. Most of the actively maintained plugins already secretly added support for it.
@@ -41,9 +49,13 @@ The default for new users will be `Bonjour HAP`, you can swap between the two fr
 <img src="https://user-images.githubusercontent.com/3979615/108302458-21555280-71f8-11eb-8273-0e604ded60eb.png" width="600px">
 </p>
 
+See https://github.com/homebridge/homebridge/wiki/mDNS-Options for more information.
+
 ### Breaking Changes
 
-* The `"mdns"."interface"` option has been removed, please use `"bridge"."bind"` instead. This new option takes an array of interface names or IP addresses. You can also configure this option using the "Network Interfaces" option under the Homebridge Settings section of the UI.
+The `"mdns"."interface"` option has been removed, please use `"bridge"."bind"` instead. This new option takes an array of interface names or IP addresses. You can also configure this option using the "Network Interfaces" option under the Homebridge Settings section of the UI.
+
+See https://github.com/homebridge/homebridge/wiki/mDNS-Options for more information.
 
 ### Other Notable Changes
 
@@ -69,8 +81,9 @@ A large number of plugins have been tested during an extensive beta period, the 
 
 ### Rolling Back
 
-If for any reason Homebridge v1.3.0 is not working for you, you can rollback to a previous version of Homebridge easily using the Homebridge UI:
+If for any reason Homebridge v1.3.0 is not working for you, you can rollback to a previous version of Homebridge easily using the Homebridge UI.
 
+See https://github.com/homebridge/homebridge/wiki/How-To-Change-Homebridge-Version for more information.
 
 <p align="center">
 <img src="https://user-images.githubusercontent.com/64748380/102620583-d473d380-4103-11eb-827b-276a13503424.gif" width="600px">
