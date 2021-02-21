@@ -5,21 +5,24 @@ on:
     types: [reopened]
   schedule:
     - cron: '*/60 * * * *'
-  workflow_dispatch:
 
 jobs:
   stale:
     runs-on: ubuntu-latest
+    env:
+      ACTIONS_STEP_DEBUG: true
     steps:
       - uses: actions/stale@v3.0.17
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           stale-issue-message: 'This issue has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs. Thank you for your contributions.'
+          stale-pr-message: 'This pull request has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs. Thank you for your contributions.'
           stale-issue-label: 'stale'
-          days-before-issue-stale: 30
-          days-before-issue-close: 5
-          days-before-pr-close: -1
-          days-before-pr-stale: -1
-          exempt-issue-labels: 'pinned','security'
+          stale-pr-label: 'stale'
+          days-before-stale: 10
+          days-before-close: 1
+          exempt-issue-labels: 'pinned'
+          exempt-pr-labels: 'awaiting-approval,work-in-progress'
           remove-stale-when-updated: true
           close-issue-message: 'This issue has been automatically closed because it has not had recent activity. Thank you for your contributions.'
+          close-pr-message: 'This pull request has been automatically closed because it has not had recent activity. Thank you for your contributions.'
