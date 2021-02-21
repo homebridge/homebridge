@@ -151,20 +151,20 @@ export class BridgeService {
     switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
-        log.warn(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
+        log.info(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
         break;
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
         log.error(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
         break;   
       case CharacteristicWarningType.WARN_MESSAGE:
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
+        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;
       case CharacteristicWarningType.ERROR_MESSAGE:
-        log.error(getLogPrefix(plugin.getPluginIdentifier()), `This plugin threw an error from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
+        log.error(getLogPrefix(plugin.getPluginIdentifier()), `This plugin threw an error from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;
       default: // generic message for yet unknown types
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
+        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;
     }
     if (warning.stack) {

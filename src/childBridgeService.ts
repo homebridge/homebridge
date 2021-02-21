@@ -310,7 +310,14 @@ export class ChildBridgeService {
       pluginConfig: this.pluginConfig,
       bridgeConfig,
       bridgeOptions,
-      homebridgeConfig: this.homebridgeConfig,
+      homebridgeConfig: { // need to break this out to avoid a circular structure to JSON from other plugins modifying their config at runtime.
+        bridge: this.homebridgeConfig.bridge,
+        mdns: this.homebridgeConfig.mdns,
+        ports: this.homebridgeConfig.ports,
+        disabledPlugins: [], // not used by child bridges
+        accessories: [], // not used by child bridges
+        platforms: [], // not used by child bridges
+      },
     });
   }
 
