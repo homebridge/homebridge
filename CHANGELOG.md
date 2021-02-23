@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.3.1 (2021-02-23)
+
+Please make sure you have done the following before updating:
+
+* Read the full [release notes for v1.3.0](https://github.com/homebridge/homebridge/releases/tag/v1.3.0) if you have not already done so.
+* Updated all existing plugins to their latest version.
+* Create a [backup](https://github.com/homebridge/homebridge/wiki/Backup-and-Restore) of your Homebridge instance.
+* Review the [mDNS Options](https://github.com/homebridge/homebridge/wiki/mDNS-Options) that you may need to adjust after updating to Homebridge v1.3.x.
+
+### Notable Changes
+
+* [#2820](https://github.com/homebridge/homebridge/issues/2820) - Automatically correct bad characteristic values provided by plugins in more cases, this should fix the vast majority of problems users were facing after upgrading to v1.3.0.
+* [#2820](https://github.com/homebridge/homebridge/issues/2820) - Fix an issue where a child bridge would not load if another non-child-bridge plugin created a [circular reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Cyclic_object_value) on the plugin's config object at runtime.
+
 ## v1.3.0 (2021-02-20)
 
 ### Pre-Update Checklist
