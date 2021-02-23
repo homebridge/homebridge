@@ -15,6 +15,9 @@ Please make sure you have done the following before updating:
 
 * [#2820](https://github.com/homebridge/homebridge/issues/2820) - Automatically correct bad characteristic values provided by plugins in more cases, this should fix the vast majority of problems users were facing after upgrading to v1.3.0.
 * [#2820](https://github.com/homebridge/homebridge/issues/2820) - Fix an issue where a child bridge would not load if another non-child-bridge plugin created a [circular reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Cyclic_object_value) on the plugin's config object at runtime.
+* [#2799](https://github.com/homebridge/homebridge/issues/2799) - The [Current Temperature](https://developers.homebridge.io/#/characteristic/CurrentTemperature) characteristic now has a default minimum value of `-273.15` down from `0`.
+* Characteristic warning messaging improvements.
+* Update [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS) to [v0.9.2](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.2).
 
 ## v1.3.0 (2021-02-20)
 
