@@ -119,6 +119,11 @@ export class Server {
       this.loadAccessories();
     }
 
+    // start child bridges
+    for (const childBridge of this.childBridges.values()) {
+      childBridge.start();
+    }
+
     // restore cached accessories
     this.bridgeService.restoreCachedPlatformAccessories();
 
@@ -264,26 +269,37 @@ export class Server {
         accessoryConfig._bridge.username = accessoryConfig._bridge.username.toUpperCase();
 
         try {
-          this.validateChildBridgeConfig(PluginType.PLATFORM, accessoryIdentifier, accessoryConfig._bridge);
+          this.validateChildBridgeConfig(PluginType.ACCESSORY, accessoryIdentifier, accessoryConfig._bridge);
         } catch (error) {
           log.error(error.message);
           return;
         }
 
-        const childBridge =  new ChildBridgeService(
-          PluginType.ACCESSORY,
-          accessoryIdentifier,
-          plugin,
-          accessoryConfig,
-          accessoryConfig._bridge,
-          this.config,
-          this.options,
-          this.api,
-          this.ipcService,
-          this.externalPortService,
-        );
+        let childBridge: ChildBridgeService;
 
-        this.childBridges.set(accessoryConfig._bridge.username, childBridge);
+        if (this.childBridges.has(accessoryConfig._bridge.username)) {
+          childBridge = this.childBridges.get(accessoryConfig._bridge.username)!;
+          logger(`Adding to existing child bridge ${accessoryConfig._bridge.username}`);
+        } else {
+          logger(`Initializing child bridge ${accessoryConfig._bridge.username}`);
+          childBridge = new ChildBridgeService(
+            PluginType.ACCESSORY,
+            accessoryIdentifier,
+            plugin,
+            accessoryConfig._bridge,
+            this.config,
+            this.options,
+            this.api,
+            this.ipcService,
+            this.externalPortService,
+          );
+
+          this.childBridges.set(accessoryConfig._bridge.username, childBridge);
+        }
+
+        // add config to child bridge service
+        childBridge.addConfig(accessoryConfig);
+
         return;
       }
 
@@ -356,12 +372,12 @@ export class Server {
           log.error(error.message);
           return;
         }
-        
+
+        logger(`Initializing child bridge ${platformConfig._bridge.username}`);
         const childBridge = new ChildBridgeService(
           PluginType.PLATFORM,
           platformIdentifier,
           plugin, 
-          platformConfig,
           platformConfig._bridge,
           this.config,
           this.options,
@@ -371,6 +387,9 @@ export class Server {
         );
 
         this.childBridges.set(platformConfig._bridge.username, childBridge);
+
+        // add config to child bridge service
+        childBridge.addConfig(platformConfig);
         return;
       }
 
@@ -401,16 +420,26 @@ export class Server {
     }
 
     if (this.childBridges.has(bridgeConfig.username)) {
-      throw new Error(
-        `Error loading the ${identifier} "${identifier}" requested in your config.json - ` +
-        `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each external platform/accessory must have it's own unique username.`,
-      );
+      const childBridge = this.childBridges.get(bridgeConfig.username);
+      if (type === PluginType.PLATFORM) {
+        // only a single platform can exist on one child bridge
+        throw new Error(
+          `Error loading the ${type} "${identifier}" requested in your config.json - ` +
+          `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each platform child bridge must have it's own unique username.`,
+        );
+      } else if (childBridge?.identifier !== identifier) {
+        // only accessories of the same type can be added to the same child bridge
+        throw new Error(
+          `Error loading the ${type} "${identifier}" requested in your config.json - ` +
+        `Duplicate username found in _bridge.username: "${bridgeConfig.username}". You can only group accessories of the same type in a child bridge.`,
+        );
+      }
     }
 
     if (bridgeConfig.username === this.config.bridge.username.toUpperCase()) {
       throw new Error(
-        `Error loading the ${identifier} "${identifier}" requested in your config.json - ` +
-        `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each external platform/accessory must have it's own unique username.`,
+        `Error loading the ${type} "${identifier}" requested in your config.json - ` +
+        `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have it's own unique username.`,
       );
     }
   }
