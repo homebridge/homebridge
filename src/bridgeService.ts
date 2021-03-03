@@ -104,6 +104,10 @@ export interface BridgeOptions extends HomebridgeOptions {
   cachedAccessoriesItemName: string;
 }
 
+export interface CharacteristicWarningOpts {
+  ignoreSlow?: boolean;
+}
+
 export class BridgeService {
   public bridge: Bridge;
   private storageService: StorageService;
@@ -146,12 +150,14 @@ export class BridgeService {
   }
 
   // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
-  public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, warning: CharacteristicWarning): void {
+  public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, opts: CharacteristicWarningOpts, warning: CharacteristicWarning): void {
     const wikiInfo = "See https://git.io/JtMGR for more info.";
     switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
+        if (!opts.ignoreSlow) {
+          log.info(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
+        }
         break;
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
@@ -300,7 +306,7 @@ export class BridgeService {
 
       const platformPlugins = plugin && plugin.getActiveDynamicPlatform(accessory._associatedPlatform!);
       if (plugin) {
-        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory));
+        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory, {}));
       }
 
       if (!platformPlugins) {
@@ -357,7 +363,7 @@ export class BridgeService {
           log.warn("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
         }
 
-        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory));
+        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory, {}));
       } else {
         log.warn("A platform configured a new accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
@@ -413,7 +419,7 @@ export class BridgeService {
           informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
         }
 
-        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory));
+        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory, { ignoreSlow: true }));
       } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) {
         // we did already complain in api.ts if it wasn't a qualified name
         log.warn("A platform configured a external accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
@@ -494,7 +500,7 @@ export class BridgeService {
         informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
       }
 
-      accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory));
+      accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory, {}));
 
       controllers.forEach(controller => {
         accessory.configureController(controller);
@@ -509,7 +515,7 @@ export class BridgeService {
     return new Promise(resolve => {
       // warn the user if the static platform is blocking the startup of Homebridge for to long
       const loadDelayWarningInterval = setInterval(() => {
-        logger.warn("%s is taking a long time to load and preventing Homebridge from starting.", plugin.getPluginIdentifier());
+        log.warn(getLogPrefix(plugin.getPluginIdentifier()), "This plugin is taking long time to load and preventing Homebridge from starting. See https://git.io/JtMGR for more info.");
       }, 20000);
 
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {

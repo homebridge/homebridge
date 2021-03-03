@@ -126,7 +126,6 @@ export class ChildBridgeFork {
     await this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
 
     for (const config of this.pluginConfig) {
-
       if (this.type === PluginType.PLATFORM) {
         const plugin = this.pluginManager.getPluginForPlatform(this.identifier);
         const displayName = config.name || plugin.getPluginIdentifier();
