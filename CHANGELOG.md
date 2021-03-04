@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
 
+## v1.3.2 (2021-03-04)
+
+Please make sure you have done the following before updating:
+
+* Read the full [release notes for v1.3.0](https://github.com/homebridge/homebridge/releases/tag/v1.3.0) if you have not already done so.
+
+### Notable Changes
+
+* [#2845](https://github.com/homebridge/homebridge/issues/2820) - Added the ability for more than one accessory of the same type to be added to a single child bridge. [See docs for more info](https://github.com/homebridge/homebridge/wiki/Child-Bridges#multiple-accessories-on-the-same-child-bridge).
+
+### Other Changes
+
+* Warnings about "slow" plugin characteristics will no longer be shown for external / unbridges accessories (typically Cameras or TVs) as these do not slow down the entire bridge.
+
 ## v1.3.1 (2021-02-23)
 
 Please make sure you have done the following before updating:
