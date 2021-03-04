@@ -16,3 +16,6 @@ lib
 
 # possible local testing storage
 .homebridge
+
+# test
+mock

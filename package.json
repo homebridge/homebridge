@@ -15,7 +15,7 @@
     "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
     "lint": "eslint 'src/**/*.{js,ts,json}'",
     "build": "npm run clean && tsc",
-    "test": "jest",
+    "test": "jest --forceExit --detectOpenHandles",
     "clean": "rimraf lib/",
     "watch": "nodemon",
     "prepublishOnly": "npm run build",
