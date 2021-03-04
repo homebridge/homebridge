@@ -1,7 +1,5 @@
 # Change Log
 
-All notable changes to this project will be documented in this file. This project uses [Semantic Versioning](https://semver.org/).
-
 ## v1.3.2 (2021-03-04)
 
 Please make sure you have done the following before updating:
