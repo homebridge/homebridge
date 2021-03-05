@@ -1,5 +1,16 @@
 # Change Log
 
+## NEXT
+
+### Bug Fixes
+
+* [#2855](https://github.com/homebridge/homebridge/issues/2855) - Fixed an issue to handle the situation where Siri sends unexpected values for the characteristic format type.
+
+### Other Changes
+
+* [#2856](https://github.com/homebridge/homebridge/issues/2856) - Gracefully handle duplicate UUID errors when restoring the accessory cache.
+* Update [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS) to [v0.9.3](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.3).
+
 ## v1.3.2 (2021-03-04)
 
 Please make sure you have done the following before updating:
