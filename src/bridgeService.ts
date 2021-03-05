@@ -323,7 +323,12 @@ export class BridgeService {
         platformPlugins.configureAccessory(accessory);
       }
 
-      this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory);
+      try {
+        this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory);
+      } catch (e) {
+        log.warn(`${accessory._associatedPlugin ? getLogPrefix(accessory._associatedPlugin): ""} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, e?.message);
+        return false; // filter it from the list
+      }
       return true; // keep it in the list
     });
   }
