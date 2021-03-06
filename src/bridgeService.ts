@@ -169,6 +169,9 @@ export class BridgeService {
       case CharacteristicWarningType.ERROR_MESSAGE:
         log.error(getLogPrefix(plugin.getPluginIdentifier()), `This plugin threw an error from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;
+      case CharacteristicWarningType.DEBUG_MESSAGE:
+        log.debug(getLogPrefix(plugin.getPluginIdentifier()), `Characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
+        break;
       default: // generic message for yet unknown types
         log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;

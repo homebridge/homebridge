@@ -47,7 +47,7 @@
     "chalk": "^4.1.0",
     "commander": "5.1.0",
     "fs-extra": "^9.1.0",
-    "hap-nodejs": "0.9.3-beta.5",
+    "hap-nodejs": "0.9.3-beta.6",
     "qrcode-terminal": "^0.12.0",
     "semver": "^7.3.4",
     "source-map-support": "^0.5.19"
