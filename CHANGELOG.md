@@ -1,5 +1,16 @@
 # Change Log
 
+## NEXT
+
+### Bug Fixes
+
+* [#2855](https://github.com/homebridge/homebridge/issues/2855) - Fixed an issue to handle the situation where Siri sends unexpected values for the characteristic format type.
+
+### Other Changes
+
+* [#2856](https://github.com/homebridge/homebridge/issues/2856) - Gracefully handle duplicate UUID errors when restoring the accessory cache.
+* Update [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS) to [v0.9.3](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.3).
+
 ## v1.3.2 (2021-03-04)
 
 Please make sure you have done the following before updating:
@@ -8,11 +19,11 @@ Please make sure you have done the following before updating:
 
 ### Notable Changes
 
-* [#2845](https://github.com/homebridge/homebridge/issues/2820) - Added the ability for more than one accessory of the same type to be added to a single child bridge. [See docs for more info](https://github.com/homebridge/homebridge/wiki/Child-Bridges#multiple-accessories-on-the-same-child-bridge).
+* [#2849](https://github.com/homebridge/homebridge/issues/2849) - Added the ability for more than one accessory of the same type to be added to a single child bridge. [See docs for more info](https://github.com/homebridge/homebridge/wiki/Child-Bridges#multiple-accessories-on-the-same-child-bridge).
 
 ### Other Changes
 
-* Warnings about "slow" plugin characteristics will no longer be shown for external / unbridges accessories (typically Cameras or TVs) as these do not slow down the entire bridge.
+* Warnings about "slow" plugin characteristics will no longer be shown for external / unbridged accessories (typically Cameras or TVs) as these do not slow down the entire bridge.
 
 ## v1.3.1 (2021-02-23)
 

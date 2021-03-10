@@ -2,13 +2,17 @@ import fs from "fs";
 import chalk from "chalk";
 import qrcode from "qrcode-terminal";
 
-import { MacAddress, MDNSAdvertiser } from "hap-nodejs";
 import * as mac from "./util/mac";
 import { Logger } from "./logger";
 import { User } from "./user";
 import { Plugin } from "./plugin";
 import { ChildBridgeService } from "./childBridgeService";
 import { ExternalPortService } from "./externalPortService";
+import {
+  AccessoryEventTypes,
+  MacAddress,
+  MDNSAdvertiser,
+} from "hap-nodejs";
 import {
   IpcIncomingEvent,
   IpcOutgoingEvent,
@@ -50,6 +54,23 @@ export interface HomebridgeOptions {
   customStoragePath?: string;
 }
 
+export const enum ServerStatus {
+  /**
+   * When the server is starting up
+   */
+  PENDING = "pending",
+
+  /**
+   * When the server is online and has published the main bridge
+   */
+  OK = "ok",
+
+  /**
+   * When the server is shutting down
+   */
+  DOWN = "down",
+}
+
 export class Server {
   private readonly api: HomebridgeAPI;
   private readonly pluginManager: PluginManager;
@@ -62,6 +83,9 @@ export class Server {
   // used to keep track of child bridges
   private readonly childBridges: Map<MacAddress, ChildBridgeService> = new Map();
 
+  // current server status
+  private serverStatus: ServerStatus = ServerStatus.PENDING;
+
   constructor(
     private options: HomebridgeOptions = {},
   ) {
@@ -71,6 +95,9 @@ export class Server {
     this.api = new HomebridgeAPI(); 
     this.ipcService = new IpcService();
     this.externalPortService = new ExternalPortService(this.config.ports);
+
+    // set status to pending
+    this.setServerStatus(ServerStatus.PENDING);
 
     // create new plugin manager
     const pluginManagerOptions: PluginManagerOptions = {
@@ -97,6 +124,22 @@ export class Server {
       this.config.bridge,
       this.config,
     );
+
+    // watch bridge events to check when server is online
+    this.bridgeService.bridge.on(AccessoryEventTypes.LISTENING, () => {
+      this.setServerStatus(ServerStatus.OK);
+    });
+  }
+
+  /**
+   * Set the current server status and update parent via IPC
+   * @param status 
+   */
+  private setServerStatus(status: ServerStatus) {
+    this.serverStatus = status;
+    this.ipcService.sendMessage(IpcOutgoingEvent.SERVER_STATUS_UPDATE, {
+      status: this.serverStatus,
+    });
   }
 
   public async start(): Promise<void> {
@@ -136,6 +179,7 @@ export class Server {
 
   public teardown(): void {
     this.bridgeService.teardown();
+    this.setServerStatus(ServerStatus.DOWN);
   }
 
   private publishBridge(): void {
