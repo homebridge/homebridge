@@ -1,10 +1,10 @@
 # Change Log
 
-## NEXT
+## v1.3.3 (2021-03-10)
 
 ### Bug Fixes
 
-* [#2855](https://github.com/homebridge/homebridge/issues/2855) - Fixed an issue to handle the situation where Siri sends unexpected values for the characteristic format type.
+* [#2855](https://github.com/homebridge/homebridge/issues/2855) - Fixed an issue to handle the situation where Siri or a Home Hub sends unexpected values for the characteristic format type. This should fix the situations where accessories could be controlled from the Home app, but not via Siri and/or automations.
 
 ### Other Changes
 
