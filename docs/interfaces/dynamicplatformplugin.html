@@ -66,9 +66,7 @@
 			<section class="tsd-panel tsd-comment">
 				<div class="tsd-comment tsd-typography">
 					<div class="lead">
-						<p>Platform that is able to dynamically add or remove accessories.
-							All configured accessories are stored to disk and recreated on startup.
-						Accessories can be added or removed by using <a href="api.html#registerplatformaccessories">API.registerPlatformAccessories</a> or <a href="api.html#unregisterplatformaccessories">API.unregisterPlatformAccessories</a>.</p>
+						<p>Export types for basically everything but the actual API implementation</p>
 					</div>
 				</div>
 			</section>
@@ -104,13 +102,13 @@
 					<a name="configureaccessory" class="tsd-anchor"></a>
 					<h3>configure<wbr>Accessory</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-interface">
-						<li class="tsd-signature tsd-kind-icon">configure<wbr>Accessory<span class="tsd-signature-symbol">(</span>accessory<span class="tsd-signature-symbol">: </span><a href="../classes/platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
+						<li class="tsd-signature tsd-kind-icon">configure<wbr>Accessory<span class="tsd-signature-symbol">(</span>accessory<span class="tsd-signature-symbol">: </span><a href="../classes/platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/api.ts#L105">api.ts:105</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/api.ts#L105">api.ts:105</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -123,7 +121,7 @@
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>accessory: <a href="../classes/platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h5>
+									<h5>accessory: <a href="../classes/platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span></h5>
 									<div class="tsd-comment tsd-typography">
 										<p>which needs to be configured</p>
 									</div>

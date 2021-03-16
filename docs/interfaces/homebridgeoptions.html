@@ -63,6 +63,13 @@
 <div class="container container-main">
 	<div class="row">
 		<div class="col-8 col-content">
+			<section class="tsd-panel tsd-comment">
+				<div class="tsd-comment tsd-typography">
+					<div class="lead">
+						<p>Export server types</p>
+					</div>
+				</div>
+			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
@@ -78,11 +85,14 @@
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#config" class="tsd-kind-icon">config</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#custompluginpath" class="tsd-kind-icon">custom<wbr>Plugin<wbr>Path</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#customstoragepath" class="tsd-kind-icon">custom<wbr>Storage<wbr>Path</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#debugmodeenabled" class="tsd-kind-icon">debug<wbr>Mode<wbr>Enabled</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#forcecolourlogging" class="tsd-kind-icon">force<wbr>Colour<wbr>Logging</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#hideqrcode" class="tsd-kind-icon">hideQRCode</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#insecureaccess" class="tsd-kind-icon">insecure<wbr>Access</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#keeporphanedcachedaccessories" class="tsd-kind-icon">keep<wbr>Orphaned<wbr>Cached<wbr>Accessories</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="homebridgeoptions.html#nologtimestamps" class="tsd-kind-icon">no<wbr>Log<wbr>Timestamps</a></li>
 							</ul>
 						</section>
 					</div>
@@ -91,52 +101,82 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="config" class="tsd-anchor"></a>
-					<h3><span class="tsd-flag ts-flagOptional">Optional</span> config</h3>
-					<div class="tsd-signature tsd-kind-icon">config<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="homebridgeconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">HomebridgeConfig</a></div>
+					<a name="custompluginpath" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> custom<wbr>Plugin<wbr>Path</h3>
+					<div class="tsd-signature tsd-kind-icon">custom<wbr>Plugin<wbr>Path<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L50">server.ts:50</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/server.ts#L50">server.ts:50</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="custompluginpath" class="tsd-anchor"></a>
-					<h3><span class="tsd-flag ts-flagOptional">Optional</span> custom<wbr>Plugin<wbr>Path</h3>
-					<div class="tsd-signature tsd-kind-icon">custom<wbr>Plugin<wbr>Path<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<a name="customstoragepath" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> custom<wbr>Storage<wbr>Path</h3>
+					<div class="tsd-signature tsd-kind-icon">custom<wbr>Storage<wbr>Path<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L54">server.ts:54</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/server.ts#L54">server.ts:54</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="debugmodeenabled" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> debug<wbr>Mode<wbr>Enabled</h3>
+					<div class="tsd-signature tsd-kind-icon">debug<wbr>Mode<wbr>Enabled<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/server.ts#L52">server.ts:52</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="forcecolourlogging" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> force<wbr>Colour<wbr>Logging</h3>
+					<div class="tsd-signature tsd-kind-icon">force<wbr>Colour<wbr>Logging<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/server.ts#L53">server.ts:53</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="hideqrcode" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> hideQRCode</h3>
-					<div class="tsd-signature tsd-kind-icon">hideQRCode<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">boolean</span></div>
+					<div class="tsd-signature tsd-kind-icon">hideQRCode<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L52">server.ts:52</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/server.ts#L48">server.ts:48</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="insecureaccess" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> insecure<wbr>Access</h3>
-					<div class="tsd-signature tsd-kind-icon">insecure<wbr>Access<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">boolean</span></div>
+					<div class="tsd-signature tsd-kind-icon">insecure<wbr>Access<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L53">server.ts:53</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/server.ts#L49">server.ts:49</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="keeporphanedcachedaccessories" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> keep<wbr>Orphaned<wbr>Cached<wbr>Accessories</h3>
-					<div class="tsd-signature tsd-kind-icon">keep<wbr>Orphaned<wbr>Cached<wbr>Accessories<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">boolean</span></div>
+					<div class="tsd-signature tsd-kind-icon">keep<wbr>Orphaned<wbr>Cached<wbr>Accessories<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L51">server.ts:51</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/server.ts#L47">server.ts:47</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="nologtimestamps" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> no<wbr>Log<wbr>Timestamps</h3>
+					<div class="tsd-signature tsd-kind-icon">no<wbr>Log<wbr>Timestamps<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/server.ts#L51">server.ts:51</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -203,10 +243,16 @@
 						<a href="homebridgeoptions.html" class="tsd-kind-icon">Homebridge<wbr>Options</a>
 						<ul>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="homebridgeoptions.html#config" class="tsd-kind-icon">config</a>
+								<a href="homebridgeoptions.html#custompluginpath" class="tsd-kind-icon">custom<wbr>Plugin<wbr>Path</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="homebridgeoptions.html#custompluginpath" class="tsd-kind-icon">custom<wbr>Plugin<wbr>Path</a>
+								<a href="homebridgeoptions.html#customstoragepath" class="tsd-kind-icon">custom<wbr>Storage<wbr>Path</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="homebridgeoptions.html#debugmodeenabled" class="tsd-kind-icon">debug<wbr>Mode<wbr>Enabled</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="homebridgeoptions.html#forcecolourlogging" class="tsd-kind-icon">force<wbr>Colour<wbr>Logging</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="homebridgeoptions.html#hideqrcode" class="tsd-kind-icon">hideQRCode</a>
@@ -216,6 +262,9 @@
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="homebridgeoptions.html#keeporphanedcachedaccessories" class="tsd-kind-icon">keep<wbr>Orphaned<wbr>Cached<wbr>Accessories</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="homebridgeoptions.html#nologtimestamps" class="tsd-kind-icon">no<wbr>Log<wbr>Timestamps</a>
 							</li>
 						</ul>
 					</li>

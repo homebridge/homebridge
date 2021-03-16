@@ -63,6 +63,13 @@
 <div class="container container-main">
 	<div class="row">
 		<div class="col-8 col-content">
+			<section class="tsd-panel tsd-comment">
+				<div class="tsd-comment tsd-typography">
+					<div class="lead">
+						<p>Export types for basically everything but the actual API implementation</p>
+					</div>
+				</div>
+			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
@@ -91,9 +98,31 @@
 				<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-interface">
 					<a name="getcontrollers" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> get<wbr>Controllers</h3>
-					<div class="tsd-signature tsd-kind-icon">get<wbr>Controllers<span class="tsd-signature-symbol">:</span></div>
-					<aside class="tsd-sources">
-					</aside>
+					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-interface">
+						<li class="tsd-signature tsd-kind-icon">get<wbr>Controllers<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Controller</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">ControllerServiceMap</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">[]</span></li>
+					</ul>
+					<ul class="tsd-descriptions">
+						<li class="tsd-description">
+							<aside class="tsd-sources">
+								<ul>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/api.ts#L80">api.ts:80</a></li>
+								</ul>
+							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>This method will be called once on startup, to query all controllers to be exposed by the Accessory.
+									It is optional to implement.</p>
+								</div>
+								<p>This includes controllers like the RemoteController or the CameraController.
+									Any necessary controller specific setup should have been done when returning the array.
+								In most cases the plugin will only return a array of the size 1.</p>
+								<p>In the case that the Plugin does not add any additional services (returned by <a href="accessoryplugin.html#getservices">getServices</a>) the
+								method <a href="accessoryplugin.html#getservices">getServices</a> must defined in any way and should just return an empty array.</p>
+							</div>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Controller</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">ControllerServiceMap</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">[]</span></h4>
+							<p>controllers - returned controllers will be configured for the Accessory</p>
+						</li>
+					</ul>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-interface">
 					<a name="getservices" class="tsd-anchor"></a>
@@ -105,7 +134,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/api.ts#L65">api.ts:65</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/api.ts#L65">api.ts:65</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -122,9 +151,24 @@
 				<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-interface">
 					<a name="identify" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> identify</h3>
-					<div class="tsd-signature tsd-kind-icon">identify<span class="tsd-signature-symbol">:</span></div>
-					<aside class="tsd-sources">
-					</aside>
+					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-interface">
+						<li class="tsd-signature tsd-kind-icon">identify<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
+					</ul>
+					<ul class="tsd-descriptions">
+						<li class="tsd-description">
+							<aside class="tsd-sources">
+								<ul>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/api.ts#L57">api.ts:57</a></li>
+								</ul>
+							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>Optional method which will be called if a &#39;identify&#39; of a Accessory is requested by HomeKit.</p>
+								</div>
+							</div>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+						</li>
+					</ul>
 				</section>
 			</section>
 		</div>

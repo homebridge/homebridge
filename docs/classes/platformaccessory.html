@@ -63,6 +63,13 @@
 <div class="container container-main">
 	<div class="row">
 		<div class="col-8 col-content">
+			<section class="tsd-panel tsd-comment">
+				<div class="tsd-comment tsd-typography">
+					<div class="lead">
+						<p>Export Platform Accessory Types</p>
+					</div>
+				</div>
+			</section>
 			<section class="tsd-panel tsd-type-parameters">
 				<h3>Type parameters</h3>
 				<ul class="tsd-type-parameters">
@@ -119,6 +126,7 @@
 								<li class="tsd-kind-method tsd-parent-kind-class tsd-has-type-parameter"><a href="platformaccessory.html#getservicebyid" class="tsd-kind-icon">get<wbr>Service<wbr>ById</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class tsd-has-type-parameter"><a href="platformaccessory.html#getservicebyuuidandsubtype" class="tsd-kind-icon">get<wbr>Service<wbr>ByUUIDAnd<wbr>Sub<wbr>Type</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="platformaccessory.html#on" class="tsd-kind-icon">on</a></li>
+								<li class="tsd-kind-method tsd-parent-kind-class"><a href="platformaccessory.html#removecontroller" class="tsd-kind-icon">remove<wbr>Controller</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="platformaccessory.html#removeservice" class="tsd-kind-icon">remove<wbr>Service</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="platformaccessory.html#updatereachability" class="tsd-kind-icon">update<wbr>Reachability</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class tsd-is-static"><a href="platformaccessory.html#deserialize" class="tsd-kind-icon">deserialize</a></li>
@@ -134,19 +142,19 @@
 					<a name="constructor" class="tsd-anchor"></a>
 					<h3>constructor</h3>
 					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class tsd-has-type-parameter">
-						<li class="tsd-signature tsd-kind-icon">new <wbr>Platform<wbr>Accessory&lt;T&gt;<span class="tsd-signature-symbol">(</span>displayName<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span>, uuid<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span>, category<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">OTHER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">BRIDGE</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">FAN</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">GARAGE_DOOR_OPENER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">LIGHTBULB</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">DOOR_LOCK</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">OUTLET</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SWITCH</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">THERMOSTAT</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SENSOR</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ALARM_SYSTEM</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">DOOR</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">WINDOW</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">WINDOW_COVERING</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">PROGRAMMABLE_SWITCH</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">RANGE_EXTENDER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">CAMERA</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">VIDEO_DOORBELL</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_PURIFIER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_HEATER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_CONDITIONER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_HUMIDIFIER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_DEHUMIDIFIER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">APPLE_TV</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">HOMEPOD</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SPEAKER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIRPORT</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SPRINKLER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">FAUCET</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SHOWER_HEAD</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">TELEVISION</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">TARGET_CONTROLLER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ROUTER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AUDIO_RECEIVER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">TV_SET_TOP_BOX</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">TV_STREAMING_STICK</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span></li>
+						<li class="tsd-signature tsd-kind-icon">new <wbr>Platform<wbr>Accessory&lt;T&gt;<span class="tsd-signature-symbol">(</span>displayName<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span>, uuid<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span>, category<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Categories</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L64">platformAccessory.ts:64</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L64">platformAccessory.ts:64</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-type-parameters-title">Type parameters</h4>
 							<ul class="tsd-type-parameters">
 								<li>
-									<h4>T<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span> = <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span></h4>
+									<h4>T<span class="tsd-signature-symbol">: </span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a> = <a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a></h4>
 								</li>
 							</ul>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -158,7 +166,7 @@
 									<h5>uuid: <span class="tsd-signature-type">string</span></h5>
 								</li>
 								<li>
-									<h5><span class="tsd-flag ts-flagOptional">Optional</span> category: <span class="tsd-signature-type">OTHER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">BRIDGE</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">FAN</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">GARAGE_DOOR_OPENER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">LIGHTBULB</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">DOOR_LOCK</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">OUTLET</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SWITCH</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">THERMOSTAT</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SENSOR</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ALARM_SYSTEM</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">DOOR</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">WINDOW</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">WINDOW_COVERING</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">PROGRAMMABLE_SWITCH</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">RANGE_EXTENDER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">CAMERA</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">VIDEO_DOORBELL</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_PURIFIER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_HEATER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_CONDITIONER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_HUMIDIFIER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIR_DEHUMIDIFIER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">APPLE_TV</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">HOMEPOD</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SPEAKER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AIRPORT</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SPRINKLER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">FAUCET</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">SHOWER_HEAD</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">TELEVISION</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">TARGET_CONTROLLER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ROUTER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">AUDIO_RECEIVER</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">TV_SET_TOP_BOX</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">TV_STREAMING_STICK</span></h5>
+									<h5><span class="tsd-flag ts-flagOptional">Optional</span> category: <span class="tsd-signature-type">Categories</span></h5>
 								</li>
 							</ul>
 							<h4 class="tsd-returns-title">Returns <a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
@@ -174,7 +182,7 @@
 					<div class="tsd-signature tsd-kind-icon">UUID<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L52">platformAccessory.ts:52</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L52">platformAccessory.ts:52</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -184,27 +192,27 @@
 					<div class="tsd-signature tsd-kind-icon">_associatedHAPAccessory<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Accessory</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L48">platformAccessory.ts:48</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L48">platformAccessory.ts:48</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
 					<a name="_associatedplatform" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> _associated<wbr>Platform</h3>
-					<div class="tsd-signature tsd-kind-icon">_associated<wbr>Platform<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">_associated<wbr>Platform<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L46">platformAccessory.ts:46</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L46">platformAccessory.ts:46</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
 					<a name="_associatedplugin" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> _associated<wbr>Plugin</h3>
-					<div class="tsd-signature tsd-kind-icon">_associated<wbr>Plugin<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">_associated<wbr>Plugin<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L45">platformAccessory.ts:45</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L45">platformAccessory.ts:45</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -214,7 +222,7 @@
 					<div class="tsd-signature tsd-kind-icon">category<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Categories</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L53">platformAccessory.ts:53</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L53">platformAccessory.ts:53</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -224,7 +232,7 @@
 					<div class="tsd-signature tsd-kind-icon">context<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">T</span><span class="tsd-signature-symbol"> = ...</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L64">platformAccessory.ts:64</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L64">platformAccessory.ts:64</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -239,7 +247,7 @@
 					<div class="tsd-signature tsd-kind-icon">display<wbr>Name<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L51">platformAccessory.ts:51</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L51">platformAccessory.ts:51</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -249,7 +257,7 @@
 					<div class="tsd-signature tsd-kind-icon">reachable<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol"> = false</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L58">platformAccessory.ts:58</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L58">platformAccessory.ts:58</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -266,7 +274,7 @@
 					<div class="tsd-signature tsd-kind-icon">services<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Service</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol"> = ...</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L54">platformAccessory.ts:54</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L54">platformAccessory.ts:54</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -283,7 +291,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L92">platformAccessory.ts:92</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L92">platformAccessory.ts:92</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -309,7 +317,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L132">platformAccessory.ts:132</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L132">platformAccessory.ts:132</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -339,13 +347,21 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L136">platformAccessory.ts:136</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L142">platformAccessory.ts:142</a></li>
 								</ul>
 							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>Configures a new controller for the given accessory.
+									See <a href="https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#configurecontroller" class="external">Accessory.configureController</a>.</p>
+								</div>
+							</div>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
 									<h5>controller: <span class="tsd-signature-type">Controller</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">ControllerServiceMap</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ControllerConstructor</span></h5>
+									<div class="tsd-comment tsd-typography">
+									</div>
 								</li>
 							</ul>
 							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
@@ -362,7 +378,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L35">platformAccessory.ts:35</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L35">platformAccessory.ts:35</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -385,7 +401,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L100">platformAccessory.ts:100</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L100">platformAccessory.ts:100</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-type-parameters-title">Type parameters</h4>
@@ -414,7 +430,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L114">platformAccessory.ts:114</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L114">platformAccessory.ts:114</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-type-parameters-title">Type parameters</h4>
@@ -446,7 +462,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L110">platformAccessory.ts:110</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L110">platformAccessory.ts:110</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -485,7 +501,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L33">platformAccessory.ts:33</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L33">platformAccessory.ts:33</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -514,6 +530,37 @@
 					</ul>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class">
+					<a name="removecontroller" class="tsd-anchor"></a>
+					<h3>remove<wbr>Controller</h3>
+					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+						<li class="tsd-signature tsd-kind-icon">remove<wbr>Controller<span class="tsd-signature-symbol">(</span>controller<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Controller</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">ControllerServiceMap</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
+					</ul>
+					<ul class="tsd-descriptions">
+						<li class="tsd-description">
+							<aside class="tsd-sources">
+								<ul>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L152">platformAccessory.ts:152</a></li>
+								</ul>
+							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>Removes a configured controller from the given accessory.
+									See <a href="https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#removecontroller" class="external">Accessory.removeController</a>.</p>
+								</div>
+							</div>
+							<h4 class="tsd-parameters-title">Parameters</h4>
+							<ul class="tsd-parameters">
+								<li>
+									<h5>controller: <span class="tsd-signature-type">Controller</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">ControllerServiceMap</span><span class="tsd-signature-symbol">&gt;</span></h5>
+									<div class="tsd-comment tsd-typography">
+									</div>
+								</li>
+							</ul>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+						</li>
+					</ul>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class">
 					<a name="removeservice" class="tsd-anchor"></a>
 					<h3>remove<wbr>Service</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
@@ -523,7 +570,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L96">platformAccessory.ts:96</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L96">platformAccessory.ts:96</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -546,7 +593,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L123">platformAccessory.ts:123</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L123">platformAccessory.ts:123</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -570,22 +617,22 @@
 					<a name="deserialize" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagStatic">Static</span> deserialize</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class tsd-is-static">
-						<li class="tsd-signature tsd-kind-icon">deserialize<span class="tsd-signature-symbol">(</span>json<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">SerializedPlatformAccessory</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></li>
+						<li class="tsd-signature tsd-kind-icon">deserialize<span class="tsd-signature-symbol">(</span>json<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">SerializedPlatformAccessory</span><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L150">platformAccessory.ts:150</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L166">platformAccessory.ts:166</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>json: <span class="tsd-signature-type">SerializedPlatformAccessory</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h5>
+									<h5>json: <span class="tsd-signature-type">SerializedPlatformAccessory</span><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4>
+							<h4 class="tsd-returns-title">Returns <a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -593,22 +640,22 @@
 					<a name="serialize" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagStatic">Static</span> serialize</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class tsd-is-static">
-						<li class="tsd-signature tsd-kind-icon">serialize<span class="tsd-signature-symbol">(</span>accessory<span class="tsd-signature-symbol">: </span><a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">SerializedPlatformAccessory</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></li>
+						<li class="tsd-signature tsd-kind-icon">serialize<span class="tsd-signature-symbol">(</span>accessory<span class="tsd-signature-symbol">: </span><a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">SerializedPlatformAccessory</span><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/platformAccessory.ts#L141">platformAccessory.ts:141</a></li>
+									<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/platformAccessory.ts#L157">platformAccessory.ts:157</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>accessory: <a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h5>
+									<h5>accessory: <a href="platformaccessory.html" class="tsd-signature-type" data-tsd-kind="Class">PlatformAccessory</a><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">SerializedPlatformAccessory</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">SerializedPlatformAccessory</span><span class="tsd-signature-symbol">&lt;</span><a href="../modules.html#unknowncontext" class="tsd-signature-type" data-tsd-kind="Type alias">UnknownContext</a><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -697,6 +744,9 @@
 							</li>
 							<li class=" tsd-kind-method tsd-parent-kind-class">
 								<a href="platformaccessory.html#on" class="tsd-kind-icon">on</a>
+							</li>
+							<li class=" tsd-kind-method tsd-parent-kind-class">
+								<a href="platformaccessory.html#removecontroller" class="tsd-kind-icon">remove<wbr>Controller</a>
 							</li>
 							<li class=" tsd-kind-method tsd-parent-kind-class">
 								<a href="platformaccessory.html#removeservice" class="tsd-kind-icon">remove<wbr>Service</a>

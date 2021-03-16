@@ -63,6 +63,13 @@
 <div class="container container-main">
 	<div class="row">
 		<div class="col-8 col-content">
+			<section class="tsd-panel tsd-comment">
+				<div class="tsd-comment tsd-typography">
+					<div class="lead">
+						<p>Export bridge types</p>
+					</div>
+				</div>
+			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
@@ -78,7 +85,9 @@
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="bridgeconfiguration.html#advertiser" class="tsd-kind-icon">advertiser</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="bridgeconfiguration.html#bind" class="tsd-kind-icon">bind</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="bridgeconfiguration.html#disableipc" class="tsd-kind-icon">disable<wbr>Ipc</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="bridgeconfiguration.html#manufacturer" class="tsd-kind-icon">manufacturer</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="bridgeconfiguration.html#model" class="tsd-kind-icon">model</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="bridgeconfiguration.html#name" class="tsd-kind-icon">name</a></li>
@@ -94,32 +103,52 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="bind" class="tsd-anchor"></a>
-					<h3><span class="tsd-flag ts-flagOptional">Optional</span> bind</h3>
-					<div class="tsd-signature tsd-kind-icon">bind<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
+					<a name="advertiser" class="tsd-anchor"></a>
+					<h3>advertiser</h3>
+					<div class="tsd-signature tsd-kind-icon">advertiser<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">MDNSAdvertiser</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L82">server.ts:82</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L53">bridgeService.ts:53</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="bind" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> bind</h3>
+					<div class="tsd-signature tsd-kind-icon">bind<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L55">bridgeService.ts:55</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="disableipc" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> disable<wbr>Ipc</h3>
+					<div class="tsd-signature tsd-kind-icon">disable<wbr>Ipc<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L59">bridgeService.ts:59</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="manufacturer" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> manufacturer</h3>
-					<div class="tsd-signature tsd-kind-icon">manufacturer<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">manufacturer<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L86">server.ts:86</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L57">bridgeService.ts:57</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="model" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> model</h3>
-					<div class="tsd-signature tsd-kind-icon">model<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">model<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L87">server.ts:87</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L58">bridgeService.ts:58</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -129,7 +158,7 @@
 					<div class="tsd-signature tsd-kind-icon">name<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L77">server.ts:77</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L50">bridgeService.ts:50</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -139,27 +168,27 @@
 					<div class="tsd-signature tsd-kind-icon">pin<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L79">server.ts:79</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L52">bridgeService.ts:52</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="port" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> port</h3>
-					<div class="tsd-signature tsd-kind-icon">port<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">number</span></div>
+					<div class="tsd-signature tsd-kind-icon">port<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L80">server.ts:80</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L54">bridgeService.ts:54</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="setupid" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> setupID</h3>
-					<div class="tsd-signature tsd-kind-icon">setupID<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">setupID<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L84">server.ts:84</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L56">bridgeService.ts:56</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -169,7 +198,7 @@
 					<div class="tsd-signature tsd-kind-icon">username<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/1c64691/src/server.ts#L78">server.ts:78</a></li>
+							<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/dee3719/src/bridgeService.ts#L51">bridgeService.ts:51</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -224,7 +253,13 @@
 						<a href="bridgeconfiguration.html" class="tsd-kind-icon">Bridge<wbr>Configuration</a>
 						<ul>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="bridgeconfiguration.html#advertiser" class="tsd-kind-icon">advertiser</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="bridgeconfiguration.html#bind" class="tsd-kind-icon">bind</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="bridgeconfiguration.html#disableipc" class="tsd-kind-icon">disable<wbr>Ipc</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="bridgeconfiguration.html#manufacturer" class="tsd-kind-icon">manufacturer</a>
