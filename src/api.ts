@@ -41,7 +41,7 @@ export interface PluginInitializer {
    *
    * @param {API} api
    */
-  (api: API): void;
+  (api: API): void | Promise<void>;
 
 }
 

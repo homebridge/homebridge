@@ -200,12 +200,12 @@ major incompatibility issues and thus is considered bad practice. Please inform 
     }
   }
 
-  public initialize(api: API): void {
+  public initialize(api: API): void | Promise<void> {
     if (!this.pluginInitializer) {
       throw new Error("Tried to initialize a plugin which hasn't been loaded yet!");
     }
 
-    this.pluginInitializer(api);
+    return this.pluginInitializer(api);
   }
 
 
