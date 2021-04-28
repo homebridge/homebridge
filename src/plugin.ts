@@ -20,6 +20,9 @@ import { PackageJSON, PluginManager } from "./pluginManager";
 
 const log = Logger.internal;
 
+// Workaround for https://github.com/microsoft/TypeScript/issues/43329
+const _importDynamic = new Function("modulePath", "return import(modulePath)");
+
 /**
  * Represents a loaded Homebridge plugin.
  */
@@ -186,7 +189,7 @@ major incompatibility issues and thus is considered bad practice. Please inform 
 
     // try to require() it and grab the exported initialization hook
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pluginModules = this.isESM ? await import(mainPath) : require(mainPath);
+    const pluginModules = this.isESM ? await _importDynamic(mainPath) : require(mainPath);
 
     if (typeof pluginModules === "function") {
       this.pluginInitializer = pluginModules;
