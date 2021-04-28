@@ -28,6 +28,7 @@ export class Plugin {
   private readonly pluginName: PluginName;
   private readonly scope?: string; // npm package scope
   private readonly pluginPath: string; // like "/usr/local/lib/node_modules/homebridge-lockitron"
+  private readonly isESM: boolean;
 
   public disabled = false; // mark the plugin as disabled
 
@@ -54,6 +55,7 @@ export class Plugin {
 
     this.version = packageJSON.version || "0.0.0";
     this.main = packageJSON.main || "./index.js"; // figure out the main module - index.js unless otherwise specified
+    this.isESM = packageJSON.type === "module";
 
     // very temporary fix for first wave of plugins
     if (packageJSON.peerDependencies && (!packageJSON.engines || !packageJSON.engines.homebridge)) {
@@ -146,7 +148,7 @@ export class Plugin {
     return platforms && platforms[0];
   }
 
-  public load(): void {
+  public async load(): Promise<void> {
     const context = this.loadContext!;
     assert(context, "Reached illegal state. Plugin state is undefined!");
     this.loadContext = undefined; // free up memory
@@ -184,7 +186,7 @@ major incompatibility issues and thus is considered bad practice. Please inform 
 
     // try to require() it and grab the exported initialization hook
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pluginModules = require(mainPath);
+    const pluginModules = this.isESM ? await import(mainPath) : require(mainPath);
 
     if (typeof pluginModules === "function") {
       this.pluginInitializer = pluginModules;

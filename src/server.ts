@@ -153,7 +153,7 @@ export class Server {
     await this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
 
     // initialize plugins
-    this.pluginManager.initializeInstalledPlugins();
+    await this.pluginManager.initializeInstalledPlugins();
 
     if (this.config.platforms.length > 0) {
       promises.push(...this.loadPlatforms());

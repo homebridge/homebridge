@@ -24,6 +24,7 @@ export interface PackageJSON { // incomplete type for package.json (just stuff w
   keywords?: string[];
 
   main?: string;
+  type?: "module" | "commonjs";
 
   engines?: Record<string, string>;
   dependencies?: Record<string, string>;
@@ -116,14 +117,14 @@ export class PluginManager {
     return identifier.split(".")[0];
   }
 
-  public initializeInstalledPlugins(): void {
+  public async initializeInstalledPlugins(): Promise<void> {
     log.info("---");
 
     this.loadInstalledPlugins();
 
-    this.plugins.forEach((plugin: Plugin, identifier: PluginIdentifier) => {
+    for(const [identifier, plugin] of this.plugins) {
       try {
-        plugin.load();
+        await plugin.load();
       } catch (error) {
         log.error("====================");
         log.error(`ERROR LOADING PLUGIN ${identifier}:`);
@@ -144,18 +145,18 @@ export class PluginManager {
         log.info(`Loaded plugin: ${identifier}@${plugin.version}`);
       }
 
-      this.initializePlugin(plugin, identifier);
+      await this.initializePlugin(plugin, identifier);
 
       log.info("---");
-    });
+    }
 
     this.currentInitializingPlugin = undefined;
   }
 
-  public initializePlugin(plugin: Plugin, identifier: string): void {
+  public async initializePlugin(plugin: Plugin, identifier: string): Promise<void> {
     try {
       this.currentInitializingPlugin = plugin;
-      plugin.initialize(this.api); // call the plugin's initializer and pass it our API instance
+      await plugin.initialize(this.api); // call the plugin's initializer and pass it our API instance
     } catch (error) {
       log.error("====================");
       log.error(`ERROR INITIALIZING PLUGIN ${identifier}:`);
