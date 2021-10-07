@@ -1,5 +1,30 @@
 # Change Log
 
+## v1.3.5 (2021-10-08)
+
+## Notable changes
+
+This version adds new services and characteristics introduced with iOS 15.
+
+* `AccessCode` and `NFCAccess` services and corresponding characteristics.
+* Services related to the support of Siri enabled HomeKit devices:
+    * The following services were newly added: `Assistant`, `SiriEndpoint`
+    * The following services received new optional characteristics: `Siri` and `SmartSpeaker`
+
+## Bug Fixes
+
+This release upgrades various dependencies with bug fixes and security fixes.
+
+This includes the `dns-packet` security vulnerability referenced under [CVE-2021-23386](https://github.com/advisories/GHSA-3wcq-x3mq-6r9p).
+Only users who use the `bonjour` mdns advertiser are impacted by this vulnerability.
+
+## v1.3.4 (2021-03-16)
+
+## Bug Fixes
+
+* Fixed a characteristic warning for Cameras or Video Doorbells, which might be emitted on startup under certain conditions.  
+   _This warning had no impact on the functionality of Cameras_.
+
 ## v1.3.3 (2021-03-10)
 
 ### Bug Fixes
