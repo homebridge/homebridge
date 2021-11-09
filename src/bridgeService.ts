@@ -26,6 +26,7 @@ import {
   uuid,
   VoidCallback,
   MDNSAdvertiser,
+  HAPLibraryVersion,
 } from "hap-nodejs";
 import {
   AccessoryIdentifier,
@@ -162,7 +163,7 @@ export class BridgeService {
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
         log.error(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
-        break;   
+        break;
       case CharacteristicWarningType.WARN_MESSAGE:
         log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;
@@ -191,7 +192,7 @@ export class BridgeService {
     info.setCharacteristic(Characteristic.FirmwareRevision, getVersion());
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
-      log.info("Homebridge v%s (%s) is running on port %s.", getVersion(), bridgeConfig.name, port);
+      log.info("Homebridge v%s (HAP v%s) (%s) is running on port %s.", getVersion(), HAPLibraryVersion(), bridgeConfig.name, port);
     });
 
     // noinspection JSDeprecatedSymbols
@@ -210,6 +211,7 @@ export class BridgeService {
       publishInfo.setupID = bridgeConfig.setupID;
     }
 
+    log.debug("Publishing bridge accessory (name: %s, publishInfo: %o).", this.bridge.displayName, BridgeService.strippingPinCode(publishInfo));
     this.bridge.publish(publishInfo, this.allowInsecureAccess);
   }
 
@@ -439,7 +441,7 @@ export class BridgeService {
       });
 
       // noinspection JSDeprecatedSymbols
-      hapAccessory.publish({
+      const publishInfo: PublishInfo = {
         username: advertiseAddress,
         pincode: accessoryPin,
         category: accessory.category,
@@ -448,7 +450,10 @@ export class BridgeService {
         mdns: this.config.mdns, // this is deprecated and not used anymore
         addIdentifyingMaterial: true,
         advertiser: this.bridgeConfig.advertiser,
-      }, this.allowInsecureAccess);
+      };
+
+      log.debug("Publishing external accessory (name: %s, publishInfo: %o).", hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo));
+      hapAccessory.publish(publishInfo, this.allowInsecureAccess);
     }
   }
 
@@ -566,5 +571,11 @@ export class BridgeService {
     this.api.signalShutdown();
   }
 
-
+  private static strippingPinCode(publishInfo: PublishInfo): PublishInfo {
+    const info = {
+      ...publishInfo,
+    };
+    info.pincode = "***-**-***";
+    return info;
+  }
 }
