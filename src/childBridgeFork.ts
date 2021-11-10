@@ -60,7 +60,7 @@ export class ChildBridgeFork {
     }
   }
 
-  loadPlugin(data: ChildProcessLoadEventData): void {
+  async loadPlugin(data: ChildProcessLoadEventData): Promise<void> {
     // set data
     this.type = data.type;
     this.identifier = data.identifier;
@@ -100,9 +100,9 @@ export class ChildBridgeFork {
     this.externalPortService = new ChildBridgeExternalPortService(this);
 
     // load plugin
-    this.plugin = this.pluginManager.loadPlugin(data.pluginPath);
-    this.plugin.load();
-    this.pluginManager.initializePlugin(this.plugin, data.identifier);
+    this.plugin = await this.pluginManager.loadPlugin(data.pluginPath);
+    await this.plugin.load();
+    await this.pluginManager.initializePlugin(this.plugin, data.identifier);
 
     // change process title to include plugin name
     process.title = `homebridge: ${this.plugin.getPluginIdentifier()}`;
