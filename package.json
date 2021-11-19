@@ -15,6 +15,7 @@
     "lint": "eslint 'src/**/*.{js,ts,json}'",
     "build": "npm run clean && tsc",
     "test": "jest --forceExit --detectOpenHandles",
+    "test-coverage": "jest --coverage --forceExit --detectOpenHandles",
     "clean": "rimraf lib/",
     "watch": "nodemon",
     "prepublishOnly": "npm run build",

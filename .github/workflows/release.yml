@@ -1,0 +1,21 @@
+name: Node Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build_and_test:
+    uses: homebridge/.github/.github/workflows/nodejs-build-and-test.yml@main
+    with:
+      enable_coverage: true
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: build_and_test
+    uses: homebridge/.github/.github/workflows/npm-publish.yml@main
+    secrets:
+      npm_auth_token: ${{ secrets.npm_token }}
