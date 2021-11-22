@@ -19,7 +19,7 @@ jobs:
   publish:
     needs: lint
 
-    if: ${{ secrests.npm_token != null }}
+    if: ${{ secrets.npm_token != null }}
 
     uses: homebridge/.github/.github/workflows/npm-publish.yml@main
     with:
