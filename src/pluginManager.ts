@@ -25,10 +25,10 @@ export interface PackageJSON { // incomplete type for package.json (just stuff w
 
   main?: string;
   /**
-   * When set as module, it marks .js file to be treated as ESM. 
+   * When set as module, it marks .js file to be treated as ESM.
    * See https://nodejs.org/dist/latest-v14.x/docs/api/esm.html#esm_enabling
    */
-  type?: "module" | "commonjs"; 
+  type?: "module" | "commonjs";
 
   engines?: Record<string, string>;
   dependencies?: Record<string, string>;
@@ -136,7 +136,7 @@ export class PluginManager {
         log.error("====================");
 
         this.plugins.delete(identifier);
-        return;
+        continue;
       }
 
       if (this.disabledPlugins && this.disabledPlugins.includes(plugin.getPluginIdentifier())) {
@@ -228,7 +228,7 @@ export class PluginManager {
         if (found.length !== 1) {
           throw new Error(`The requested accessory '${accessoryIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`);
         }
-      } 
+      }
 
       plugin = found[0];
       accessoryIdentifier = plugin.getPluginIdentifier() + "." + accessoryIdentifier;
