@@ -1,8 +1,33 @@
 # Change Log
 
+## 1.3.9 (2021-12-29)
+
+### Bug Fixes
+
+- Fixed a crash occurring for any encrypted communication when running NodeJs 17 on linux based machines [#3046](https://github.com/homebridge/homebridge/issues/3046)
+
+
+## 1.3.8 (2021-10-22)
+
+### Featured Changes
+
+- PluginManager would abort plugin loading if one plugin encounters a loading error  [#3017](https://github.com/homebridge/homebridge/issues/3017)
+
+### Other Changes
+
+- Move to centrally managed Issue form templates and GitHub Action workflows [#3011](https://github.com/homebridge/homebridge/issues/3011)
+
+
+## 1.3.6 (2021-11-10)
+
+### Notable changes
+
+* Added support for ESM modules and async plugin initializers [#2915](https://github.com/homebridge/homebridge/issues/2915)
+* Upgraded HAP-NodeJS to [v0.9.7](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.7) providing bug fixes  [#3008](https://github.com/homebridge/homebridge/issues/3008)
+
 ## v1.3.5 (2021-10-08)
 
-## Notable changes
+### Notable changes
 
 This version adds new services and characteristics introduced with iOS 15.
 
@@ -11,7 +36,7 @@ This version adds new services and characteristics introduced with iOS 15.
     * The following services were newly added: `Assistant`, `SiriEndpoint`
     * The following services received new optional characteristics: `Siri` and `SmartSpeaker`
 
-## Bug Fixes
+### Bug Fixes
 
 This release upgrades various dependencies with bug fixes and security fixes.
 
@@ -20,7 +45,7 @@ Only users who use the `bonjour` mdns advertiser are impacted by this vulnerabil
 
 ## v1.3.4 (2021-03-16)
 
-## Bug Fixes
+### Bug Fixes
 
 * Fixed a characteristic warning for Cameras or Video Doorbells, which might be emitted on startup under certain conditions.  
    _This warning had no impact on the functionality of Cameras_.
