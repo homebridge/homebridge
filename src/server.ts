@@ -248,7 +248,7 @@ export class Server {
       if (![
         MDNSAdvertiser.BONJOUR,
         MDNSAdvertiser.CIAO,
-        // TODO MDNSAdvertiser.AVAHI,
+        MDNSAdvertiser.AVAHI,
       ].includes(config.bridge.advertiser)) {
         config.bridge.advertiser = MDNSAdvertiser.BONJOUR;
         log.error(`Value provided in bridge.advertiser is not valid, reverting to "${MDNSAdvertiser.BONJOUR}".`);
