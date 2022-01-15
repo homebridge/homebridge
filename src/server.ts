@@ -250,7 +250,7 @@ export class Server {
         MDNSAdvertiser.AVAHI,
       ].includes(config.bridge.advertiser)) {
         config.bridge.advertiser = undefined;
-        log.error(`Value provided in bridge.advertiser is not valid, reverting to platform default.`);
+        log.error("Value provided in bridge.advertiser is not valid, reverting to platform default.");
       }
     } else {
       config.bridge.advertiser = undefined;
