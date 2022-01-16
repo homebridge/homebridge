@@ -258,7 +258,6 @@ export type  {
   AudioStreamingCodec,
   AudioStreamingOptions,
   ButtonConfiguration,
-  Callback,
   Camera,
   CameraRecordingOptions,
   CameraStreamingOptions,
