@@ -641,6 +641,10 @@ footer {
     border-top: 1px solid var(--color-panel-divider);
     background-color: var(--color-panel);
 }
+footer:after {
+    content: "";
+    display: table;
+}
 footer.with-border-bottom {
     border-bottom: 1px solid var(--color-panel-divider);
 }
