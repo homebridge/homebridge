@@ -195,7 +195,6 @@ export class Server {
       name: "Homebridge",
       username: "CC:22:3D:E3:CE:30",
       pin: "031-45-154",
-      advertiser: MDNSAdvertiser.BONJOUR,
     };
 
     if (!fs.existsSync(configPath)) {
@@ -250,11 +249,11 @@ export class Server {
         MDNSAdvertiser.CIAO,
         MDNSAdvertiser.AVAHI,
       ].includes(config.bridge.advertiser)) {
-        config.bridge.advertiser = MDNSAdvertiser.BONJOUR;
-        log.error(`Value provided in bridge.advertiser is not valid, reverting to "${MDNSAdvertiser.BONJOUR}".`);
+        config.bridge.advertiser = undefined;
+        log.error("Value provided in bridge.advertiser is not valid, reverting to platform default.");
       }
     } else {
-      config.bridge.advertiser = MDNSAdvertiser.BONJOUR;
+      config.bridge.advertiser = undefined;
     }
 
     // Warn existing Homebridge 1.3.0 beta users they need to swap to bridge.advertiser
