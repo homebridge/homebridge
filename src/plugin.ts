@@ -42,7 +42,7 @@ export class Plugin {
   private loadContext?: { // used to store data for a limited time until the load method is called, will be reset afterwards
     engines?: Record<string, string>;
     dependencies?: Record<string, string>;
-  }
+  };
   // ----------------------------------------------------------
 
   private pluginInitializer?: PluginInitializer; // default exported function from the plugin that initializes it
@@ -190,6 +190,10 @@ major incompatibility issues and thus is considered bad practice. Please inform 
 
     // try to require() it and grab the exported initialization hook
     // eslint-disable-next-line @typescript-eslint/no-var-requires
+
+    // pathToFileURL(specifier).href to turn a path into a "file url"
+    // see https://github.com/nodejs/node/issues/31710
+
     const pluginModules = this.isESM ? await _importDynamic(pathToFileURL(mainPath).href) : require(mainPath);
 
     if (typeof pluginModules === "function") {
