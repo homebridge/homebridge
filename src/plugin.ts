@@ -1,5 +1,6 @@
 import path from "path";
 import assert from "assert";
+import { pathToFileURL } from "url";
 import { satisfies } from "semver";
 import getVersion from "./version";
 import { Logger } from "./logger";
@@ -189,7 +190,7 @@ major incompatibility issues and thus is considered bad practice. Please inform 
 
     // try to require() it and grab the exported initialization hook
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pluginModules = this.isESM ? await _importDynamic(mainPath) : require(mainPath);
+    const pluginModules = this.isESM ? await _importDynamic(pathToFileURL(mainPath).href) : require(mainPath);
 
     if (typeof pluginModules === "function") {
       this.pluginInitializer = pluginModules;
