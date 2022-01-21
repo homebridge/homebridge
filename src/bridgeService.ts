@@ -51,7 +51,7 @@ export interface BridgeConfiguration {
   name: string;
   username: MacAddress;
   pin: string; // format like "000-00-000"
-  advertiser: MDNSAdvertiser;
+  advertiser?: MDNSAdvertiser;
   port?: number;
   bind?: (InterfaceName | IPAddress) | (InterfaceName | IPAddress)[];
   setupID?: string[4];

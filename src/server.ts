@@ -18,14 +18,14 @@ import {
   IpcOutgoingEvent,
   IpcService,
 } from "./ipcService";
-import { 
-  PluginManager, 
-  PluginManagerOptions, 
+import {
+  PluginManager,
+  PluginManagerOptions,
 } from "./pluginManager";
-import { 
-  BridgeService, 
-  BridgeConfiguration, 
-  HomebridgeConfig, 
+import {
+  BridgeService,
+  BridgeConfiguration,
+  HomebridgeConfig,
   BridgeOptions,
 } from "./bridgeService";
 import {
@@ -79,7 +79,7 @@ export class Server {
   private readonly externalPortService: ExternalPortService;
 
   private readonly config: HomebridgeConfig;
-  
+
   // used to keep track of child bridges
   private readonly childBridges: Map<MacAddress, ChildBridgeService> = new Map();
 
@@ -92,7 +92,7 @@ export class Server {
     this.config = Server.loadConfig();
 
     // object we feed to Plugins and BridgeService
-    this.api = new HomebridgeAPI(); 
+    this.api = new HomebridgeAPI();
     this.ipcService = new IpcService();
     this.externalPortService = new ExternalPortService(this.config.ports);
 
@@ -133,7 +133,7 @@ export class Server {
 
   /**
    * Set the current server status and update parent via IPC
-   * @param status 
+   * @param status
    */
   private setServerStatus(status: ServerStatus) {
     this.serverStatus = status;
@@ -195,7 +195,6 @@ export class Server {
       name: "Homebridge",
       username: "CC:22:3D:E3:CE:30",
       pin: "031-45-154",
-      advertiser: MDNSAdvertiser.BONJOUR,
     };
 
     if (!fs.existsSync(configPath)) {
@@ -248,12 +247,13 @@ export class Server {
       if (![
         MDNSAdvertiser.BONJOUR,
         MDNSAdvertiser.CIAO,
+        MDNSAdvertiser.AVAHI,
       ].includes(config.bridge.advertiser)) {
-        config.bridge.advertiser = MDNSAdvertiser.BONJOUR;
-        log.error(`Value provided in bridge.advertiser is not valid, reverting to "${MDNSAdvertiser.BONJOUR}".`);
+        config.bridge.advertiser = undefined;
+        log.error("Value provided in bridge.advertiser is not valid, reverting to platform default.");
       }
     } else {
-      config.bridge.advertiser = MDNSAdvertiser.BONJOUR;
+      config.bridge.advertiser = undefined;
     }
 
     // Warn existing Homebridge 1.3.0 beta users they need to swap to bridge.advertiser
@@ -421,7 +421,7 @@ export class Server {
         const childBridge = new ChildBridgeService(
           PluginType.PLATFORM,
           platformIdentifier,
-          plugin, 
+          plugin,
           platformConfig._bridge,
           this.config,
           this.options,
