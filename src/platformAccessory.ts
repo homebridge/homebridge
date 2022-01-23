@@ -28,10 +28,25 @@ export const enum PlatformAccessoryEvent {
   IDENTIFY = "identify",
 }
 
-export declare interface PlatformAccessory {
+export interface PlatformAccessory {
 
   on(event: "identify", listener: () => void): this;
+  on(event: "identify", listener: (paired: boolean) => void): this;
 
+  /**
+   * @deprecated This version with the noopCallback will be removed in a future version
+   */
+  on(event: "identify", listener: (paired: boolean, noopCallback: () => void) => void): this;
+
+  /**
+   * @deprecated Kept for back compat, do not rely on paired or callback.
+   */
+  emit(event: "identify", paired: boolean, callback: () => void): boolean;
+
+  /**
+   * @alpha This is the future supported version of emit("identify"), invalid until
+   *        the next breaking change.
+   */
   emit(event: "identify"): boolean;
 
 }
@@ -80,8 +95,6 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
 
     // forward identify event
     this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       this.emit(PlatformAccessoryEvent.IDENTIFY, paired, () => {}); // empty callback for backwards compatibility
       callback();

@@ -57,6 +57,12 @@ export interface AccessoryPlugin {
   identify?(): void;
 
   /**
+   * @deprecated
+   * @internal Version needed for internal use to maintain js lecel backcompat
+   */
+   identify?(noopCallback: () => void): void;
+
+  /**
    * This method will be called once on startup, to query all services to be exposed by the Accessory.
    * All event handlers for characteristics should be set up before the array is returned.
    *
@@ -120,7 +126,7 @@ export interface StaticPlatformPlugin extends PlatformPlugin {
    *
    * @param {(foundAccessories: AccessoryPlugin[]) => void} callback
    */
-  accessories(callback: (foundAccessories: AccessoryPlugin[]) => void): void;
+  accessories(callback: (foundAccessories: Array<AccessoryPlugin & AccessoryConfig>) => void): void;
 
 }
 

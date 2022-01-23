@@ -38,20 +38,6 @@ export interface Logging {
 
 }
 
-interface IntermediateLogging { // some auxiliary interface used to correctly type stuff happening in "withPrefix"
-
-  prefix?: string;
-
-  (message: string, ...parameters: any[]): void;
-
-  info?(message: string, ...parameters: any[]): void;
-  warn?(message: string, ...parameters: any[]): void;
-  error?(message: string, ...parameters: any[]): void;
-  debug?(message: string, ...parameters: any[]): void;
-  log?(level: LogLevel, message: string, ...parameters: any[]): void;
-
-}
-
 /**
  * Logger class
  */
@@ -59,7 +45,7 @@ export class Logger {
 
   public static readonly internal = new Logger();
 
-  private static readonly loggerCache = new Map<string, Logging>(); // global cache of logger instances by plugin name
+  private static readonly loggerCache = new Map<string, Logging>(); // global cache of Logging instances by plugin name
   private static debugEnabled = false;
   private static timestampEnabled = true;
 
@@ -76,26 +62,22 @@ export class Logger {
    * @param prefix {string} - the prefix of the logger
    */
   static withPrefix(prefix: string): Logging {
-    const loggerStuff = Logger.loggerCache.get(prefix);
+    const cachedLogging = Logger.loggerCache.get(prefix);
 
-    if (loggerStuff) {
-      return loggerStuff;
+    if (cachedLogging) {
+      return cachedLogging;
     } else {
       const logger = new Logger(prefix);
 
-      const log: IntermediateLogging = logger.info.bind(logger);
-      log.info = logger.info;
-      log.warn = logger.warn;
-      log.error = logger.error;
-      log.debug = logger.debug;
-      log.log = logger.log;
+      const logging = Object.assign(logger.info.bind(logger), {
+        info: logger.info,
+        warn: logger.warn,
+        error: logger.error,
+        debug: logger.debug,
+        log: logger.log,
+        prefix: prefix,
+      });
 
-      log.prefix = logger.prefix;
-
-
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      const logging: Logging = log; // i aimed to not use ts-ignore in this project, but this evil "thing" above is hell
       Logger.loggerCache.set(prefix, logging);
       return logging;
     }

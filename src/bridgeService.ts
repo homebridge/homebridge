@@ -60,8 +60,7 @@ export interface BridgeConfiguration {
   disableIpc?: boolean;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface AccessoryConfig extends Record<string, any> {
+export interface AccessoryConfig extends Record<string, unknown> {
   accessory: AccessoryName | AccessoryIdentifier;
   name: string;
   uuid_base?: string;
@@ -481,13 +480,11 @@ export class BridgeService {
       const accessoryUUID = uuid.generate(accessoryType + ":" + (uuidBase || displayName));
       const accessory = new Accessory(displayName, accessoryUUID);
 
-      // listen for the identify event if the accessory instance has defined an identify() method
       if (accessoryInstance.identify) {
+        // listen for the identify event if the accessory instance has defined an identify() method
         accessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
           // eslint-disable-next-line @typescript-eslint/no-empty-function
-          accessoryInstance.identify!(() => { }); // empty callback for backwards compatibility
+          accessoryInstance.identify?.(() => { }); // empty callback for backwards compatibility
           callback();
         });
       }
@@ -531,22 +528,13 @@ export class BridgeService {
         log.warn(getLogPrefix(plugin.getPluginIdentifier()), "This plugin is taking long time to load and preventing Homebridge from starting. See https://git.io/JtMGR for more info.");
       }, 20000);
 
-      platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
+      platformInstance.accessories(once(accessories => {
         // clear the load delay warning interval
         clearInterval(loadDelayWarningInterval);
 
         // loop through accessories adding them to the list and registering them
         accessories.forEach((accessoryInstance, index) => {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          const accessoryName = accessoryInstance.name; // assume this property was set
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          const uuidBase: string | undefined = accessoryInstance.uuid_base; // optional base uuid
-
-          log.info("Initializing platform accessory '%s'...", accessoryName);
-
-          const accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryName, platformType, uuidBase);
+          const accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryInstance.name, platformType, accessoryInstance.uuid_base);
 
           if (accessory) {
             this.bridge.addBridgedAccessory(accessory);
