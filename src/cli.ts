@@ -23,6 +23,7 @@ export = function cli(): void {
   let hideQRCode = false;
   let keepOrphans = false;
   let customPluginPath: string | undefined = undefined;
+  let strictPluginResolution = false;
   let noLogTimestamps = false;
   let debugModeEnabled = false;
   let forceColourLogging = false;
@@ -44,6 +45,7 @@ export = function cli(): void {
     .option("-K, --keep-orphans", "keep cached accessories for which the associated plugin is not loaded", () => keepOrphans = true)
     .option("-T, --no-timestamp", "do not issue timestamps in logging", () => noLogTimestamps = true)
     .option("-U, --user-storage-path [path]", "look for homebridge user files at [path] instead of the default location (~/.homebridge)", path => customStoragePath = path)
+    .option("--strict-plugin-resolution", "only load plugins from the --plugin-path if set, otherwise from the primary global node_modules", () => strictPluginResolution = true)
     .parse(process.argv);
 
   if (noLogTimestamps) {
@@ -74,6 +76,7 @@ export = function cli(): void {
     debugModeEnabled: debugModeEnabled,
     forceColourLogging: forceColourLogging,
     customStoragePath: customStoragePath,
+    strictPluginResolution: strictPluginResolution,
   };
 
   const server = new Server(options);
