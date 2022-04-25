@@ -73,7 +73,12 @@ export class Plugin {
 
         // check if conditional export is nested
         if (typeof exports !== "string") {
-          this.main = exports.import || exports.require || exports.node || exports.default;
+          if(exports.import) {
+            this.main = exports.import;
+            this.isESM = true;
+          } else {
+            this.main = exports.require || exports.node || exports.default;
+          }
         } else {
           this.main = exports;
         }
