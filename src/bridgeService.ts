@@ -152,7 +152,7 @@ export class BridgeService {
 
   // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
   public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, opts: CharacteristicWarningOpts, warning: CharacteristicWarning): void {
-    const wikiInfo = "See https://git.io/JtMGR for more info.";
+    const wikiInfo = "See https://github.com/homebridge/homebridge/wiki/Characteristic-Warnings for more info.";
     switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
@@ -528,7 +528,7 @@ export class BridgeService {
     return new Promise(resolve => {
       // warn the user if the static platform is blocking the startup of Homebridge for to long
       const loadDelayWarningInterval = setInterval(() => {
-        log.warn(getLogPrefix(plugin.getPluginIdentifier()), "This plugin is taking long time to load and preventing Homebridge from starting. See https://git.io/JtMGR for more info.");
+        log.warn(getLogPrefix(plugin.getPluginIdentifier()), "This plugin is taking long time to load and preventing Homebridge from starting. See https://github.com/homebridge/homebridge/wiki/Characteristic-Warnings for more info.");
       }, 20000);
 
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
