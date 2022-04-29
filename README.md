@@ -51,32 +51,6 @@ The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains st
 * [Setup Homebridge on Docker (Linux)](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker)
 * [Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
 
-On other platforms, ensure you have **Node.js v10.17.0** or later installed and run:
-
-```shell
-sudo npm install -g --unsafe-perm homebridge
-```
-
-Then start Homebridge in your terminal window by running:
-
-```shell
-homebridge
-```
-
-## Installing Plugins
-
-Plugins are Node.js modules published through NPM and tagged with the keyword `homebridge-plugin`. They must have a name with the prefix `homebridge-`, like **homebridge-mysmartlock**.
-
-Plugins can publish Accessories and/or Platforms. Accessories are individual devices, like a smart switch or a garage door. Platforms act like a single device but can expose a set of devices, like a house full of smart lightbulbs.
-
-You install Plugins using the [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x), or the same way you installed Homebridge - as a global NPM module. For example:
-
-```shell
-sudo npm install -g homebridge-dummy
-```
-
-You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
-
 ## Adding Homebridge to iOS
 
 1. Open the Home <img src="https://user-images.githubusercontent.com/3979615/78010622-4ea1d380-738e-11ea-8a17-e6a465eeec35.png" height="16.42px"> app on your device.
