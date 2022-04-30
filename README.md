@@ -49,6 +49,7 @@ The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains st
 * [Setup Homebridge on macOS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-macOS)
 * [Setup Homebridge on Windows 10](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10)
 * [Setup Homebridge on Docker (Linux)](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker)
+* [Setup Homebridge on a Synology NAS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Synology-DSM)
 * [Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
 
 ## Adding Homebridge to iOS
