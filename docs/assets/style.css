@@ -766,12 +766,13 @@ footer .tsd-legend {
 
 .tsd-flag {
     display: inline-block;
-    padding: 1px 5px;
+    padding: 0.25em 0.4em;
     border-radius: 4px;
     color: var(--color-comment-tag-text);
     background-color: var(--color-comment-tag);
     text-indent: 0;
-    font-size: 14px;
+    font-size: 75%;
+    line-height: 1;
     font-weight: normal;
 }
 

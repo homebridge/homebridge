@@ -14,7 +14,7 @@ const log = Logger.internal;
 const requiredNodeVersion = getRequiredNodeVersion();
 if (requiredNodeVersion && !satisfies(process.version, requiredNodeVersion)) {
   log.warn(`Homebridge requires Node.js version of ${requiredNodeVersion} which does \
-not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://git.io/JTKEF`);
+not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://homebridge.io/w/JTKEF`);
 }
 
 // noinspection JSUnusedGlobalSymbols
