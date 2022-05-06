@@ -23,7 +23,10 @@ export interface PackageJSON { // incomplete type for package.json (just stuff w
   version: string;
   keywords?: string[];
 
+  // see https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_package_entry_points
+  exports?: string | Record<string, string | Record<string, string>>
   main?: string;
+
   /**
    * When set as module, it marks .js file to be treated as ESM.
    * See https://nodejs.org/dist/latest-v14.x/docs/api/esm.html#esm_enabling
@@ -41,6 +44,10 @@ export interface PluginManagerOptions {
    * Additional path to search for plugins in. Specified relative to the current working directory.
    */
   customPluginPath?: string;
+  /**
+   * If set, only load plugins from the customPluginPath, if set, otherwise only from the primary global node_modules.
+   */
+  strictPluginResolution?: boolean;
   /**
    * When defined, only plugins specified here will be initialized.
    */
@@ -62,6 +69,7 @@ export class PluginManager {
   private readonly api: HomebridgeAPI;
 
   private readonly searchPaths: Set<string> = new Set(); // unique set of search paths we will use to discover installed plugins
+  private readonly strictPluginResolution: boolean = false;
   private readonly activePlugins?: PluginIdentifier[];
   private readonly disabledPlugins?: PluginIdentifier[];
 
@@ -80,6 +88,8 @@ export class PluginManager {
       if (options.customPluginPath) {
         this.searchPaths.add(path.resolve(process.cwd(), options.customPluginPath));
       }
+
+      this.strictPluginResolution = options.strictPluginResolution || false;
 
       this.activePlugins = options.activePlugins;
       this.disabledPlugins = Array.isArray(options.disabledPlugins) ? options.disabledPlugins : undefined;
@@ -427,6 +437,16 @@ export class PluginManager {
   }
 
   private loadDefaultPaths(): void {
+    if (this.strictPluginResolution) {
+      // if strict plugin resolution is enabled:
+      // * only use custom plugin path, if set;
+      // * otherwise add the current npm global prefix (eg. /usr/local/lib/node_modules)
+      if (this.searchPaths.size === 0) {
+        this.addNpmPrefixToSearchPaths();
+      }
+      return;
+    }
+
     if (require.main) {
       // add the paths used by require()
       require.main.paths.forEach(path => this.searchPaths.add(path));
@@ -444,14 +464,20 @@ export class PluginManager {
         .filter(path => !!path) // trim out empty values
         .forEach(path => this.searchPaths.add(path));
     } else {
-      // Default paths for each system
-      if (process.platform === "win32") {
-        this.searchPaths.add(path.join(process.env.APPDATA!, "npm/node_modules"));
-      } else {
+      // Default paths for non-windows systems
+      if (process.platform !== "win32") {
         this.searchPaths.add("/usr/local/lib/node_modules");
         this.searchPaths.add("/usr/lib/node_modules");
-        this.searchPaths.add(execSync("/bin/echo -n \"$(npm --no-update-notifier -g prefix)/lib/node_modules\"").toString("utf8"));
       }
+      this.addNpmPrefixToSearchPaths();
+    }
+  }
+
+  private addNpmPrefixToSearchPaths(): void {
+    if (process.platform === "win32") {
+      this.searchPaths.add(path.join(process.env.APPDATA!, "npm/node_modules"));
+    } else {
+      this.searchPaths.add(execSync("/bin/echo -n \"$(npm --no-update-notifier -g prefix)/lib/node_modules\"").toString("utf8"));
     }
   }
 

@@ -1,5 +1,31 @@
 # Change Log
 
+## v1.4.1 (2022-04-29)
+
+### Featured Changes
+
+* Upgraded HAP-NodeJS to [v0.10.2](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.10.2)
+    * Fix an issue with network interface family detection when running Node.js 18 @oznu [#947](https://github.com/homebridge/HAP-NodeJS/pull/947)
+    * Fixed memory leak with HomeKit DataStreams @Supereg [#943](https://github.com/homebridge/HAP-NodeJS/pull/943)
+* Strict plugin resolution option added to Homebridge plugin @oznu [#3117](https://github.com/homebridge/homebridge/pull/3117) 
+* Replace https://git.io URLs as the service is [being depreciated](https://github.blog/changelog/2022-04-25-git-io-deprecation/)
+
+### Bug Fixes
+
+This release upgrades various dependencies with bug fixes and security fixes.
+
+## v1.4.0 (2022-01-22)
+
+### Featured Changes
+
+- HomeKit Secure Video @Supereg [#3056](https://github.com/homebridge/homebridge/pull/3056)
+- New advertiser: Avahi/D-Bus API @adriancable
+
+### Bug Fixes
+
+- Fix ES Module loading with abolute path @seydx [#3070](https://github.com/homebridge/homebridge/pull/3070) 
+- Fix casing of generated inline docs @Supereg [#3066](https://github.com/homebridge/homebridge/pull/3066)
+
 ## 1.3.9 (2021-12-29)
 
 ### Bug Fixes

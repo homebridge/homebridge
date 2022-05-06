@@ -52,6 +52,7 @@ export interface HomebridgeOptions {
   debugModeEnabled?: boolean;
   forceColourLogging?: boolean;
   customStoragePath?: string;
+  strictPluginResolution?: boolean;
 }
 
 export const enum ServerStatus {
@@ -104,6 +105,7 @@ export class Server {
       activePlugins: this.config.plugins,
       disabledPlugins: this.config.disabledPlugins,
       customPluginPath: options.customPluginPath,
+      strictPluginResolution: options.strictPluginResolution,
     };
     this.pluginManager = new PluginManager(this.api, pluginManagerOptions);
 
