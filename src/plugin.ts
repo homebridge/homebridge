@@ -58,8 +58,37 @@ export class Plugin {
     this.pluginPath = path;
 
     this.version = packageJSON.version || "0.0.0";
-    this.main = packageJSON.main || "./index.js"; // figure out the main module - index.js unless otherwise specified
     this.isESM = packageJSON.type === "module";
+    this.main = "";
+
+    // figure out the main module
+    // exports is available - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_package_entry_points
+    if (packageJSON.exports) {
+      // main entrypoint - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_main_entry_point_export
+      if (typeof packageJSON.exports === "string") {
+        this.main = packageJSON.exports;  
+      } else { // subpath export - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_subpath_exports
+        // conditional exports - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_conditional_exports
+        const exports = packageJSON.exports.import || packageJSON.exports.require || packageJSON.exports.node || packageJSON.exports.default || packageJSON.exports["."];
+
+        // check if conditional export is nested
+        if (typeof exports !== "string") {
+          if(exports.import) {
+            this.main = exports.import;
+            this.isESM = true;
+          } else {
+            this.main = exports.require || exports.node || exports.default;
+          }
+        } else {
+          this.main = exports;
+        }
+      }
+    }
+
+    // exports search was not successful, fallback to package.main, using index.js as fallback
+    if (!this.main) {
+      this.main = packageJSON.main || "./index.js";
+    }
 
     // very temporary fix for first wave of plugins
     if (packageJSON.peerDependencies && (!packageJSON.engines || !packageJSON.engines.homebridge)) {
