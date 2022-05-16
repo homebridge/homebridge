@@ -124,7 +124,7 @@ export class ChildBridgeFork {
     );
 
     // watch bridge events to check when server is online
-    this.bridgeService.bridge.on(AccessoryEventTypes.LISTENING, () => {
+    this.bridgeService.bridge.on(AccessoryEventTypes.ADVERTISED, () => {
       this.sendPairedStatusEvent();
     });
 
