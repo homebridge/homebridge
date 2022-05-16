@@ -153,6 +153,9 @@ export class Server {
       status: this.serverStatus,
       paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
       setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
+      name: this.bridgeService?.bridge?.displayName || this.config.bridge.name,
+      username: this.config.bridge.username,
+      pin: this.config.bridge.pin,
     });
   }
 
