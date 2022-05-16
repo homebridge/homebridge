@@ -131,6 +131,16 @@ export class Server {
     this.bridgeService.bridge.on(AccessoryEventTypes.LISTENING, () => {
       this.setServerStatus(ServerStatus.OK);
     });
+
+    // watch for the paired event to update the server status
+    this.bridgeService.bridge.on(AccessoryEventTypes.PAIRED, () => {
+      this.setServerStatus(this.serverStatus);
+    });
+
+    // watch for the unpaired event to update the server status
+    this.bridgeService.bridge.on(AccessoryEventTypes.UNPAIRED, () => {
+      this.setServerStatus(this.serverStatus);
+    });
   }
 
   /**
@@ -141,6 +151,8 @@ export class Server {
     this.serverStatus = status;
     this.ipcService.sendMessage(IpcOutgoingEvent.SERVER_STATUS_UPDATE, {
       status: this.serverStatus,
+      paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
+      setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
     });
   }
 
@@ -501,7 +513,23 @@ export class Server {
     this.ipcService.on(IpcIncomingEvent.RESTART_CHILD_BRIDGE, (username) => {
       if (typeof username === "string") {
         const childBridge = this.childBridges.get(username.toUpperCase());
-        childBridge?.restartBridge();
+        childBridge?.restartChildBridge();
+      }
+    });
+
+    // handle stop child bridge event
+    this.ipcService.on(IpcIncomingEvent.STOP_CHILD_BRIDGE, (username) => {
+      if (typeof username === "string") {
+        const childBridge = this.childBridges.get(username.toUpperCase());
+        childBridge?.stopChildBridge();
+      }
+    });
+
+    // handle start child bridge event
+    this.ipcService.on(IpcIncomingEvent.START_CHILD_BRIDGE, (username) => {
+      if (typeof username === "string") {
+        const childBridge = this.childBridges.get(username.toUpperCase());
+        childBridge?.startChildBridge();
       }
     });
 
