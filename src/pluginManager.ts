@@ -23,7 +23,10 @@ export interface PackageJSON { // incomplete type for package.json (just stuff w
   version: string;
   keywords?: string[];
 
+  // see https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_package_entry_points
+  exports?: string | Record<string, string | Record<string, string>>
   main?: string;
+
   /**
    * When set as module, it marks .js file to be treated as ESM.
    * See https://nodejs.org/dist/latest-v14.x/docs/api/esm.html#esm_enabling
