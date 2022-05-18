@@ -429,6 +429,7 @@ export class ChildBridgeService {
       this.log.warn("Stopping child bridge (will not restart)...");
       this.shuttingDown = true;
       this.manuallyStopped = true;
+      this.child?.removeAllListeners("close");
       this.teardown();
     } else {
       this.log.warn("Bridge already shutting down or stopped.");
