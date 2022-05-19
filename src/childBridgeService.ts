@@ -53,6 +53,11 @@ export const enum ChildProcessMessageEventType {
    * Sent from the parent with the port allocation response
    */
   PORT_ALLOCATED= "portAllocated",
+
+  /**
+   * Sent from the child to update it's current status
+   */
+  STATUS_UPDATE = "status",
 }
 
 export const enum ChildBridgeStatus {
@@ -100,12 +105,21 @@ export interface ChildProcessPortAllocatedEventData {
   port?: number;
 }
 
+export interface ChildBridgePairedStatusEventData {
+  paired: boolean | null;
+  setupUri: string | null;
+}
+
 export interface ChildMetadata {
   status: ChildBridgeStatus;
+  paired?: boolean | null;
+  setupUri?: string | null;
   username: MacAddress;
+  pin: string;
   name: string;
   plugin: string;
   identifier: string;
+  manuallyStopped: boolean;
   pid?: number;
 }
 
@@ -118,6 +132,9 @@ export class ChildBridgeService {
   private args: string[] = [];
   private shuttingDown = false;
   private lastBridgeStatus: ChildBridgeStatus = ChildBridgeStatus.PENDING;
+  private pairedStatus: boolean | null = null;
+  private manuallyStopped = false;
+  private setupUri: string | null = null;
   private pluginConfig: Array<PlatformConfig | AccessoryConfig> = [];
   private log: Logging = Logger.withPrefix(this.plugin.getPluginIdentifier());
   private displayName?: string;
@@ -175,7 +192,7 @@ export class ChildBridgeService {
 
   private set bridgeStatus(value: ChildBridgeStatus) {
     this.lastBridgeStatus = value;
-    this.ipcService.sendMessage(IpcOutgoingEvent.CHILD_BRIDGE_STATUS_UPDATE, this.getMetadata());
+    this.sendStatusUpdate();
   }
 
   /**
@@ -205,7 +222,7 @@ export class ChildBridgeService {
       this.log.error("Child process error", e);
     });
 
-    this.child.on("close", (code, signal) => {
+    this.child.once("close", (code, signal) => {
       this.bridgeStatus = ChildBridgeStatus.DOWN;
       this.handleProcessClose(code, signal);
     });
@@ -238,6 +255,12 @@ export class ChildBridgeService {
         }
         case ChildProcessMessageEventType.PORT_REQUEST: {
           this.handlePortRequest(message.data as ChildProcessPortRequestEventData);
+          break;
+        }
+        case ChildProcessMessageEventType.STATUS_UPDATE: {
+          this.pairedStatus = (message.data as ChildBridgePairedStatusEventData).paired;
+          this.setupUri = (message.data as ChildBridgePairedStatusEventData).setupUri;
+          this.sendStatusUpdate();
           break;
         }
       }
@@ -379,12 +402,53 @@ export class ChildBridgeService {
   }
 
   /**
+   * Trigger sending child bridge metdata to the process parent via IPC
+   */
+  private sendStatusUpdate(): void {
+    this.ipcService.sendMessage(IpcOutgoingEvent.CHILD_BRIDGE_STATUS_UPDATE, this.getMetadata());
+  }
+
+  /**
    * Restarts the child bridge process
    */
-  public restartBridge(): void {
-    this.log.warn("Restarting child bridge...");
-    this.refreshConfig();
-    this.teardown();
+  public restartChildBridge(): void {
+    if (this.manuallyStopped) {
+      this.startChildBridge();
+    } else {
+      this.log.warn("Restarting child bridge...");
+      this.refreshConfig();
+      this.teardown();
+    }
+  }
+
+  /**
+   * Stops the child bridge, not starting it again
+   */
+  public stopChildBridge(): void {
+    if (!this.shuttingDown) {
+      this.log.warn("Stopping child bridge (will not restart)...");
+      this.shuttingDown = true;
+      this.manuallyStopped = true;
+      this.child?.removeAllListeners("close");
+      this.teardown();
+    } else {
+      this.log.warn("Bridge already shutting down or stopped.");
+    }
+  }
+
+  /**
+   * Starts the child bridge, only if it was manually stopped and is no longer running
+   */
+  public startChildBridge(): void {
+    if (this.manuallyStopped && this.bridgeStatus === ChildBridgeStatus.DOWN && (!this.child || !this.child.connected)) {
+      this.log.warn("Starting child bridge...");
+      this.refreshConfig();
+      this.startChildProcess();
+      this.shuttingDown = false;
+      this.manuallyStopped = false;
+    } else {
+      this.log.warn("Cannot start child bridge, it is still running or was not manually stopped");
+    }
   }
 
   /**
@@ -423,11 +487,15 @@ export class ChildBridgeService {
   public getMetadata(): ChildMetadata {
     return {
       status: this.bridgeStatus,
+      paired: this.pairedStatus,
+      setupUri: this.setupUri,
       username: this.bridgeConfig.username,
+      pin: this.bridgeConfig.pin || this.homebridgeConfig.bridge.pin,
       name: this.bridgeConfig.name || this.displayName || this.plugin.getPluginIdentifier(),
       plugin: this.plugin.getPluginIdentifier(),
       identifier: this.identifier,
       pid: this.child?.pid,
+      manuallyStopped: this.manuallyStopped,
     };
   }
 
