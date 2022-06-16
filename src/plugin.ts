@@ -89,7 +89,7 @@ export class Plugin {
     }
 
     // check if it is a ESM module
-    this.isESM = this.main.endsWith('.mjs') || (this.main.endsWith('.js') && packageJSON.type === "module");
+    this.isESM = this.main.endsWith(".mjs") || (this.main.endsWith(".js") && packageJSON.type === "module");
 
     // very temporary fix for first wave of plugins
     if (packageJSON.peerDependencies && (!packageJSON.engines || !packageJSON.engines.homebridge)) {
