@@ -58,7 +58,6 @@ export class Plugin {
     this.pluginPath = path;
 
     this.version = packageJSON.version || "0.0.0";
-    this.isESM = packageJSON.type === "module";
     this.main = "";
 
     // figure out the main module
@@ -75,7 +74,6 @@ export class Plugin {
         if (typeof exports !== "string") {
           if(exports.import) {
             this.main = exports.import;
-            this.isESM = true;
           } else {
             this.main = exports.require || exports.node || exports.default;
           }
@@ -89,6 +87,9 @@ export class Plugin {
     if (!this.main) {
       this.main = packageJSON.main || "./index.js";
     }
+
+    // check if it is a ESM module
+    this.isESM = this.main.endsWith('.mjs') || (this.main.endsWith('.js') && packageJSON.type === "module");
 
     // very temporary fix for first wave of plugins
     if (packageJSON.peerDependencies && (!packageJSON.engines || !packageJSON.engines.homebridge)) {
