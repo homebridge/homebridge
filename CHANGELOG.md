@@ -1,5 +1,15 @@
 # Change Log
 
+## v1.5.0 (2022-06-22)
+
+### Featured Changes
+
+* Add support for stopping / starting a child bridge via the Homebridge UI @oznu [#3139](https://github.com/homebridge/homebridge/pull/3139)
+
+### Other Changes
+
+* Add support for package.json exports field @ShogunPanda [#3016](https://github.com/homebridge/homebridge/pull/3016), [#3165](https://github.com/homebridge/homebridge/pull/3165)
+
 ## v1.4.1 (2022-04-29)
 
 ### Featured Changes
