@@ -258,6 +258,17 @@ export class Server {
 
     config.accessories = config.accessories || [];
     config.platforms = config.platforms || [];
+
+    if (!Array.isArray(config.accessories)) {
+      log.error("Value provided for accessories must be an array[]");
+      config.accessories = [];
+    }
+
+    if (!Array.isArray(config.platforms)) {
+      log.error("Value provided for platforms must be an array[]");
+      config.platforms = [];
+    }
+
     log.info("Loaded config.json with %s accessories and %s platforms.", config.accessories.length, config.platforms.length);
 
     if (config.bridge.advertiser) {
@@ -398,6 +409,11 @@ export class Server {
 
       let plugin: Plugin;
       let constructor: PlatformPluginConstructor;
+
+      // do not load homebridge-config-ui-x when running in service mode
+      if (platformIdentifier === "config" && process.env.UIX_SERVICE_MODE === "1") {
+        return;
+      }
 
       try {
         plugin = this.pluginManager.getPluginForPlatform(platformIdentifier);
