@@ -389,7 +389,7 @@ export class PluginManager {
     });
 
     if (this.plugins.size === 0) {
-      log.warn("No plugins found. See the README for information on installing plugins.");
+      log.warn("No plugins found.");
     }
   }
 
