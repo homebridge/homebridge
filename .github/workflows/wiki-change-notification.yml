@@ -10,4 +10,4 @@ jobs:
       - uses: 'oznu/gh-wiki-edit-discord-notification@main'
         with:
           discord-webhook-url: ${{ secrets.DISCORD_WEBHOOK_WIKI_EDIT }}
-          ignore-contributors: false
+          ignore-contributors: true
