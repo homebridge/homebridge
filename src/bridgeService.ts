@@ -57,6 +57,7 @@ export interface BridgeConfiguration {
   setupID?: string[4];
   manufacturer?: string;
   model?: string;
+  firmware?: string;
   disableIpc?: boolean;
 }
 
@@ -189,7 +190,7 @@ export class BridgeService {
     info.setCharacteristic(Characteristic.Manufacturer, bridgeConfig.manufacturer || "homebridge.io");
     info.setCharacteristic(Characteristic.Model, bridgeConfig.model || "homebridge");
     info.setCharacteristic(Characteristic.SerialNumber, bridgeConfig.username);
-    info.setCharacteristic(Characteristic.FirmwareRevision, getVersion());
+    info.setCharacteristic(Characteristic.FirmwareRevision, bridgeConfig.firmware || getVersion());
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
       log.info("Homebridge v%s (HAP v%s) (%s) is running on port %s.", getVersion(), HAPLibraryVersion(), bridgeConfig.name, port);
