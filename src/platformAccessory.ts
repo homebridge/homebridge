@@ -39,7 +39,7 @@ export interface PlatformAccessory {
   on(event: "identify", listener: (paired: boolean, noopCallback: () => void) => void): this;
 
   /**
-   * @deprecated Kept for back compat, do not rely on paired or callback.
+   * @deprecated Kept for backward compatibility. Do not rely on `paired` or `callback`.
    */
   emit(event: "identify", paired: boolean, callback: () => void): boolean;
 
