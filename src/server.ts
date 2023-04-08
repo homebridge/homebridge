@@ -276,6 +276,7 @@ export class Server {
         MDNSAdvertiser.BONJOUR,
         MDNSAdvertiser.CIAO,
         MDNSAdvertiser.AVAHI,
+        MDNSAdvertiser.RESOLVED,
       ].includes(config.bridge.advertiser)) {
         config.bridge.advertiser = undefined;
         log.error("Value provided in bridge.advertiser is not valid, reverting to platform default.");
