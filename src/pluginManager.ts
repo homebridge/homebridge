@@ -389,7 +389,7 @@ export class PluginManager {
     });
 
     if (this.plugins.size === 0) {
-      log.warn("No plugins found. See the README for information on installing plugins.");
+      log.warn("No plugins found.");
     }
   }
 
@@ -477,7 +477,12 @@ export class PluginManager {
     if (process.platform === "win32") {
       this.searchPaths.add(path.join(process.env.APPDATA!, "npm/node_modules"));
     } else {
-      this.searchPaths.add(execSync("/bin/echo -n \"$(npm --no-update-notifier -g prefix)/lib/node_modules\"").toString("utf8"));
+      this.searchPaths.add(execSync("/bin/echo -n \"$(npm -g prefix)/lib/node_modules\"", {
+        env: Object.assign({
+          npm_config_loglevel: "silent",
+          npm_update_notifier: "false",
+        }, process.env),
+      }).toString("utf8"));
     }
   }
 

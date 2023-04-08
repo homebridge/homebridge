@@ -128,8 +128,18 @@ export class Server {
     );
 
     // watch bridge events to check when server is online
-    this.bridgeService.bridge.on(AccessoryEventTypes.LISTENING, () => {
+    this.bridgeService.bridge.on(AccessoryEventTypes.ADVERTISED, () => {
       this.setServerStatus(ServerStatus.OK);
+    });
+
+    // watch for the paired event to update the server status
+    this.bridgeService.bridge.on(AccessoryEventTypes.PAIRED, () => {
+      this.setServerStatus(this.serverStatus);
+    });
+
+    // watch for the unpaired event to update the server status
+    this.bridgeService.bridge.on(AccessoryEventTypes.UNPAIRED, () => {
+      this.setServerStatus(this.serverStatus);
     });
   }
 
@@ -141,6 +151,11 @@ export class Server {
     this.serverStatus = status;
     this.ipcService.sendMessage(IpcOutgoingEvent.SERVER_STATUS_UPDATE, {
       status: this.serverStatus,
+      paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
+      setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
+      name: this.bridgeService?.bridge?.displayName || this.config.bridge.name,
+      username: this.config.bridge.username,
+      pin: this.config.bridge.pin,
     });
   }
 
@@ -243,6 +258,17 @@ export class Server {
 
     config.accessories = config.accessories || [];
     config.platforms = config.platforms || [];
+
+    if (!Array.isArray(config.accessories)) {
+      log.error("Value provided for accessories must be an array[]");
+      config.accessories = [];
+    }
+
+    if (!Array.isArray(config.platforms)) {
+      log.error("Value provided for platforms must be an array[]");
+      config.platforms = [];
+    }
+
     log.info("Loaded config.json with %s accessories and %s platforms.", config.accessories.length, config.platforms.length);
 
     if (config.bridge.advertiser) {
@@ -384,6 +410,11 @@ export class Server {
       let plugin: Plugin;
       let constructor: PlatformPluginConstructor;
 
+      // do not load homebridge-config-ui-x when running in service mode
+      if (platformIdentifier === "config" && process.env.UIX_SERVICE_MODE === "1") {
+        return;
+      }
+
       try {
         plugin = this.pluginManager.getPluginForPlatform(platformIdentifier);
       } catch (error) {
@@ -501,7 +532,23 @@ export class Server {
     this.ipcService.on(IpcIncomingEvent.RESTART_CHILD_BRIDGE, (username) => {
       if (typeof username === "string") {
         const childBridge = this.childBridges.get(username.toUpperCase());
-        childBridge?.restartBridge();
+        childBridge?.restartChildBridge();
+      }
+    });
+
+    // handle stop child bridge event
+    this.ipcService.on(IpcIncomingEvent.STOP_CHILD_BRIDGE, (username) => {
+      if (typeof username === "string") {
+        const childBridge = this.childBridges.get(username.toUpperCase());
+        childBridge?.stopChildBridge();
+      }
+    });
+
+    // handle start child bridge event
+    this.ipcService.on(IpcIncomingEvent.START_CHILD_BRIDGE, (username) => {
+      if (typeof username === "string") {
+        const childBridge = this.childBridges.get(username.toUpperCase());
+        childBridge?.startChildBridge();
       }
     });
 

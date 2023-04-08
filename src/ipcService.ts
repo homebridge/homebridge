@@ -2,6 +2,8 @@ import { EventEmitter } from "events";
 
 export const enum IpcIncomingEvent {
   RESTART_CHILD_BRIDGE = "restartChildBridge",
+  STOP_CHILD_BRIDGE = "stopChildBridge",
+  START_CHILD_BRIDGE = "startChildBridge",
   CHILD_BRIDGE_METADATA_REQUEST = "childBridgeMetadataRequest",
 }
 
@@ -13,6 +15,8 @@ export const enum IpcOutgoingEvent {
 
 export declare interface IpcService {
   on(event: IpcIncomingEvent.RESTART_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void): this;
+  on(event: IpcIncomingEvent.STOP_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void): this;
+  on(event: IpcIncomingEvent.START_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void): this;
   on(event: IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST, listener: () => void): this;
 }
 
