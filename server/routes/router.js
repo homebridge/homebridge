@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 
-// 라우트 정의 예시
-router.get('/api', (req, res) => {
-  res.send('Hello, world!');
+router.get('/', (req, res) => {
+  res.send('Hello World!');
+});
+
+
+router.get('/api/:id:token', (req, res) => {
+  const token = req.query.token;
 });
 
 module.exports = router;
