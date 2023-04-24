@@ -19,3 +19,6 @@ lib
 
 # test
 mock
+
+# server config
+config.json

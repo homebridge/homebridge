@@ -12,6 +12,12 @@ app.use(express.json());
 const router = require('./routes/router');
 app.use('/', router);
 
+// express error handling
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
+});
+
 
 // express listen
 app.listen(server_port, server_ip, () => {
