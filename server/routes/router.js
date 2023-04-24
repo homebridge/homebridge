@@ -9,7 +9,7 @@ const Outlet = require('../api/outlet');
 
 
 router.get('/', (req, res) => {
-  res.send('Hello World!');
+  res.end('../static/index.html');
 });
 
 router.get('/api/:id', (req, res) => {
