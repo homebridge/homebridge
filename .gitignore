@@ -22,3 +22,5 @@ mock
 
 # server config
 config.json
+server/config.json
+server/api/config.json

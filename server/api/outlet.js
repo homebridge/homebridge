@@ -1,20 +1,24 @@
 const axios = require('axios');
-const config = require('./config.json');
+const config = require('../config.json');
 const getToken = require('./auth');
 
-async function Outlet(accessoryId){
-  const bearerToken = await getToken();
+async function Outlet(accessoryId, headers){
   const requestURL = `http://${config.server_ip}:${config.server_port}/api/accessories/${accessoryId}`;
 
-  // Set the headers with token
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${bearerToken}`,
-    'accept': '*/*'
-  };
-
   // Status check
-  let payload = {};
+  const payload = await statusCheck(requestURL, headers);
+
+  // Send the PUT request to update the On characteristic of the accessory
+  try {
+    const response = await axios.put(requestURL, payload, { headers });
+    console.log(response.data.values);
+  } catch (error) {
+    console.error(error);
+    return error;
+  }
+}
+
+async function statusCheck(requestURL, headers){
   try {
     const response = await axios.get(requestURL, { headers });
 
@@ -23,27 +27,18 @@ async function Outlet(accessoryId){
         "characteristicType": "On",
         "value": "false"
       };
-      console.log('on -> off');
+      return payload;
     }
     else {
       payload = {
         "characteristicType": "On",
         "value": "true"
       };
-      console.log('off -> on');
+      return payload;
     }
 
   } catch (error) {
     console.log('status check error');
-    return error;
-  }
-
-  // Send the PUT request to update the On characteristic of the accessory
-  try {
-    const response = await axios.put(requestURL, payload, { headers });
-    return response.status;
-  } catch (error) {
-    console.error(error);
     return error;
   }
 }

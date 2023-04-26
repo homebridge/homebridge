@@ -1,5 +1,5 @@
 const axios = require('axios');
-const config = require('./config.json');
+const config = require('../config.json');
 
 function getToken() {
     const login_url = `http://${config.server_ip}:${config.server_port}/api/auth/login`;
@@ -18,4 +18,13 @@ function getToken() {
         });
 }
 
-module.exports = getToken;
+async function getKeys(headers) {
+    const key_url = `http://${config.server_ip}:${config.server_port}/api/accessories/layout`;
+    const response = await axios.get(key_url, { headers });
+    return response.data
+}
+
+module.exports = {
+    getToken,
+    getKeys
+};
