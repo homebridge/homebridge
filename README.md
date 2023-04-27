@@ -31,9 +31,9 @@ Apple HomeBridge 구축 작업하여야 하며, 해당 내용은 Pre-installatio
 준비 중
 
 # How to use home-api
-git clone https://github.com/Solrukas/smart-home.git
-sudo npm install
-cd server
-node server.js
-
+git clone https://github.com/Solrukas/smart-home.git  
+sudo npm install  
+cd server  
+node server.js  
+  
 자세한 내용은 server의 [README.md](https://github.com/Solrukas/smart-home/tree/master/server)를 참고하세요.
