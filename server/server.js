@@ -3,8 +3,8 @@ const express = require('express');
 const app = express();
 const path = require('path');
 
-const server_ip = "127.0.0.1";
-const server_port = "8080";
+const server_ip = "0.0.0.0";
+const server_port = "2316";
 
 // express json
 app.use(express.json());

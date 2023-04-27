@@ -44,8 +44,7 @@ router.get('/api/:id', async (req, res) => {
     default:
       res.status(404).send('404 Not found');
   }
-
-  res.end("Switch on!");
+  res.end("done");
 });
 
 module.exports = router;

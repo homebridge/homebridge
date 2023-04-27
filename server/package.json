@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "axios": "^1.3.6",
+    "express": "^4.18.2",
+    "jsonpath": "^1.1.1",
+    "nodemon": "^2.0.22"
+  },
+  "scripts":{
+    "start": "node ./server.js",
+    "dev" : "nodemon ./server.js"
+  }
+}
