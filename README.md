@@ -9,6 +9,7 @@
 <a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge?label=stable"></a>
 <a href="https://github.com/homebridge/homebridge/wiki/Homebridge-Beta-Testing"><img title="npm version" src="https://badgen.net/npm/v/homebridge/beta?label=beta"></a>
 <a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge"></a>
+<a href="https://github.com/homebridge/homebridge/actions/workflows/build.yml"><img title="Node Build" src="https://github.com/homebridge/homebridge/actions/workflows/build.yml/badge.svg"></a>
 
 </span>
 
