@@ -3,6 +3,7 @@ import chalk from "chalk";
 import qrcode from "qrcode-terminal";
 
 import * as mac from "./util/mac";
+import * as replacer from "./util/replacer";
 import { Logger } from "./logger";
 import { User } from "./user";
 import { Plugin } from "./plugin";
@@ -231,6 +232,10 @@ export class Server {
       log.error("Please try pasting your config.json file here to validate it: http://jsonlint.com");
       log.error("");
       throw err;
+    }
+
+    if (config.replaceVariables) {
+      replacer.replaceVars(config);
     }
 
     if (config.ports !== undefined) {
