@@ -77,10 +77,10 @@ export interface PlatformConfig extends Record<string, any> {
 
 export interface HomebridgeConfig {
   /**
-   * When true, replaces instances of environment variables names found in config strings with their values.
-   * To be replaced, variable names must be delimited by ${...}
+   * When given, the name of a provider that replaces instances of variables names
+   * found in config strings with their values. To be replaced, variable names must be delimited by ${...}
    */
-  replaceVariables?: boolean;
+  variableReplacementProvider?: string;
 
   bridge: BridgeConfiguration;
 

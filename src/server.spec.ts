@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs-extra";
 
-import { HAPStorage, VideoCodec } from "hap-nodejs";
+import { HAPStorage } from "hap-nodejs";
 import { Server } from "./server";
 import { User } from "./user";
 import type { HomebridgeConfig } from "./bridgeService";
@@ -86,7 +86,7 @@ describe("Server", () => {
       await server.start();
     }).rejects.toThrow();
 
-    mockConfigWithVars.replaceVariables = true;
+    mockConfigWithVars.variableReplacementProvider = "Environment";
 
     await fs.writeJson(configPath, mockConfigWithVars);
 

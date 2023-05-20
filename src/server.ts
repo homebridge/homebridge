@@ -234,8 +234,17 @@ export class Server {
       throw err;
     }
 
-    if (config.replaceVariables) {
-      replacer.replaceVars(config);
+    if (config.variableReplacementProvider) {
+      const variableReplacementProvider = replacer.variableReplacementProviders[config.variableReplacementProvider];
+
+      if (variableReplacementProvider) {
+        replacer.replaceVars(config, variableReplacementProvider);
+      } else {
+        const allReplacementProviders =
+          Object.keys(replacer.variableReplacementProviders).map(p => "'" + p + "'").join(", ");
+
+        log.error(`Invalid variableReplacementProvider. Valid values are ${allReplacementProviders}.`);
+      }
     }
 
     if (config.ports !== undefined) {
