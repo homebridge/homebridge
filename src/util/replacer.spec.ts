@@ -1,19 +1,22 @@
-import { getValueFromEnvironmentVariables, replaceVars } from "./replacer";
+import path from "path";
+import fs from "fs-extra";
+import { variableReplacementProviders, replaceVars } from "./replacer";
+import { User } from "../user";
 
 describe("replacer", () => {
-  const varsOfInterest = new Map(Object.entries({
+  const varsOfInterest: { [key: string]: string | undefined } = {
     FOO_TEST: "chipmunk",
     FOO_TEST1: undefined,
     BAR_TEST: "banana",
     BAZ_TEST: undefined,
-  }));
+  };
 
   describe("replaceVars", () => {
     it("should replace matched variables where they occur in a string and at any level of nesting", () => {
       const value = { dog: "lorem ipsum ${FOO_TEST}1", cat: [1, true, "${BAR_TEST}", { bird: "${BAR_TEST}" }] };
       const withReplacements = { dog: "lorem ipsum chipmunk1", cat: [1, true, "banana", { bird: "banana" }] };
 
-      replaceVars(value, key => varsOfInterest.get(key));
+      replaceVars(value, key => varsOfInterest[key]);
 
       expect(value).toStrictEqual(withReplacements);
     });
@@ -24,20 +27,22 @@ describe("replacer", () => {
       const value = { dog: "lorem ipsum ${FOO_TEST1}", cat: [1, true, "$BAR_TEST", { bird: "${BAZ_TEST}" }] };
       const copy = JSON.parse(JSON.stringify(value));
 
-      replaceVars(value, key => varsOfInterest.get(key));
+      replaceVars(value, key => varsOfInterest[key]);
 
       expect(value).toStrictEqual(copy);
     });
   });
 
   describe("getValueFromEnvironmentVariables", () => {
-    const savedEnvVarValues = new Map([...varsOfInterest.keys()].map(name => [name, process.env[name]]));
+    const provider = variableReplacementProviders.Environment;
+
+    const savedEnvVarValues = new Map(Object.keys(varsOfInterest).map(name => [name, process.env[name]]));
 
     beforeAll(() => {
       // modify environment variables for tests
-      for (const [name, value] of varsOfInterest) {
+      for (const [name, value] of Object.entries(varsOfInterest)) {
         if (value) {
-          process.env[name] = value;
+          process.env[name] = value as string | undefined;
         } else {
           delete process.env[name];
         }
@@ -56,10 +61,31 @@ describe("replacer", () => {
     });
 
     it("should return the environment variable value", () => {
-      expect(varsOfInterest.size).toBe(4);
+      for (const [key, value] of Object.entries(varsOfInterest)) {
+        expect(provider(key)).toBe(value);
+      }
+    });
+  });
 
-      for (const [key, value] of varsOfInterest) {
-        expect(getValueFromEnvironmentVariables(key)).toBe(value);
+  describe("getValueFromSecretsFile", () => {
+    const provider = variableReplacementProviders.SecretsFile;
+
+    const homebridgeStorageFolder = path.resolve(__dirname, "../mock");
+    const secretsFilePath = path.resolve(homebridgeStorageFolder, "config.secrets.json");
+
+    beforeAll(async () => {
+      await fs.ensureDir(homebridgeStorageFolder);
+      await fs.writeJson(secretsFilePath, varsOfInterest);
+      User.setStoragePath(homebridgeStorageFolder);
+    });
+
+    afterAll(async () => {
+      await fs.remove(homebridgeStorageFolder);
+    });
+
+    it("should return the secret file value", () => {
+      for (const [key, value] of Object.entries(varsOfInterest)) {
+        expect(provider(key)).toBe(value);
       }
     });
   });

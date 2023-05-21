@@ -13,6 +13,10 @@ export class User {
     return path.join(User.storagePath(), "config.json");
   }
 
+  static secretsFilePath(): string {
+    return path.join(User.storagePath(), "config.secrets.json");
+  }
+
   static persistPath(): string {
     return path.join(User.storagePath(), "persist"); // hap-nodejs data is stored here
   }

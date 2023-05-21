@@ -235,13 +235,14 @@ export class Server {
     }
 
     if (config.variableReplacementProvider) {
-      const variableReplacementProvider = replacer.variableReplacementProviders[config.variableReplacementProvider];
+      // cast to allow indexing by an arbitrary string
+      const providers: { [key: string]: replacer.ValueProvider | undefined } = replacer.variableReplacementProviders;
+      const variableReplacementProvider = providers[config.variableReplacementProvider];
 
       if (variableReplacementProvider) {
         replacer.replaceVars(config, variableReplacementProvider);
       } else {
-        const allReplacementProviders =
-          Object.keys(replacer.variableReplacementProviders).map(p => "'" + p + "'").join(", ");
+        const allReplacementProviders = Object.keys(providers).map(p => "'" + p + "'").join(", ");
 
         log.error(`Invalid variableReplacementProvider. Valid values are ${allReplacementProviders}.`);
       }

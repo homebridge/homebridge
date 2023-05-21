@@ -1,11 +1,62 @@
+import fs from "fs";
+import { Logger } from "../logger";
+import { User } from "../user";
+
 export interface ValueProvider {
   (key: string): string | undefined
 }
 
-export const getValueFromEnvironmentVariables: ValueProvider = key => process.env[key];
+const noOpProvider: ValueProvider = () => undefined;
+const log = Logger.internal;
 
-export const variableReplacementProviders: { readonly [key: string]: ValueProvider | undefined } = {
+const getValueFromEnvironmentVariables: ValueProvider = key => process.env[key];
+
+class SecretsFile {
+  static _provider: ValueProvider;
+
+  static _load(): void {
+    const secretsFilePath = User.secretsFilePath();
+
+    if (!fs.existsSync(secretsFilePath)) {
+      log.warn("config.secrets.json (%s) not found.", secretsFilePath);
+      SecretsFile._provider = noOpProvider;
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(fs.readFileSync(secretsFilePath, { encoding: "utf8" }));
+    } catch {
+      log.error("There was a problem reading your config.secrets.json file.");
+      SecretsFile._provider = noOpProvider;
+      return;
+    }
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      log.warn("config.secrets.json is not a JSON object.");
+      SecretsFile._provider = noOpProvider;
+      return;
+    }
+
+    const secrets = new Map(Object.entries(parsed)
+      .map(([key, value]) => [key, value !== null ? String(value) : undefined]));
+
+    SecretsFile._provider = (key: string) => secrets.get(key);
+  }
+
+  static getValue: ValueProvider = key => {
+    if (!SecretsFile._provider) {
+      SecretsFile._load();
+    }
+
+    return SecretsFile._provider(key);
+  };
+}
+
+
+export const variableReplacementProviders = {
   Environment: getValueFromEnvironmentVariables,
+  SecretsFile: SecretsFile.getValue,
 };
 
 export function replaceVars(object: unknown, valueProvider: ValueProvider): void {
