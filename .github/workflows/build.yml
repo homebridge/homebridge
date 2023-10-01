@@ -2,7 +2,7 @@ name: Node Build
 
 on:
   push:
-    branches: [master]
+    branches: [latest]
   pull_request:
   workflow_dispatch:
 
