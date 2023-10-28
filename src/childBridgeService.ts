@@ -136,7 +136,7 @@ export class ChildBridgeService {
   private manuallyStopped = false;
   private setupUri: string | null = null;
   private pluginConfig: Array<PlatformConfig | AccessoryConfig> = [];
-  private log: Logging = Logger.withPrefix(this.plugin.getPluginIdentifier());
+  private log: Logging;
   private displayName?: string;
 
   constructor(
@@ -150,6 +150,7 @@ export class ChildBridgeService {
     private ipcService: IpcService,
     private externalPortService: ExternalPortService,
   ) {
+    this.log = Logger.withPrefix(this.plugin.getPluginIdentifier());
     this.api.on("shutdown", () => {
       this.shuttingDown = true;
       this.teardown();
@@ -205,11 +206,11 @@ export class ChildBridgeService {
       silent: true,
     });
 
-    this.child.stdout.on("data", (data) => {
+    this.child.stdout?.on("data", (data) => {
       process.stdout.write(data);
     });
 
-    this.child.stderr.on("data", (data) => {
+    this.child.stderr?.on("data", (data) => {
       process.stderr.write(data);
     });
 
@@ -272,7 +273,7 @@ export class ChildBridgeService {
    * @param code 
    * @param signal 
    */
-  private handleProcessClose(code: number, signal: string): void {
+  private handleProcessClose(code: number | null, signal: string | null): void {
     this.log(`Process Ended. Code: ${code}, Signal: ${signal}`);
 
     setTimeout(() => {
