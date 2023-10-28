@@ -8,7 +8,7 @@ on:
 
 jobs:
   build_and_test:
-    uses: homebridge/.github/.github/workflows/nodejs-build-and-test.yml@main
+    uses: homebridge/.github/.github/workflows/nodejs-build-and-test.yml@latest
     with:
       enable_coverage: true
     secrets:
@@ -19,6 +19,6 @@ jobs:
 
     if: ${{ github.repository == 'homebridge/homebridge' }}
 
-    uses: homebridge/.github/.github/workflows/npm-publish.yml@main
+    uses: homebridge/.github/.github/workflows/npm-publish.yml@latest
     secrets:
       npm_auth_token: ${{ secrets.npm_token }}
