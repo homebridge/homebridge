@@ -1,5 +1,34 @@
 # Change Log
 
+## v1.6.2-Beta (2023-11-XX)
+
+## Other Changes
+- Update depdendencies
+
+## v1.6.1 (2023-04-30)
+
+## What's Changed
+### Bug Fixes 🐛
+* Fixed an issue with the `avahi` advertiser on Synology that resulted in homebridge not starting by @Supereg in https://github.com/homebridge/HAP-NodeJS/pull/1003
+* Resolved an issue where developers weren't able to compile strict TypeScript projects against Homebridge
+
+## v1.6.0 (2022-11-26)
+
+## What's Changed
+* Updated `hap-nodejs` to [v0.11.0](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.11.0) adding support for `systemd-resolved` mDNS advertisers and improved support for systems running avahi mDNS advertiser. The release also contains general bug fixes and improvements.
+* Support resolved mDNS advertiser by @elyscape in https://github.com/homebridge/homebridge/pull/3260
+* Update to provide compatibility with hap-nodejs 0.11.0 by @Supereg in https://github.com/homebridge/homebridge/pull/3263
+
+## New Contributors
+* @elyscape made their first contribution in https://github.com/homebridge/homebridge/pull/3260
+
+## v1.5.1 (2022-10-25)
+
+## Changes
+
+* Upgrade hap-nodejs to [v0.10.4](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.10.4) containing minor bug fixes by @Supereg (https://github.com/homebridge/homebridge/commit/968ae0c501ed3fcafbaaef945b13e9d5dbef2c95)
+* suppress warning generated from running npm -g prefix by @oznu (https://github.com/homebridge/homebridge/commit/2aa6fad3345f5bcfa2fc128f5d9ac110ec52ecfd)
+
 ## v1.5.0 (2022-06-22)
 
 ### Featured Changes
