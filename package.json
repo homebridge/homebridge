@@ -27,7 +27,7 @@
     "url": "git://github.com/homebridge/homebridge.git"
   },
   "bugs": {
-    "url": "http://github.com/homebridge/homebridge/issues"
+    "url": "https://github.com/homebridge/homebridge/issues"
   },
   "bin": {
     "homebridge": "bin/homebridge"
