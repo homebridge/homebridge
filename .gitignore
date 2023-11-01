@@ -7,6 +7,9 @@ node_modules/
 npm-debug.log
 .node-version
 
+# Coverage
+coverage/
+
 # Ignore any extra plugins in the example directory that aren't in Git already
 # (this is a sandbox for the user)
 example-plugins
@@ -16,3 +19,6 @@ lib
 
 # possible local testing storage
 .homebridge
+
+# test
+mock

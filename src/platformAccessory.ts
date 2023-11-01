@@ -12,6 +12,7 @@ import {
   WithUUID,
 } from "hap-nodejs";
 import { PlatformName, PluginIdentifier, PluginName } from "./api";
+import { ConstructorArgs } from "hap-nodejs/dist/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type UnknownContext = Record<string, any>;
@@ -88,8 +89,12 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public addService(service: Service | typeof Service, ...constructorArgs: any[]): Service {
+  public addService(service: Service): Service;
+  public addService<S extends typeof Service>(serviceConstructor: S, ...constructorArgs: ConstructorArgs<S>): Service;
+  public addService(service: Service | typeof Service, ...constructorArgs: any[]): Service { // eslint-disable-line @typescript-eslint/no-explicit-any
+    // @ts-expect-error: while the HAP-NodeJS interface was refined, the underlying implementation
+    //  still only operates on an any[] array. Therefore, do not require any additional checks here
+    //  we force the parameter unpack with expecting a ts-error.
     return this._associatedHAPAccessory.addService(service, ...constructorArgs);
   }
 

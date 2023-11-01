@@ -1,5 +1,6 @@
 import path from "path";
 import assert from "assert";
+import { pathToFileURL } from "url";
 import { satisfies } from "semver";
 import getVersion from "./version";
 import { Logger } from "./logger";
@@ -20,6 +21,9 @@ import { PackageJSON, PluginManager } from "./pluginManager";
 
 const log = Logger.internal;
 
+// Workaround for https://github.com/microsoft/TypeScript/issues/43329
+const _importDynamic = new Function("modulePath", "return import(modulePath)");
+
 /**
  * Represents a loaded Homebridge plugin.
  */
@@ -28,6 +32,7 @@ export class Plugin {
   private readonly pluginName: PluginName;
   private readonly scope?: string; // npm package scope
   private readonly pluginPath: string; // like "/usr/local/lib/node_modules/homebridge-lockitron"
+  private readonly isESM: boolean;
 
   public disabled = false; // mark the plugin as disabled
 
@@ -37,7 +42,7 @@ export class Plugin {
   private loadContext?: { // used to store data for a limited time until the load method is called, will be reset afterwards
     engines?: Record<string, string>;
     dependencies?: Record<string, string>;
-  }
+  };
   // ----------------------------------------------------------
 
   private pluginInitializer?: PluginInitializer; // default exported function from the plugin that initializes it
@@ -53,7 +58,38 @@ export class Plugin {
     this.pluginPath = path;
 
     this.version = packageJSON.version || "0.0.0";
-    this.main = packageJSON.main || "./index.js"; // figure out the main module - index.js unless otherwise specified
+    this.main = "";
+
+    // figure out the main module
+    // exports is available - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_package_entry_points
+    if (packageJSON.exports) {
+      // main entrypoint - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_main_entry_point_export
+      if (typeof packageJSON.exports === "string") {
+        this.main = packageJSON.exports;  
+      } else { // subpath export - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_subpath_exports
+        // conditional exports - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_conditional_exports
+        const exports = packageJSON.exports.import || packageJSON.exports.require || packageJSON.exports.node || packageJSON.exports.default || packageJSON.exports["."];
+
+        // check if conditional export is nested
+        if (typeof exports !== "string") {
+          if(exports.import) {
+            this.main = exports.import;
+          } else {
+            this.main = exports.require || exports.node || exports.default;
+          }
+        } else {
+          this.main = exports;
+        }
+      }
+    }
+
+    // exports search was not successful, fallback to package.main, using index.js as fallback
+    if (!this.main) {
+      this.main = packageJSON.main || "./index.js";
+    }
+
+    // check if it is a ESM module
+    this.isESM = this.main.endsWith(".mjs") || (this.main.endsWith(".js") && packageJSON.type === "module");
 
     // very temporary fix for first wave of plugins
     if (packageJSON.peerDependencies && (!packageJSON.engines || !packageJSON.engines.homebridge)) {
@@ -146,7 +182,7 @@ export class Plugin {
     return platforms && platforms[0];
   }
 
-  public load(): void {
+  public async load(): Promise<void> {
     const context = this.loadContext!;
     assert(context, "Reached illegal state. Plugin state is undefined!");
     this.loadContext = undefined; // free up memory
@@ -170,7 +206,7 @@ You may face unexpected issues or stability problems running this plugin.`);
     // make sure the version is satisfied by the currently running version of Node
     if (nodeVersionRequired && !satisfies(process.version, nodeVersionRequired)) {
       log.warn(`The plugin "${this.pluginName}" requires Node.js version of ${nodeVersionRequired} which does \
-not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://git.io/JTKEF`);
+not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://homebridge.io/w/JTKEF`);
     }
 
     const dependencies = context.dependencies || {};
@@ -184,7 +220,11 @@ major incompatibility issues and thus is considered bad practice. Please inform 
 
     // try to require() it and grab the exported initialization hook
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pluginModules = require(mainPath);
+
+    // pathToFileURL(specifier).href to turn a path into a "file url"
+    // see https://github.com/nodejs/node/issues/31710
+
+    const pluginModules = this.isESM ? await _importDynamic(pathToFileURL(mainPath).href) : require(mainPath);
 
     if (typeof pluginModules === "function") {
       this.pluginInitializer = pluginModules;
@@ -195,12 +235,12 @@ major incompatibility issues and thus is considered bad practice. Please inform 
     }
   }
 
-  public initialize(api: API): void {
+  public initialize(api: API): void | Promise<void> {
     if (!this.pluginInitializer) {
       throw new Error("Tried to initialize a plugin which hasn't been loaded yet!");
     }
 
-    this.pluginInitializer(api);
+    return this.pluginInitializer(api);
   }
 
 

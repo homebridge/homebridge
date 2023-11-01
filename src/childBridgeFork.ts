@@ -12,7 +12,7 @@ import { Plugin } from "./plugin";
 import { PluginManager } from "./pluginManager";
 import { Logger } from "./logger";
 import { User } from "./user";
-import { HAPStorage, MacAddress } from "hap-nodejs";
+import { AccessoryEventTypes, HAPStorage, MacAddress } from "hap-nodejs";
 import {
   ChildProcessMessageEventType,
   ChildProcessMessageEvent,
@@ -20,6 +20,7 @@ import {
   ChildProcessPortRequestEventData,
   ChildProcessPortAllocatedEventData,
   ChildProcessPluginLoadedEventData,
+  ChildBridgePairedStatusEventData,
 } from "./childBridgeService";
 import {
   AccessoryConfig,
@@ -39,7 +40,7 @@ export class ChildBridgeFork {
   private type!: PluginType;
   private plugin!: Plugin;
   private identifier!: string;
-  private pluginConfig!: PlatformConfig | AccessoryConfig;
+  private pluginConfig!: Array<PlatformConfig | AccessoryConfig>;
   private bridgeConfig!: BridgeConfiguration;
   private bridgeOptions!: BridgeOptions;
   private homebridgeConfig!: HomebridgeConfig;
@@ -60,7 +61,7 @@ export class ChildBridgeFork {
     }
   }
 
-  loadPlugin(data: ChildProcessLoadEventData): void {
+  async loadPlugin(data: ChildProcessLoadEventData): Promise<void> {
     // set data
     this.type = data.type;
     this.identifier = data.identifier;
@@ -70,7 +71,9 @@ export class ChildBridgeFork {
     this.homebridgeConfig = data.homebridgeConfig;
 
     // remove the _bridge key (some plugins do not like unknown config)
-    delete this.pluginConfig._bridge;
+    for (const config of this.pluginConfig) {
+      delete config._bridge;
+    }
 
     // set bridge settings (inherited from main bridge)
     if (this.bridgeOptions.noLogTimestamps) {
@@ -98,9 +101,9 @@ export class ChildBridgeFork {
     this.externalPortService = new ChildBridgeExternalPortService(this);
 
     // load plugin
-    this.plugin = this.pluginManager.loadPlugin(data.pluginPath);
-    this.plugin.load();
-    this.pluginManager.initializePlugin(this.plugin, data.identifier);
+    this.plugin = await this.pluginManager.loadPlugin(data.pluginPath);
+    await this.plugin.load();
+    await this.pluginManager.initializePlugin(this.plugin, data.identifier);
 
     // change process title to include plugin name
     process.title = `homebridge: ${this.plugin.getPluginIdentifier()}`;
@@ -120,45 +123,62 @@ export class ChildBridgeFork {
       this.homebridgeConfig,
     );
 
+    // watch bridge events to check when server is online
+    this.bridgeService.bridge.on(AccessoryEventTypes.ADVERTISED, () => {
+      this.sendPairedStatusEvent();
+    });
+
+    // watch for the paired event to update the server status
+    this.bridgeService.bridge.on(AccessoryEventTypes.PAIRED, () => {
+      this.sendPairedStatusEvent();
+    });
+
+    // watch for the unpaired event to update the server status
+    this.bridgeService.bridge.on(AccessoryEventTypes.UNPAIRED, () => {
+      this.sendPairedStatusEvent();
+    });
+
     // load the cached accessories
     await this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
 
-    if (this.type === PluginType.PLATFORM) {
-      const plugin = this.pluginManager.getPluginForPlatform(this.identifier);
-      const displayName = this.pluginConfig?.name || plugin.getPluginIdentifier();
-      const logger = Logger.withPrefix(displayName);
-      const constructor = plugin.getPlatformConstructor(this.identifier);
-      const platform: PlatformPlugin = new constructor(logger, this.pluginConfig as PlatformConfig, this.api);
+    for (const config of this.pluginConfig) {
+      if (this.type === PluginType.PLATFORM) {
+        const plugin = this.pluginManager.getPluginForPlatform(this.identifier);
+        const displayName = config.name || plugin.getPluginIdentifier();
+        const logger = Logger.withPrefix(displayName);
+        const constructor = plugin.getPlatformConstructor(this.identifier);
+        const platform: PlatformPlugin = new constructor(logger, config as PlatformConfig, this.api);
 
-      if (HomebridgeAPI.isDynamicPlatformPlugin(platform)) {
-        plugin.assignDynamicPlatform(this.identifier, platform);
-      } else if (HomebridgeAPI.isStaticPlatformPlugin(platform)) { // Plugin 1.0, load accessories
-        await this.bridgeService.loadPlatformAccessories(plugin, platform, this.identifier, logger);
-      } else {
-        // otherwise it's a IndependentPlatformPlugin which doesn't expose any methods at all.
-        // We just call the constructor and let it be enabled.
-      }
+        if (HomebridgeAPI.isDynamicPlatformPlugin(platform)) {
+          plugin.assignDynamicPlatform(this.identifier, platform);
+        } else if (HomebridgeAPI.isStaticPlatformPlugin(platform)) { // Plugin 1.0, load accessories
+          await this.bridgeService.loadPlatformAccessories(plugin, platform, this.identifier, logger);
+        } else {
+          // otherwise it's a IndependentPlatformPlugin which doesn't expose any methods at all.
+          // We just call the constructor and let it be enabled.
+        }
 
-    } else if (this.type === PluginType.ACCESSORY) {
-      const plugin = this.pluginManager.getPluginForAccessory(this.identifier);
-      const displayName = this.pluginConfig.name;
+      } else if (this.type === PluginType.ACCESSORY) {
+        const plugin = this.pluginManager.getPluginForAccessory(this.identifier);
+        const displayName = config.name;
 
-      if (!displayName) {
-        Logger.internal.warn("Could not load accessory %s as it is missing the required 'name' property!", this.identifier);
-        return;
-      }
+        if (!displayName) {
+          Logger.internal.warn("Could not load accessory %s as it is missing the required 'name' property!", this.identifier);
+          return;
+        }
 
-      const logger = Logger.withPrefix(displayName);
-      const constructor = plugin.getAccessoryConstructor(this.identifier);
-      const accessoryInstance: AccessoryPlugin = new constructor(logger, this.pluginConfig as AccessoryConfig, this.api);
+        const logger = Logger.withPrefix(displayName);
+        const constructor = plugin.getAccessoryConstructor(this.identifier);
+        const accessoryInstance: AccessoryPlugin = new constructor(logger, config as AccessoryConfig, this.api);
 
-      //pass accessoryIdentifier for UUID generation, and optional parameter uuid_base which can be used instead of displayName for UUID generation
-      const accessory = this.bridgeService.createHAPAccessory(plugin, accessoryInstance, displayName, this.identifier, this.pluginConfig.uuid_base);
+        //pass accessoryIdentifier for UUID generation, and optional parameter uuid_base which can be used instead of displayName for UUID generation
+        const accessory = this.bridgeService.createHAPAccessory(plugin, accessoryInstance, displayName, this.identifier, config.uuid_base);
 
-      if (accessory) {
-        this.bridgeService.bridge.addBridgedAccessory(accessory);
-      } else {
-        logger("Accessory %s returned empty set of services. Won't adding it to the bridge!", this.identifier);
+        if (accessory) {
+          this.bridgeService.bridge.addBridgedAccessory(accessory);
+        } else {
+          logger("Accessory %s returned empty set of services. Won't adding it to the bridge!", this.identifier);
+        }
       }
     }
 
@@ -205,6 +225,16 @@ export class ChildBridgeFork {
     if (callback) {
       callback(data.port);
     }
+  }
+
+  /**
+   * Sends the current pairing status of the child bridge to the parent process
+   */
+  public sendPairedStatusEvent() {
+    this.sendMessage<ChildBridgePairedStatusEventData>(ChildProcessMessageEventType.STATUS_UPDATE, {
+      paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
+      setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
+    });
   }
 
   shutdown(): void {

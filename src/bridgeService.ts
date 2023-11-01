@@ -26,6 +26,7 @@ import {
   uuid,
   VoidCallback,
   MDNSAdvertiser,
+  HAPLibraryVersion,
 } from "hap-nodejs";
 import {
   AccessoryIdentifier,
@@ -50,7 +51,7 @@ export interface BridgeConfiguration {
   name: string;
   username: MacAddress;
   pin: string; // format like "000-00-000"
-  advertiser: MDNSAdvertiser;
+  advertiser?: MDNSAdvertiser;
   port?: number;
   bind?: (InterfaceName | IPAddress) | (InterfaceName | IPAddress)[];
   setupID?: string[4];
@@ -104,6 +105,10 @@ export interface BridgeOptions extends HomebridgeOptions {
   cachedAccessoriesItemName: string;
 }
 
+export interface CharacteristicWarningOpts {
+  ignoreSlow?: boolean;
+}
+
 export class BridgeService {
   public bridge: Bridge;
   private storageService: StorageService;
@@ -146,25 +151,30 @@ export class BridgeService {
   }
 
   // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
-  public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, warning: CharacteristicWarning): void {
-    const wikiInfo = "See https://git.io/JtMGR for more info.";
+  public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, opts: CharacteristicWarningOpts, warning: CharacteristicWarning): void {
+    const wikiInfo = "See https://homebridge.io/w/JtMGR for more info.";
     switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
-        log.warn(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
+        if (!opts.ignoreSlow) {
+          log.info(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
+        }
         break;
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
         log.error(getLogPrefix(plugin.getPluginIdentifier()), "This plugin slows down Homebridge.", warning.message, wikiInfo);
         break;
       case CharacteristicWarningType.WARN_MESSAGE:
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated warning from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
+        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;
       case CharacteristicWarningType.ERROR_MESSAGE:
-        log.error(getLogPrefix(plugin.getPluginIdentifier()), `This plugin threw error from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
+        log.error(getLogPrefix(plugin.getPluginIdentifier()), `This plugin threw an error from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
+        break;
+      case CharacteristicWarningType.DEBUG_MESSAGE:
+        log.debug(getLogPrefix(plugin.getPluginIdentifier()), `Characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;
       default: // generic message for yet unknown types
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated warning from the characteristic '${warning.characteristic.displayName}':`, warning.message, wikiInfo);
+        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, warning.message + ".", wikiInfo);
         break;
     }
     if (warning.stack) {
@@ -182,7 +192,7 @@ export class BridgeService {
     info.setCharacteristic(Characteristic.FirmwareRevision, getVersion());
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
-      log.info("Homebridge v%s (%s) is running on port %s.", getVersion(), bridgeConfig.name, port);
+      log.info("Homebridge v%s (HAP v%s) (%s) is running on port %s.", getVersion(), HAPLibraryVersion(), bridgeConfig.name, port);
     });
 
     // noinspection JSDeprecatedSymbols
@@ -201,6 +211,7 @@ export class BridgeService {
       publishInfo.setupID = bridgeConfig.setupID;
     }
 
+    log.debug("Publishing bridge accessory (name: %s, publishInfo: %o).", this.bridge.displayName, BridgeService.strippingPinCode(publishInfo));
     this.bridge.publish(publishInfo, this.allowInsecureAccess);
   }
 
@@ -300,7 +311,7 @@ export class BridgeService {
 
       const platformPlugins = plugin && plugin.getActiveDynamicPlatform(accessory._associatedPlatform!);
       if (plugin) {
-        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory));
+        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory, {}));
       }
 
       if (!platformPlugins) {
@@ -317,7 +328,12 @@ export class BridgeService {
         platformPlugins.configureAccessory(accessory);
       }
 
-      this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory);
+      try {
+        this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory);
+      } catch (e) {
+        log.warn(`${accessory._associatedPlugin ? getLogPrefix(accessory._associatedPlugin): ""} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, e?.message);
+        return false; // filter it from the list
+      }
       return true; // keep it in the list
     });
   }
@@ -357,7 +373,7 @@ export class BridgeService {
           log.warn("The plugin '%s' registered a new accessory for the platform '%s'. The platform couldn't be found though!", accessory._associatedPlugin!, accessory._associatedPlatform!);
         }
 
-        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory));
+        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory, {}));
       } else {
         log.warn("A platform configured a new accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
       }
@@ -413,7 +429,7 @@ export class BridgeService {
           informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
         }
 
-        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory));
+        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory, { ignoreSlow: true }));
       } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) {
         // we did already complain in api.ts if it wasn't a qualified name
         log.warn("A platform configured a external accessory under the plugin name '%s'. However no loaded plugin could be found for the name!", accessory._associatedPlugin);
@@ -425,7 +441,7 @@ export class BridgeService {
       });
 
       // noinspection JSDeprecatedSymbols
-      hapAccessory.publish({
+      const publishInfo: PublishInfo = {
         username: advertiseAddress,
         pincode: accessoryPin,
         category: accessory.category,
@@ -434,7 +450,10 @@ export class BridgeService {
         mdns: this.config.mdns, // this is deprecated and not used anymore
         addIdentifyingMaterial: true,
         advertiser: this.bridgeConfig.advertiser,
-      }, this.allowInsecureAccess);
+      };
+
+      log.debug("Publishing external accessory (name: %s, publishInfo: %o).", hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo));
+      hapAccessory.publish(publishInfo, this.allowInsecureAccess);
     }
   }
 
@@ -494,7 +513,7 @@ export class BridgeService {
         informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
       }
 
-      accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory));
+      accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory, {}));
 
       controllers.forEach(controller => {
         accessory.configureController(controller);
@@ -509,7 +528,7 @@ export class BridgeService {
     return new Promise(resolve => {
       // warn the user if the static platform is blocking the startup of Homebridge for to long
       const loadDelayWarningInterval = setInterval(() => {
-        logger.warn("%s is taking a long time to load and preventing Homebridge from starting.", plugin.getPluginIdentifier());
+        log.warn(getLogPrefix(plugin.getPluginIdentifier()), "This plugin is taking long time to load and preventing Homebridge from starting. See https://homebridge.io/w/JtMGR for more info.");
       }, 20000);
 
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
@@ -548,5 +567,11 @@ export class BridgeService {
     this.api.signalShutdown();
   }
 
-
+  private static strippingPinCode(publishInfo: PublishInfo): PublishInfo {
+    const info = {
+      ...publishInfo,
+    };
+    info.pincode = "***-**-***";
+    return info;
+  }
 }

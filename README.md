@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://homebridge.io"><img src="https://raw.githubusercontent.com/homebridge/branding/master/logos/homebridge-color-round-stylized.png" height="140"></a>
+  <a href="https://homebridge.io"><img src="https://raw.githubusercontent.com/homebridge/branding/latest/logos/homebridge-color-round-stylized.png" height="140"></a>
 </p>
 
 <span align="center">
@@ -9,6 +9,7 @@
 <a href="https://www.npmjs.com/package/homebridge"><img title="npm version" src="https://badgen.net/npm/v/homebridge?label=stable"></a>
 <a href="https://github.com/homebridge/homebridge/wiki/Homebridge-Beta-Testing"><img title="npm version" src="https://badgen.net/npm/v/homebridge/beta?label=beta"></a>
 <a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://badgen.net/npm/dt/homebridge"></a>
+<a href="https://github.com/homebridge/homebridge/actions/workflows/build.yml"><img title="Node Build" src="https://github.com/homebridge/homebridge/actions/workflows/build.yml/badge.svg"></a>
 
 </span>
 
@@ -49,33 +50,8 @@ The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains st
 * [Setup Homebridge on macOS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-macOS)
 * [Setup Homebridge on Windows 10](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10)
 * [Setup Homebridge on Docker (Linux)](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker)
+* [Setup Homebridge on a Synology NAS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Synology-DSM)
 * [Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
-
-On other platforms, ensure you have **Node.js v10.17.0** or later installed and run:
-
-```shell
-sudo npm install -g --unsafe-perm homebridge
-```
-
-Then start Homebridge in your terminal window by running:
-
-```shell
-homebridge
-```
-
-## Installing Plugins
-
-Plugins are Node.js modules published through NPM and tagged with the keyword `homebridge-plugin`. They must have a name with the prefix `homebridge-`, like **homebridge-mysmartlock**.
-
-Plugins can publish Accessories and/or Platforms. Accessories are individual devices, like a smart switch or a garage door. Platforms act like a single device but can expose a set of devices, like a house full of smart lightbulbs.
-
-You install Plugins using the [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x), or the same way you installed Homebridge - as a global NPM module. For example:
-
-```shell
-sudo npm install -g homebridge-dummy
-```
-
-You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
 
 ## Adding Homebridge to iOS
 
@@ -126,19 +102,20 @@ This is very useful when you are already using your development machine to host 
 
 ## Common Issues
 
+### Home App Says Accessory Already Added
+
+To fix this, [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge).
+
 ### My iOS App Can't Find Homebridge
 
-Three reasons why Homebridge may not be discoverable:
+Try the following:
 
-  1. Homebridge server thinks it's been paired with, but iOS thinks otherwise. To fix this, [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge).
-
-  2. iOS device has gotten your Homebridge `username` (looks like a MAC address) "stuck" somehow, where it's in the database but inactive. To fix this, change your `username` in the "bridge" section of `config.json` to be some new value, or [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge) using the [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x).
-  
-  3. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache. This is a temporary fix, but can be repeated when the problem recurs. No permanent fix is as yet known/confirmed. If you're experiencing this as a recurrent issue, it likely affects other bonjour and .local DNS resolution services, for which cycling airplane mode will also temporarily resolve.
+  1. Swap between the `Bonjour HAP` and `Ciao` mDNS Advertiser options. See [the wiki](https://github.com/homebridge/homebridge/wiki/mDNS-Options) for more details.
+  2. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache. 
 
 ### Limitations
 
- * One installation of Homebridge can only expose 150 accessories due to a HomeKit limit. You can however run [Multiple Homebridge Instances](https://github.com/oznu/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
+ * One bridge can only expose 150 accessories due to a HomeKit limit. You can however run your plugins as a [Child Bridge](https://github.com/homebridge/homebridge/wiki/Child-Bridges) or run [Multiple Homebridge Instances](https://github.com/oznu/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
  * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
 
 ## Why Homebridge?

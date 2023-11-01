@@ -26,6 +26,8 @@
     "curly": ["error", "all"],
     "brace-style": ["error"],
 
+    "@typescript-eslint/no-unsafe-declaration-merging": "off",
+
     "@typescript-eslint/no-non-null-assertion": "off" // currently disabled, hap-nodejs has some bad typing (like getCharacteristic) for this to be enabled
   }
 }

@@ -1,0 +1,12 @@
+name: Stale workflow
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 11 * * *'
+
+jobs:
+  stale:
+    uses: homebridge/.github/.github/workflows/stale.yml@latest
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
