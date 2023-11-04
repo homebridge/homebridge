@@ -2,11 +2,13 @@
 
 All notable changes to homebridge will be documented in this file.
 
-## BETA v1.7.0
+## v1.7.0 (2023-11-04)
+
+*Reminder: Node.js v18.15.0 or later is **required** to run Homebridge.*
 
 ### Other Changes
 
-- Update dependencies (https://github.com/homebridge/homebridge/pull/3459 and https://github.com/homebridge/homebridge/pull/3460))
+- Update dependencies by @bwp91 in https://github.com/homebridge/homebridge/pull/3459 and https://github.com/homebridge/homebridge/pull/3460
 
 ## v1.6.1 (2023-04-30)
 
