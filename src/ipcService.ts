@@ -30,8 +30,8 @@ export class IpcService extends EventEmitter {
    * Currently this will only listen for messages from a parent process.
    */
   public start(): void {
-    process.on("message", (message) => {
-      if (typeof message !== "object" || !message.id) {
+    process.on("message", (message: { id: string, data: never }) => {
+      if (!message || typeof message !== "object" || !message.id) {
         return;
       }
       this.emit(message.id, message.data);
