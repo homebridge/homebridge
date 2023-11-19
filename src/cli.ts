@@ -1,5 +1,5 @@
 import "source-map-support/register"; // registering node-source-map-support for typescript stack traces
-import commander from "commander";
+import { program } from "commander";
 import { HAPStorage } from "hap-nodejs";
 import getVersion, { getRequiredNodeVersion } from "./version";
 import { User } from "./user";
@@ -31,7 +31,7 @@ export = function cli(): void {
 
   let shuttingDown = false;
 
-  commander
+  program
     .version(getVersion())
     .option("-C, --color", "force color in logging", () => forceColourLogging = true)
     .option("-D, --debug", "turn on debug level logging", () => debugModeEnabled = true)
@@ -49,7 +49,7 @@ export = function cli(): void {
     .parse(process.argv);
 
   if (noLogTimestamps) {
-    Logger.setTimestampEnabled(false); 
+    Logger.setTimestampEnabled(false);
   }
 
   if (debugModeEnabled) {
