@@ -7,21 +7,21 @@ on:
 
 jobs:
   build_and_test:
-    uses: homebridge/.github/.github/workflows/nodejs-build-and-test.yml@main
+    uses: homebridge/.github/.github/workflows/nodejs-build-and-test.yml@latest
     with:
       enable_coverage: true
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
   lint:
     needs: build_and_test
-    uses: homebridge/.github/.github/workflows/eslint.yml@main
+    uses: homebridge/.github/.github/workflows/eslint.yml@latest
 
   publish:
     needs: lint
 
     if: ${{ github.repository == 'homebridge/homebridge' }}
 
-    uses: homebridge/.github/.github/workflows/npm-publish.yml@main
+    uses: homebridge/.github/.github/workflows/npm-publish.yml@latest
     with:
       tag: 'beta'
       dynamically_adjust_version: true

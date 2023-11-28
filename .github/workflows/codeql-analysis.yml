@@ -10,4 +10,4 @@ on:
 
 jobs:
   analyze:
-    uses: homebridge/.github/.github/workflows/codeql-analysis.yml@main
+    uses: homebridge/.github/.github/workflows/codeql-analysis.yml@latest
