@@ -13,7 +13,7 @@ describe("Server", () => {
   const existingEnvVar = process.env.BRIDGE_USERNAME;
 
   beforeAll(async () => {
-    process.env.BRIDGE_USERNAME = "CC:22:3D:E3:CE:30";
+    process.env.BRIDGE_USERNAME = "CC:22:3D:E3:CE:31";
     await fs.ensureDir(homebridgeStorageFolder);
     User.setStoragePath(homebridgeStorageFolder);
     HAPStorage.setCustomStoragePath(User.persistPath());
