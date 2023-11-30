@@ -58,6 +58,7 @@ export interface BridgeConfiguration {
   manufacturer?: string;
   model?: string;
   disableIpc?: boolean;
+  firmwareRevision?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -189,7 +190,7 @@ export class BridgeService {
     info.setCharacteristic(Characteristic.Manufacturer, bridgeConfig.manufacturer || "homebridge.io");
     info.setCharacteristic(Characteristic.Model, bridgeConfig.model || "homebridge");
     info.setCharacteristic(Characteristic.SerialNumber, bridgeConfig.username);
-    info.setCharacteristic(Characteristic.FirmwareRevision, getVersion());
+    info.setCharacteristic(Characteristic.FirmwareRevision, bridgeConfig.firmwareRevision || getVersion());
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
       log.info("Homebridge v%s (HAP v%s) (%s) is running on port %s.", getVersion(), HAPLibraryVersion(), bridgeConfig.name, port);
