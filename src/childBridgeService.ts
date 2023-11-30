@@ -346,6 +346,7 @@ export class ChildBridgeService {
       setupID: this.bridgeConfig.setupID,
       manufacturer: this.bridgeConfig.manufacturer || this.homebridgeConfig.bridge.manufacturer,
       model: this.bridgeConfig.model || this.homebridgeConfig.bridge.model,
+      firmwareRevision: this.bridgeConfig.firmwareRevision || this.homebridgeConfig.bridge.firmwareRevision,
     };
 
     const bridgeOptions: BridgeOptions = {
