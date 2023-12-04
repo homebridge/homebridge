@@ -1,11 +1,11 @@
 # Add 'beta' label to any PR where the head branch name starts with `beta` or has a `beta` section in the name
 beta:
- - head-branch: ['^beta', 'beta', 'beta*']
+ - base-branch: ['^beta', 'beta', 'beta*']
 
 # Add 'beta' label to any PR where the head branch name starts with `beta` or has a `beta` section in the name
 alpha:
- - head-branch: ['^alpha', 'alpha', 'alpha*']
+ - base-branch: ['^alpha', 'alpha', 'alpha*']
 
 # Add 'latest' label to any PR where the head branch name starts with `latest` or has a `latest` section in the name
 latest:
- - head-branch: ['^latest', 'latest', 'latest*']
+  - base-branch: ['^latest', 'latest', 'latest*']
