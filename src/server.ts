@@ -228,7 +228,7 @@ export class Server {
       config = JSON.parse(fs.readFileSync(configPath, { encoding: "utf8" }));
     } catch (err) {
       log.error("There was a problem reading your config.json file.");
-      log.error("Please try pasting your config.json file here to validate it: http://jsonlint.com");
+      log.error("Please try pasting your config.json file here to validate it: https://jsonlint.com");
       log.error("");
       throw err;
     }

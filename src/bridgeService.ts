@@ -92,7 +92,7 @@ export interface HomebridgeConfig {
 
   /**
    * Array of disabled plugins.
-   * Unlike the plugins[] config which prevents plugins from being initialised at all, disabled plugins still have their alias loaded so
+   * Unlike the plugins[] config which prevents plugins from being initialised at all, disabled plugins still have their alias loaded, so
    * we can match config blocks of disabled plugins and show an appropriate message in the logs.
    */
   disabledPlugins?: PluginIdentifier[];
@@ -133,7 +133,7 @@ export class BridgeService {
 
     // Server is "secure by default", meaning it creates a top-level Bridge accessory that
     // will not allow unauthenticated requests. This matches the behavior of actual HomeKit
-    // accessories. However you can set this to true to allow all requests without authentication,
+    // accessories. However, you can set this to true to allow all requests without authentication,
     // which can be useful for easy hacking. Note that this will expose all functions of your
     // bridged accessories, like changing characteristics (i.e. flipping your lights on and off).
     this.allowInsecureAccess = this.bridgeOptions.insecureAccess || false;
@@ -147,7 +147,7 @@ export class BridgeService {
     this.bridge.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, () => {
       // We register characteristic warning handlers on every bridged accessory (to have a reference to the plugin).
       // For Bridges the warnings will propagate to the main Bridge accessory, thus we need to silence them here.
-      // Other wise those would be printed twice (by us and HAP-NodeJS as it detects no handlers on the bridge).
+      // Otherwise, those would be printed twice (by us and HAP-NodeJS as it detects no handlers on the bridge).
     });
   }
 
@@ -499,7 +499,7 @@ export class BridgeService {
         if (service instanceof Service.AccessoryInformation) {
           service.setCharacteristic(Characteristic.Name, displayName); // ensure display name is set
           // ensure the plugin has not hooked already some listeners (some weird ones do).
-          // Otherwise they would override our identify listener registered by the HAP-NodeJS accessory
+          // Otherwise, they would override our identify listener registered by the HAP-NodeJS accessory
           service.getCharacteristic(Characteristic.Identify).removeAllListeners(CharacteristicEventTypes.SET);
 
           // pull out any values and listeners (get and set) you may have defined

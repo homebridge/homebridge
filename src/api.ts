@@ -52,7 +52,7 @@ export interface AccessoryPluginConstructor {
 export interface AccessoryPlugin {
 
   /**
-   * Optional method which will be called if a 'identify' of a Accessory is requested by HomeKit.
+   * Optional method which will be called if a 'identify' of an Accessory is requested by HomeKit.
    */
   identify?(): void;
 
@@ -70,10 +70,10 @@ export interface AccessoryPlugin {
    *
    * This includes controllers like the RemoteController or the CameraController.
    * Any necessary controller specific setup should have been done when returning the array.
-   * In most cases the plugin will only return a array of the size 1.
+   * In most cases the plugin will only return an array of the size 1.
    *
    * In the case that the Plugin does not add any additional services (returned by {@link getServices}) the
-   * method {@link getServices} must defined in any way and should just return an empty array.
+   * method {@link getServices} must be defined in any way and should just return an empty array.
    *
    * @returns {Controller[]} controllers - returned controllers will be configured for the Accessory
    */
@@ -143,7 +143,7 @@ export const enum APIEvent {
    */
   DID_FINISH_LAUNCHING = "didFinishLaunching",
   /**
-   * This event is fired when homebridge got shutdown. This could be a regular shutdown or a unexpected crash.
+   * This event is fired when homebridge gets shutdown. This could be a regular shutdown or an unexpected crash.
    * At this stage all Accessories are already unpublished and all PlatformAccessories are already saved to disk!
    */
   SHUTDOWN = "shutdown",
