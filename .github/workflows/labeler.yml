@@ -1,7 +1,7 @@
-name: PR Labeler
+name: Labeler
 
 on:
-  pull_request: # required for auto labeler
+  pull_request_target: # required for auto labeler
     types: [opened, reopened, synchronize]
   workflow_dispatch:
 
