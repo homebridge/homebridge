@@ -4,7 +4,7 @@
 process.title = "homebridge: child bridge";
 
 // registering node-source-map-support for typescript stack traces
-import "source-map-support/register"; 
+import "source-map-support/register";
 
 import { AccessoryPlugin, HomebridgeAPI, PlatformPlugin, PluginType } from "./api";
 import { ChildBridgeExternalPortService } from "./externalPortService";
@@ -101,7 +101,7 @@ export class ChildBridgeFork {
     this.externalPortService = new ChildBridgeExternalPortService(this);
 
     // load plugin
-    this.plugin = await this.pluginManager.loadPlugin(data.pluginPath);
+    this.plugin = this.pluginManager.loadPlugin(data.pluginPath);
     await this.plugin.load();
     await this.pluginManager.initializePlugin(this.plugin, data.identifier);
 
@@ -218,7 +218,7 @@ export class ChildBridgeFork {
 
   /**
    * Handles the port allocation response message from the parent process
-   * @param data 
+   * @param data
    */
   public handleExternalResponse(data: ChildProcessPortAllocatedEventData): void {
     const callback = this.portRequestCallback.get(data.username);
@@ -288,7 +288,7 @@ const signalHandler = (signal: NodeJS.Signals, signalNum: number): void => {
   } catch (e) {
     // do nothing
   }
-  
+
   setTimeout(() => process.exit(128 + signalNum), 5000);
 };
 

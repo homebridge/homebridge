@@ -53,7 +53,7 @@ export interface PluginManagerOptions {
    */
   activePlugins?: PluginIdentifier[];
   /**
-   * Plugins that are marked as disabled and whos corresponding config blocks should be ignored
+   * Plugins that are marked as disabled and whose corresponding config blocks should be ignored
    */
   disabledPlugins?: PluginIdentifier[];
 }
@@ -374,7 +374,7 @@ export class PluginManager {
         relativePluginPaths
           .filter(pluginIdentifier => {
             return PluginManager.isQualifiedPluginIdentifier(pluginIdentifier) // needs to be a valid homebridge plugin name
-              && (!this.activePlugins || this.activePlugins.includes(pluginIdentifier)); // check if activePlugins is restricted and if so if the plugin is contained
+              && (!this.activePlugins || this.activePlugins.includes(pluginIdentifier)); // check if activePlugins is restricted and if so is the plugin is contained
           })
           .forEach(pluginIdentifier => {
             try {
@@ -440,7 +440,7 @@ export class PluginManager {
     if (this.strictPluginResolution) {
       // if strict plugin resolution is enabled:
       // * only use custom plugin path, if set;
-      // * otherwise add the current npm global prefix (eg. /usr/local/lib/node_modules)
+      // * otherwise add the current npm global prefix (e.g. /usr/local/lib/node_modules)
       if (this.searchPaths.size === 0) {
         this.addNpmPrefixToSearchPaths();
       }
@@ -455,7 +455,7 @@ export class PluginManager {
     // THIS SECTION FROM: https://github.com/yeoman/environment/blob/master/lib/resolver.js
 
     // Adding global npm directories
-    // We tried using npm to get the global modules path, but it haven't work out
+    // We tried using npm to get the global modules path, but it hasn't work out
     // because of bugs in the parsable implementation of `ls` command and mostly
     // performance issues. So, we go with our best bet for now.
     if (process.env.NODE_PATH) {

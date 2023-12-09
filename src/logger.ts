@@ -95,7 +95,7 @@ export class Logger {
 
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      const logging: Logging = log; // i aimed to not use ts-ignore in this project, but this evil "thing" above is hell
+      const logging: Logging = log; // I aimed to not use ts-ignore in this project, but this evil "thing" above is hell
       Logger.loggerCache.set(prefix, logging);
       return logging;
     }
@@ -106,7 +106,7 @@ export class Logger {
    *
    * @param enabled {boolean}
    */
-  public static setDebugEnabled(enabled = true): void {
+  public static setDebugEnabled(enabled: boolean = true): void {
     Logger.debugEnabled = enabled;
   }
 
@@ -115,7 +115,7 @@ export class Logger {
    *
    * @param enabled {boolean}
    */
-  public static setTimestampEnabled(enabled = true): void {
+  public static setTimestampEnabled(enabled: boolean = true): void {
     Logger.timestampEnabled = enabled;
   }
 
@@ -191,7 +191,7 @@ export function withPrefix(prefix: string): Logging {
 
 /**
  * Gets the prefix
- * @param prefix 
+ * @param prefix
  */
 export function getLogPrefix(prefix: string): string {
   return chalk.cyan(`[${prefix}]`);
@@ -203,7 +203,7 @@ export function getLogPrefix(prefix: string): string {
  * @param enabled {boolean}
  * @deprecated please use {@link Logger.setDebugEnabled} directly
  */
-export function setDebugEnabled(enabled = true): void {
+export function setDebugEnabled(enabled: boolean = true): void {
   Logger.setDebugEnabled(enabled);
 }
 
@@ -213,7 +213,7 @@ export function setDebugEnabled(enabled = true): void {
  * @param enabled {boolean}
  * @deprecated please use {@link Logger.setTimestampEnabled} directly
  */
-export function setTimestampEnabled(enabled = true): void {
+export function setTimestampEnabled(enabled: boolean = true): void {
   Logger.setTimestampEnabled(enabled);
 }
 
