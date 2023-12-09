@@ -8,7 +8,7 @@ export interface ExternalPortsConfiguration {
 }
 
 /**
- * Allocates ports from the user defined config.ports option
+ * Allocates ports from the user defined `config.ports` option
  * This service is used to allocate ports for external accessories on the main bridge, and child bridges.
  */
 export class ExternalPortService {
@@ -22,7 +22,7 @@ export class ExternalPortService {
   /**
    * Returns the next available port in the external port config.
    * If the external port is not configured by the user it will return null.
-   * If the port range has ben exhausted it will return null.
+   * If the port range has been exhausted it will return null.
    */
   public async requestPort(username: MacAddress): Promise<number | undefined> {
     // check to see if this device has already requested an external port
@@ -48,7 +48,7 @@ export class ExternalPortService {
     }
 
     this.nextExternalPort++;
-    
+
     if (this.nextExternalPort <= this.externalPorts.end) {
       return this.nextExternalPort;
     }

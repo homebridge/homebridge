@@ -14,5 +14,5 @@ export function generate(data: string | Buffer | NodeJS.TypedArray | DataView): 
   const s = sha1sum.digest("hex");
 
   let i = 0;
-  return "xx:xx:xx:xx:xx:xx".replace(/[x]/g, () => s[i++]).toUpperCase();
+  return "xx:xx:xx:xx:xx:xx".replace(/x/g, () => s[i++]).toUpperCase();
 }

@@ -15,14 +15,14 @@ import {
   BridgeConfiguration,
   BridgeOptions,
   HomebridgeConfig,
-  PlatformConfig, 
+  PlatformConfig,
 } from "./bridgeService";
 
 export const enum ChildProcessMessageEventType {
   /**
    * Sent from the child process when it is ready to accept config
    */
-  READY = "ready",    
+  READY = "ready",
 
   /**
    * Sent to the child process with a ChildProcessLoadEventData payload
@@ -32,7 +32,7 @@ export const enum ChildProcessMessageEventType {
   /**
    * Sent from the child process once it has loaded the plugin
    */
-  LOADED = "loaded", 
+  LOADED = "loaded",
 
   /**
    * Sent to the child process telling it to start
@@ -55,7 +55,7 @@ export const enum ChildProcessMessageEventType {
   PORT_ALLOCATED= "portAllocated",
 
   /**
-   * Sent from the child to update it's current status
+   * Sent from the child to update its current status
    */
   STATUS_UPDATE = "status",
 }
@@ -124,7 +124,7 @@ export interface ChildMetadata {
 }
 
 /**
- * Manages the child processes of platforms/accessories being exposed as seperate forked bridges.
+ * Manages the child processes of platforms/accessories being exposed as separate forked bridges.
  * A child bridge runs a single platform or accessory.
  */
 export class ChildBridgeService {
@@ -155,7 +155,7 @@ export class ChildBridgeService {
       this.shuttingDown = true;
       this.teardown();
     });
-    
+
     // make sure we don't hit the max listeners limit
     this.api.setMaxListeners(this.api.getMaxListeners() + 1);
   }
@@ -166,7 +166,7 @@ export class ChildBridgeService {
   public start(): void {
     this.setProcessFlags();
     this.startChildProcess();
-  
+
     // set display name
     if (this.pluginConfig.length > 1 || this.pluginConfig.length === 0) {
       this.displayName = this.plugin.getPluginIdentifier();
@@ -181,14 +181,14 @@ export class ChildBridgeService {
   /**
    * Add a config block to a child bridge.
    * Platform child bridges can only contain one config block.
-   * @param config 
+   * @param config
    */
   public addConfig(config: PlatformConfig | AccessoryConfig): void {
     this.pluginConfig.push(config);
   }
 
   private get bridgeStatus(): ChildBridgeStatus {
-    return this.lastBridgeStatus; 
+    return this.lastBridgeStatus;
   }
 
   private set bridgeStatus(value: ChildBridgeStatus) {
@@ -217,7 +217,7 @@ export class ChildBridgeService {
     this.child.on("exit", () => {
       this.log.warn("Child bridge process ended");
     });
-    
+
     this.child.on("error", (e) => {
       this.bridgeStatus = ChildBridgeStatus.DOWN;
       this.log.error("Child process error", e);
@@ -267,11 +267,11 @@ export class ChildBridgeService {
       }
     });
   }
-  
+
   /**
    * Called when the child bridge process exits, if Homebridge is not shutting down, it will restart the process
-   * @param code 
-   * @param signal 
+   * @param code
+   * @param signal
    */
   private handleProcessClose(code: number | null, signal: string | null): void {
     this.log(`Process Ended. Code: ${code}, Signal: ${signal}`);
@@ -286,8 +286,8 @@ export class ChildBridgeService {
 
   /**
    * Helper function to send a message to the child process
-   * @param type 
-   * @param data 
+   * @param type
+   * @param data
    */
   private sendMessage<T = unknown>(type: ChildProcessMessageEventType, data?: T): void {
     if (this.child && this.child.connected) {
@@ -346,6 +346,7 @@ export class ChildBridgeService {
       setupID: this.bridgeConfig.setupID,
       manufacturer: this.bridgeConfig.manufacturer || this.homebridgeConfig.bridge.manufacturer,
       model: this.bridgeConfig.model || this.homebridgeConfig.bridge.model,
+      firmwareRevision: this.bridgeConfig.firmwareRevision || this.homebridgeConfig.bridge.firmwareRevision,
     };
 
     const bridgeOptions: BridgeOptions = {
@@ -403,7 +404,7 @@ export class ChildBridgeService {
   }
 
   /**
-   * Trigger sending child bridge metdata to the process parent via IPC
+   * Trigger sending child bridge metadata to the process parent via IPC
    */
   private sendStatusUpdate(): void {
     this.ipcService.sendMessage(IpcOutgoingEvent.CHILD_BRIDGE_STATUS_UPDATE, this.getMetadata());
