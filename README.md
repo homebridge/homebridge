@@ -15,7 +15,7 @@
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
 
-**Homebridge** is a lightweight NodeJS server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
+**Homebridge** is a lightweight Node.js server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
 Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
 
@@ -41,17 +41,56 @@ HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7f
 
 ## Installation
 
-The [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) contains step-by-step instruction on how to install Node.js and setup Homebridge and the [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x) as a service so it automatically starts on boot:
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59594350-07b45b80-9137-11e9-85fd-e75093ba91a4.png" alt="raspbian" height="75" width="75"/>
 
-* [Official Homebridge Raspberry Pi Image](https://github.com/homebridge/homebridge-raspbian-image/wiki/Getting-Started)
-* [Setup Homebridge on a Raspberry Pi (Raspbian)](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Raspbian)
-* [Setup Homebridge on Debian or Ubuntu Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux)
-* [Setup Homebridge on Red Hat, CentOS or Fedora Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Red-Hat%2C-CentOS-or-Fedora-Linux)
-* [Setup Homebridge on macOS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-macOS)
-* [Setup Homebridge on Windows 10](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10)
-* [Setup Homebridge on Docker (Linux)](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker)
-* [Setup Homebridge on a Synology NAS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Synology-DSM)
-* [Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
+### Raspberry Pi
+
+[Official Homebridge Raspberry Pi Image](https://github.com/homebridge/homebridge-raspbian-image/wiki/Getting-Started) <br> [Install Homebridge on Raspbian](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Raspbian)
+
+---
+
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59595664-93c78280-9139-11e9-83dc-4d6f9405e788.png" alt="linux" height="75" width="75"/>
+
+### Linux
+
+[Debian or Ubuntu Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux) |
+[Red Hat, CentOS or Fedora Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Red-Hat%2C-CentOS-or-Fedora-Linux) | [Arch / Manjaro Linux|Install Homebridge on Arch Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Arch-Linux) <br>
+
+---
+
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59594157-b015f000-9136-11e9-93cb-c9d9773ec9e8.png" alt="macos" height="75" width="75"/>
+
+### macOS
+
+[Install Homebridge on macOS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-macOS)
+
+---
+
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59593218-e0f52580-9134-11e9-8b77-585755af5d99.png" alt="windows" height="75" width="75"/>
+
+### Windows 10 / 11
+
+[Install Homebridge on Windows 10 / 11 Using Hyper V](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10-Using-Hyper-V)
+
+---
+
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59594527-56fa8c00-9137-11e9-937b-32092dfcff41.png" alt="docker" height="75" width="75"/>
+
+### Docker
+
+[Install Homebridge on Docker](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker)  <br> [Synology](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Synology) | [Unraid](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Unraid) | [QNAP](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-QNAP) | [TrueNAS Scale](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-TrueNAS-Scale)
+
+---
+
+<img align="left" src="https://user-images.githubusercontent.com/3979615/78118531-dc46f700-7452-11ea-95e5-977f79d1904f.png" alt="docker" height="75" width="75"/>
+
+### Synology DSM
+
+[Install Homebridge on Synology DSM 7](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Synology-DSM)
+
+### Other Platforms
+
+[Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
 
 ## Adding Homebridge to iOS
 
@@ -77,7 +116,7 @@ The [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin
 
 There are many existing plugins you can study; you might start with the [Homebridge Example Plugins](https://github.com/homebridge/homebridge-examples) or a plugin that already implements the device type you need.
 
-When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. Run this command inside your plugin project folder so your global install of Homebridge can discover it:
+When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. Run this command inside your plugin project folder so your global installation of Homebridge can discover it:
 
 
 ```shell
