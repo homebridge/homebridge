@@ -3,6 +3,7 @@ import chalk from "chalk";
 import qrcode from "qrcode-terminal";
 
 import * as mac from "./util/mac";
+import * as replacer from "./util/replacer";
 import { Logger } from "./logger";
 import { User } from "./user";
 import { Plugin } from "./plugin";
@@ -231,6 +232,20 @@ export class Server {
       log.error("Please try pasting your config.json file here to validate it: https://jsonlint.com");
       log.error("");
       throw err;
+    }
+
+    if (config.variableReplacementProvider) {
+      // cast to allow indexing by an arbitrary string
+      const providers: { [key: string]: replacer.ValueProvider | undefined } = replacer.variableReplacementProviders;
+      const variableReplacementProvider = providers[config.variableReplacementProvider];
+
+      if (variableReplacementProvider) {
+        replacer.replaceVars(config, variableReplacementProvider);
+      } else {
+        const allReplacementProviders = Object.keys(providers).map(p => "'" + p + "'").join(", ");
+
+        log.error(`Invalid variableReplacementProvider. Valid values are ${allReplacementProviders}.`);
+      }
     }
 
     if (config.ports !== undefined) {
