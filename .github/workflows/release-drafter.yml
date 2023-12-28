@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  stale:
+  release-drafter:
     uses: homebridge/.github/.github/workflows/release-drafter.yml@latest
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}

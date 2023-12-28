@@ -10,6 +10,7 @@ All notable changes to homebridge will be documented in this file.
 - Add GitHub labeler action
 - Improve `README` installation docs
 - Updated dependencies
+- updated Discord Webhooks so notifications are seperated for `release` and `pre-release`
 
 ## v1.7.0 (2023-11-04)
 
