@@ -7,6 +7,7 @@ import chalk from "chalk";
  * Every level corresponds to a certain color.
  *
  * - INFO: no color
+ * - SUCCESS: green
  * - WARN: yellow
  * - ERROR: red
  * - DEBUG: gray
@@ -15,6 +16,7 @@ import chalk from "chalk";
  */
 export const enum LogLevel {
   INFO = "info",
+  SUCCESS = "success",
   WARN = "warn",
   ERROR = "error",
   DEBUG = "debug",
@@ -31,6 +33,7 @@ export interface Logging {
   (message: string, ...parameters: any[]): void;
 
   info(message: string, ...parameters: any[]): void;
+  success(message: string, ...parameters: any[]): void;
   warn(message: string, ...parameters: any[]): void;
   error(message: string, ...parameters: any[]): void;
   debug(message: string, ...parameters: any[]): void;
@@ -45,6 +48,7 @@ interface IntermediateLogging { // some auxiliary interface used to correctly ty
   (message: string, ...parameters: any[]): void;
 
   info?(message: string, ...parameters: any[]): void;
+  success?(message: string, ...parameters: any[]): void;
   warn?(message: string, ...parameters: any[]): void;
   error?(message: string, ...parameters: any[]): void;
   debug?(message: string, ...parameters: any[]): void;
@@ -85,6 +89,7 @@ export class Logger {
 
       const log: IntermediateLogging = logger.info.bind(logger);
       log.info = logger.info;
+      log.success = logger.success;
       log.warn = logger.warn;
       log.error = logger.error;
       log.debug = logger.debug;
@@ -131,6 +136,10 @@ export class Logger {
     this.log(LogLevel.INFO, message, ...parameters);
   }
 
+  public success(message: string, ...parameters: any[]): void {
+    this.log(LogLevel.SUCCESS, message, ...parameters);
+  }
+
   public warn(message: string, ...parameters: any[]): void {
     this.log(LogLevel.WARN, message, ...parameters);
   }
@@ -152,6 +161,9 @@ export class Logger {
 
     let loggingFunction = console.log;
     switch (level) {
+      case LogLevel.SUCCESS:
+        message = chalk.green(message);
+        break;
       case LogLevel.WARN:
         message = chalk.yellow(message);
         loggingFunction = console.error;
