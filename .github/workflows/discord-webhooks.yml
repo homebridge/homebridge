@@ -1,0 +1,17 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Discord Webhooks
+
+# Controls when the workflow will run
+on:
+  release:
+    types: [released, prereleased]
+
+jobs:
+  github-releases-to-discord:
+    uses: homebridge/.github/.github/workflows/discord-webhooks.yml@latest
+    with:
+      footer_title: "Homebridge"
+    secrets:
+      DISCORD_WEBHOOK_URL_LATEST: ${{ secrets.DISCORD_WEBHOOK_URL_LATEST }}
+      DISCORD_WEBHOOK_URL_BETA: ${{ secrets.DISCORD_WEBHOOK_URL_BETA }}

@@ -2,6 +2,16 @@
 
 All notable changes to homebridge will be documented in this file.
 
+## BETA
+
+### Changed
+
+- Allow for FirmwareRevision override in config
+- Add GitHub labeler action
+- Improve `README` installation docs
+- Updated dependencies
+- updated Discord Webhooks so notifications are seperated for `release` and `pre-release`
+
 ## v1.7.0 (2023-11-04)
 
 *Reminder: Node.js v18.15.0 or later is **required** to run Homebridge.*

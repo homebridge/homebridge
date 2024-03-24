@@ -7,6 +7,7 @@ import chalk from "chalk";
  * Every level corresponds to a certain color.
  *
  * - INFO: no color
+ * - SUCCESS: green
  * - WARN: yellow
  * - ERROR: red
  * - DEBUG: gray
@@ -15,6 +16,7 @@ import chalk from "chalk";
  */
 export const enum LogLevel {
   INFO = "info",
+  SUCCESS = "success",
   WARN = "warn",
   ERROR = "error",
   DEBUG = "debug",
@@ -31,6 +33,7 @@ export interface Logging {
   (message: string, ...parameters: any[]): void;
 
   info(message: string, ...parameters: any[]): void;
+  success(message: string, ...parameters: any[]): void;
   warn(message: string, ...parameters: any[]): void;
   error(message: string, ...parameters: any[]): void;
   debug(message: string, ...parameters: any[]): void;
@@ -45,6 +48,7 @@ interface IntermediateLogging { // some auxiliary interface used to correctly ty
   (message: string, ...parameters: any[]): void;
 
   info?(message: string, ...parameters: any[]): void;
+  success?(message: string, ...parameters: any[]): void;
   warn?(message: string, ...parameters: any[]): void;
   error?(message: string, ...parameters: any[]): void;
   debug?(message: string, ...parameters: any[]): void;
@@ -85,6 +89,7 @@ export class Logger {
 
       const log: IntermediateLogging = logger.info.bind(logger);
       log.info = logger.info;
+      log.success = logger.success;
       log.warn = logger.warn;
       log.error = logger.error;
       log.debug = logger.debug;
@@ -95,7 +100,7 @@ export class Logger {
 
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      const logging: Logging = log; // i aimed to not use ts-ignore in this project, but this evil "thing" above is hell
+      const logging: Logging = log; // I aimed to not use ts-ignore in this project, but this evil "thing" above is hell
       Logger.loggerCache.set(prefix, logging);
       return logging;
     }
@@ -106,7 +111,7 @@ export class Logger {
    *
    * @param enabled {boolean}
    */
-  public static setDebugEnabled(enabled = true): void {
+  public static setDebugEnabled(enabled: boolean = true): void {
     Logger.debugEnabled = enabled;
   }
 
@@ -115,7 +120,7 @@ export class Logger {
    *
    * @param enabled {boolean}
    */
-  public static setTimestampEnabled(enabled = true): void {
+  public static setTimestampEnabled(enabled: boolean = true): void {
     Logger.timestampEnabled = enabled;
   }
 
@@ -129,6 +134,10 @@ export class Logger {
 
   public info(message: string, ...parameters: any[]): void {
     this.log(LogLevel.INFO, message, ...parameters);
+  }
+
+  public success(message: string, ...parameters: any[]): void {
+    this.log(LogLevel.SUCCESS, message, ...parameters);
   }
 
   public warn(message: string, ...parameters: any[]): void {
@@ -152,6 +161,9 @@ export class Logger {
 
     let loggingFunction = console.log;
     switch (level) {
+      case LogLevel.SUCCESS:
+        message = chalk.green(message);
+        break;
       case LogLevel.WARN:
         message = chalk.yellow(message);
         loggingFunction = console.error;
@@ -191,7 +203,7 @@ export function withPrefix(prefix: string): Logging {
 
 /**
  * Gets the prefix
- * @param prefix 
+ * @param prefix
  */
 export function getLogPrefix(prefix: string): string {
   return chalk.cyan(`[${prefix}]`);
@@ -203,7 +215,7 @@ export function getLogPrefix(prefix: string): string {
  * @param enabled {boolean}
  * @deprecated please use {@link Logger.setDebugEnabled} directly
  */
-export function setDebugEnabled(enabled = true): void {
+export function setDebugEnabled(enabled: boolean = true): void {
   Logger.setDebugEnabled(enabled);
 }
 
@@ -213,7 +225,7 @@ export function setDebugEnabled(enabled = true): void {
  * @param enabled {boolean}
  * @deprecated please use {@link Logger.setTimestampEnabled} directly
  */
-export function setTimestampEnabled(enabled = true): void {
+export function setTimestampEnabled(enabled: boolean = true): void {
   Logger.setTimestampEnabled(enabled);
 }
 
