@@ -1,6 +1,8 @@
 # Change Log
 
-All notable changes to homebridge will be documented in this file.
+All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
+
+## BETA
 
 ## v1.7.0 (2023-11-04)
 
@@ -12,7 +14,7 @@ All notable changes to homebridge will be documented in this file.
 
 ## v1.6.1 (2023-04-30)
 
-### Bug Fixes 🐛
+### Bug Fixes
 
 - Fixed an issue with the `avahi` advertiser on Synology that resulted in homebridge not starting by @Supereg in https://github.com/homebridge/HAP-NodeJS/pull/1003
 - Resolved an issue where developers weren't able to compile strict TypeScript projects against Homebridge
@@ -51,8 +53,8 @@ All notable changes to homebridge will be documented in this file.
 ### Featured Changes
 
 - Upgraded HAP-NodeJS to [v0.10.2](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.10.2)
-    - Fix an issue with network interface family detection when running Node.js 18 @oznu [#947](https://github.com/homebridge/HAP-NodeJS/pull/947)
-    - Fixed memory leak with HomeKit DataStreams @Supereg [#943](https://github.com/homebridge/HAP-NodeJS/pull/943)
+  - Fix an issue with network interface family detection when running Node.js 18 @oznu [#947](https://github.com/homebridge/HAP-NodeJS/pull/947)
+  - Fixed memory leak with HomeKit DataStreams @Supereg [#943](https://github.com/homebridge/HAP-NodeJS/pull/943)
 - Strict plugin resolution option added to Homebridge plugin @oznu [#3117](https://github.com/homebridge/homebridge/pull/3117) 
 - Replace https://git.io URLs as the service is [being depreciated](https://github.blog/changelog/2022-04-25-git-io-deprecation/)
 
@@ -72,30 +74,28 @@ This release upgrades various dependencies with bug fixes and security fixes.
 - Fix ES Module loading with absolute path @seydx [#3070](https://github.com/homebridge/homebridge/pull/3070) 
 - Fix casing of generated inline docs @Supereg [#3066](https://github.com/homebridge/homebridge/pull/3066)
 
-## 1.3.9 (2021-12-29)
+## v1.3.9 (2021-12-29)
 
 ### Bug Fixes
 
 - Fixed a crash occurring for any encrypted communication when running Node.js 17 on linux based machines [#3046](https://github.com/homebridge/homebridge/issues/3046)
 
-
-## 1.3.8 (2021-10-22)
+## v1.3.8 (2021-10-22)
 
 ### Featured Changes
 
-- PluginManager would abort plugin loading if one plugin encounters a loading error  [#3017](https://github.com/homebridge/homebridge/issues/3017)
+- PluginManager would abort plugin loading if one plugin encounters a loading error [#3017](https://github.com/homebridge/homebridge/issues/3017)
 
 ### Other Changes
 
 - Move to centrally managed Issue form templates and GitHub Action workflows [#3011](https://github.com/homebridge/homebridge/issues/3011)
 
-
-## 1.3.6 (2021-11-10)
+## v1.3.6 (2021-11-10)
 
 ### Notable changes
 
 - Added support for ESM modules and async plugin initializers [#2915](https://github.com/homebridge/homebridge/issues/2915)
-- Upgraded HAP-NodeJS to [v0.9.7](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.7) providing bug fixes  [#3008](https://github.com/homebridge/homebridge/issues/3008)
+- Upgraded HAP-NodeJS to [v0.9.7](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.7) providing bug fixes [#3008](https://github.com/homebridge/homebridge/issues/3008)
 
 ## v1.3.5 (2021-10-08)
 
@@ -105,8 +105,8 @@ This version adds new services and characteristics introduced with iOS 15.
 
 - `AccessCode` and `NFCAccess` services and corresponding characteristics.
 - Services related to the support of Siri enabled HomeKit devices:
-    - The following services were newly added: `Assistant`, `SiriEndpoint`
-    - The following services received new optional characteristics: `Siri` and `SmartSpeaker`
+  - The following services were newly added: `Assistant`, `SiriEndpoint`
+  - The following services received new optional characteristics: `Siri` and `SmartSpeaker`
 
 ### Bug Fixes
 
@@ -119,8 +119,7 @@ Only users who use the `bonjour` mdns advertiser are impacted by this vulnerabil
 
 ### Bug Fixes
 
-- Fixed a characteristic warning for Cameras or Video Doorbells, which might be emitted on startup under certain conditions.  
-   _This warning had no impact on the functionality of Cameras_.
+- Fixed a characteristic warning for Cameras or Video Doorbells, which might be emitted on startup under certain conditions. _This warning had no impact on the functionality of Cameras_.
 
 ## v1.3.3 (2021-03-10)
 
@@ -185,7 +184,7 @@ Child bridges allow any Homebridge platform or accessory to optionally run as it
 Why you might run a child bridge:
 
 - To isolate plugin code from the main bridge - in this mode the plugin will run in its own child process, preventing it from ever crashing the main bridge if a fatal exception occurs.
-    - If the child bridge process does crash, Homebridge will automatically restart it, without impacting the main bridge or other plugins.
+  - If the child bridge process does crash, Homebridge will automatically restart it, without impacting the main bridge or other plugins.
 - To isolate slow plugins, preventing them from slowing down the main bridge or other plugins.
 - To gain the ability to restart individual accessories after a config change or plugin update without having to restart the main bridge or other plugins. 
 - To gain all the benefits of running multiple instances of Homebridge without the management overhead.
@@ -232,8 +231,7 @@ See https://github.com/homebridge/homebridge/wiki/mDNS-Options for more informat
 - Added support for Characteristics with Additional Authorization, by using [characteristic.setupAdditionalAuthorization](https://developers.homebridge.io/HAP-NodeJS/classes/characteristic.html#setupadditionalauthorization).
 - For a more detailed list, have a look at the release notes of `HAP-NodeJS` [v0.9.0](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.9.0).
 - Added an [API.versionGreaterOrEqual](https://developers.homebridge.io/homebridge/interfaces/api.html#versiongreaterorequal)
-call to the homebridge API object.  
-  This will from now on replace the float based API `version` number property.
+call to the homebridge API object. This will from now on replace the float based API `version` number property.
 
 ### Compatibility
 
@@ -255,8 +253,7 @@ See https://github.com/homebridge/homebridge/wiki/How-To-Change-Homebridge-Versi
 
 ### Bug Fixes
 
-- Updated HAP-NodeJS to [v0.8.5](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.8.5) incorporating fixes made to the `ciao` mDNS library.  
-  Refer to the release notes of HAP-NodeJS for more technical details.
+- Updated HAP-NodeJS to [v0.8.5](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.8.5) incorporating fixes made to the `ciao` mDNS library. Refer to the release notes of HAP-NodeJS for more technical details.
 
 ## v1.2.4 (2020-12-05)
 
@@ -269,10 +266,10 @@ See https://github.com/homebridge/homebridge/wiki/How-To-Change-Homebridge-Versi
 ### Bug Fixes
 
 - Updated the mdns library `ciao` to the latest version
-    - Includes general bug fixes and stability improvements
-    - Improved compatibility with machines running avahi
-    - Fixed handling of updated ip addresses
-    - Fixes for Darwin system running in a VM
+  - Includes general bug fixes and stability improvements
+  - Improved compatibility with machines running avahi
+  - Fixed handling of updated ip addresses
+  - Fixes for Darwin system running in a VM
 
 ## v1.2.2 (2020-09-16)
 
@@ -295,8 +292,7 @@ See https://github.com/homebridge/homebridge/wiki/How-To-Change-Homebridge-Versi
 
 ### Notable Changes
 
-- Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.8.0 (see [HAP-NodeJS release notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.8.0)).  
-This includes the rewritten bonjour/mdns library `ciao`, which improves Accessory discovery on the local network ([#2619](https://github.com/homebridge/homebridge/issues/2619)).
+- Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.8.0 (see [HAP-NodeJS release notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.8.0)). This includes the rewritten bonjour/mdns library `ciao`, which improves Accessory discovery on the local network ([#2619](https://github.com/homebridge/homebridge/issues/2619)).
 - Add ability to type an accessory context using generics ([2664](https://github.com/homebridge/homebridge/pull/2664))
 
 ## v1.1.6 (2020-09-07)
@@ -332,15 +328,14 @@ This includes the rewritten bonjour/mdns library `ciao`, which improves Accessor
 ### Notable Changes
 
 - Bumped API version to `2.6` with the following changes:
-    - AccessoryPlugins and Accessory objects returned by StaticPlatformPlugins can now define the optional 
-        `getControllers` method to configure controllers like the RemoteController or CameraController
+  - AccessoryPlugins and Accessory objects returned by StaticPlatformPlugins can now define the optional `getControllers` method to configure controllers like the RemoteController or CameraController
 - Updated [HAP-Nodejs](https://github.com/homebridge/HAP-NodeJS) to v0.7.3.
-    - Moved to the built-in Node.js crypto library for *chacha20-poly1305- encryption and decryption. This gives a 10x performance boost when doing crypto.
-    - All debuggers are now prefixed with the library name, `HAP-NodeJS:`.
-    - [v0.7.0 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.0)
-    - [v0.7.1 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.1)
-    - [v0.7.2 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.2)
-    - [v0.7.3 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.3)
+  - Moved to the built-in Node.js crypto library for *chacha20-poly1305- encryption and decryption. This gives a 10x performance boost when doing crypto.
+  - All debuggers are now prefixed with the library name, `HAP-NodeJS:`.
+  - [v0.7.0 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.0)
+  - [v0.7.1 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.1)
+  - [v0.7.2 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.2)
+  - [v0.7.3 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v0.7.3)
 
 ### Bug Fixes
 
@@ -369,7 +364,7 @@ This includes the rewritten bonjour/mdns library `ciao`, which improves Accessor
 
 - [#2527](https://github.com/homebridge/homebridge/pull/2527) Improve cached accessory resolution.
 - [#2528](https://github.com/homebridge/homebridge/pull/2528) Removing orphaned cached accessories is now the default behavior.
-    - The `-R` flag was deprecated. A new `-K`/`--keep-orphans` flag was introduced to disable this behavior.
+  - The `-R` flag was deprecated. A new `-K`/`--keep-orphans` flag was introduced to disable this behavior.
 
 ## v1.0.1 (2020-04-27)
 
@@ -396,42 +391,42 @@ sudo npm install -g --unsafe-perm homebridge@0.4.53
 
 - [#2476](https://github.com/homebridge/homebridge/pull/2476) - Project converted to Typescript by [@Supereg](https://github.com/Supereg)
 - Homebridge API version was bumped to `2.5` with the following additions:
-    - The signatures of `registerAccessory` and `registerPlatform` have been adjusted. The plugin name, which was passed as the first argument, can now be left out and will be determined automatically by homebridge.
-    - The `PlatformAccessory` class received a new method `configureController` which can be used to access the new Controller API (used for Apple TV Remotes and Cameras) introduced with HAP-NodeJS 0.6.0
-    - Cameras can now be added to the bridge using a `DynamicPlatformPlugin` and the methods `configureCameraSource` or `configureController` of the `PlatformAccessory` (removing the need to create an external accessory)
-    - The hidden service and primary service properties are now properly restored for cached accessories
+  - The signatures of `registerAccessory` and `registerPlatform` have been adjusted. The plugin name, which was passed as the first argument, can now be left out and will be determined automatically by homebridge.
+  - The `PlatformAccessory` class received a new method `configureController` which can be used to access the new Controller API (used for Apple TV Remotes and Cameras) introduced with HAP-NodeJS 0.6.0
+  - Cameras can now be added to the bridge using a `DynamicPlatformPlugin` and the methods `configureCameraSource` or `configureController` of the `PlatformAccessory` (removing the need to create an external accessory)
+  - The hidden service and primary service properties are now properly restored for cached accessories
 - [#2391](https://github.com/homebridge/homebridge/pull/2391) - [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS) 
 updated to 0.6.0 with some changes highlighted here:
-    - HAP-NodeJS was converted to Typescript as well (thanks to [@hassankhan](https://github.com/hassankhan))
-    - Support for exposing Cameras through a Bridge was added
-    - Support for Apple TV Remotes (with and without Siri Voice transmission) using the new RemoteController API
-    - Introduction of the new CameraController API which improves on the existing API and opens the way for a possible future introduction of an API for HomeKit Secure Video
-    - Introduced new APIs to mark a service as primary service
-    - Added new characteristic property `adminOnlyAccess` to limit certain access rights to the home-owner
-    - Added new services and characteristics for:
-        - HomeKit Routers (`WiFiRouter` and `WiFiSatellite` services)
-        - HomeKit Secure Video (`CameraOperatingMode` and `CameraEventRecordingManagement` services)
-        - `AccessControl` service
-        - `SmartSpeaker` service
-        - `PowerManagement` service
-        - `TransferTransportManagement` service
-    - Updated to HAP Protocol Version 1.1.0:
-        - Support of the HomeKit Data Stream (HDS) protocol (used by Remotes and Secure Video)
-        - Support for Timed Writes and Write Responses
-    - Fixed a bug in the encryption layer, which would sometimes encrypt events in the wrong order causing corrupted responses. 
-        This issue typically affected service which expose their state using 'target' characteristics 
-        and 'current' characteristics like Doors, Locks and Windows.
-    - Improved HAP specification compatibility, while noting the following changes affecting compatibility:
-        - For `/characteristics` `PUT` request the HAP server will return `204 No Content` if all characteristic writes succeeded and `207 Multi-Status` if at least one write failed or when a write-response is delivered.
-        - For `/characteristics` `GET` request the HAP server will return `200 Success` if all characteristic reads  succeeded and `207 Multi-Status` if at least one write failed. 
-        - The HAP server will now return short UUIDs for Apple predefined services and characteristics for the `/accessories` route.
-    - Many, many more bug fixes and improvements.
+  - HAP-NodeJS was converted to Typescript as well (thanks to [@hassankhan](https://github.com/hassankhan))
+  - Support for exposing Cameras through a Bridge was added
+  - Support for Apple TV Remotes (with and without Siri Voice transmission) using the new RemoteController API
+  - Introduction of the new CameraController API which improves on the existing API and opens the way for a possible future introduction of an API for HomeKit Secure Video
+  - Introduced new APIs to mark a service as primary service
+  - Added new characteristic property `adminOnlyAccess` to limit certain access rights to the home-owner
+  - Added new services and characteristics for:
+    - HomeKit Routers (`WiFiRouter` and `WiFiSatellite` services)
+    - HomeKit Secure Video (`CameraOperatingMode` and `CameraEventRecordingManagement` services)
+    - `AccessControl` service
+    - `SmartSpeaker` service
+    - `PowerManagement` service
+    - `TransferTransportManagement` service
+  - Updated to HAP Protocol Version 1.1.0:
+    - Support of the HomeKit Data Stream (HDS) protocol (used by Remotes and Secure Video)
+    - Support for Timed Writes and Write Responses
+  - Fixed a bug in the encryption layer, which would sometimes encrypt events in the wrong order causing corrupted responses. 
+    This issue typically affected service which expose their state using 'target' characteristics 
+    and 'current' characteristics like Doors, Locks and Windows.
+  - Improved HAP specification compatibility, while noting the following changes affecting compatibility:
+    - For `/characteristics` `PUT` request the HAP server will return `204 No Content` if all characteristic writes succeeded and `207 Multi-Status` if at least one write failed or when a write-response is delivered.
+    - For `/characteristics` `GET` request the HAP server will return `200 Success` if all characteristic reads succeeded and `207 Multi-Status` if at least one write failed. 
+    - The HAP server will now return short UUIDs for Apple predefined services and characteristics for the `/accessories` route.
+  - Many, many more bug fixes and improvements.
 
 ### Other Changes
 
 - Homebridge now exports TypeScript types that can be used in the development of plugins.
-    - See the [homebridge-examples](https://github.com/homebridge/homebridge-examples) repo for examples of how to do this.
-    - We also have created a [plugin template](https://github.com/homebridge/homebridge-plugin-template) you can use as a base for your own plugins.
+  - See the [homebridge-examples](https://github.com/homebridge/homebridge-examples) repo for examples of how to do this.
+  - We also have created a [plugin template](https://github.com/homebridge/homebridge-plugin-template) you can use as a base for your own plugins.
 
 ## v0.4.53 (2020-03-18)
 
