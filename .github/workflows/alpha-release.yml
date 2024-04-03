@@ -1,0 +1,18 @@
+name: Node-CI Alpha
+
+on:
+  push:
+    branches: [alpha-*.*.*, alpha]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    if: ${{ github.repository == 'homebridge/homebridge' }}
+    uses: homebridge/.github/.github/workflows/npm-publish.yml@latest
+    with:
+      tag: 'alpha'
+      dynamically_adjust_version: true
+      npm_version_command: 'pre'
+      pre_id: 'alpha'
+    secrets:
+      npm_auth_token: ${{ secrets.npm_token }}
