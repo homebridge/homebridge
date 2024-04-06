@@ -48,7 +48,7 @@
     "chalk": "4.1.2",
     "commander": "12.0.0",
     "fs-extra": "11.2.0",
-    "hap-nodejs": "0.11.3-alpha.0",
+    "hap-nodejs": "0.11.3-beta.3",
     "qrcode-terminal": "0.12.0",
     "semver": "7.6.0",
     "source-map-support": "0.5.21"
@@ -57,7 +57,7 @@
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.12.6",
+    "@types/node": "^20.12.7",
     "@types/semver": "^7.5.8",
     "@types/source-map-support": "^0.5.10",
     "@typescript-eslint/eslint-plugin": "^7.6.0",
@@ -72,6 +72,6 @@
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
     "typedoc": "^0.25.13",
-    "typescript": "^5.4.4"
+    "typescript": "^5.4.5"
   }
 }

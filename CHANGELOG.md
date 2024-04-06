@@ -4,13 +4,24 @@ All notable changes to homebridge will be documented in this file.
 
 ## BETA
 
-### Changed
+### Added
 
 - Allow for FirmwareRevision override in config
 - Add GitHub labeler action
+- allow custom NODE_OPTIONS and DEBUG on child bridges
+- add logging success colour (#3581)
+- adds alpha publisher
+
+### Changed
+
 - Improve `README` installation docs
 - Updated dependencies
 - updated Discord Webhooks so notifications are seperated for `release` and `pre-release`
+- updated lint rules for imports
+
+### Homebridge Dependencies
+
+- `hap-nodejs` @ `v0.11.3-beta.3`
 
 ## v1.7.0 (2023-11-04)
 
