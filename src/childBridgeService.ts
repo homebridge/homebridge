@@ -130,6 +130,7 @@ export interface ChildMetadata {
 export class ChildBridgeService {
   private child?: child_process.ChildProcess;
   private args: string[] = [];
+  private processEnv: child_process.ForkOptions = {};
   private shuttingDown = false;
   private lastBridgeStatus: ChildBridgeStatus = ChildBridgeStatus.PENDING;
   private pairedStatus: boolean | null = null;
@@ -165,6 +166,7 @@ export class ChildBridgeService {
    */
   public start(): void {
     this.setProcessFlags();
+    this.setProcessEnv();
     this.startChildProcess();
 
     // set display name
@@ -202,9 +204,7 @@ export class ChildBridgeService {
   private startChildProcess(): void {
     this.bridgeStatus = ChildBridgeStatus.PENDING;
 
-    this.child = child_process.fork(path.resolve(__dirname, "childBridgeFork.js"), this.args, {
-      silent: true,
-    });
+    this.child = child_process.fork(path.resolve(__dirname, "childBridgeFork.js"), this.args, this.processEnv);
 
     this.child.stdout?.on("data", (data) => {
       process.stdout.write(data);
@@ -330,6 +330,20 @@ export class ChildBridgeService {
     if (this.homebridgeOptions.customPluginPath) {
       this.args.push("-P", this.homebridgeOptions.customPluginPath);
     }
+  }
+
+  /**
+   * Set environment variables for the child process
+   */
+  private setProcessEnv(): void {
+    this.processEnv = {
+      env: {
+        ...process.env,
+        DEBUG: `${process.env.DEBUG || ""} ${this.bridgeConfig.env?.DEBUG || ""}`.trim(),
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS || ""} ${this.bridgeConfig.env?.NODE_OPTIONS || ""}`.trim(),
+      },
+      silent: true,
+    };
   }
 
   /**
