@@ -15,7 +15,8 @@ import {
   Bridge,
   Categories,
   Characteristic,
-  CharacteristicEventTypes, CharacteristicWarning,
+  CharacteristicEventTypes,
+  CharacteristicWarning,
   CharacteristicWarningType,
   InterfaceName,
   IPAddress,
@@ -59,6 +60,10 @@ export interface BridgeConfiguration {
   model?: string;
   disableIpc?: boolean;
   firmwareRevision?: string;
+  env?: {
+    DEBUG?: string;
+    NODE_OPTIONS?: string;
+  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
