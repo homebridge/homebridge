@@ -1,9 +1,7 @@
-import path from "path";
 import assert from "assert";
+import path from "path";
 import { pathToFileURL } from "url";
 import { satisfies } from "semver";
-import getVersion from "./version";
-import { Logger } from "./logger";
 import {
   AccessoryIdentifier,
   AccessoryName,
@@ -17,7 +15,9 @@ import {
   PluginInitializer,
   PluginName,
 } from "./api";
+import { Logger } from "./logger";
 import { PackageJSON, PluginManager } from "./pluginManager";
+import getVersion from "./version";
 
 const log = Logger.internal;
 

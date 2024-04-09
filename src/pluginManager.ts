@@ -1,3 +1,6 @@
+import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
 import {
   AccessoryIdentifier,
   AccessoryName,
@@ -10,11 +13,8 @@ import {
   PluginIdentifier,
   PluginName,
 } from "./api";
-import path from "path";
-import fs from "fs";
-import { Plugin } from "./plugin";
 import { Logger } from "./logger";
-import { execSync } from "child_process";
+import { Plugin } from "./plugin";
 
 const log = Logger.internal;
 

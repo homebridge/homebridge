@@ -1,12 +1,12 @@
 import "source-map-support/register"; // registering node-source-map-support for typescript stack traces
 import { program } from "commander";
 import { HAPStorage } from "hap-nodejs";
-import getVersion, { getRequiredNodeVersion } from "./version";
-import { User } from "./user";
+import { satisfies } from "semver";
 import { Logger } from "./logger";
 import { Server } from "./server";
 import { HomebridgeOptions } from "./server";
-import { satisfies } from "semver";
+import { User } from "./user";
+import getVersion, { getRequiredNodeVersion } from "./version";
 import Signals = NodeJS.Signals;
 
 const log = Logger.internal;

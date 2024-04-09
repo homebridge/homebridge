@@ -1,6 +1,6 @@
-import getVersion, { getRequiredNodeVersion } from "./version";
 import fs, { PathLike } from "fs";
 import path from "path";
+import getVersion, { getRequiredNodeVersion } from "./version";
 
 describe("version", () => {
   describe("getVersion", () => {

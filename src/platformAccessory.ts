@@ -8,11 +8,12 @@ import {
   ControllerConstructor,
   LegacyCameraSource,
   SerializedAccessory,
-  Service, VoidCallback,
+  Service,
+  VoidCallback,
   WithUUID,
 } from "hap-nodejs";
-import { PlatformName, PluginIdentifier, PluginName } from "./api";
 import { ConstructorArgs } from "hap-nodejs/dist/types";
+import { PlatformName, PluginIdentifier, PluginName } from "./api";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type UnknownContext = Record<string, any>;

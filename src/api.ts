@@ -1,13 +1,13 @@
 import { EventEmitter } from "events";
 import * as hapNodeJs from "hap-nodejs";
 import { Controller, Service } from "hap-nodejs";
-import getVersion from "./version";
-import { PlatformAccessory } from "./platformAccessory";
-import { User } from "./user";
-import { Logger, Logging } from "./logger";
-import { AccessoryConfig, PlatformConfig } from "./bridgeService";
-import { PluginManager } from "./pluginManager";
 import semver from "semver";
+import { AccessoryConfig, PlatformConfig } from "./bridgeService";
+import { Logger, Logging } from "./logger";
+import { PlatformAccessory } from "./platformAccessory";
+import { PluginManager } from "./pluginManager";
+import { User } from "./user";
+import getVersion from "./version";
 
 const log = Logger.internal;
 
