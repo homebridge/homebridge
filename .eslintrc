@@ -6,6 +6,7 @@
     "plugin:@typescript-eslint/recommended", // uses the recommended rules from the @typescript-eslint/eslint-plugin
     "plugin:jest/recommended" // enables eslint-plugin-jest
   ],
+  "plugins": ["import", "import-newlines"],
   "parserOptions": {
     "ecmaVersion": 2018,
     "sourceType": "module"
@@ -25,6 +26,10 @@
     "eqeqeq": ["error", "always", {"null":  "ignore"}],
     "curly": ["error", "all"],
     "brace-style": ["error"],
+
+    "import/order": ["warn", { "alphabetize": { "order": "asc" }, "newlines-between": "never" }],
+    "import/prefer-default-export": "off",
+    "import-newlines/enforce": ["error", 3],
 
     "@typescript-eslint/no-unsafe-declaration-merging": "off",
 

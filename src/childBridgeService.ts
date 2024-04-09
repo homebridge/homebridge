@@ -1,15 +1,8 @@
 import child_process from "child_process";
 import path from "path";
 import fs from "fs-extra";
-
 import { MacAddress } from "hap-nodejs";
-import { IpcOutgoingEvent, IpcService } from "./ipcService";
-import { ExternalPortService } from "./externalPortService";
 import { HomebridgeAPI, PluginType } from "./api";
-import { HomebridgeOptions } from "./server";
-import { Logger, Logging } from "./logger";
-import { Plugin } from "./plugin";
-import { User } from "./user";
 import {
   AccessoryConfig,
   BridgeConfiguration,
@@ -17,6 +10,12 @@ import {
   HomebridgeConfig,
   PlatformConfig,
 } from "./bridgeService";
+import { ExternalPortService } from "./externalPortService";
+import { IpcOutgoingEvent, IpcService } from "./ipcService";
+import { Logger, Logging } from "./logger";
+import { Plugin } from "./plugin";
+import { HomebridgeOptions } from "./server";
+import { User } from "./user";
 
 export const enum ChildProcessMessageEventType {
   /**

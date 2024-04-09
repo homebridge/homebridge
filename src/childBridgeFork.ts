@@ -6,13 +6,21 @@ process.title = "homebridge: child bridge";
 // registering node-source-map-support for typescript stack traces
 import "source-map-support/register";
 
-import { AccessoryPlugin, HomebridgeAPI, PlatformPlugin, PluginType } from "./api";
-import { ChildBridgeExternalPortService } from "./externalPortService";
-import { Plugin } from "./plugin";
-import { PluginManager } from "./pluginManager";
-import { Logger } from "./logger";
-import { User } from "./user";
 import { AccessoryEventTypes, HAPStorage, MacAddress } from "hap-nodejs";
+import {
+  AccessoryPlugin,
+  HomebridgeAPI,
+  PlatformPlugin,
+  PluginType,
+} from "./api";
+import {
+  AccessoryConfig,
+  BridgeConfiguration,
+  BridgeOptions,
+  BridgeService,
+  HomebridgeConfig,
+  PlatformConfig,
+} from "./bridgeService";
 import {
   ChildProcessMessageEventType,
   ChildProcessMessageEvent,
@@ -22,14 +30,11 @@ import {
   ChildProcessPluginLoadedEventData,
   ChildBridgePairedStatusEventData,
 } from "./childBridgeService";
-import {
-  AccessoryConfig,
-  BridgeConfiguration,
-  BridgeOptions,
-  BridgeService,
-  HomebridgeConfig,
-  PlatformConfig,
-} from "./bridgeService";
+import { ChildBridgeExternalPortService } from "./externalPortService";
+import { Logger } from "./logger";
+import { Plugin } from "./plugin";
+import { PluginManager } from "./pluginManager";
+import { User } from "./user";
 
 export class ChildBridgeFork {
   private bridgeService!: BridgeService;

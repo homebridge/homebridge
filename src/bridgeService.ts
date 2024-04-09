@@ -1,13 +1,3 @@
-import * as mac from "./util/mac";
-import getVersion from "./version";
-import { PluginManager } from "./pluginManager";
-import { StorageService } from "./storageService";
-import { Logger, Logging, getLogPrefix } from "./logger";
-import { Plugin } from "./plugin";
-import {
-  PlatformAccessory,
-  SerializedPlatformAccessory,
-} from "./platformAccessory";
 import {
   Accessory,
   AccessoryEventTypes,
@@ -40,11 +30,15 @@ import {
   PluginIdentifier,
   StaticPlatformPlugin,
 } from "./api";
-import {
-  ExternalPortService,
-  ExternalPortsConfiguration,
-} from "./externalPortService";
+import { ExternalPortService, ExternalPortsConfiguration } from "./externalPortService";
+import { Logger, Logging, getLogPrefix } from "./logger";
+import { PlatformAccessory, SerializedPlatformAccessory } from "./platformAccessory";
+import { Plugin } from "./plugin";
+import { PluginManager } from "./pluginManager";
 import { HomebridgeOptions } from "./server";
+import { StorageService } from "./storageService";
+import * as mac from "./util/mac";
+import getVersion from "./version";
 
 const log = Logger.internal;
 

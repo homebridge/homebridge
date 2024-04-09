@@ -1,5 +1,10 @@
 import { Service } from "hap-nodejs";
-import { AccessoryPlugin, HomebridgeAPI, InternalAPIEvent, DynamicPlatformPlugin } from "./api";
+import {
+  AccessoryPlugin,
+  HomebridgeAPI,
+  InternalAPIEvent,
+  DynamicPlatformPlugin,
+} from "./api";
 import { PlatformAccessory } from "./platformAccessory";
 
 const api = new HomebridgeAPI();

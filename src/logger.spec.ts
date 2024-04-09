@@ -1,5 +1,11 @@
-import {forceColor, Logger, setDebugEnabled, setTimestampEnabled, withPrefix} from "./logger";
 import chalk from "chalk";
+import {
+  forceColor,
+  Logger,
+  setDebugEnabled,
+  setTimestampEnabled,
+  withPrefix,
+} from "./logger";
 
 describe("Logger", () => {
   let consoleLogSpy: jest.SpyInstance;
