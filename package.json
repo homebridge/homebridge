@@ -21,7 +21,7 @@
     "watch": "nodemon",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
-    "docs": "typedoc src/index.ts"
+    "docs": "typedoc"
   },
   "repository": {
     "type": "git",

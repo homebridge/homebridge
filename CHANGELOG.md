@@ -18,6 +18,7 @@ All notable changes to homebridge will be documented in this file.
 - Updated dependencies
 - updated Discord Webhooks so notifications are seperated for `release` and `pre-release`
 - updated lint rules for imports
+- regenerate docs
 
 ### Homebridge Dependencies
 

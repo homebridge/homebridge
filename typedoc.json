@@ -2,11 +2,16 @@
   "out": "docs",
   "includes": "src",
   "exclude": ["src/**/*.spec.ts"],
-
+  "entryPoints": [
+    "src/index.ts"
+  ],
   "excludePrivate": true,
   "excludeProtected": true,
   "excludeExternals": true,
   "hideGenerator": true,
   "includeVersion": false,
-  "listInvalidSymbolLinks": true
+  "validation": {
+    "invalidLink": true,
+    "notExported": false
+  }
 }
