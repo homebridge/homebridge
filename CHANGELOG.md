@@ -6,18 +6,19 @@ All notable changes to homebridge will be documented in this file.
 
 ### Added
 
-- Allow for FirmwareRevision override in config
-- Add GitHub labeler action
-- allow custom NODE_OPTIONS and DEBUG on child bridges
+- allow for FirmwareRevision override in config
+- add GitHub labeler action
+- allow custom `NODE_OPTIONS` and `DEBUG` on child bridges
 - add logging success colour (#3581)
 - adds alpha publisher
 
 ### Changed
 
-- Improve `README` installation docs
-- Updated dependencies
+- improve `README` installation docs
+- updated dependencies
 - updated Discord Webhooks so notifications are seperated for `release` and `pre-release`
 - updated lint rules for imports
+- regenerate docs
 
 ### Homebridge Dependencies
 

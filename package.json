@@ -11,17 +11,18 @@
     "Andreas Bauer <mail@anderl-bauer.de>"
   ],
   "scripts": {
-    "check": "npm install && npm outdated",
-    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
-    "lint": "eslint 'src/**/*.{js,ts,json}'",
     "build": "npm run clean && tsc",
-    "test": "jest --forceExit --detectOpenHandles",
-    "test-coverage": "jest --coverage --forceExit --detectOpenHandles",
+    "check": "npm install && npm outdated",
     "clean": "rimraf lib/",
-    "watch": "nodemon",
+    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
+    "docs": "typedoc",
+    "lint": "eslint 'src/**/*.{js,ts,json}'",
+    "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
-    "docs": "typedoc src/index.ts"
+    "test": "jest --forceExit --detectOpenHandles",
+    "test-coverage": "jest --coverage --forceExit --detectOpenHandles",
+    "watch": "nodemon"
   },
   "repository": {
     "type": "git",
@@ -60,8 +61,8 @@
     "@types/node": "^20.12.7",
     "@types/semver": "^7.5.8",
     "@types/source-map-support": "^0.5.10",
-    "@typescript-eslint/eslint-plugin": "^7.6.0",
-    "@typescript-eslint/parser": "^7.6.0",
+    "@typescript-eslint/eslint-plugin": "^7.7.0",
+    "@typescript-eslint/parser": "^7.7.0",
     "eslint": "^8.57.0",
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-import-newlines": "^1.4.0",
