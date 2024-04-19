@@ -19,10 +19,11 @@ All notable changes to homebridge will be documented in this file.
 - updated Discord Webhooks so notifications are seperated for `release` and `pre-release`
 - updated lint rules for imports
 - regenerate docs
+- update hap-nodejs version
 
 ### Homebridge Dependencies
 
-- `hap-nodejs` @ `v0.11.3-beta.3`
+- `hap-nodejs` @ `v0.12.0`
 
 ## v1.7.0 (2023-11-04)
 
