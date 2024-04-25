@@ -1,5 +1,5 @@
 import "source-map-support/register"; // registering node-source-map-support for typescript stack traces
-import { program } from "commander";
+import { Command } from "commander";
 import { HAPStorage } from "hap-nodejs";
 import { satisfies } from "semver";
 import { Logger } from "./logger";
@@ -31,6 +31,7 @@ export = function cli(): void {
 
   let shuttingDown = false;
 
+  const program = new Command();
   program
     .version(getVersion())
     .option("-C, --color", "force color in logging", () => forceColourLogging = true)

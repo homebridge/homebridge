@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## BETA
+
+### Fixed
+
+- shared use of `commander` between homebridge and the UI repo
+
 ## v1.8.0 (2024-04-20)
 
 ### Added
