@@ -16,3 +16,15 @@ jobs:
       pre_id: 'alpha'
     secrets:
       npm_auth_token: ${{ secrets.npm_token }}
+
+  github-releases-to-discord:
+    name: Discord Webhooks
+    needs: [publish]
+    uses: homebridge/.github/.github/workflows/discord-webhooks.yml@latest
+    with:
+      title: "Homebridge Alpha Release"
+      description: |
+        Version `v${{ needs.publish.outputs.NPM_VERSION }}`
+      url: "https://github.com/homebridge/homebridge/releases/tag/v${{ needs.publish.outputs.NPM_VERSION }}"
+    secrets:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL_BETA }}

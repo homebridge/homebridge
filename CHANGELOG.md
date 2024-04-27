@@ -8,6 +8,10 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - shared use of `commander` between homebridge and the UI repo
 
+### Other Changes
+
+- Update Discord Webhook
+
 ## v1.8.0 (2024-04-20)
 
 ### Added
