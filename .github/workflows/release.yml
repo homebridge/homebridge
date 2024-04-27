@@ -28,7 +28,7 @@ jobs:
     needs: [build_and_test,publish]
     uses: homebridge/.github/.github/workflows/discord-webhooks.yml@latest
     with:
-      title: "Homebridge UI Release"
+      title: "Homebridge Release"
       description: |
         Version `v${{ needs.publish.outputs.NPM_VERSION }}`
       url: "https://github.com/homebridge/homebridge-config-ui-x/releases/tag/v${{ needs.publish.outputs.NPM_VERSION }}"
