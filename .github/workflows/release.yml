@@ -31,6 +31,6 @@ jobs:
       title: "Homebridge Release"
       description: |
         Version `v${{ needs.publish.outputs.NPM_VERSION }}`
-      url: "https://github.com/homebridge/homebridge-config-ui-x/releases/tag/v${{ needs.publish.outputs.NPM_VERSION }}"
+      url: "https://github.com/homebridge/homebridge/releases/tag/v${{ needs.publish.outputs.NPM_VERSION }}"
     secrets:
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL_LATEST }}
