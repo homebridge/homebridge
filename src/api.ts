@@ -81,8 +81,8 @@ export interface AccessoryPlugin {
 
 }
 
-export interface PlatformPluginConstructor {
-  new(logger: Logging, config: PlatformConfig, api: API): DynamicPlatformPlugin | StaticPlatformPlugin | IndependentPlatformPlugin;
+export interface PlatformPluginConstructor<Config extends PlatformConfig = PlatformConfig> {
+  new(logger: Logging, config: Config, api: API): DynamicPlatformPlugin | StaticPlatformPlugin | IndependentPlatformPlugin;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -197,8 +197,8 @@ export interface API {
   registerAccessory(accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void;
   registerAccessory(pluginIdentifier: PluginIdentifier, accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void;
 
-  registerPlatform(platformName: PlatformName, constructor: PlatformPluginConstructor): void;
-  registerPlatform(pluginIdentifier: PluginIdentifier, platformName: PlatformName, constructor: PlatformPluginConstructor): void;
+  registerPlatform<Config extends PlatformConfig>(platformName: PlatformName, constructor: PlatformPluginConstructor<Config>): void;
+  registerPlatform<Config extends PlatformConfig>(pluginIdentifier: PluginIdentifier, platformName: PlatformName, constructor: PlatformPluginConstructor<Config>): void;
   registerPlatformAccessories(pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: PlatformAccessory[]): void;
   updatePlatformAccessories(accessories: PlatformAccessory[]): void;
   unregisterPlatformAccessories(pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: PlatformAccessory[]): void;
