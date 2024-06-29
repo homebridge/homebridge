@@ -6,12 +6,14 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Changed
 
+- Detect config interface on registerPlatform (#3609) (@duddu)
 - Updated dependencies, fix `typedoc` generation
 - Updated build workflow: added `lint-docs`
+- regenerate docs, bump `hap-nodejs` beta
 
 ### Homebridge Dependencies
 
-- `hap-nodejs` @ `v0.12.3-beta.2`
+- `hap-nodejs` @ `v0.12.3-beta.11`
 
 ## v1.8.3 (2024-06-19)
 
