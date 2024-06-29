@@ -59,7 +59,7 @@
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.8",
+    "@types/node": "^20.14.9",
     "@types/semver": "^7.5.8",
     "@types/source-map-support": "^0.5.10",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
@@ -73,7 +73,7 @@
     "rimraf": "^5.0.7",
     "ts-jest": "^29.1.5",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.26.2",
+    "typedoc": "^0.26.3",
     "typescript": "^5.5.2"
   }
 }
