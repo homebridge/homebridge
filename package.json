@@ -59,11 +59,11 @@
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.9",
+    "@types/node": "^20.14.10",
     "@types/semver": "^7.5.8",
     "@types/source-map-support": "^0.5.10",
-    "@typescript-eslint/eslint-plugin": "^7.14.1",
-    "@typescript-eslint/parser": "^7.14.1",
+    "@typescript-eslint/eslint-plugin": "^7.15.0",
+    "@typescript-eslint/parser": "^7.15.0",
     "eslint": "^8.57.0",
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-import-newlines": "^1.4.0",
@@ -74,6 +74,6 @@
     "ts-jest": "^29.1.5",
     "ts-node": "^10.9.2",
     "typedoc": "^0.26.3",
-    "typescript": "^5.5.2"
+    "typescript": "^5.5.3"
   }
 }
