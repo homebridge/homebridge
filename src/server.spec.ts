@@ -7,6 +7,8 @@ import { User } from "./user";
 describe("Server", () => {
   const homebridgeStorageFolder = path.resolve(__dirname, "../mock");
   const configPath = path.resolve(homebridgeStorageFolder, "config.json");
+  let consoleErrorSpy: jest.SpyInstance;
+  let consoleLogSpy: jest.SpyInstance;
 
   const mockConfig = {
     bridge: {
@@ -19,6 +21,8 @@ describe("Server", () => {
   };
 
   beforeAll(async () => {
+    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    consoleLogSpy = jest.spyOn(console, "log").mockImplementation(() => {});
     await fs.ensureDir(homebridgeStorageFolder);
     await fs.writeJson(configPath, mockConfig);
     User.setStoragePath(homebridgeStorageFolder);
@@ -27,6 +31,8 @@ describe("Server", () => {
   
   afterAll(async () => {
     await fs.remove(homebridgeStorageFolder);
+    consoleErrorSpy.mockRestore();
+    consoleLogSpy.mockRestore();
   });
 
   beforeEach(() => {
