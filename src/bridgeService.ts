@@ -321,10 +321,8 @@ export class BridgeService {
           return false; // filter it from the list
         }
       } else {
-        // we set the current plugin version before configureAccessory is called, so the dev has the opportunity to override it
-        accessory.getService(Service.AccessoryInformation)!
-          .setCharacteristic(Characteristic.FirmwareRevision, plugin!.version);
-
+        // We set a placeholder for FirmwareRevision before configureAccessory is called so the plugin has the opportunity to override it.
+        accessory.getService(Service.AccessoryInformation)?.setCharacteristic(Characteristic.FirmwareRevision, "0");
         platformPlugins.configureAccessory(accessory);
       }
 
@@ -361,12 +359,6 @@ export class BridgeService {
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
       if (plugin) {
-        const informationService = accessory.getService(Service.AccessoryInformation)!;
-        if (informationService.getCharacteristic(Characteristic.FirmwareRevision).value === "0.0.0") {
-          // overwrite the default value with the actual plugin version
-          informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
-        }
-
         const platforms = plugin.getActiveDynamicPlatform(accessory._associatedPlatform!);
 
         if (!platforms) {
@@ -423,12 +415,6 @@ export class BridgeService {
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!);
       if (plugin) {
-        const informationService = hapAccessory.getService(Service.AccessoryInformation)!;
-        if (informationService.getCharacteristic(Characteristic.FirmwareRevision).value === "0.0.0") {
-          // overwrite the default value with the actual plugin version
-          informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
-        }
-
         hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory, { ignoreSlow: true }));
       } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) {
         // we did already complain in api.ts if it wasn't a qualified name
@@ -507,11 +493,6 @@ export class BridgeService {
           accessory.addService(service);
         }
       });
-
-      if (informationService.getCharacteristic(Characteristic.FirmwareRevision).value === "0.0.0") {
-        // overwrite the default value with the actual plugin version
-        informationService.setCharacteristic(Characteristic.FirmwareRevision, plugin.version);
-      }
 
       accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory, {}));
 
