@@ -154,9 +154,10 @@ export class Plugin {
       throw new Error(`The requested platform '${name}' was not registered by the plugin '${this.getPluginIdentifier()}'.`);
     }
 
-    if (this.activeDynamicPlatforms.has(name)) { // if it's a dynamic platform check that it is not enabled multiple times
-      log.error("The dynamic platform " + name + " from the plugin " + this.getPluginIdentifier() + " seems to be configured " +
-        "multiple times in your config.json. This behaviour was deprecated in homebridge v1.0.0 and will be removed in v2.0.0!");
+    // If it's a dynamic platform plugin, ensure it's not enabled multiple times.
+    if (this.activeDynamicPlatforms.has(name)) {
+      throw new Error("The dynamic platform " + name + " from the plugin " + this.getPluginIdentifier() + " is configured " +
+      "times in your config.json.");
     }
 
     return constructor;

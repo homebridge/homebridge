@@ -192,48 +192,9 @@ export class Logger {
 }
 
 /**
- * Creates a new Logging device with a specified prefix.
- *
- * @param prefix {string} - the prefix of the logger
- * @deprecated please use {@link Logger.withPrefix} directly
- */
-export function withPrefix(prefix: string): Logging {
-  return Logger.withPrefix(prefix);
-}
-
-/**
  * Gets the prefix
  * @param prefix
  */
 export function getLogPrefix(prefix: string): string {
   return chalk.cyan(`[${prefix}]`);
-}
-
-/**
- * Turns on debug level logging. Off by default.
- *
- * @param enabled {boolean}
- * @deprecated please use {@link Logger.setDebugEnabled} directly
- */
-export function setDebugEnabled(enabled: boolean = true): void {
-  Logger.setDebugEnabled(enabled);
-}
-
-/**
- * Turns on inclusion of timestamps in log messages. On by default.
- *
- * @param enabled {boolean}
- * @deprecated please use {@link Logger.setTimestampEnabled} directly
- */
-export function setTimestampEnabled(enabled: boolean = true): void {
-  Logger.setTimestampEnabled(enabled);
-}
-
-/**
- * Forces color in logging output, even if it seems like color is unsupported.
- *
- * @deprecated please use {@link Logger.forceColor} directly
- */
-export function forceColor(): void {
-  chalk.level = 1; // `1` - Basic 16 colors support.
 }
