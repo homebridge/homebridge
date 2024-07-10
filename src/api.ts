@@ -203,10 +203,6 @@ export interface API {
   updatePlatformAccessories(accessories: PlatformAccessory[]): void;
   unregisterPlatformAccessories(pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: PlatformAccessory[]): void;
 
-  /**
-   * @deprecated use {@link publishExternalAccessories} directly to publish a standalone Accessory
-   */
-  publishCameraAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
   publishExternalAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
 
   on(event: "didFinishLaunching", listener: () => void): this;
