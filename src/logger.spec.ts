@@ -1,11 +1,5 @@
 import chalk from "chalk";
-import {
-  forceColor,
-  Logger,
-  setDebugEnabled,
-  setTimestampEnabled,
-  withPrefix,
-} from "./logger";
+import { Logger } from "./logger";
 
 describe("Logger", () => {
   let consoleLogSpy: jest.SpyInstance;
@@ -56,13 +50,6 @@ describe("Logger", () => {
     expect(consoleLogSpy).not.toHaveBeenCalled();
   });
 
-  it("should not log debug level messages when debug is disabled (via func)", () => {
-    setDebugEnabled(false);
-    const logger = Logger.withPrefix("test");
-    logger.debug("test message");
-    expect(consoleLogSpy).not.toHaveBeenCalled();
-  });
-
   it("should log debug level messages when debug is enabled (via method, no param)", () => {
     Logger.setDebugEnabled();
     const logger = Logger.withPrefix("test");
@@ -79,31 +66,8 @@ describe("Logger", () => {
     Logger.setDebugEnabled(false); // reset debug setting
   });
 
-  it("should log debug level messages when debug is enabled (via func, no param)", () => {
-    setDebugEnabled();
-    const logger = Logger.withPrefix("test");
-    logger.debug("test message");
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining("test message"));
-    setDebugEnabled(false); // reset debug setting
-  });
-
-  it("should log debug level messages when debug is enabled (via func, with param)", () => {
-    setDebugEnabled(true);
-    const logger = Logger.withPrefix("test");
-    logger.debug("test message");
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining("test message"));
-    setDebugEnabled(false); // reset debug setting
-  });
-
   it("should not include timestamps in log messages when timestamp is disabled (via method)", () => {
     Logger.setTimestampEnabled(false);
-    const logger = Logger.withPrefix("test");
-    logger.info("test message");
-    expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringMatching(/\[\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} (AM|PM)].*/));
-  });
-
-  it("should not include timestamps in log messages when timestamp is disabled (via func)", () => {
-    setTimestampEnabled(false);
     const logger = Logger.withPrefix("test");
     logger.info("test message");
     expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringMatching(/\[\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} (AM|PM)].*/));
@@ -125,35 +89,9 @@ describe("Logger", () => {
     Logger.setTimestampEnabled(false); // reset timestamp setting
   });
 
-  it("should include timestamps in log messages when timestamp is enabled (via func, no param)", () => {
-    setTimestampEnabled();
-    const logger = Logger.withPrefix("test");
-    logger.info("test message");
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringMatching(/\[\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} (AM|PM)].*/));
-    setTimestampEnabled(false); // reset timestamp setting
-  });
-
-  it("should include timestamps in log messages when timestamp is enabled (via func, with param)", () => {
-    setTimestampEnabled(true);
-    const logger = Logger.withPrefix("test");
-    logger.info("test message");
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringMatching(/\[\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} (AM|PM)].*/));
-    setTimestampEnabled(false); // reset timestamp setting
-  });
-
   it("should set chalk level to 1 when forceColor is enabled (via method)", () => {
     Logger.forceColor();
     expect(chalk.level).toBe(1);
-  });
-
-  it("should set chalk level to 1 when forceColor is enabled (via func)", () => {
-    forceColor();
-    expect(chalk.level).toBe(1);
-  });
-
-  it("should create a new logger with a prefix when withPrefix is called", () => {
-    const logger = withPrefix("test");
-    expect(logger.prefix).toBe("test");
   });
 
   it("should return the same logger when called with the same prefix", () => {
