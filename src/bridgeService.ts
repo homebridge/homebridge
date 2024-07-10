@@ -1,7 +1,6 @@
 import {
   Accessory,
   AccessoryEventTypes,
-  AccessoryLoader,
   Bridge,
   Categories,
   Characteristic,
@@ -77,12 +76,6 @@ export interface PlatformConfig extends Record<string, any> {
 
 export interface HomebridgeConfig {
   bridge: BridgeConfiguration;
-
-  /**
-   * @deprecated
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mdns?: any; // this is deprecated and not used anymore
 
   accessories: AccessoryConfig[];
   platforms: PlatformConfig[];
@@ -202,7 +195,6 @@ export class BridgeService {
       pincode: bridgeConfig.pin,
       category: Categories.BRIDGE,
       bind: bridgeConfig.bind,
-      mdns: this.config.mdns, // this is deprecated now
       addIdentifyingMaterial: true,
       advertiser: bridgeConfig.advertiser,
     };
@@ -433,7 +425,6 @@ export class BridgeService {
         category: accessory.category,
         port: accessoryPort,
         bind: this.bridgeConfig.bind,
-        mdns: this.config.mdns, // this is deprecated and not used anymore
         addIdentifyingMaterial: true,
         advertiser: this.bridgeConfig.advertiser,
       };
@@ -453,55 +444,45 @@ export class BridgeService {
       return undefined;
     }
 
-    if (!(services[0] instanceof Service)) {
-      // The returned "services" for this accessory is assumed to be the old style: a big array
-      // of JSON-style objects that will need to be parsed by HAP-NodeJS's AccessoryLoader.
+    // The returned "services" for this accessory are simply an array of new-API-style
+    // Service instances which we can add to a created HAP-NodeJS Accessory directly.
+    const accessoryUUID = uuid.generate(accessoryType + ":" + (uuidBase || displayName));
+    const accessory = new Accessory(displayName, accessoryUUID);
 
-      return AccessoryLoader.parseAccessoryJSON({ // Create the actual HAP-NodeJS "Accessory" instance
-        displayName: displayName,
-        services: services,
+    // listen for the identify event if the accessory instance has defined an identify() method
+    if (accessoryInstance.identify) {
+      accessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        accessoryInstance.identify!(() => { }); // empty callback for backwards compatibility
+        callback();
       });
-    } else {
-      // The returned "services" for this accessory are simply an array of new-API-style
-      // Service instances which we can add to a created HAP-NodeJS Accessory directly.
-      const accessoryUUID = uuid.generate(accessoryType + ":" + (uuidBase || displayName));
-      const accessory = new Accessory(displayName, accessoryUUID);
-
-      // listen for the identify event if the accessory instance has defined an identify() method
-      if (accessoryInstance.identify) {
-        accessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          // eslint-disable-next-line @typescript-eslint/no-empty-function
-          accessoryInstance.identify!(() => { }); // empty callback for backwards compatibility
-          callback();
-        });
-      }
-
-      const informationService = accessory.getService(Service.AccessoryInformation)!;
-      services.forEach(service => {
-        // if you returned an AccessoryInformation service, merge its values with ours
-        if (service instanceof Service.AccessoryInformation) {
-          service.setCharacteristic(Characteristic.Name, displayName); // ensure display name is set
-          // ensure the plugin has not hooked already some listeners (some weird ones do).
-          // Otherwise, they would override our identify listener registered by the HAP-NodeJS accessory
-          service.getCharacteristic(Characteristic.Identify).removeAllListeners(CharacteristicEventTypes.SET);
-
-          // pull out any values and listeners (get and set) you may have defined
-          informationService.replaceCharacteristicsFromService(service);
-        } else {
-          accessory.addService(service);
-        }
-      });
-
-      accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory, {}));
-
-      controllers.forEach(controller => {
-        accessory.configureController(controller);
-      });
-
-      return accessory;
     }
+
+    const informationService = accessory.getService(Service.AccessoryInformation)!;
+    services.forEach(service => {
+      // if you returned an AccessoryInformation service, merge its values with ours
+      if (service instanceof Service.AccessoryInformation) {
+        service.setCharacteristic(Characteristic.Name, displayName); // ensure display name is set
+        // ensure the plugin has not hooked already some listeners (some weird ones do).
+        // Otherwise, they would override our identify listener registered by the HAP-NodeJS accessory
+        service.getCharacteristic(Characteristic.Identify).removeAllListeners(CharacteristicEventTypes.SET);
+
+        // pull out any values and listeners (get and set) you may have defined
+        informationService.replaceCharacteristicsFromService(service);
+      } else {
+        accessory.addService(service);
+      }
+    });
+
+    accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory, {}));
+
+    controllers.forEach(controller => {
+      accessory.configureController(controller);
+    });
+
+    return accessory;
   }
 
   public async loadPlatformAccessories(plugin: Plugin, platformInstance: StaticPlatformPlugin, platformType: PlatformName | PlatformIdentifier, logger: Logging): Promise<void> {
