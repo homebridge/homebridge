@@ -273,11 +273,6 @@ export class Server {
       config.bridge.advertiser = undefined;
     }
 
-    // Warn existing Homebridge 1.3.0 beta users they need to swap to bridge.advertiser
-    if (config.mdns && config.mdns.legacyAdvertiser === false && config.bridge.advertiser === MDNSAdvertiser.BONJOUR) {
-      log.error(`The "mdns"."legacyAdvertiser" = false option has been removed. Please use "bridge"."advertiser" = "${MDNSAdvertiser.CIAO}" to enable the Ciao mDNS advertiser. You should remove the "mdns"."legacyAdvertiser" section from your config.json.`);
-    }
-
     return config as HomebridgeConfig;
   }
 
