@@ -2,11 +2,9 @@ import { EventEmitter } from "events";
 import {
   Accessory,
   AccessoryEventTypes,
-  CameraController,
   Categories,
   Controller,
   ControllerConstructor,
-  LegacyCameraSource,
   SerializedAccessory,
   Service,
   VoidCallback,
@@ -54,10 +52,6 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
   UUID: string;
   category: Categories;
   services: Service[] = [];
-  /**
-   * @deprecated reachability has no effect and isn't supported anymore
-   */
-  reachable = false;
   // ------------------------------------------------------
 
   /**
@@ -107,36 +101,8 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
     return this._associatedHAPAccessory.getService(name);
   }
 
-  /**
-   *
-   * @param uuid
-   * @param subType
-   * @deprecated use {@link getServiceById} directly
-   */
-  public getServiceByUUIDAndSubType<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
-    return this.getServiceById(uuid, subType);
-  }
-
   public getServiceById<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
     return this._associatedHAPAccessory.getServiceById(uuid, subType);
-  }
-
-  /**
-   *
-   * @param reachable
-   * @deprecated reachability has no effect and isn't supported anymore
-   */
-  public updateReachability(reachable: boolean): void {
-    this.reachable = reachable;
-  }
-
-  /**
-   *
-   * @param cameraSource
-   * @deprecated see {@link https://developers.homebridge.io/HAP-NodeJS/classes/accessory.html#configurecamerasource | Accessory.configureCameraSource}
-   */
-  public configureCameraSource(cameraSource: LegacyCameraSource): CameraController {
-    return this._associatedHAPAccessory.configureCameraSource(cameraSource);
   }
 
   /**

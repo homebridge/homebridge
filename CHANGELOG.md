@@ -4,6 +4,24 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ## BETA
 
+### Breaking Changes
+
+- **Before Upgrading you will want to make sure that the plugin(s) you are using are up to date and are not usng deprecated code**
+  - If you are unsure open an issue with the developer of your plugin(s) in question.
+- We have removed deprecated old Homebridge code
+- HAP-NodeJS v1.0.0 is included in this release. In v1.0.0 we have removed old deprecated code.
+  - Some examples can be found on the HAP-NodeJS [v1.0.0 Release Notes](https://github.com/homebridge/HAP-NodeJS/releases/tag/v1.0.0).
+
+### Changes For Developers
+
+- Because of the **Breaking Changes** in HAP-NodeJS v1.0.0, there may be some changes that you will have to make to your plugins.
+  - Common long-deprecated code patterns that may need updating:
+    - Use of enums off the HAP API object are not support.
+    - Examples:
+      - Instead of `const Units = Characteristic.Units;` you will need to use `const Units = api.hap.Units;`
+      - Instead of `const Formats = Characteristic.Formats;` you will need to use `const Formats = api.hap.Formats;`
+      - Instead of `const Perms = Characteristic.Perms;` you will need to use `const Perms = api.hap.Perms;`
+
 ### Fixed
 
 - Fix default FirmwareRevision (#3644) (@hjdhjd)
@@ -11,13 +29,15 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Changed
 
 - Detect config interface on registerPlatform (#3609) (@duddu)
+- Complete deprecation of multiple configurations for a dynamic platform plugin in config.json. (#3649) (@hjdhjd)
+- Address legacy deprecation cleanup (#3648) (@hjdhjd)
 - Updated dependencies, fix `typedoc` generation
 - Updated build workflow: added `lint-docs`
 - regenerate docs, bump `hap-nodejs` beta
 
 ### Homebridge Dependencies
 
-- `hap-nodejs` @ `v1.0.0-alpha.34`
+- `hap-nodejs` @ `v1.0.0`
 
 ## v1.8.3 (2024-06-19)
 
