@@ -34,6 +34,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - Updated dependencies, fix `typedoc` generation
 - Updated build workflow: added `lint-docs`
 - regenerate docs, bump `hap-nodejs` beta
+- add alpha version badge to README
 
 ### Homebridge Dependencies
 
