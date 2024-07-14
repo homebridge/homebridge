@@ -192,7 +192,14 @@ export class BridgeService {
     info.setCharacteristic(Characteristic.FirmwareRevision, bridgeConfig.firmwareRevision || getVersion());
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
-      log.info("Homebridge v%s (HAP v%s) (%s) is running on port %s.", getVersion(), HAPLibraryVersion(), bridgeConfig.name, port);
+      log.success("Homebridge v%s (HAP v%s) (%s) is running on port %s.", getVersion(), HAPLibraryVersion(), bridgeConfig.name, port);
+
+      log.warn(
+        "\n\nNOTICE TO USERS AND PLUGIN DEVELOPERS"
+        + "\n> Homebridge 2.0 is on the way and brings some breaking changes to existing plugins.\n"
+        + "> Please visit the following link to learn more about the changes and how to prepare:\n"
+        + "> https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0\n",
+      );
     });
 
     // noinspection JSDeprecatedSymbols
@@ -422,7 +429,7 @@ export class BridgeService {
       }
 
       hapAccessory.on(AccessoryEventTypes.LISTENING, (port: number) => {
-        log.info("%s is running on port %s.", hapAccessory.displayName, port);
+        log.success("%s is running on port %s.", hapAccessory.displayName, port);
         log.info("Please add [%s] manually in Home app. Setup Code: %s", hapAccessory.displayName, accessoryPin);
       });
 

@@ -12,6 +12,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - Detect config interface on registerPlatform (#3609) (@duddu)
 - Updated dependencies, fix `typedoc` generation
+- Added log messaging about upcoming updates
 
 ## v1.8.3 (2024-06-19)
 
