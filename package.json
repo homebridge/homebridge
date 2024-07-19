@@ -35,7 +35,7 @@
     "homebridge": "bin/homebridge"
   },
   "engines": {
-    "node": "^18.15.0 || ^20.7.0"
+    "node": "^18.15.0 || ^20.7.0 || ^22.15.0"
   },
   "files": [
     "README.md",
