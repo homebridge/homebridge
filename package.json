@@ -13,7 +13,7 @@
   "scripts": {
     "build": "npm run clean && tsc",
     "check": "npm install && npm outdated",
-    "clean": "npm install rimraf && rimraf lib/",
+    "clean": "rimraf lib/",
     "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
     "docs": "typedoc",
     "lint": "eslint 'src/**/*.{js,ts,json}'",
