@@ -14,8 +14,6 @@
 
 </span>
 
-<img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
-
 **Homebridge** is a lightweight Node.js server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
 Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
@@ -27,18 +25,6 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
  * _Siri, good morning!_
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
-
-##  Community
-
-The official Homebridge Discord server and Reddit community are where users can discuss Homebridge and ask for help.
-
-<span align="center">
-
-[![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/kqNCe2D) [![Homebridge Reddit](https://raw.githubusercontent.com/homebridge/homebridge/latest/.github/homebridge-reddit.svg?sanitize=true)](https://www.reddit.com/r/homebridge/)
-
-</span>
-
-HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7fa8) and [Reddit](https://www.reddit.com/r/homekit).
 
 ## Installation
 
@@ -117,6 +103,9 @@ The [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin
 
 There are many existing plugins you can study; you might start with the [Homebridge Example Plugins](https://github.com/homebridge/homebridge-examples) or a plugin that already implements the device type you need.
 
+<details>
+<summary>More about plugin development</summary>
+
 When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. Run this command inside your plugin project folder so your global installation of Homebridge can discover it:
 
 
@@ -140,27 +129,43 @@ homebridge -D -U ~/.homebridge-dev
 
 This is very useful when you are already using your development machine to host a "real" Homebridge instance (with all your accessories) that you don't want to disturb.
 
+</details>
+
 ## Common Issues
 
-### Home App Says Accessory Already Added
+<details>
+<summary>Home app says accessory already added</summary>
 
 To fix this, [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge).
 
-### My iOS App Can't Find Homebridge
+</details>
+
+<details>
+<summary>iOS app can't find Homebridge</summary>
 
 Try the following:
 
   1. Swap between the `Bonjour HAP` and `Ciao` mDNS Advertiser options. See [the wiki](https://github.com/homebridge/homebridge/wiki/mDNS-Options) for more details.
-  2. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache. 
+  2. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache.
+
+</details>
 
 ### Limitations
 
  * One bridge can only expose 150 accessories due to a HomeKit limit. You can however run your plugins as a [Child Bridge](https://github.com/homebridge/homebridge/wiki/Child-Bridges) or run [Multiple Homebridge Instances](https://github.com/homebridge/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
  * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
 
-## Why Homebridge?
+##  Community
 
-Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, this project will be obsolete, and I hope that happens soon. In the meantime, Homebridge is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
+The official Homebridge Discord server and Reddit community are where users can discuss Homebridge and ask for help.
+
+<span align="center">
+
+[![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/kqNCe2D) [![Homebridge Reddit](https://raw.githubusercontent.com/homebridge/homebridge/latest/.github/homebridge-reddit.svg?sanitize=true)](https://www.reddit.com/r/homebridge/)
+
+</span>
+
+HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7fa8) and [Reddit](https://www.reddit.com/r/homekit).
 
 ## Credit
 
