@@ -85,9 +85,13 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 [Install Homebridge on Synology DSM 7](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Synology-DSM)
 
+---
+
 ### Other Platforms
 
 [Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
+
+---
 
 ## Adding Homebridge to iOS
 
@@ -104,6 +108,30 @@ Cameras and most TV devices are exposed as separate accessories and each needs t
 Once your device has been added to HomeKit, you should be able to tell Siri to control your devices. However, realize that Siri is a cloud service, and iOS may need some time to synchronize your device information with iCloud.
 
 One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos accessory is "Speakers".
+
+## Limitations
+
+ * One bridge can only expose 150 accessories due to a HomeKit limit. You can however run your plugins as a [Child Bridge](https://github.com/homebridge/homebridge/wiki/Child-Bridges) or run [Multiple Homebridge Instances](https://github.com/homebridge/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
+ * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
+
+## Common Issues
+
+<details>
+<summary>Home app says accessory already added</summary>
+
+To fix this, [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge).
+
+</details>
+
+<details>
+<summary>iOS app can't find Homebridge</summary>
+
+Try the following:
+
+  1. Swap between the `Bonjour HAP` and `Ciao` mDNS Advertiser options. See [the wiki](https://github.com/homebridge/homebridge/wiki/mDNS-Options) for more details.
+  2. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache.
+
+</details>
 
 ## Plugin Development
 
@@ -140,30 +168,6 @@ homebridge -D -U ~/.homebridge-dev
 This is very useful when you are already using your development machine to host a "real" Homebridge instance (with all your accessories) that you don't want to disturb.
 
 </details>
-
-## Common Issues
-
-<details>
-<summary>Home app says accessory already added</summary>
-
-To fix this, [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge).
-
-</details>
-
-<details>
-<summary>iOS app can't find Homebridge</summary>
-
-Try the following:
-
-  1. Swap between the `Bonjour HAP` and `Ciao` mDNS Advertiser options. See [the wiki](https://github.com/homebridge/homebridge/wiki/mDNS-Options) for more details.
-  2. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache.
-
-</details>
-
-### Limitations
-
- * One bridge can only expose 150 accessories due to a HomeKit limit. You can however run your plugins as a [Child Bridge](https://github.com/homebridge/homebridge/wiki/Child-Bridges) or run [Multiple Homebridge Instances](https://github.com/homebridge/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
- * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
 
 ##  Community
 
