@@ -14,6 +14,9 @@
 
 </span>
 
+> [!WARNING]
+> Homebridge v2.0.0 is comming soon! Check what will change and how to prepare: https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2
+
 **Homebridge** is a lightweight Node.js server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
 Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
@@ -25,6 +28,13 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
  * _Siri, good morning!_
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
+
+## Why Homebridge?
+- It is free and without ads.
+- Made with love and passion. 
+- Privacy. It not contain any analytics, call home, or similar features that would allow the project maintainers to track you or the usage of this image.
+- Security. It is kept up-to-date with the latest releases. 
+- Transparency. It is open source and each version is built using the public GitHub Action runners. The build logs for each release are publicly available and every release contains a SHA-256 checksum of the image you can use to verify the integrity of your download.
 
 ## Installation
 
