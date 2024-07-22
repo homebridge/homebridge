@@ -1,7 +1,7 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "1.8.4",
+  "version": "2.0.0",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "license": "Apache-2.0",
@@ -49,7 +49,7 @@
     "chalk": "4.1.2",
     "commander": "12.1.0",
     "fs-extra": "11.2.0",
-    "hap-nodejs": "1.0.0",
+    "hap-nodejs": "1.1.0",
     "qrcode-terminal": "0.12.0",
     "semver": "7.6.3",
     "source-map-support": "0.5.21"
