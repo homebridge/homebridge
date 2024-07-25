@@ -14,7 +14,8 @@
 
 </span>
 
-<img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
+> [!WARNING]
+> Homebridge v2.0.0 is comming soon! Check what will change and how to prepare: https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2
 
 **Homebridge** is a lightweight Node.js server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
@@ -28,17 +29,12 @@ Since Siri supports devices added through HomeKit, this means that with Homebrid
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
 
-##  Community
-
-The official Homebridge Discord server and Reddit community are where users can discuss Homebridge and ask for help.
-
-<span align="center">
-
-[![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/kqNCe2D) [![Homebridge Reddit](https://raw.githubusercontent.com/homebridge/homebridge/latest/.github/homebridge-reddit.svg?sanitize=true)](https://www.reddit.com/r/homebridge/)
-
-</span>
-
-HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7fa8) and [Reddit](https://www.reddit.com/r/homekit).
+## Why Homebridge?
+- It is free and without ads.
+- Made with love and passion. 
+- Privacy. It not contain any analytics, call home, or similar features that would allow the project maintainers to track you or the usage of this image.
+- Security. It is kept up-to-date with the latest releases. 
+- Transparency. It is open source and each version is built using the public GitHub Action runners. The build logs for each release are publicly available and every release contains a SHA-256 checksum of the image you can use to verify the integrity of your download.
 
 ## Installation
 
@@ -89,9 +85,13 @@ HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7f
 
 [Install Homebridge on Synology DSM 7](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Synology-DSM)
 
+---
+
 ### Other Platforms
 
 [Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
+
+---
 
 ## Adding Homebridge to iOS
 
@@ -109,6 +109,30 @@ Once your device has been added to HomeKit, you should be able to tell Siri to c
 
 One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos accessory is "Speakers".
 
+## Limitations
+
+- One bridge can only expose 150 accessories due to a HomeKit limit. You can however run your plugins as a [Child Bridge](https://github.com/homebridge/homebridge/wiki/Child-Bridges) or run [Multiple Homebridge Instances](https://github.com/homebridge/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
+- Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
+
+## Common Issues
+
+<details>
+<summary>Home app says accessory already added</summary>
+
+To fix this, [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge).
+
+</details>
+
+<details>
+<summary>iOS app can't find Homebridge</summary>
+
+Try the following:
+
+  1. Swap between the `Bonjour HAP` and `Ciao` mDNS Advertiser options. See [the wiki](https://github.com/homebridge/homebridge/wiki/mDNS-Options) for more details.
+  2. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache.
+
+</details>
+
 ## Plugin Development
 
 The https://developers.homebridge.io website contains the Homebridge API reference, available service and characteristic types, and plugin examples.
@@ -116,6 +140,9 @@ The https://developers.homebridge.io website contains the Homebridge API referen
 The [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin-template) project provides a base you can use to create your own *platform* plugin.
 
 There are many existing plugins you can study; you might start with the [Homebridge Example Plugins](https://github.com/homebridge/homebridge-examples) or a plugin that already implements the device type you need.
+
+<details>
+<summary>More about plugin development</summary>
 
 When writing your plugin, you'll want Homebridge to load it from your development directory instead of publishing it to `npm` each time. Run this command inside your plugin project folder so your global installation of Homebridge can discover it:
 
@@ -140,27 +167,19 @@ homebridge -D -U ~/.homebridge-dev
 
 This is very useful when you are already using your development machine to host a "real" Homebridge instance (with all your accessories) that you don't want to disturb.
 
-## Common Issues
+</details>
 
-### Home App Says Accessory Already Added
+##  Community
 
-To fix this, [Reset Homebridge](https://github.com/homebridge/homebridge/wiki/Connecting-Homebridge-To-HomeKit#how-to-reset-homebridge).
+The official Homebridge Discord server and Reddit community are where users can discuss Homebridge and ask for help.
 
-### My iOS App Can't Find Homebridge
+<span align="center">
 
-Try the following:
+[![Homebridge Discord](https://discordapp.com/api/guilds/432663330281226270/widget.png?style=banner2)](https://discord.gg/kqNCe2D) [![Homebridge Reddit](https://raw.githubusercontent.com/homebridge/homebridge/latest/.github/homebridge-reddit.svg?sanitize=true)](https://www.reddit.com/r/homebridge/)
 
-  1. Swap between the `Bonjour HAP` and `Ciao` mDNS Advertiser options. See [the wiki](https://github.com/homebridge/homebridge/wiki/mDNS-Options) for more details.
-  2. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache. 
+</span>
 
-### Limitations
-
- * One bridge can only expose 150 accessories due to a HomeKit limit. You can however run your plugins as a [Child Bridge](https://github.com/homebridge/homebridge/wiki/Child-Bridges) or run [Multiple Homebridge Instances](https://github.com/homebridge/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
- * Once an accessory has been added to the Home app, changing its name via Homebridge won't be automatically reflected in iOS. You must change it via the Home app as well.
-
-## Why Homebridge?
-
-Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, this project will be obsolete, and I hope that happens soon. In the meantime, Homebridge is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
+HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7fa8) and [Reddit](https://www.reddit.com/r/homekit).
 
 ## Credit
 
