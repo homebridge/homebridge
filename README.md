@@ -21,11 +21,11 @@
 
 Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
 
- * _Siri, unlock the back door._ [pictured to the right]
- * _Siri, open the garage door._
- * _Siri, turn on the coffee maker._ 
- * _Siri, turn on the living room lights._
- * _Siri, good morning!_
+ - _Siri, unlock the back door._
+ - _Siri, open the garage door._
+ - _Siri, turn on the coffee maker._ 
+ - _Siri, turn on the living room lights._
+ - _Siri, good morning!_
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
 
@@ -38,7 +38,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ## Installation
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59594350-07b45b80-9137-11e9-85fd-e75093ba91a4.png" alt="raspbian" height="75" width="75"/>
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59594350-07b45b80-9137-11e9-85fd-e75093ba91a4.png" alt="raspbian" height="40" width="40"/>
 
 ### Raspberry Pi
 
@@ -46,7 +46,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ---
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59595664-93c78280-9139-11e9-83dc-4d6f9405e788.png" alt="linux" height="75" width="75"/>
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59595664-93c78280-9139-11e9-83dc-4d6f9405e788.png" alt="linux" height="40" width="40"/>
 
 ### Linux
 
@@ -55,7 +55,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ---
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59594157-b015f000-9136-11e9-93cb-c9d9773ec9e8.png" alt="macos" height="75" width="75"/>
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59594157-b015f000-9136-11e9-93cb-c9d9773ec9e8.png" alt="macos" height="40" width="40"/>
 
 ### macOS
 
@@ -63,7 +63,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ---
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59593218-e0f52580-9134-11e9-8b77-585755af5d99.png" alt="windows" height="75" width="75"/>
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59593218-e0f52580-9134-11e9-8b77-585755af5d99.png" alt="windows" height="40" width="40"/>
 
 ### Windows 10 / 11
 
@@ -71,7 +71,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ---
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59594527-56fa8c00-9137-11e9-937b-32092dfcff41.png" alt="docker" height="75" width="75"/>
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59594527-56fa8c00-9137-11e9-937b-32092dfcff41.png" alt="docker" height="40" width="40"/>
 
 ### Docker
 
@@ -79,7 +79,7 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ---
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/78118531-dc46f700-7452-11ea-95e5-977f79d1904f.png" alt="docker" height="75" width="75"/>
+<img align="left" src="https://user-images.githubusercontent.com/3979615/78118531-dc46f700-7452-11ea-95e5-977f79d1904f.png" alt="docker" height="40" width="40"/>
 
 ### Synology DSM
 
