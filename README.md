@@ -38,58 +38,52 @@ You can explore all available plugins at the NPM website by [searching for the k
 
 ## Installation
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59594350-07b45b80-9137-11e9-85fd-e75093ba91a4.png" alt="raspbian" height="40" width="40"/>
+### <img src="https://user-images.githubusercontent.com/3979615/59594350-07b45b80-9137-11e9-85fd-e75093ba91a4.png" alt="raspbian" height="20px" width="20px"/> Raspberry Pi
 
-### Raspberry Pi
-
-[Official Homebridge Raspberry Pi Image](https://github.com/homebridge/homebridge-raspbian-image/wiki/Getting-Started) <br> [Install Homebridge on Raspbian](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Raspbian)
-
----
-
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59595664-93c78280-9139-11e9-83dc-4d6f9405e788.png" alt="linux" height="40" width="40"/>
-
-### Linux
-
-[Debian or Ubuntu Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux) |
-[Red Hat, CentOS or Fedora Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Red-Hat%2C-CentOS-or-Fedora-Linux) | [Arch / Manjaro Linux|Install Homebridge on Arch Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Arch-Linux) <br>
+- [Official Homebridge Raspberry Pi Image](https://github.com/homebridge/homebridge-raspbian-image/wiki/Getting-Started)
+- [Raspbian](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Raspbian)
 
 ---
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59594157-b015f000-9136-11e9-93cb-c9d9773ec9e8.png" alt="macos" height="40" width="40"/>
+### <img src="https://user-images.githubusercontent.com/3979615/59595664-93c78280-9139-11e9-83dc-4d6f9405e788.png" alt="linux" height="20px" width="20px"/> Linux
 
-### macOS
-
-[Install Homebridge on macOS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-macOS)
-
----
-
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59593218-e0f52580-9134-11e9-8b77-585755af5d99.png" alt="windows" height="40" width="40"/>
-
-### Windows 10 / 11
-
-[Install Homebridge on Windows 10 / 11 Using Hyper V](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10-Using-Hyper-V)
+- [Debian or Ubuntu Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux)
+- [Red Hat, CentOS or Fedora Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Red-Hat%2C-CentOS-or-Fedora-Linux)
+- [Arch / Manjaro Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Arch-Linux)
 
 ---
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59594527-56fa8c00-9137-11e9-937b-32092dfcff41.png" alt="docker" height="40" width="40"/>
+### <img src="https://user-images.githubusercontent.com/3979615/59594157-b015f000-9136-11e9-93cb-c9d9773ec9e8.png" alt="macos" height="20px" width="20px"/> macOS
 
-### Docker
-
-[Install Homebridge on Docker](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker)  <br> [Synology](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Synology) | [Unraid](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Unraid) | [QNAP](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-QNAP) | [TrueNAS Scale](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-TrueNAS-Scale)
+- [macOS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-macOS)
 
 ---
 
-<img align="left" src="https://user-images.githubusercontent.com/3979615/78118531-dc46f700-7452-11ea-95e5-977f79d1904f.png" alt="docker" height="40" width="40"/>
+### <img src="https://user-images.githubusercontent.com/3979615/59593218-e0f52580-9134-11e9-8b77-585755af5d99.png" alt="windows" height="20px" width="20px"/> Windows 10 / 11
 
-### Synology DSM
+- [Windows 10 / 11 Using Hyper V](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10-Using-Hyper-V)
 
-[Install Homebridge on Synology DSM 7](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Synology-DSM)
+---
+
+### <img src="https://user-images.githubusercontent.com/3979615/59594527-56fa8c00-9137-11e9-937b-32092dfcff41.png" alt="docker" height="20px" width="20px"/> Docker
+
+- [Docker](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker)
+- [Synology](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Synology)
+- [Unraid](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Unraid)
+- [QNAP](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-QNAP)
+- [TrueNAS Scale](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-TrueNAS-Scale)
+
+---
+
+### <img src="https://user-images.githubusercontent.com/3979615/78118531-dc46f700-7452-11ea-95e5-977f79d1904f.png" alt="docker" height="20px" width="20px"/> Synology DSM
+
+- [Synology DSM 7](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Synology-DSM)
 
 ---
 
 ### Other Platforms
 
-[Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
+- [Other Platforms](https://github.com/homebridge/homebridge/wiki/Other-Platforms)
 
 ---
 
