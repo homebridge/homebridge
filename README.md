@@ -19,13 +19,7 @@
 
 **Homebridge** is a lightweight Node.js server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
-Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
-
- - _Siri, unlock the back door._
- - _Siri, open the garage door._
- - _Siri, turn on the coffee maker._ 
- - _Siri, turn on the living room lights._
- - _Siri, good morning!_
+## Available plugins
 
 You can explore all available plugins at the NPM website by [searching for the keyword `homebridge-plugin`](https://www.npmjs.com/search?q=homebridge-plugin).
 
@@ -101,7 +95,15 @@ Cameras and most TV devices are exposed as separate accessories and each needs t
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" alt="Unlocking Door">
 
-Once your device has been added to HomeKit, you should be able to tell Siri to control your devices. However, realize that Siri is a cloud service, and iOS may need some time to synchronize your device information with iCloud.
+Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
+
+ - _Siri, unlock the back door._
+ - _Siri, open the garage door._
+ - _Siri, turn on the coffee maker._ 
+ - _Siri, turn on the living room lights._
+ - _Siri, good morning!_
+
+However, realize that Siri is a cloud service, and iOS may need some time to synchronize your device information with iCloud.
 
 One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos accessory is "Speakers".
 
