@@ -17,7 +17,7 @@
 > [!WARNING]
 > Homebridge v2.0.0 is comming soon! Check what will change and how to prepare: https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2
 
-**Homebridge** is a lightweight Node.js server you can run on your home network that emulates the iOS HomeKit API. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
+**Homebridge** is a lightweight Node.js server that emulates the iOS HomeKit API. You can run it on your home network. It supports Plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. 
 
 ## Available plugins
 
