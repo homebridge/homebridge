@@ -1,36 +1,37 @@
-import path from "path";
-import { User } from "./user";
+import path from 'node:path'
 
-describe("User", () => { // these tests are mainly here to ensure default locations won't get bricked in the future
+import { describe, expect, it } from 'vitest'
 
-  describe("User.storagePath", () => {
-    it("should have valid default path", function() {
-      expect(path.basename(User.storagePath())).toEqual(".homebridge");
-    });
-  });
+import { User } from './user.js'
 
-  describe("User.cachedAccessoryPath", () => {
-    it("should have valid default path", function() {
-      expect(path.basename(User.cachedAccessoryPath())).toEqual("accessories");
-    });
-  });
+describe('user', () => { // these tests are mainly here to ensure default locations won't get bricked in the future
+  describe('user.storagePath', () => {
+    it('should have valid default path', () => {
+      expect(path.basename(User.storagePath())).toEqual('.homebridge')
+    })
+  })
 
-  describe("User.persistPath", () => {
-    it("should have valid default path", function() {
-      expect(path.basename(User.persistPath())).toEqual("persist");
-    });
-  });
+  describe('user.cachedAccessoryPath', () => {
+    it('should have valid default path', () => {
+      expect(path.basename(User.cachedAccessoryPath())).toEqual('accessories')
+    })
+  })
 
-  describe("User.configPath", () => {
-    it("should have valid default path", function() {
-      expect(path.basename(User.configPath())).toEqual("config.json");
-    });
-  });
+  describe('user.persistPath', () => {
+    it('should have valid default path', () => {
+      expect(path.basename(User.persistPath())).toEqual('persist')
+    })
+  })
 
-  describe("User.setStoragePath", () => {
-    it("should fail to be overwritten after paths were already accessed", function() {
-      expect(() => User.setStoragePath("otherDir")).toThrow(Error);
-    });
-  });
+  describe('user.configPath', () => {
+    it('should have valid default path', () => {
+      expect(path.basename(User.configPath())).toEqual('config.json')
+    })
+  })
 
-});
+  describe('user.setStoragePath', () => {
+    it('should fail to be overwritten after paths were already accessed', () => {
+      expect(() => User.setStoragePath('otherDir')).toThrow(Error)
+    })
+  })
+})

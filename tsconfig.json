@@ -1,27 +1,20 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
+    "target": "ESNext",
     "lib": [
-      "es2015",
-      "es2016",
-      "es2017",
-      "es2018",
-      "es2019",
-      "es2020",
-      "es2021",
-      "es2022"
+      "ESNext"
     ],
+    "rootDir": "./src",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "strict": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./lib",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
+    "outDir": "./dist",
     "preserveConstEnums": true,
-    "skipLibCheck": true,
-    "useUnknownInCatchVariables": false
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
   },
   "include": [
     "src/"

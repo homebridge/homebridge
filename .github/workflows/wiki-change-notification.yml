@@ -7,7 +7,7 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - uses: 'oznu/gh-wiki-edit-discord-notification@main'
+      - uses: oznu/gh-wiki-edit-discord-notification@main
         with:
           discord-webhook-url: ${{ secrets.DISCORD_WEBHOOK_WIKI_EDIT }}
           ignore-collaborators: true

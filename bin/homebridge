@@ -4,14 +4,16 @@
 // This executable sets up the environment and runs the HomeBridge CLI.
 //
 
-"use strict";
+import { realpathSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
-process.title = "homebridge";
+process.title = 'homebridge'
 
 // Find the HomeBridge lib
-const path = require("path");
-const fs = require("fs");
-const lib = path.join(path.dirname(fs.realpathSync(__filename)), "../lib");
+const __filename = fileURLToPath(import.meta.url)
+const lib = join(dirname(realpathSync(__filename)), '../dist')
 
 // Run HomeBridge
-require(lib + '/cli')();
+import(`${lib}/cli.js`).then(({ default: run }) => run())

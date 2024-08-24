@@ -1,10 +1,12 @@
-import type { MacAddress } from "hap-nodejs";
-import type { ChildBridgeFork } from "./childBridgeFork";
-import { Logger } from "./logger";
+import type { MacAddress } from 'hap-nodejs'
+
+import type { ChildBridgeFork } from './childBridgeFork.js'
+
+import { Logger } from './logger.js'
 
 export interface ExternalPortsConfiguration {
-  start: number;
-  end: number;
+  start: number
+  end: number
 }
 
 /**
@@ -12,8 +14,8 @@ export interface ExternalPortsConfiguration {
  * This service is used to allocate ports for external accessories on the main bridge, and child bridges.
  */
 export class ExternalPortService {
-  private nextExternalPort?: number;
-  private allocatedPorts: Map<MacAddress, number | undefined> = new Map();
+  private nextExternalPort?: number
+  private allocatedPorts: Map<MacAddress, number | undefined> = new Map()
 
   constructor(
     private externalPorts?: ExternalPortsConfiguration,
@@ -26,36 +28,36 @@ export class ExternalPortService {
    */
   public async requestPort(username: MacAddress): Promise<number | undefined> {
     // check to see if this device has already requested an external port
-    const existingPortAllocation = this.allocatedPorts.get(username);
+    const existingPortAllocation = this.allocatedPorts.get(username)
     if (existingPortAllocation) {
-      return existingPortAllocation;
+      return existingPortAllocation
     }
 
     // get the next unused port
-    const port = this.getNextFreePort();
-    this.allocatedPorts.set(username, port);
-    return port;
+    const port = this.getNextFreePort()
+    this.allocatedPorts.set(username, port)
+    return port
   }
 
-  private getNextFreePort(): number | undefined  {
+  private getNextFreePort(): number | undefined {
     if (!this.externalPorts) {
-      return undefined;
+      return undefined
     }
 
     if (this.nextExternalPort === undefined) {
-      this.nextExternalPort = this.externalPorts.start;
-      return this.nextExternalPort;
+      this.nextExternalPort = this.externalPorts.start
+      return this.nextExternalPort
     }
 
-    this.nextExternalPort++;
+    this.nextExternalPort++
 
     if (this.nextExternalPort <= this.externalPorts.end) {
-      return this.nextExternalPort;
+      return this.nextExternalPort
     }
 
-    Logger.internal.warn("External port pool ran out of ports. Falling back to random port assignment.");
+    Logger.internal.warn('External port pool ran out of ports. Falling back to random port assignment.')
 
-    return undefined;
+    return undefined
   }
 }
 
@@ -67,10 +69,10 @@ export class ChildBridgeExternalPortService extends ExternalPortService {
   constructor(
     private childBridge: ChildBridgeFork,
   ) {
-    super();
+    super()
   }
 
   public async requestPort(username: MacAddress): Promise<number | undefined> {
-    return await this.childBridge.requestExternalPort(username);
+    return await this.childBridge.requestExternalPort(username)
   }
 }
