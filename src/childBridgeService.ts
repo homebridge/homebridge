@@ -152,6 +152,8 @@ export class ChildBridgeService {
   private pluginConfig: Array<PlatformConfig | AccessoryConfig> = []
   private log: Logging
   private displayName?: string
+  private restartCount = 0
+  private readonly maxRestarts = 4
 
   constructor(
     public type: PluginType,
@@ -227,17 +229,12 @@ export class ChildBridgeService {
       process.stderr.write(data)
     })
 
-    this.child.on('exit', () => {
-      this.log.warn('Child bridge process ended')
-    })
-
     this.child.on('error', (e) => {
       this.bridgeStatus = ChildBridgeStatus.DOWN
-      this.log.error('Child process error', e)
+      this.log.error('Child bridge process error', e)
     })
 
     this.child.once('close', (code, signal) => {
-      this.bridgeStatus = ChildBridgeStatus.DOWN
       this.handleProcessClose(code, signal)
     })
 
@@ -249,16 +246,16 @@ export class ChildBridgeService {
 
       switch (message.id) {
         case ChildProcessMessageEventType.READY: {
-          this.log(`Launched child bridge with PID ${this.child?.pid}`)
+          this.log(`Child bridge starting${this.child?.pid ? ` (pid ${this.child.pid})` : ''}...`)
           this.loadPlugin()
           break
         }
         case ChildProcessMessageEventType.LOADED: {
           const version = (message.data as ChildProcessPluginLoadedEventData).version
           if (this.pluginConfig.length > 1) {
-            this.log(`Loaded ${this.plugin.getPluginIdentifier()} v${version} child bridge successfully with ${this.pluginConfig.length} accessories`)
+            this.log.success(`Child bridge started successfully with ${this.pluginConfig.length} accessories (plugin v${version}).`)
           } else {
-            this.log(`Loaded ${this.plugin.getPluginIdentifier()} v${version} child bridge successfully`)
+            this.log.success(`Child bridge started successfully (plugin v${version}).`)
           }
           this.startBridge()
           break
@@ -287,14 +284,36 @@ export class ChildBridgeService {
    * @param signal
    */
   private handleProcessClose(code: number | null, signal: string | null): void {
-    this.log(`Process Ended. Code: ${code}, Signal: ${signal}`)
+    const isLikelyPluginCrash = code === 1 && signal === null
+    this.log.warn(`Child bridge ended (code ${code}, signal ${signal}).${isLikelyPluginCrash
+      ? ' The child bridge ended unexpectedly, which is normally due to the plugin not catching its errors properly. Please report this to the plugin developer by clicking on the'
+      + ' \'Report An Issue\' option in the plugin menu dropdown from the Homebridge UI. If there are related logs shown above, please include them in your report.'
+      : ''}`)
 
-    setTimeout(() => {
-      if (!this.shuttingDown) {
-        this.log('Restarting Process...')
-        this.startChildProcess()
+    if (isLikelyPluginCrash) {
+      if (this.restartCount < this.maxRestarts) {
+        this.bridgeStatus = ChildBridgeStatus.PENDING
+        this.restartCount += 1
+        const delay = this.restartCount * 10 // first attempt after 10 seconds, second after 20 seconds, etc.
+        this.log(`Child bridge will automatically restart in ${delay} seconds (restart attempt ${this.restartCount} of ${this.maxRestarts}).`)
+        setTimeout(() => {
+          if (!this.shuttingDown) {
+            this.startChildProcess()
+          }
+        }, delay * 1000)
+      } else {
+        this.bridgeStatus = ChildBridgeStatus.DOWN
+        this.manuallyStopped = true
+        this.log.error(`Child bridge will no longer restart after failing ${this.maxRestarts + 1} times, you will need to manually start this child bridge from the Homebridge UI.`)
       }
-    }, 7000)
+      return
+    }
+
+    if (!this.shuttingDown) {
+      this.bridgeStatus = ChildBridgeStatus.DOWN
+      this.restartCount = 0
+      this.startChildProcess()
+    }
   }
 
   /**
@@ -441,9 +460,10 @@ export class ChildBridgeService {
    */
   public restartChildBridge(): void {
     if (this.manuallyStopped) {
+      this.restartCount = 0
       this.startChildBridge()
     } else {
-      this.log.warn('Restarting child bridge...')
+      this.log.warn('Child bridge restarting...')
       this.refreshConfig()
       this.teardown()
     }
@@ -454,13 +474,15 @@ export class ChildBridgeService {
    */
   public stopChildBridge(): void {
     if (!this.shuttingDown) {
-      this.log.warn('Stopping child bridge (will not restart)...')
+      this.log.warn('Child bridge stopping, will not restart.')
       this.shuttingDown = true
       this.manuallyStopped = true
+      this.restartCount = 0
+      this.bridgeStatus = ChildBridgeStatus.DOWN
       this.child?.removeAllListeners('close')
       this.teardown()
     } else {
-      this.log.warn('Bridge already shutting down or stopped.')
+      this.log.warn('Child bridge already shutting down or stopped.')
     }
   }
 
@@ -469,13 +491,12 @@ export class ChildBridgeService {
    */
   public startChildBridge(): void {
     if (this.manuallyStopped && this.bridgeStatus === ChildBridgeStatus.DOWN && (!this.child || !this.child.connected)) {
-      this.log.warn('Starting child bridge...')
       this.refreshConfig()
       this.startChildProcess()
       this.shuttingDown = false
       this.manuallyStopped = false
     } else {
-      this.log.warn('Cannot start child bridge, it is still running or was not manually stopped')
+      this.log.warn('Child bridge cannot be started, it is still running or was not manually stopped.')
     }
   }
 
