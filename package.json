@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/homebridge/homebridge/issues"
   },
-  "main": "dist/index.js",
+  "exports": "./dist/index.js",
   "types": "dist/index.d.ts",
   "maintainers": [
     "oznu <dev@oz.nu>",
@@ -57,10 +57,10 @@
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^2.27.1",
+    "@antfu/eslint-config": "^2.27.3",
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^22.5.0",
+    "@types/node": "^22.5.1",
     "@types/semver": "^7.5.8",
     "@types/source-map-support": "^0.5.10",
     "@vitest/coverage-v8": "^2.0.5",
