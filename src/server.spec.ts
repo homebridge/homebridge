@@ -24,6 +24,7 @@ describe('server', () => {
       username: 'CC:22:3D:E3:CE:30',
       pin: '031-45-154',
       name: 'Homebridge',
+      advertiser: 'ciao',
     },
     accessories: [],
     platforms: [],

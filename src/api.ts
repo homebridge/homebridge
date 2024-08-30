@@ -5,7 +5,7 @@ import type { Logging } from './logger.js'
 
 import { EventEmitter } from 'node:events'
 
-import hapNodeJs from 'hap-nodejs'
+import * as hapNodeJs from 'hap-nodejs'
 import semver from 'semver'
 
 import { Logger } from './logger.js'

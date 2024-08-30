@@ -2,6 +2,7 @@ import antfu from '@antfu/eslint-config'
 
 export default antfu(
   {
+    ignores: ['dist', 'docs'],
     jsx: false,
     typescript: true,
     formatters: {
@@ -43,8 +44,5 @@ export default antfu(
       'unicorn/no-useless-spread': 'error',
       'unused-imports/no-unused-vars': ['error', { caughtErrors: 'none' }],
     },
-  },
-  {
-    ignores: ['dist', 'docs'],
   },
 )
