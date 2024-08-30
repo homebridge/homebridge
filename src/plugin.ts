@@ -189,7 +189,7 @@ export class Plugin {
     assert(context, 'Reached illegal state. Plugin state is undefined!')
     this.loadContext = undefined // free up memory
 
-    // pluck out the HomeBridge version requirement
+    // pluck out the Homebridge version requirement
     if (!context.engines || !context.engines.homebridge) {
       throw new Error(`Plugin ${this.pluginPath} does not contain the 'homebridge' package in 'engines'.`)
     }
@@ -197,7 +197,7 @@ export class Plugin {
     const versionRequired = context.engines.homebridge
     const nodeVersionRequired = context.engines.node
 
-    // make sure the version is satisfied by the currently running version of HomeBridge
+    // make sure the version is satisfied by the currently running version of Homebridge
     if (!satisfies(getVersion(), versionRequired, { includePrerelease: true })) {
       // TODO - change this back to an error
       log.warn(`The plugin "${this.pluginName}" requires a Homebridge version of ${versionRequired} which does \
