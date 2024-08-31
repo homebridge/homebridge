@@ -19,7 +19,7 @@
     "Andreas Bauer <mail@anderl-bauer.de>"
   ],
   "bin": {
-    "homebridge": "bin/homebridge"
+    "homebridge": "bin/homebridge.js"
   },
   "files": [
     "LICENSE",
@@ -35,7 +35,7 @@
     "build": "npm run clean && tsc",
     "check": "npm install && npm outdated",
     "clean": "rimraf dist && rimraf coverage",
-    "dev": "DEBUG=* bin/homebridge -D -P example-plugins/ || true",
+    "dev": "DEBUG=* ./bin/homebridge.js -D -P example-plugins/ || true",
     "docs": "typedoc",
     "lint": "eslint .",
     "lint:fix": "npm run lint -- --fix",
