@@ -8,6 +8,10 @@ describe('pluginManager', () => {
       expect(PluginManager.isQualifiedPluginIdentifier('homebridge-dummy-plugin')).toBeTruthy()
     })
 
+    it('should match scoped plugin names with dots', () => {
+      expect(PluginManager.isQualifiedPluginIdentifier('@organisation.com/homebridge-dummy-plugin')).toBeTruthy()
+    })
+
     it('should match scoped plugin names', () => {
       expect(PluginManager.isQualifiedPluginIdentifier('@organisation/homebridge-dummy-plugin')).toBeTruthy()
     })
@@ -21,11 +25,19 @@ describe('pluginManager', () => {
     it('should extract scoped plugin names', () => {
       expect(PluginManager.extractPluginName('@organisation/homebridge-dummy-plugin')).toBe('homebridge-dummy-plugin')
     })
+
+    it('should extract scoped plugin names with scopes with dots in their name', () => {
+      expect(PluginManager.extractPluginName('@organisation.com/homebridge-dummy-plugin')).toBe('homebridge-dummy-plugin')
+    })
   })
 
   describe('pluginManager.extractPluginScope', () => {
     it('should extract undefined for normal plugin names', () => {
       expect(PluginManager.extractPluginScope('homebridge-dummy-plugin')).toBeUndefined()
+    })
+
+    it('should extract scope for scoped plugin names with dots in their name', () => {
+      expect(PluginManager.extractPluginScope('@organisation.com/homebridge-dummy-plugin')).toBe('@organisation.com')
     })
 
     it('should extract scope for scoped plugin names', () => {

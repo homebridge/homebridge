@@ -71,7 +71,7 @@ export interface PluginManagerOptions {
  */
 export class PluginManager {
   // name must be prefixed with 'homebridge-' or '@scope/homebridge-'
-  private static readonly PLUGIN_IDENTIFIER_PATTERN = /^((@[\w-]*)\/)?(homebridge-[\w-]*)$/
+  private static readonly PLUGIN_IDENTIFIER_PATTERN = /^((@[\w-]+(\.[\w-]+)*)\/)?(homebridge-[\w-]+)$/
 
   private readonly api: HomebridgeAPI
 
@@ -111,7 +111,7 @@ export class PluginManager {
   }
 
   public static extractPluginName(name: string): PluginName { // extract plugin name without @scope/ prefix
-    return name.match(PluginManager.PLUGIN_IDENTIFIER_PATTERN)![3]
+    return name.match(PluginManager.PLUGIN_IDENTIFIER_PATTERN)![4]
   }
 
   public static extractPluginScope(name: string): string { // extract the "@scope" of a npm module name
