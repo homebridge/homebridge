@@ -18,7 +18,12 @@ export const enum IpcOutgoingEvent {
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface IpcService {
-  on: ((event: IpcIncomingEvent.RESTART_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.STOP_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.START_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST, listener: () => void) => this)
+  /* eslint-disable ts/method-signature-style */
+  on(event: IpcIncomingEvent.RESTART_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void): this
+  on(event: IpcIncomingEvent.STOP_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void): this
+  on(event: IpcIncomingEvent.START_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void): this
+  on(event: IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST, listener: () => void): this
+  /* eslint-enable ts/method-signature-style */
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging

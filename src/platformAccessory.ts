@@ -35,11 +35,10 @@ export const enum PlatformAccessoryEvent {
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface PlatformAccessory {
-
-  on: (event: 'identify', listener: () => void) => this
-
-  emit: (event: 'identify') => boolean
-
+  /* eslint-disable ts/method-signature-style */
+  on(event: 'identify', listener: () => void): this
+  emit(event: 'identify'): boolean
+  /* eslint-enable ts/method-signature-style */
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging

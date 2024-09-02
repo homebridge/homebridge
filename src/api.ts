@@ -39,7 +39,6 @@ export const enum PluginType {
  * It is called once the plugin is loaded from disk.
  */
 export interface PluginInitializer {
-
   /**
    * When the initializer is called the plugin must use the provided api instance and call the appropriate
    * register methods - {@link API.registerAccessory} or {@link API.registerPlatform} - in order to
@@ -48,7 +47,6 @@ export interface PluginInitializer {
    * @param {API} api
    */
   (api: API): void | Promise<void>
-
 }
 
 export interface AccessoryPluginConstructor {
@@ -56,7 +54,6 @@ export interface AccessoryPluginConstructor {
 }
 
 export interface AccessoryPlugin {
-
   /**
    * Optional method which will be called if an 'identify' of an Accessory is requested by HomeKit.
    */
@@ -99,7 +96,6 @@ export interface PlatformPlugin {} // not exported to the public in index.ts
  * Accessories can be added or removed by using {@link API.registerPlatformAccessories} or {@link API.unregisterPlatformAccessories}.
  */
 export interface DynamicPlatformPlugin extends PlatformPlugin {
-
   /**
    * This method is called for every PlatformAccessory, which is recreated from disk on startup.
    * It should be used to properly initialize the Accessory and setup all event handlers for
@@ -117,7 +113,6 @@ export interface DynamicPlatformPlugin extends PlatformPlugin {
  * The bridge waits for all callbacks to return before it is published and accessible by HomeKit controllers.
  */
 export interface StaticPlatformPlugin extends PlatformPlugin {
-
   /**
    * This method is called once at startup. The Platform should pass all accessories which need to be created
    * to the callback in form of a {@link AccessoryPlugin}.
@@ -166,7 +161,6 @@ export const enum InternalAPIEvent {
 }
 
 export interface API {
-
   /**
    * The homebridge API version as a floating point number.
    */
@@ -209,17 +203,37 @@ export interface API {
 
   publishExternalAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
 
-  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
-
+  /* eslint-disable ts/method-signature-style */
+  on(event: 'didFinishLaunching', listener: () => void): this
+  on(event: 'shutdown', listener: () => void): this
+  /* eslint-enable ts/method-signature-style */
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface HomebridgeAPI {
 
-  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, listener: (accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM, listener: (platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this)
+  /* eslint-disable ts/method-signature-style */
+  on(event: 'didFinishLaunching', listener: () => void): this
+  on(event: 'shutdown', listener: () => void): this
 
-  emit: ((event: 'didFinishLaunching') => boolean) & ((event: 'shutdown') => boolean) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM, platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean)
+  // Internal events (using enums directly to restrict access)
+  on(event: InternalAPIEvent.REGISTER_ACCESSORY, listener: (accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => void): this
+  on(event: InternalAPIEvent.REGISTER_PLATFORM, listener: (platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => void): this
+  on(event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this
+  on(event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this
+  on(event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this
+  on(event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this
 
+  emit(event: 'didFinishLaunching'): boolean
+  emit(event: 'shutdown'): boolean
+
+  emit(event: InternalAPIEvent.REGISTER_ACCESSORY, accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier): boolean
+  emit(event: InternalAPIEvent.REGISTER_PLATFORM, platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier): boolean
+  emit(event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories: PlatformAccessory[]): boolean
+  emit(event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean
+  emit(event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean
+  emit(event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean
+  /* eslint-enable ts/method-signature-style */
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging

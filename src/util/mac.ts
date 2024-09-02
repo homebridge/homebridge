@@ -1,5 +1,4 @@
 /* global NodeJS */
-
 import type { Buffer } from 'node:buffer'
 
 import crypto from 'node:crypto'
