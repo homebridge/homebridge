@@ -2,6 +2,18 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v1.8.5 (2024-10-25)
+
+### Changed
+
+- support plugins with dots in their npm scope (#3687) (@gtalusan)
+- mark compatible with node v22
+- minor dependency updates
+
+### Homebridge Dependencies
+
+- `hap-nodejs` @ `v0.12.3`
+
 ## v1.8.4 (2024-07-19)
 
 ### Fixed
@@ -17,6 +29,10 @@ All notable changes to `homebridge` will be documented in this file. This projec
     - Homebridge 2.0 is on the way and brings some breaking changes to existing plugins.
     - Please visit the following link to learn more about the changes and how to prepare:
       - [Updating-To-Homebridge-v2.0](https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0)
+
+### Homebridge Dependencies
+
+- `hap-nodejs` @ `v0.12.2`
 
 ## v1.8.3 (2024-06-19)
 
