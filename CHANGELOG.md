@@ -19,6 +19,9 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - Complete deprecation of multiple configurations for a dynamic platform plugin in config.json. (#3649) (@hjdhjd)
 - Address legacy deprecation cleanup (#3648) (@hjdhjd)
+- Added method updateDisplayName() (#3764) (@justjam2013)
+- Fixed method handleUpdatePlatformAccessories() (#3765) (@justjam2013)
+- Make it possible to set Characteristic.SerialNumber via config.json (#3761) (@vvorcun)
 - Update `hap-nodejs` to v1.0.0
 - remove deprecated `--remove-orphans` flag
 - Update `typedoc` and refresh documentation
@@ -30,7 +33,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Homebridge Dependencies
 
-- `hap-nodejs` @ `v1.1.1-beta.6`
+- `hap-nodejs` @ `v1.1.1-beta.7`
 
 ## v1.8.5 (2024-10-25)
 
