@@ -1,3 +1,4 @@
 {
-    "codeQL.githubDatabase.download": "never"
+    "codeQL.githubDatabase.download": "never",
+    "DockerRun.DisableAutoGenerateConfig": true
 }
