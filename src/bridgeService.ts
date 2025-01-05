@@ -384,11 +384,10 @@ export class BridgeService {
     this.saveCachedPlatformAccessoriesOnDisk();
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   handleUpdatePlatformAccessories(accessories: PlatformAccessory[]): void {
     const nonUpdatedPlugins = this.cachedPlatformAccessories.filter(
       cachedPlatformAccessory => (
-        accessories.find(accessory => accessory.UUID === cachedPlatformAccessory._associatedHAPAccessory.UUID) !== undefined
+        accessories.find(accessory => accessory.UUID === cachedPlatformAccessory._associatedHAPAccessory.UUID) === undefined
       )
     );
 
