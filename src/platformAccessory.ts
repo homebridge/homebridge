@@ -168,6 +168,7 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext>  exten
 
   // private
   static serialize(accessory: PlatformAccessory): SerializedPlatformAccessory {
+    accessory._associatedHAPAccessory.displayName = accessory.displayName;
     return {
       plugin: accessory._associatedPlugin!,
       platform: accessory._associatedPlatform!,
