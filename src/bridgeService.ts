@@ -388,7 +388,7 @@ export class BridgeService {
     const nonUpdatedPlugins = this.cachedPlatformAccessories.filter(
       cachedPlatformAccessory => (
         accessories.find(accessory => accessory.UUID === cachedPlatformAccessory._associatedHAPAccessory.UUID) === undefined
-      )
+      ),
     );
 
     this.cachedPlatformAccessories = [ ...nonUpdatedPlugins, ...accessories];
