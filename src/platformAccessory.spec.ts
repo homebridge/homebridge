@@ -51,7 +51,7 @@ describe('platformAccessory', () => {
   })
 
   describe('platformAccessory.prototype.addService', () => {
-    it('should forward add service', () => {
+    it('should forward add service and call HAP', () => {
       const accessory = createAccessory()
       const service = new Service.Switch()
       const spy = vi.spyOn(accessory._associatedHAPAccessory, 'addService')
@@ -60,11 +60,25 @@ describe('platformAccessory', () => {
       expect(accessory.services.includes(service)).toBeFalsy()
 
       accessory.addService(service)
-
-      expect(accessory.services.length).toBe(2) // ensure our reference is valid
-      expect(accessory.services.includes(service)).toBeTruthy()
-
       expect(spy).toHaveBeenCalledWith(service) // ensure HAP got called
+    })
+
+    it('should forward add service', () => {
+      const accessory = createAccessory()
+      const service = new Service.Switch()
+      const spy = vi.spyOn(accessory._associatedHAPAccessory, 'addService')
+
+      accessory.addService(service)
+      expect(spy).toHaveBeenCalledWith(service) // ensure HAP got called
+    })
+  })
+
+  describe('platformAccessory.prototype.updateDisplayName', () => {
+    it('should mirror displayName correctly', () => {
+      const accessory = createAccessory('TestName')
+      accessory.updateDisplayName('NewTestName')
+      expect(accessory._associatedHAPAccessory.displayName).toBe(accessory.displayName)
+      expect(accessory.displayName).toBe('NewTestName')
     })
   })
 

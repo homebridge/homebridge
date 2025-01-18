@@ -77,6 +77,13 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
     })
   }
 
+  public updateDisplayName(name: string): void {
+    if (name) {
+      this.displayName = name
+      this._associatedHAPAccessory.displayName = name
+    }
+  }
+
   public addService(service: Service): Service
   public addService<S extends typeof Service>(serviceConstructor: S, ...constructorArgs: ConstructorArgs<S>): Service
   public addService(service: Service | typeof Service, ...constructorArgs: any[]): Service {
@@ -120,6 +127,7 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
 
   // private
   static serialize(accessory: PlatformAccessory): SerializedPlatformAccessory {
+    accessory._associatedHAPAccessory.displayName = accessory.displayName
     return {
       plugin: accessory._associatedPlugin!,
       platform: accessory._associatedPlatform!,
