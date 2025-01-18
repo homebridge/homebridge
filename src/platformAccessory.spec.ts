@@ -49,6 +49,15 @@ describe("PlatformAccessory", () => {
 
   });
 
+  describe("PlatformAccessory.prototype.updateDisplayName",() => {
+    it("should mirror displayName correctly", function() {
+      const accessory = createAccessory("TestName");
+      accessory.updateDisplayName("NewTestName");
+      expect(accessory._associatedHAPAccessory.displayName).toBe(accessory.displayName);
+      expect(accessory.displayName).toBe("NewTestName");
+    });
+  });
+
   describe("PlatformAccessory.prototype.addService", () => {
     it("should forward add service", function() {
       const accessory = createAccessory();
