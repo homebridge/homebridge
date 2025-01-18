@@ -54,6 +54,7 @@ export interface BridgeConfiguration {
   model?: string;
   disableIpc?: boolean;
   firmwareRevision?: string;
+  serialNumber?: string;
   env?: {
     DEBUG?: string;
     NODE_OPTIONS?: string;
@@ -188,7 +189,7 @@ export class BridgeService {
     const info = this.bridge.getService(Service.AccessoryInformation)!;
     info.setCharacteristic(Characteristic.Manufacturer, bridgeConfig.manufacturer || "homebridge.io");
     info.setCharacteristic(Characteristic.Model, bridgeConfig.model || "homebridge");
-    info.setCharacteristic(Characteristic.SerialNumber, bridgeConfig.username);
+    info.setCharacteristic(Characteristic.SerialNumber, bridgeConfig.serialNumber || bridgeConfig.username);
     info.setCharacteristic(Characteristic.FirmwareRevision, bridgeConfig.firmwareRevision || getVersion());
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
