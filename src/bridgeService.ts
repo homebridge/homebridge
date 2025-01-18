@@ -372,7 +372,15 @@ export class BridgeService {
     this.saveCachedPlatformAccessoriesOnDisk()
   }
 
-  handleUpdatePlatformAccessories(): void {
+  handleUpdatePlatformAccessories(accessories: PlatformAccessory[]): void {
+    const nonUpdatedPlugins = this.cachedPlatformAccessories.filter(
+      cachedPlatformAccessory => (
+        accessories.find(accessory => accessory.UUID === cachedPlatformAccessory._associatedHAPAccessory.UUID) === undefined
+      ),
+    );
+
+    this.cachedPlatformAccessories = [ ...nonUpdatedPlugins, ...accessories];
+
     // Update persisted accessories
     this.saveCachedPlatformAccessoriesOnDisk()
   }
