@@ -60,6 +60,7 @@ export interface BridgeConfiguration {
   model?: string
   disableIpc?: boolean
   firmwareRevision?: string
+  serialNumber?: string
   debugModeEnabled?: boolean
   env?: {
     DEBUG?: string
@@ -185,7 +186,7 @@ export class BridgeService {
     const info = this.bridge.getService(Service.AccessoryInformation)!
     info.setCharacteristic(Characteristic.Manufacturer, bridgeConfig.manufacturer || 'homebridge.io')
     info.setCharacteristic(Characteristic.Model, bridgeConfig.model || 'homebridge')
-    info.setCharacteristic(Characteristic.SerialNumber, bridgeConfig.username)
+    info.setCharacteristic(Characteristic.SerialNumber, bridgeConfig.serialNumber || bridgeConfig.username)
     info.setCharacteristic(Characteristic.FirmwareRevision, bridgeConfig.firmwareRevision || getVersion())
 
     this.bridge.on(AccessoryEventTypes.LISTENING, (port: number) => {
@@ -377,9 +378,9 @@ export class BridgeService {
       cachedPlatformAccessory => (
         accessories.find(accessory => accessory.UUID === cachedPlatformAccessory._associatedHAPAccessory.UUID) === undefined
       ),
-    );
+    )
 
-    this.cachedPlatformAccessories = [ ...nonUpdatedPlugins, ...accessories];
+    this.cachedPlatformAccessories = [...nonUpdatedPlugins, ...accessories]
 
     // Update persisted accessories
     this.saveCachedPlatformAccessoriesOnDisk()
