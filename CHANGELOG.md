@@ -2,6 +2,19 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v1.9.0 (2024-10-25)
+
+### Changed
+
+- Added method updateDisplayName() (#3764) (@justjam2013)
+- Fixed method handleUpdatePlatformAccessories() (#3765) (@justjam2013)
+- Make it possible to set Characteristic.SerialNumber via config.json (#3761) (@vvorcun)
+- minor dependency updates
+
+### Homebridge Dependencies
+
+- `hap-nodejs` @ `v0.12.3`
+
 ## v1.8.5 (2024-10-25)
 
 ### Changed
