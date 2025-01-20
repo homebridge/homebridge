@@ -47,7 +47,7 @@
   "preferGlobal": true,
   "dependencies": {
     "chalk": "4.1.2",
-    "commander": "12.1.0",
+    "commander": "13.0.0",
     "fs-extra": "11.3.0",
     "hap-nodejs": "0.12.3",
     "qrcode-terminal": "0.12.0",

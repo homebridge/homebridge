@@ -2,7 +2,7 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v1.9.0 (2024-10-25)
+## BETA
 
 ### Changed
 
@@ -10,6 +10,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - Fixed method handleUpdatePlatformAccessories() (#3765) (@justjam2013)
 - Make it possible to set Characteristic.SerialNumber via config.json (#3761) (@vvorcun)
 - minor dependency updates
+- fix: check for valid array in `handleUpdatePlatformAccessories`
 
 ### Homebridge Dependencies
 

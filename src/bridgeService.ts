@@ -386,6 +386,11 @@ export class BridgeService {
   }
 
   handleUpdatePlatformAccessories(accessories: PlatformAccessory[]): void {
+    if (!Array.isArray(accessories)) {
+      // This could be quite destructive if a non-array is passed in, so we'll just ignore it.
+      return;
+    }
+
     const nonUpdatedPlugins = this.cachedPlatformAccessories.filter(
       cachedPlatformAccessory => (
         accessories.find(accessory => accessory.UUID === cachedPlatformAccessory._associatedHAPAccessory.UUID) === undefined

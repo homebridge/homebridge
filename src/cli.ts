@@ -34,6 +34,7 @@ export = function cli(): void {
   const program = new Command();
   program
     .version(getVersion())
+    .allowExcessArguments()
     .option("-C, --color", "force color in logging", () => forceColourLogging = true)
     .option("-D, --debug", "turn on debug level logging", () => debugModeEnabled = true)
     .option("-I, --insecure", "allow unauthenticated requests (for easier hacking)", () => insecureAccess = true)
