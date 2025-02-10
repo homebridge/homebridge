@@ -32,7 +32,7 @@
     "import-newlines/enforce": ["error", 3],
 
     "@typescript-eslint/no-unsafe-declaration-merging": "off",
-
-    "@typescript-eslint/no-non-null-assertion": "off" // currently disabled, hap-nodejs has some bad typing (like getCharacteristic) for this to be enabled
+    "@typescript-eslint/no-non-null-assertion": "off", // currently disabled, hap-nodejs has some bad typing (like getCharacteristic) for this to be enabled
+    "@typescript-eslint/no-unused-vars": ["error", { "caughtErrors": "none" }],
   }
 }

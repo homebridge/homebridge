@@ -11,6 +11,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - Make it possible to set Characteristic.SerialNumber via config.json (#3761) (@vvorcun)
 - minor dependency updates
 - fix: check for valid array in `handleUpdatePlatformAccessories`
+- minor dependency updates
 
 ### Homebridge Dependencies
 
