@@ -2,15 +2,15 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## BETA
+## v1.9.0 (2025-02-11)
 
 ### Changed
 
 - Added method updateDisplayName() (#3764) (@justjam2013)
 - Fixed method handleUpdatePlatformAccessories() (#3765) (@justjam2013)
 - Make it possible to set Characteristic.SerialNumber via config.json (#3761) (@vvorcun)
-- minor dependency updates
 - fix: check for valid array in `handleUpdatePlatformAccessories`
+- minor dependency updates
 
 ### Homebridge Dependencies
 

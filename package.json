@@ -1,7 +1,7 @@
 {
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
-  "version": "1.8.5",
+  "version": "1.9.0",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "license": "Apache-2.0",
@@ -47,22 +47,22 @@
   "preferGlobal": true,
   "dependencies": {
     "chalk": "4.1.2",
-    "commander": "13.0.0",
+    "commander": "13.1.0",
     "fs-extra": "11.3.0",
     "hap-nodejs": "0.12.3",
     "qrcode-terminal": "0.12.0",
-    "semver": "7.6.3",
+    "semver": "7.7.1",
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.10.7",
+    "@types/node": "^22.13.1",
     "@types/semver": "^7.5.8",
     "@types/source-map-support": "^0.5.10",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
+    "@typescript-eslint/eslint-plugin": "^8.24.0",
+    "@typescript-eslint/parser": "^8.24.0",
     "eslint": "^8.57.1",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-import-newlines": "^1.4.0",
@@ -72,7 +72,7 @@
     "rimraf": "^6.0.1",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.27.6",
+    "typedoc": "^0.27.7",
     "typescript": "^5.7.3"
   }
 }

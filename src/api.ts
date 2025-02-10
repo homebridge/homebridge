@@ -85,7 +85,7 @@ export interface PlatformPluginConstructor<Config extends PlatformConfig = Platf
   new(logger: Logging, config: Config, api: API): DynamicPlatformPlugin | StaticPlatformPlugin | IndependentPlatformPlugin;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface PlatformPlugin {} // not exported to the public in index.ts
 
 /**
@@ -130,7 +130,7 @@ export interface StaticPlatformPlugin extends PlatformPlugin {
  * It should also be used when the platform doesn't intend to expose any accessories at all, like plugins
  * providing a UI for homebridge.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IndependentPlatformPlugin extends PlatformPlugin {
   // does not expose any methods
 }

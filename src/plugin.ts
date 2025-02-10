@@ -224,6 +224,7 @@ major incompatibility issues and thus is considered bad practice. Please inform 
     // pathToFileURL(specifier).href to turn a path into a "file url"
     // see https://github.com/nodejs/node/issues/31710
 
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pluginModules = this.isESM ? await _importDynamic(pathToFileURL(mainPath).href) : require(mainPath);
 
     if (typeof pluginModules === "function") {
