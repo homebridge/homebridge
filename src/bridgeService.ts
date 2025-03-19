@@ -95,7 +95,7 @@ export interface HomebridgeConfig {
    * Unlike the plugins[] config which prevents plugins from being initialised at all, disabled plugins still have their alias loaded, so
    * we can match config blocks of disabled plugins and show an appropriate message in the logs.
    */
-  disabledPlugins?: PluginIdentifier[];
+  disabledPlugins: PluginIdentifier[];
 
   // This section is used to control the range of ports (inclusive) that separate accessory (like camera or television) should be bind to
   ports?: ExternalPortsConfiguration;

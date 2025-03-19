@@ -192,6 +192,13 @@ export class Server {
     this.printSetupInfo(this.config.bridge.pin);
   }
 
+  private static saveConfig(config: HomebridgeConfig) {
+    // Look for the configuration file
+    const configPath = User.configPath();
+
+    fs.writeFileSync(configPath, JSON.stringify(config), { encoding: "utf8", flag: "w" });
+  }
+
   private static loadConfig(): HomebridgeConfig {
     // Look for the configuration file
     const configPath = User.configPath();
@@ -208,6 +215,7 @@ export class Server {
         bridge: defaultBridge,
         accessories: [],
         platforms: [],
+        disabledPlugins: [],
       };
     }
 
@@ -246,6 +254,7 @@ export class Server {
 
     config.accessories = config.accessories || [];
     config.platforms = config.platforms || [];
+    config.disabledPlugins = config.disabledPlugins || [];
 
     if (!Array.isArray(config.accessories)) {
       log.error("Value provided for accessories must be an array[]");
@@ -255,6 +264,11 @@ export class Server {
     if (!Array.isArray(config.platforms)) {
       log.error("Value provided for platforms must be an array[]");
       config.platforms = [];
+    }
+
+    if (!Array.isArray(config.disabledPlugins)) {
+      log.error("Value provided for disabledPlugins must be an array[]");
+      config.disabledPlugins = [];
     }
 
     log.info("Loaded config.json with %s accessories and %s platforms.", config.accessories.length, config.platforms.length);
@@ -395,6 +409,7 @@ export class Server {
 
       const platformIdentifier: PlatformName | PlatformIdentifier = platformConfig.platform;
       const displayName = platformConfig.name || platformIdentifier;
+      const logger = Logger.withPrefix(displayName);
 
       let plugin: Plugin;
       let constructor: PlatformPluginConstructor;
@@ -425,7 +440,30 @@ export class Server {
         return;
       }
 
-      const logger = Logger.withPrefix(displayName);
+      // If a plugin throws an error, don't let it prevent Homebridge from starting up
+      // Mark it as disabled and move to next plugin
+      try {
+        const platform: PlatformPlugin = new constructor(logger, platformConfig, this.api);
+
+        if (HomebridgeAPI.isDynamicPlatformPlugin(platform)) {
+          plugin.assignDynamicPlatform(platformIdentifier, platform);
+        } else if (HomebridgeAPI.isStaticPlatformPlugin(platform)) { // Plugin 1.0, load accessories
+          promises.push(this.bridgeService.loadPlatformAccessories(plugin, platform, platformIdentifier, logger));
+        } else {
+          // otherwise it's a IndependentPlatformPlugin which doesn't expose any methods at all.
+          // We just call the constructor and let it be enabled.
+        }
+      } catch (error) {
+        // Mark and save the plugin as disabled. The user will have to manually enable it once they believe the issue is fixed
+        plugin.disabled = true;
+        this.config.disabledPlugins.push(plugin.getPluginIdentifier());
+        Server.saveConfig(this.config);
+
+        log.error(`Error instantiating the plugin ${plugin.getPluginIdentifier()}. Marking it as disabled.`);
+        log.error(error.message);
+        return;
+      }
+
       logger("Initializing %s platform...", platformIdentifier);
 
       if (platformConfig._bridge) {
@@ -457,17 +495,6 @@ export class Server {
         // add config to child bridge service
         childBridge.addConfig(platformConfig);
         return;
-      }
-
-      const platform: PlatformPlugin = new constructor(logger, platformConfig, this.api);
-
-      if (HomebridgeAPI.isDynamicPlatformPlugin(platform)) {
-        plugin.assignDynamicPlatform(platformIdentifier, platform);
-      } else if (HomebridgeAPI.isStaticPlatformPlugin(platform)) { // Plugin 1.0, load accessories
-        promises.push(this.bridgeService.loadPlatformAccessories(plugin, platform, platformIdentifier, logger));
-      } else {
-        // otherwise it's a IndependentPlatformPlugin which doesn't expose any methods at all.
-        // We just call the constructor and let it be enabled.
       }
     });
 
