@@ -178,8 +178,16 @@ export class Server {
     this.api.signalFinished();
 
     // wait for all platforms to publish their accessories before we publish the bridge
-    await Promise.all(promises)
-      .then(() => this.publishBridge());
+    await Promise.all(promises).then(() => {
+      log.warn(
+        "\n\nNOTICE TO USERS AND PLUGIN DEVELOPERS"
+        + "\n> Homebridge v2.0 is on the way and brings some breaking changes to existing plugins.\n"
+        + "> Please visit the following link to learn more about the changes and how to prepare:\n"
+        + "> https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0\n"
+        + "> Homebridge v2.0 will also drop support for Node.js v18, so now is a good time to update to v20 or v22.\n",
+      );
+      this.publishBridge();
+    });
   }
 
   public teardown(): void {
