@@ -192,7 +192,6 @@ export class BridgeService {
       log.success('Homebridge v%s (HAP v%s) (%s) is running on port %s.', getVersion(), HAPLibraryVersion(), bridgeConfig.name, port)
     })
 
-    // noinspection JSDeprecatedSymbols
     const publishInfo: PublishInfo = {
       username: bridgeConfig.username,
       port: bridgeConfig.port,
@@ -434,7 +433,6 @@ export class BridgeService {
         log.info('Please add [%s] manually in Home app. Setup Code: %s', hapAccessory.displayName, accessoryPin)
       })
 
-      // noinspection JSDeprecatedSymbols
       const publishInfo: PublishInfo = {
         username: advertiseAddress,
         pincode: accessoryPin,
