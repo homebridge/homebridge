@@ -24,6 +24,10 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - migrate from `jest` to `vitest` for testing
   - ⚠️ drop support for node `v18` and `20`
 
+### Removed
+
+- ⚠️ remove deprecated `--remove-orphans` flag
+
 ### Homebridge Dependencies
 
 - `@homebridge/hap-nodejs` @ `v2.1.0`

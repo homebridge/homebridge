@@ -47,10 +47,6 @@ export default function cli(): void {
     .option('-I, --insecure', 'allow unauthenticated requests (for easier hacking)', () => insecureAccess = true)
     .option('-P, --plugin-path [path]', 'look for plugins installed at [path] as well as the default locations ([path] can also point to a single plugin)', path => customPluginPath = path)
     .option('-Q, --no-qrcode', 'do not issue QRcode in logging', () => hideQRCode = true)
-    .option('-R, --remove-orphans', 'remove cached accessories for which plugin is not loaded (deprecated)', () => {
-      console.warn('The cli option \'-R\' or \'--remove-orphans\' is deprecated and has no effect anymore. '
-        + 'Removing orphans is now the default behavior and can be turned off by supplying \'-K\' or \'--keep-orphans\'.')
-    })
     .option('-K, --keep-orphans', 'keep cached accessories for which the associated plugin is not loaded', () => keepOrphans = true)
     .option('-T, --no-timestamp', 'do not issue timestamps in logging', () => noLogTimestamps = true)
     .option('-U, --user-storage-path [path]', 'look for homebridge user files at [path] instead of the default location (~/.homebridge)', path => customStoragePath = path)
