@@ -6,6 +6,6 @@
   "ignore": [
     "src/**/*.spec.ts"
   ],
-  "exec": "tsc && bin/homebridge -I -C",
+  "exec": "tsc && bin/homebridge.js -I -C",
   "signal": "SIGTERM"
 }
