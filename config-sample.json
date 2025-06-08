@@ -7,7 +7,7 @@
     "port": 51826,
     "pin": "031-45-154"
   },
-  
+
   "description": "This is an example configuration file with one fake accessory and one fake platform. You can use this as a template for creating your own configuration file containing devices you actually own.",
   "ports": {
     "start": 52100,
@@ -23,8 +23,8 @@
 
   "platforms": [
     {
-      "platform" : "PhilipsHue",
-      "name" : "Hue"
+      "platform": "PhilipsHue",
+      "name": "Hue"
     }
   ]
 }
