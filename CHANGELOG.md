@@ -2,6 +2,32 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.0.0 (Pending Release)
+
+### ⚠️ Breaking Changes
+
+- **For Users:**
+  - Before upgrading, you will want to ensure that the plugin(s) you are using are compatible with this new version of Homebridge. If you are unsure, see the link below or open an issue with the developer of your plugin(s) in question.
+
+- **For Plugin Developers:**
+  - The new version of Homebridge includes a major version update to HAP-Nodejs. Some old deprecated functions have been removed. See the link below for a list of changes that you may need to make to your plugin(s).
+
+- Please visit the following link to learn more about the changes and how to prepare:
+  - [Updating-To-Homebridge-v2.0](https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0)
+
+### Changed
+
+- Address legacy deprecation cleanup (#3648) (@hjdhjd)
+- general code modernisation:
+  - ⚠️ move from `commonjs` to `esm` modules
+  - use lint rules from `@antfu/eslint-config`
+  - migrate from `jest` to `vitest` for testing
+  - ⚠️ drop support for node `v18` and `20`
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.1.0`
+
 ## v1.11.4 (2026-03-29)
 
 ### Changed
