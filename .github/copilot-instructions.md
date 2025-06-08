@@ -19,7 +19,7 @@ When creating pull requests or working with branches, always follow this strateg
 
 ### Label-Based Targeting:
 - **`patch` label** (bug fixes): Target for patch version increment (e.g., 1.11.0 → 1.11.1)
-- **`minor` label** (new features): Target for minor version increment (e.g., 1.11.0 → 1.12.0)  
+- **`minor` label** (new features): Target for minor version increment (e.g., 1.11.0 → 1.12.0)
 - **`major` label** (breaking changes): Target for major version increment (e.g., 1.11.0 → 2.0.0)
 
 ### Branch Targeting Priority:
@@ -44,7 +44,7 @@ When no suitable beta branch exists for the required version bump:
 
 Example branch creation scenarios (assuming current version 1.11.0):
 - Patch fix → Create `beta-1.11.1` if it doesn't exist
-- Minor feature → Create `beta-1.12.0` if it doesn't exist  
+- Minor feature → Create `beta-1.12.0` if it doesn't exist
 - Major change → Create `beta-2.0.0` if it doesn't exist
 
 ## Working Effectively
@@ -144,7 +144,7 @@ Options:
   "bridge": {
     "name": "Homebridge Test",
     "username": "CC:22:3D:E3:CE:31",
-    "manufacturer": "homebridge.io", 
+    "manufacturer": "homebridge.io",
     "model": "homebridge",
     "port": 51827,
     "pin": "031-45-155"
@@ -181,7 +181,7 @@ Options:
 ## Common Issues to Check
 
 - Missing config.json: Homebridge will start but show "config.json not found"
-- Missing plugins: Homebridge will start but show "No plugin was found for..." messages  
+- Missing plugins: Homebridge will start but show "No plugin was found for..." messages
 - Port conflicts: Change the port in bridge configuration if 51826 is in use
 - Permission issues: Homebridge may need elevated permissions for low ports (< 1024)
 - Plugin compatibility: Ensure plugins are compatible with current Homebridge version (v1.11.0)
