@@ -61,6 +61,7 @@ export interface BridgeConfiguration {
   disableIpc?: boolean
   firmwareRevision?: string
   serialNumber?: string
+  debugModeEnabled?: boolean
   env?: {
     DEBUG?: string
     NODE_OPTIONS?: string
