@@ -336,7 +336,7 @@ export class ChildBridgeService {
    * These will be passed through to the forked process
    */
   private setProcessFlags(): void {
-    if (this.homebridgeOptions.debugModeEnabled) {
+    if (this.bridgeConfig.debugModeEnabled) {
       this.args.push('-D')
     }
 
