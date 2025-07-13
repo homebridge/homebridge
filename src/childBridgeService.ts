@@ -114,6 +114,7 @@ export interface ChildMetadata {
   paired?: boolean | null;
   setupUri?: string | null;
   username: MacAddress;
+  port?: number;
   pin: string;
   name: string;
   plugin: string;
@@ -506,6 +507,7 @@ export class ChildBridgeService {
       paired: this.pairedStatus,
       setupUri: this.setupUri,
       username: this.bridgeConfig.username,
+      port: this.bridgeConfig.port,
       pin: this.bridgeConfig.pin || this.homebridgeConfig.bridge.pin,
       name: this.bridgeConfig.name || this.displayName || this.plugin.getPluginIdentifier(),
       plugin: this.plugin.getPluginIdentifier(),
