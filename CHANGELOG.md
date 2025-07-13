@@ -7,6 +7,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Other Changes
 
 - return port in `childBridgeStatusUpdate` event response
+- update dependencies, including `jest` to `v30`
 
 ### Homebridge Dependencies
 
