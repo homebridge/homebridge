@@ -1,9 +1,9 @@
 import type { MockInstance } from 'vitest'
 
+import fs from 'node:fs'
 import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import fs from 'fs-extra'
 import { HAPStorage } from 'hap-nodejs'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,8 +33,8 @@ describe('server', () => {
   beforeAll(async () => {
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-    await fs.ensureDir(homebridgeStorageFolder)
-    await fs.writeJson(configPath, mockConfig)
+    await fs.promises.mkdir(homebridgeStorageFolder, { recursive: true })
+    await fs.promises.writeFile(configPath, JSON.stringify(mockConfig))
     User.setStoragePath(homebridgeStorageFolder)
     HAPStorage.setCustomStoragePath(User.persistPath())
   })
@@ -44,7 +44,7 @@ describe('server', () => {
   })
 
   afterAll(async () => {
-    await fs.remove(homebridgeStorageFolder)
+    await fs.promises.rmdir(homebridgeStorageFolder, { recursive: true })
     consoleErrorSpy.mockRestore()
     consoleLogSpy.mockRestore()
   })

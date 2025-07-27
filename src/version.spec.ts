@@ -1,11 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { readJsonSync } from 'fs-extra'
 import { describe, expect, it } from 'vitest'
 
 import getVersion, { getRequiredNodeVersion } from './version.js'
 
-const realPackageJson = readJsonSync(resolve(__dirname, '../package.json'))
+const realPackageJson = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf-8'))
 
 describe('version', () => {
   describe('getVersion', () => {

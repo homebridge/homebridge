@@ -16,11 +16,10 @@ import type { Plugin } from './plugin.js'
 import type { HomebridgeOptions } from './server.js'
 
 import { fork } from 'node:child_process'
+import fs from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-
-import fs from 'fs-extra'
 
 import { PluginType } from './api.js'
 import { IpcOutgoingEvent } from './ipcService.js'
@@ -507,7 +506,7 @@ export class ChildBridgeService {
    */
   public async refreshConfig(): Promise<void> {
     try {
-      const homebridgeConfig: HomebridgeConfig = await fs.readJson(User.configPath())
+      const homebridgeConfig: HomebridgeConfig = JSON.parse(await fs.promises.readFile(User.configPath(), 'utf-8'))
 
       if (this.type === PluginType.PLATFORM) {
         const config = homebridgeConfig.platforms?.filter(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username)
