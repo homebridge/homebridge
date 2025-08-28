@@ -4,6 +4,15 @@ Homebridge is a lightweight Node.js server that emulates the iOS HomeKit API, al
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
+## Branch Targeting Strategy
+
+When creating pull requests or working with branches, always prioritize targeting in this order:
+1. **Target the lowest beta branch first** (e.g., beta-2.0.0)
+2. **If no lower beta branch exists, target the next beta branch** (e.g., beta-3.0.0) 
+3. **Only target the latest branch as a last resort**
+
+This ensures changes are properly tested in beta releases before being merged to the main release branch.
+
 ## Working Effectively
 
 - Bootstrap, build, and test the repository:
