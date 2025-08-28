@@ -71,6 +71,14 @@ export type {
 } from "./bridgeService";
 
 /**
+ * Export Matter types
+ */
+export type {
+  MatterConfiguration,
+  MatterBridgeOptions,
+} from "./matterService";
+
+/**
  * Export port types
  */
 export type {

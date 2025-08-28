@@ -157,6 +157,10 @@ export const enum InternalAPIEvent {
   REGISTER_PLATFORM_ACCESSORIES = "registerPlatformAccessories",
   UPDATE_PLATFORM_ACCESSORIES = "updatePlatformAccessories",
   UNREGISTER_PLATFORM_ACCESSORIES = "unregisterPlatformAccessories",
+
+  // Matter support
+  PUBLISH_MATTER_ACCESSORIES = "publishMatterAccessories",
+  UNPUBLISH_MATTER_ACCESSORIES = "unpublishMatterAccessories",
 }
 
 export interface API {
@@ -209,6 +213,20 @@ export interface API {
   publishCameraAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
   publishExternalAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
 
+  /**
+   * Publish accessories via Matter protocol in addition to HomeKit HAP
+   * @param pluginIdentifier - Plugin identifier
+   * @param accessories - Array of accessories to publish via Matter
+   */
+  publishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
+
+  /**
+   * Unpublish accessories from Matter protocol
+   * @param pluginIdentifier - Plugin identifier
+   * @param accessories - Array of accessories to unpublish from Matter
+   */
+  unpublishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
+
   on(event: "didFinishLaunching", listener: () => void): this;
   on(event: "shutdown", listener: () => void): this;
 
@@ -229,6 +247,10 @@ export declare interface HomebridgeAPI {
   on(event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this;
   on(event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this;
 
+  // Matter events
+  on(event: InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this;
+  on(event: InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void): this;
+
 
   emit(event: "didFinishLaunching"): boolean;
   emit(event: "shutdown"): boolean;
@@ -240,6 +262,10 @@ export declare interface HomebridgeAPI {
   emit(event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
   emit(event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
   emit(event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
+
+  // Matter events
+  emit(event: InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
+  emit(event: InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, accessories: PlatformAccessory[]): boolean;
 
 }
 
@@ -353,6 +379,38 @@ export class HomebridgeAPI extends EventEmitter implements API {
     });
 
     this.emit(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories);
+  }
+
+  publishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {
+    if (!PluginManager.isQualifiedPluginIdentifier(pluginIdentifier)) {
+      log.info(`One of your plugins incorrectly registered a Matter accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`);
+    }
+
+    accessories.forEach(accessory => {
+      // noinspection SuspiciousTypeOfGuard
+      if (!(accessory instanceof PlatformAccessory)) {
+        throw new Error(`${pluginIdentifier} attempt to register a Matter accessory that isn't PlatformAccessory!`);
+      }
+
+      accessory._associatedPlugin = pluginIdentifier;
+    });
+
+    this.emit(InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, accessories);
+  }
+
+  unpublishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {
+    if (!PluginManager.isQualifiedPluginIdentifier(pluginIdentifier)) {
+      log.info(`One of your plugins incorrectly unregistered a Matter accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`);
+    }
+
+    accessories.forEach(accessory => {
+      // noinspection SuspiciousTypeOfGuard
+      if (!(accessory instanceof PlatformAccessory)) {
+        throw new Error(`${pluginIdentifier} attempt to unregister a Matter accessory that isn't PlatformAccessory!`);
+      }
+    });
+
+    this.emit(InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, accessories);
   }
 
 

@@ -7,6 +7,19 @@
     "port": 51826,
     "pin": "031-45-154"
   },
+
+  "matter": {
+    "_comment": "Optional Matter protocol support for Homebridge. When enabled, accessories can be published via both HomeKit HAP and Matter protocols simultaneously.",
+    "enabled": false,
+    "port": 5540,
+    "discriminator": 3840,
+    "passcode": 20202021,
+    "vendorId": 65521,
+    "productId": 32769,
+    "deviceName": "Homebridge Matter Bridge",
+    "deviceType": 22,
+    "_note": "Set 'enabled' to true to enable Matter support. Accessories will be available via both HomeKit and Matter protocols. Plugins can use api.publishMatterAccessories() to publish accessories to Matter."
+  },
   
   "description": "This is an example configuration file with one fake accessory and one fake platform. You can use this as a template for creating your own configuration file containing devices you actually own.",
   "ports": {

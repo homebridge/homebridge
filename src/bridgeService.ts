@@ -80,6 +80,20 @@ export interface HomebridgeConfig {
   bridge: BridgeConfiguration;
 
   /**
+   * Optional Matter protocol configuration
+   */
+  matter?: {
+    enabled?: boolean;
+    port?: number;
+    discriminator?: number;
+    passcode?: number;
+    vendorId?: number;
+    productId?: number;
+    deviceName?: string;
+    deviceType?: number;
+  };
+
+  /**
    * @deprecated
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

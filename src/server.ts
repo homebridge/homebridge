@@ -8,6 +8,7 @@ import {
   AccessoryPlugin,
   AccessoryPluginConstructor,
   HomebridgeAPI,
+  InternalAPIEvent,
   PlatformIdentifier,
   PlatformName,
   PlatformPlugin,
@@ -24,6 +25,8 @@ import { ChildBridgeService } from "./childBridgeService";
 import { ExternalPortService } from "./externalPortService";
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService } from "./ipcService";
 import { Logger } from "./logger";
+import { MatterService } from "./matterService";
+import { PlatformAccessory } from "./platformAccessory";
 import { Plugin } from "./plugin";
 import { PluginManager, PluginManagerOptions } from "./pluginManager";
 import { User } from "./user";
@@ -64,6 +67,7 @@ export class Server {
   private readonly api: HomebridgeAPI;
   private readonly pluginManager: PluginManager;
   private readonly bridgeService: BridgeService;
+  private readonly matterService: MatterService;
   private readonly ipcService: IpcService;
   private readonly externalPortService: ExternalPortService;
 
@@ -114,6 +118,19 @@ export class Server {
       this.config.bridge,
       this.config,
     );
+
+    // create Matter service
+    this.matterService = new MatterService(
+      this.config.matter || {},
+      this.pluginManager,
+      this.externalPortService,
+      this.api,
+      this.options,
+    );
+
+    // Set up Matter event handlers
+    this.api.on(InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, this.handlePublishMatterAccessories.bind(this));
+    this.api.on(InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, this.handleUnpublishMatterAccessories.bind(this));
 
     // watch bridge events to check when server is online
     this.bridgeService.bridge.on(AccessoryEventTypes.ADVERTISED, () => {
@@ -192,12 +209,44 @@ export class Server {
 
   public teardown(): void {
     this.bridgeService.teardown();
+    this.matterService.stop().catch((error) => {
+      log.error("Failed to stop Matter service:", error);
+    });
     this.setServerStatus(ServerStatus.DOWN);
   }
 
   private publishBridge(): void {
     this.bridgeService.publishBridge();
+    
+    // Initialize and start Matter service if enabled
+    this.matterService.initialize().then(() => {
+      this.matterService.start().catch((error) => {
+        log.error("Failed to start Matter service:", error);
+      });
+    }).catch((error) => {
+      log.error("Failed to initialize Matter service:", error);
+    });
     this.printSetupInfo(this.config.bridge.pin);
+  }
+
+  private handlePublishMatterAccessories(accessories: PlatformAccessory[]): void {
+    log.info(`Publishing ${accessories.length} accessories via Matter protocol`);
+    
+    accessories.forEach(accessory => {
+      this.matterService.publishAccessory(accessory).catch((error) => {
+        log.error(`Failed to publish accessory "${accessory.displayName}" via Matter:`, error);
+      });
+    });
+  }
+
+  private handleUnpublishMatterAccessories(accessories: PlatformAccessory[]): void {
+    log.info(`Unpublishing ${accessories.length} accessories from Matter protocol`);
+    
+    accessories.forEach(accessory => {
+      this.matterService.unpublishAccessory(accessory).catch((error) => {
+        log.error(`Failed to unpublish accessory "${accessory.displayName}" from Matter:`, error);
+      });
+    });
   }
 
   private static loadConfig(): HomebridgeConfig {
