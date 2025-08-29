@@ -4,14 +4,48 @@ Homebridge is a lightweight Node.js server that emulates the iOS HomeKit API, al
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
+## Prerequisites for Assignment
+
+**CRITICAL**: Before any issue can be assigned to Copilot, it must have one of these labels applied:
+- **`patch`**: For bug fixes and small improvements (patch version bump: x.y.z → x.y.z+1)
+- **`minor`**: For new features and enhancements (minor version bump: x.y.z → x.y+1.0)
+- **`major`**: For breaking changes and major refactors (major version bump: x.y.z → x+1.0.0)
+
+Without these labels, Copilot cannot determine the appropriate branch targeting strategy and version increment.
+
 ## Branch Targeting Strategy
 
-When creating pull requests or working with branches, always prioritize targeting in this order:
-1. **Target the lowest beta branch first** (e.g., beta-2.0.0)
-2. **If no lower beta branch exists, target the next beta branch** (e.g., beta-3.0.0) 
-3. **Only target the latest branch as a last resort**
+When creating pull requests or working with branches, always follow this strategy based on the issue label:
 
-This ensures changes are properly tested in beta releases before being merged to the main release branch.
+### Label-Based Targeting:
+- **`patch` label** (bug fixes): Target for patch version increment (e.g., 1.11.0 → 1.11.1)
+- **`minor` label** (new features): Target for minor version increment (e.g., 1.11.0 → 1.12.0)  
+- **`major` label** (breaking changes): Target for major version increment (e.g., 1.11.0 → 2.0.0)
+
+### Branch Targeting Priority:
+1. **Target the lowest available beta branch** that matches or exceeds the required version bump (e.g., beta-2.0.0, beta-3.0.0)
+2. **If no suitable beta branch exists**, create a new beta branch following this naming convention:
+   - For patch: `beta-{current.major}.{current.minor}.{current.patch+1}` (e.g., beta-1.11.1)
+   - For minor: `beta-{current.major}.{current.minor+1}.0` (e.g., beta-1.12.0)
+   - For major: `beta-{current.major+1}.0.0` (e.g., beta-2.0.0)
+3. **Only target the latest branch as a last resort** and only for critical hotfixes
+
+This ensures changes are properly tested in beta releases with appropriate version bumps before being merged to the main release branch.
+
+## Beta Branch Creation
+
+When no suitable beta branch exists for the required version bump:
+
+1. **Determine the target version** based on the issue label and current version (found in `package.json`)
+2. **Create a new beta branch** using the GitHub API or request branch creation from maintainers
+3. **Use the naming convention**: `beta-{major}.{minor}.{patch}` (e.g., beta-1.12.0, beta-2.0.0)
+4. **Base the new branch** on the latest stable branch to ensure it includes all current changes
+5. **Target your PR** to the newly created beta branch
+
+Example branch creation scenarios (assuming current version 1.11.0):
+- Patch fix → Create `beta-1.11.1` if it doesn't exist
+- Minor feature → Create `beta-1.12.0` if it doesn't exist  
+- Major change → Create `beta-2.0.0` if it doesn't exist
 
 ## Working Effectively
 
