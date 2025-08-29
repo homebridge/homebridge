@@ -486,4 +486,39 @@ export class PluginManager {
     }
   }
 
+  /**
+   * Reload a specific plugin by identifier
+   */
+  public async reloadPlugin(pluginIdentifier: PluginIdentifier): Promise<void> {
+    const plugin = this.getPlugin(pluginIdentifier);
+    if (!plugin) {
+      throw new Error(`Plugin '${pluginIdentifier}' not found or not registered.`);
+    }
+
+    if (plugin.disabled) {
+      throw new Error(`Cannot reload disabled plugin '${pluginIdentifier}'.`);
+    }
+
+    log.info(`Reloading plugin '${pluginIdentifier}'...`);
+
+    try {
+      // Reload the plugin module
+      await plugin.reload();
+      
+      // Reinitialize the plugin with the API
+      this.currentInitializingPlugin = plugin;
+      await plugin.initialize(this.api);
+      
+      log.info(`Successfully reloaded and reinitialized plugin '${pluginIdentifier}'.`);
+    } catch (error) {
+      log.error("====================");
+      log.error(`ERROR RELOADING PLUGIN ${pluginIdentifier}:`);
+      log.error(error.stack);
+      log.error("====================");
+      throw error;
+    } finally {
+      this.currentInitializingPlugin = undefined;
+    }
+  }
+
 }

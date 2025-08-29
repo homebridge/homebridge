@@ -1,4 +1,5 @@
 import { PluginManager } from "./pluginManager";
+import { HomebridgeAPI } from "./api";
 
 describe("PluginManager", () => {
   describe("PluginManager.isQualifiedPluginIdentifier", () => {
@@ -57,6 +58,22 @@ describe("PluginManager", () => {
     it("should extract plugin name correctly", function() {
       const accessoryId = "homebridge-example-plugin.example";
       expect(PluginManager.getPluginIdentifier(accessoryId)).toBe("homebridge-example-plugin");
+    });
+  });
+
+  describe("Plugin reload functionality", () => {
+    it("should have reloadPlugin method", function() {
+      const api = new HomebridgeAPI();
+      const pluginManager = new PluginManager(api);
+      expect(typeof pluginManager.reloadPlugin).toBe("function");
+    });
+
+    it("should reject reloading non-existent plugin", async function() {
+      const api = new HomebridgeAPI();
+      const pluginManager = new PluginManager(api);
+      
+      await expect(pluginManager.reloadPlugin("non-existent-plugin"))
+        .rejects.toThrow("Plugin 'non-existent-plugin' not found or not registered.");
     });
   });
 

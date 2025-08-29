@@ -5,6 +5,7 @@ export const enum IpcIncomingEvent {
   STOP_CHILD_BRIDGE = "stopChildBridge",
   START_CHILD_BRIDGE = "startChildBridge",
   CHILD_BRIDGE_METADATA_REQUEST = "childBridgeMetadataRequest",
+  RELOAD_PLUGIN = "reloadPlugin",
 }
 
 export const enum IpcOutgoingEvent {
@@ -18,6 +19,7 @@ export declare interface IpcService {
   on(event: IpcIncomingEvent.STOP_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void): this;
   on(event: IpcIncomingEvent.START_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void): this;
   on(event: IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST, listener: () => void): this;
+  on(event: IpcIncomingEvent.RELOAD_PLUGIN, listener: (pluginIdentifier: string) => void): this;
 }
 
 export class IpcService extends EventEmitter {

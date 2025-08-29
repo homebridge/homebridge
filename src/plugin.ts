@@ -39,6 +39,7 @@ export class Plugin {
   // ------------------ package.json content ------------------
   readonly version: string;
   private readonly main: string;
+  private mainPath?: string; // resolved path to the main module file
   private loadContext?: { // used to store data for a limited time until the load method is called, will be reset afterward
     engines?: Record<string, string>;
     dependencies?: Record<string, string>;
@@ -216,7 +217,7 @@ meaning they carry an additional copy of homebridge and hap-nodejs. This not onl
 major incompatibility issues and thus is considered bad practice. Please inform the developer to update their plugin!`);
     }
 
-    const mainPath = path.join(this.pluginPath, this.main);
+    this.mainPath = path.join(this.pluginPath, this.main);
 
     // try to require() it and grab the exported initialization hook
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -225,7 +226,7 @@ major incompatibility issues and thus is considered bad practice. Please inform 
     // see https://github.com/nodejs/node/issues/31710
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pluginModules = this.isESM ? await _importDynamic(pathToFileURL(mainPath).href) : require(mainPath);
+    const pluginModules = this.isESM ? await _importDynamic(pathToFileURL(this.mainPath).href) : require(this.mainPath);
 
     if (typeof pluginModules === "function") {
       this.pluginInitializer = pluginModules;
@@ -242,6 +243,57 @@ major incompatibility issues and thus is considered bad practice. Please inform 
     }
 
     return this.pluginInitializer(api);
+  }
+
+  /**
+   * Reload the plugin by clearing the module cache and loading it again.
+   * This allows for hot-reloading of plugins without restarting the entire Homebridge process.
+   */
+  public async reload(): Promise<void> {
+    if (!this.mainPath) {
+      throw new Error("Cannot reload plugin that has not been loaded yet!");
+    }
+
+    log.info(`Reloading plugin: ${this.getPluginIdentifier()}`);
+
+    // Clear the plugin from cache
+    if (!this.isESM) {
+      // For CommonJS modules, we can delete from require.cache
+      const resolvedPath = require.resolve(this.mainPath);
+      delete require.cache[resolvedPath];
+      
+      // Also clear any dependencies that might be cached
+      // This is a more thorough cache clearing for CommonJS
+      Object.keys(require.cache).forEach(key => {
+        if (key.startsWith(this.pluginPath)) {
+          delete require.cache[key];
+        }
+      });
+    } else {
+      // For ESM modules, we can't easily clear from cache
+      // The dynamic import will handle module reloading
+      log.warn(`Reloading ESM plugin "${this.getPluginIdentifier()}". Note: ESM modules may not fully reload all changes.`);
+    }
+
+    // Reset plugin state
+    this.pluginInitializer = undefined;
+    this.registeredAccessories.clear();
+    this.registeredPlatforms.clear();
+    this.activeDynamicPlatforms.clear();
+
+    // Reload the plugin module
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pluginModules = this.isESM ? await _importDynamic(pathToFileURL(this.mainPath).href + "?reload=" + Date.now()) : require(this.mainPath);
+
+    if (typeof pluginModules === "function") {
+      this.pluginInitializer = pluginModules;
+    } else if (pluginModules && typeof pluginModules.default === "function") {
+      this.pluginInitializer = pluginModules.default;
+    } else {
+      throw new Error(`Plugin ${this.pluginPath} does not export a initializer function from main.`);
+    }
+
+    log.info(`Successfully reloaded plugin: ${this.getPluginIdentifier()}`);
   }
 
 

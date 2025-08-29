@@ -555,6 +555,15 @@ export class Server {
         Array.from(this.childBridges.values()).map(x => x.getMetadata()),
       );
     });
+
+    // handle reload plugin event
+    this.ipcService.on(IpcIncomingEvent.RELOAD_PLUGIN, (pluginIdentifier) => {
+      if (typeof pluginIdentifier === "string") {
+        this.pluginManager.reloadPlugin(pluginIdentifier).catch(error => {
+          log.error(`Failed to reload plugin '${pluginIdentifier}':`, error.message);
+        });
+      }
+    });
   }
 
   private printSetupInfo(pin: string): void {
