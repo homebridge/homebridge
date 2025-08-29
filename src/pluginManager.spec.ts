@@ -1,5 +1,5 @@
-import { PluginManager } from "./pluginManager";
 import { HomebridgeAPI } from "./api";
+import { PluginManager } from "./pluginManager";
 
 describe("PluginManager", () => {
   describe("PluginManager.isQualifiedPluginIdentifier", () => {
