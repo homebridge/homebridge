@@ -1,9 +1,8 @@
 {
   "name": "homebridge",
-  "description": "HomeKit support for the impatient",
-  "version": "1.11.0",
   "type": "module",
-  "version": "1.10.0",
+  "version": "2.0.0",
+  "description": "HomeKit support for the impatient",
   "author": "Nick Farina",
   "license": "Apache-2.0",
   "repository": {
@@ -21,7 +20,8 @@
     "Andreas Bauer <mail@anderl-bauer.de>"
   ],
   "bin": {
-    "homebridge": "bin/homebridge.js"
+    "homebridge": "bin/homebridge",
+    "homebridge-matter": "lib/util/matter-cli.js"
   },
   "files": [
     "LICENSE",
@@ -48,27 +48,6 @@
     "test-coverage": "npm run test -- --coverage",
     "watch": "nodemon"
   },
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/homebridge/homebridge.git"
-  },
-  "bugs": {
-    "url": "https://github.com/homebridge/homebridge/issues"
-  },
-  "bin": {
-    "homebridge": "bin/homebridge",
-    "homebridge-matter": "lib/util/matter-cli.js"
-  },
-  "engines": {
-    "node": "^18.15.0 || ^20.7.0 || ^22"
-  },
-  "files": [
-    "README.md",
-    "config-sample.json",
-    "LICENSE",
-    "lib",
-    "bin"
-  ],
   "preferGlobal": true,
   "dependencies": {
     "@matter/main": "^0.15.3",

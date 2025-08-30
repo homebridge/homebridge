@@ -18,6 +18,14 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Added
 
 - set debug `-D` setting per child bridge
+- **Matter Protocol Support**: Comprehensive Matter protocol implementation allowing accessories to be published via both HomeKit HAP and Matter protocols simultaneously (#3228)
+  - Production-ready configuration validation with security checks and secure default generation
+  - New `homebridge-matter` CLI tool for configuration management, QR code generation, and validation
+  - Complete device type and cluster support (25+ types) with automatic HomeKit→Matter mapping
+  - Enhanced plugin API with full TypeScript support for Matter device types and clusters
+  - Enterprise-grade features including health monitoring, robust error handling, and operational visibility
+  - Comprehensive test coverage with 100+ test cases and complete documentation
+  - See [MATTER.md](MATTER.md) and [PRODUCTION_READY_MATTER.md](PRODUCTION_READY_MATTER.md) for details
 
 ### Changed
 
