@@ -2,26 +2,50 @@
   "name": "homebridge",
   "description": "HomeKit support for the impatient",
   "version": "1.11.0",
+  "type": "module",
+  "version": "1.10.0",
+  "author": "Nick Farina",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/homebridge/homebridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/homebridge/homebridge/issues"
+  },
+  "exports": "./dist/index.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "license": "Apache-2.0",
-  "author": "Nick Farina",
   "maintainers": [
     "oznu <dev@oz.nu>",
     "Andreas Bauer <mail@anderl-bauer.de>"
   ],
+  "bin": {
+    "homebridge": "bin/homebridge.js"
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "bin",
+    "config-sample.json",
+    "dist"
+  ],
+  "engines": {
+    "node": "^20.7.0 || ^22"
+  },
   "scripts": {
     "build": "npm run clean && tsc",
     "check": "npm install && npm outdated",
-    "clean": "npm install rimraf && rimraf lib/",
-    "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
+    "clean": "rimraf dist && rimraf coverage",
+    "dev": "DEBUG=* ./bin/homebridge.js -D -P example-plugins/ || true",
     "docs": "typedoc",
-    "lint": "eslint 'src/**/*.{js,ts,json}'",
+    "lint": "eslint .",
     "lint:fix": "npm run lint -- --fix",
+    "lint-docs": "typedoc --emit none --treatWarningsAsErrors",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
-    "test": "jest --forceExit --detectOpenHandles",
-    "test-coverage": "jest --coverage --forceExit --detectOpenHandles",
+    "test": "vitest run",
+    "test-coverage": "npm run test -- --coverage",
     "watch": "nodemon"
   },
   "repository": {
@@ -48,33 +72,29 @@
   "preferGlobal": true,
   "dependencies": {
     "@matter/main": "^0.15.3",
-    "chalk": "4.1.2",
-    "commander": "13.1.0",
+    "chalk": "5.4.1",
+    "commander": "14.0.0",
     "fs-extra": "11.3.0",
-    "hap-nodejs": "0.13.1",
+    "hap-nodejs": "2.0.0-beta.0",
     "qrcode-terminal": "0.12.0",
     "semver": "7.7.2",
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
+    "@antfu/eslint-config": "^4.14.1",
+    "@prettier/plugin-xml": "^3.4.1",
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
-    "@types/jest": "^30.0.0",
-    "@types/node": "^24.0.13",
+    "@types/node": "^22.15.30",
     "@types/semver": "^7.7.0",
     "@types/source-map-support": "^0.5.10",
-    "@typescript-eslint/eslint-plugin": "^8.36.0",
-    "@typescript-eslint/parser": "^8.36.0",
-    "eslint": "^8.57.1",
-    "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-import-newlines": "^1.4.0",
-    "eslint-plugin-jest": "^29.0.1",
-    "jest": "^30.0.4",
+    "@vitest/coverage-v8": "^3.2.2",
+    "eslint-plugin-format": "^1.0.1",
     "nodemon": "^3.1.10",
     "rimraf": "^6.0.1",
-    "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.28.7",
-    "typescript": "^5.8.3"
+    "typedoc": "^0.28.5",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.2"
   }
 }
