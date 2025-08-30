@@ -71,6 +71,21 @@ export type {
 } from "./bridgeService";
 
 /**
+ * Export Matter types and utilities
+ */
+export type {
+  HAPToMatterClusterMapping,
+  HAPToMatterDeviceMapping,
+} from "./matterTypes";
+
+export {
+  MatterClusters,
+  MatterDeviceTypes,
+  getMatterDeviceTypeForHAPService,
+  getMatterClustersForHAPService,
+} from "./matterTypes";
+
+/**
  * Export Matter types
  */
 export type {

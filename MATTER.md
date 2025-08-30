@@ -77,6 +77,175 @@ Removes accessories from the Matter protocol.
 this.api.unpublishMatterAccessories('my-plugin', [accessory1, accessory2]);
 ```
 
+### Matter Device Types and Clusters
+
+Homebridge now provides access to standard Matter device types and clusters through the API, making it easier for plugin developers to create Matter-compatible devices:
+
+```typescript
+import { API } from 'homebridge';
+
+export default class MyPlatform {
+  constructor(public readonly api: API) {
+    // Access Matter device types
+    const onOffLight = this.api.matter.deviceTypes.OnOffLight;
+    const dimmableLight = this.api.matter.deviceTypes.DimmableLight;
+    const temperatureSensor = this.api.matter.deviceTypes.TemperatureSensor;
+    
+    // Access Matter clusters
+    const onOffCluster = this.api.matter.clusters.OnOffCluster;
+    const levelControlCluster = this.api.matter.clusters.LevelControlCluster;
+    const temperatureMeasurementCluster = this.api.matter.clusters.TemperatureMeasurementCluster;
+    
+    // Use helper functions for automatic mapping
+    const deviceType = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness', 'Hue']);
+    const clusters = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness', 'Hue']);
+  }
+}
+```
+
+#### Available Device Types
+
+The following Matter device types are available through `api.matter.deviceTypes`:
+
+**Lighting:**
+- `OnOffLight` - Basic on/off light
+- `DimmableLight` - Dimmable light with brightness control
+- `ColorTemperatureLight` - Light with color temperature adjustment
+- `ExtendedColorLight` - Full-color light with hue, saturation, brightness
+
+**Switches:**
+- `OnOffLightSwitch` - Basic on/off switch
+- `DimmerSwitch` - Dimmer switch with level control
+- `ColorDimmerSwitch` - Color dimmer switch
+- `GenericSwitch` - Generic programmable switch
+
+**Outlets:**
+- `OnOffPlugInUnit` - Smart outlet/plug
+- `DimmablePlugInUnit` - Dimmable smart outlet
+
+**Sensors:**
+- `TemperatureSensor` - Temperature measurement
+- `HumiditySensor` - Humidity measurement  
+- `LightSensor` - Illuminance measurement
+- `OccupancySensor` - Motion/occupancy detection
+- `ContactSensor` - Contact/door sensor
+- `PressureSensor` - Pressure measurement
+- `FlowSensor` - Flow measurement
+
+**Security:**
+- `DoorLock` - Smart door lock
+- `DoorLockController` - Door lock controller
+- `SmokeCoAlarm` - Smoke and CO alarm
+- `WaterLeakDetector` - Water leak sensor
+- `WaterFreezeDetector` - Water freeze sensor
+
+**HVAC:**
+- `Thermostat` - Temperature control
+- `Fan` - Fan with speed control
+
+**Window Coverings:**
+- `WindowCovering` - Blinds, shades, curtains
+- `WindowCoveringController` - Window covering controller
+
+**Other:**
+- `ControlBridge` - Bridge device
+- `Speaker` - Audio speaker
+- `ModeSelect` - Mode selection device
+- `WaterValve` - Water valve control
+- `Pump` - Pump device
+- `PumpController` - Pump controller
+
+#### Available Clusters
+
+The following Matter clusters are available through `api.matter.clusters`:
+
+**Basic Clusters:**
+- `OnOffCluster` - On/off control
+- `LevelControlCluster` - Brightness/level control
+- `ColorControlCluster` - Color control (hue, saturation, color temperature)
+- `IdentifyCluster` - Device identification
+
+**Sensor Clusters:**
+- `TemperatureMeasurementCluster` - Temperature measurement
+- `RelativeHumidityMeasurementCluster` - Humidity measurement
+- `IlluminanceMeasurementCluster` - Light level measurement
+- `OccupancySensingCluster` - Motion/occupancy sensing
+- `PressureMeasurementCluster` - Pressure measurement
+- `FlowMeasurementCluster` - Flow measurement
+
+**Security Clusters:**
+- `DoorLockCluster` - Door lock control
+- `SmokeCoAlarmCluster` - Smoke and CO alarm
+- `BooleanStateCluster` - Boolean state (contact sensors, etc.)
+
+**HVAC Clusters:**
+- `ThermostatCluster` - Thermostat control
+- `FanControlCluster` - Fan control
+
+**Other Clusters:**
+- `WindowCoveringCluster` - Window covering control
+- `SwitchCluster` - Switch/button control
+- `BasicInformationCluster` - Basic device information
+- `BridgedDeviceBasicInformationCluster` - Bridged device information
+- `DescriptorCluster` - Device descriptor
+- `PowerSourceCluster` - Power source information
+
+#### Helper Functions
+
+Two helper functions are provided to automatically determine the appropriate Matter device types and clusters for HomeKit services:
+
+##### `getMatterDeviceTypeForHAPService(serviceType, characteristics?)`
+
+Returns the appropriate Matter device type for a given HomeKit service:
+
+```typescript
+// Basic lightbulb
+const deviceType1 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb');
+// Returns: 'OnOffLight'
+
+// Dimmable lightbulb
+const deviceType2 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness']);
+// Returns: 'DimmableLight'
+
+// Color lightbulb
+const deviceType3 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness', 'Hue', 'Saturation']);
+// Returns: 'ExtendedColorLight'
+
+// Temperature sensor
+const deviceType4 = this.api.matter.getMatterDeviceTypeForHAPService('TemperatureSensor');
+// Returns: 'TemperatureSensor'
+```
+
+##### `getMatterClustersForHAPService(serviceType, characteristics?)`
+
+Returns the appropriate Matter clusters for a given HomeKit service:
+
+```typescript
+// Basic lightbulb
+const clusters1 = this.api.matter.getMatterClustersForHAPService('Lightbulb');
+// Returns: ['OnOffCluster', 'IdentifyCluster']
+
+// Dimmable lightbulb  
+const clusters2 = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness']);
+// Returns: ['OnOffCluster', 'LevelControlCluster', 'IdentifyCluster']
+
+// Color lightbulb
+const clusters3 = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness', 'Hue']);
+// Returns: ['OnOffCluster', 'LevelControlCluster', 'ColorControlCluster', 'IdentifyCluster']
+```
+
+#### HAP to Matter Mapping
+
+The API also provides mapping objects that show the relationship between HomeKit services and Matter device types/clusters:
+
+```typescript
+// View the HAP to Matter device mapping
+console.log(this.api.matter.hapToMatterDeviceMapping);
+
+// View the HAP to Matter cluster mapping
+console.log(this.api.matter.hapToMatterClusterMapping);
+```
+
 ### Example Plugin
 
 Here's a simple example of how to modify an existing plugin to support Matter:
