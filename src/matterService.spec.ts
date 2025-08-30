@@ -78,7 +78,7 @@ describe("MatterService", () => {
       enabled: true,
       port: 5541,
       discriminator: 1234,
-      passcode: 12345678,
+      passcode: 98765432, // Use a secure passcode for testing
       vendorId: 0x1234,
       productId: 0x5678,
       deviceName: "Custom Matter Bridge",

@@ -32,7 +32,8 @@
     "url": "https://github.com/homebridge/homebridge/issues"
   },
   "bin": {
-    "homebridge": "bin/homebridge"
+    "homebridge": "bin/homebridge",
+    "homebridge-matter": "lib/util/matter-cli.js"
   },
   "engines": {
     "node": "^18.15.0 || ^20.7.0 || ^22"
