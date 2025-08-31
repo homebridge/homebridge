@@ -125,17 +125,17 @@ export interface ChildBridgePairedStatusEventData {
 }
 
 export interface ChildMetadata {
-  status: ChildBridgeStatus;
-  paired?: boolean | null;
-  setupUri?: string | null;
-  username: MacAddress;
-  port?: number;
-  pin: string;
-  name: string;
-  plugin: string;
-  identifier: string;
-  manuallyStopped: boolean;
-  pid?: number;
+  status: ChildBridgeStatus
+  paired?: boolean | null
+  setupUri?: string | null
+  username: MacAddress
+  port?: number
+  pin: string
+  name: string
+  plugin: string
+  identifier: string
+  manuallyStopped: boolean
+  pid?: number
 }
 
 /**

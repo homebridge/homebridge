@@ -1,11 +1,3 @@
-import { 
-  MatterClusters, 
-  MatterDeviceTypes, 
-  HAPToMatterClusterMapping, 
-  HAPToMatterDeviceMapping,
-  getMatterDeviceTypeForHAPService,
-  getMatterClustersForHAPService, 
-} from "./matterTypes";
 import type { Controller, Service } from 'hap-nodejs'
 
 import type { AccessoryConfig, PlatformConfig } from './bridgeService.js'
@@ -17,6 +9,14 @@ import hapNodeJs from 'hap-nodejs'
 import semver from 'semver'
 
 import { Logger } from './logger.js'
+import {
+  getMatterClustersForHAPService,
+  getMatterDeviceTypeForHAPService,
+  HAPToMatterClusterMapping,
+  HAPToMatterDeviceMapping,
+  MatterClusters,
+  MatterDeviceTypes,
+} from './matterTypes.js'
 import { PlatformAccessory } from './platformAccessory.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
@@ -160,14 +160,14 @@ export const enum InternalAPIEvent {
   REGISTER_ACCESSORY = 'registerAccessory',
   REGISTER_PLATFORM = 'registerPlatform',
 
-  PUBLISH_EXTERNAL_ACCESSORIES = "publishExternalAccessories",
-  REGISTER_PLATFORM_ACCESSORIES = "registerPlatformAccessories",
-  UPDATE_PLATFORM_ACCESSORIES = "updatePlatformAccessories",
-  UNREGISTER_PLATFORM_ACCESSORIES = "unregisterPlatformAccessories",
+  PUBLISH_EXTERNAL_ACCESSORIES = 'publishExternalAccessories',
+  REGISTER_PLATFORM_ACCESSORIES = 'registerPlatformAccessories',
+  UPDATE_PLATFORM_ACCESSORIES = 'updatePlatformAccessories',
+  UNREGISTER_PLATFORM_ACCESSORIES = 'unregisterPlatformAccessories',
 
   // Matter support
-  PUBLISH_MATTER_ACCESSORIES = "publishMatterAccessories",
-  UNPUBLISH_MATTER_ACCESSORIES = "unpublishMatterAccessories",
+  PUBLISH_MATTER_ACCESSORIES = 'publishMatterAccessories',
+  UNPUBLISH_MATTER_ACCESSORIES = 'unpublishMatterAccessories',
 }
 
 export interface API {
@@ -190,13 +190,13 @@ export interface API {
 
   // ------------------ MATTER EXPORTS ------------------
   readonly matter: {
-    readonly clusters: typeof MatterClusters;
-    readonly deviceTypes: typeof MatterDeviceTypes;
-    readonly hapToMatterClusterMapping: typeof HAPToMatterClusterMapping;
-    readonly hapToMatterDeviceMapping: typeof HAPToMatterDeviceMapping;
-    readonly getMatterDeviceTypeForHAPService: typeof getMatterDeviceTypeForHAPService;
-    readonly getMatterClustersForHAPService: typeof getMatterClustersForHAPService;
-  };
+    readonly clusters: typeof MatterClusters
+    readonly deviceTypes: typeof MatterDeviceTypes
+    readonly hapToMatterClusterMapping: typeof HAPToMatterClusterMapping
+    readonly hapToMatterDeviceMapping: typeof HAPToMatterDeviceMapping
+    readonly getMatterDeviceTypeForHAPService: typeof getMatterDeviceTypeForHAPService
+    readonly getMatterClustersForHAPService: typeof getMatterClustersForHAPService
+  }
   // ------------------------------------------------------------------------
 
   /**
@@ -217,9 +217,9 @@ export interface API {
   versionGreaterOrEqual: (version: string) => boolean
 
   registerAccessory: ((accessoryName: AccessoryName, constructor: AccessoryPluginConstructor) => void)
-  & ((pluginIdentifier: PluginIdentifier, accessoryName: AccessoryName, constructor: AccessoryPluginConstructor) => void)
+    & ((pluginIdentifier: PluginIdentifier, accessoryName: AccessoryName, constructor: AccessoryPluginConstructor) => void)
 
-  registerPlatform: (<Config extends PlatformConfig>(platformName: PlatformName, constructor: PlatformPluginConstructor<Config>) => void) 
+  registerPlatform: (<Config extends PlatformConfig>(platformName: PlatformName, constructor: PlatformPluginConstructor<Config>) => void)
     & (<Config extends PlatformConfig>(pluginIdentifier: PluginIdentifier, platformName: PlatformName, constructor: PlatformPluginConstructor<Config>) => void)
   registerPlatformAccessories: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: PlatformAccessory[]) => void
   updatePlatformAccessories: (accessories: PlatformAccessory[]) => void
@@ -230,14 +230,14 @@ export interface API {
    * @param pluginIdentifier - Plugin identifier
    * @param accessories - Array of accessories to publish via Matter
    */
-  publishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
+  publishMatterAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
 
   /**
    * Unpublish accessories from Matter protocol
    * @param pluginIdentifier - Plugin identifier
    * @param accessories - Array of accessories to unpublish from Matter
    */
-  unpublishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void;
+  unpublishMatterAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
 
   publishExternalAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
 
@@ -268,9 +268,9 @@ export class HomebridgeAPI extends EventEmitter implements API {
     deviceTypes: MatterDeviceTypes,
     hapToMatterClusterMapping: HAPToMatterClusterMapping,
     hapToMatterDeviceMapping: HAPToMatterDeviceMapping,
-    getMatterDeviceTypeForHAPService: getMatterDeviceTypeForHAPService,
-    getMatterClustersForHAPService: getMatterClustersForHAPService,
-  };
+    getMatterDeviceTypeForHAPService,
+    getMatterClustersForHAPService,
+  }
   // ------------------------------------------------------------------------
 
   constructor() {
@@ -373,33 +373,33 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   publishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {
     if (!PluginManager.isQualifiedPluginIdentifier(pluginIdentifier)) {
-      log.info(`One of your plugins incorrectly registered a Matter accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`);
+      log.info(`One of your plugins incorrectly registered a Matter accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`)
     }
 
-    accessories.forEach(accessory => {
+    accessories.forEach((accessory) => {
       // noinspection SuspiciousTypeOfGuard
       if (!(accessory instanceof PlatformAccessory)) {
-        throw new Error(`${pluginIdentifier} attempt to register a Matter accessory that isn't PlatformAccessory!`);
+        throw new TypeError(`${pluginIdentifier} attempt to register a Matter accessory that isn't PlatformAccessory!`)
       }
 
-      accessory._associatedPlugin = pluginIdentifier;
-    });
+      accessory._associatedPlugin = pluginIdentifier
+    })
 
-    this.emit(InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, accessories);
+    this.emit(InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, accessories)
   }
 
   unpublishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {
     if (!PluginManager.isQualifiedPluginIdentifier(pluginIdentifier)) {
-      log.info(`One of your plugins incorrectly unregistered a Matter accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`);
+      log.info(`One of your plugins incorrectly unregistered a Matter accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`)
     }
 
-    accessories.forEach(accessory => {
+    accessories.forEach((accessory) => {
       // noinspection SuspiciousTypeOfGuard
       if (!(accessory instanceof PlatformAccessory)) {
-        throw new Error(`${pluginIdentifier} attempt to unregister a Matter accessory that isn't PlatformAccessory!`);
+        throw new TypeError(`${pluginIdentifier} attempt to unregister a Matter accessory that isn't PlatformAccessory!`)
       }
-    });
+    })
 
-    this.emit(InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, accessories);
+    this.emit(InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, accessories)
   }
 }

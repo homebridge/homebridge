@@ -12,8 +12,8 @@ This document outlines the production-ready features that have been added to Hom
 - **Production Warnings**: Alerts users about default values that should be changed for production
 - **Error Prevention**: Prevents server startup with invalid configurations
 
-```typescript
-// Example validation features
+```
+**Example validation features:**
 - Port range validation (1024-65535)
 - Discriminator range validation (0-4095)
 - Passcode security validation (8 digits, no weak patterns)
@@ -60,21 +60,20 @@ homebridge-matter init-config --config ./config.json
 - **Custom Device Support**: Extensible framework for custom device types
 
 #### Available Device Types
-```typescript
-// Lighting Devices
+```
+**Lighting Devices:**
 OnOffLight, DimmableLight, ColorTemperatureLight, ExtendedColorLight
 
-// Sensors
-TemperatureSensor, HumiditySensor, LightSensor, OccupancySensor, 
-ContactSensor, PressureSensor, FlowSensor
+**Sensors:**
+TemperatureSensor, HumiditySensor, LightSensor, OccupancySensor, ContactSensor, PressureSensor, FlowSensor
 
-// Security
+**Security:**
 DoorLock, SmokeCoAlarm, WaterLeakDetector, WaterFreezeDetector
 
-// HVAC
+**HVAC:**
 Thermostat, Fan, WindowCovering
 
-// And many more...
+*And many more...*
 ```
 
 ### 4. Robust Error Handling & Recovery
@@ -114,8 +113,8 @@ Thermostat, Fan, WindowCovering
 - **Backup/Restore**: Support for configuration backup and restoration
 
 #### Storage Options
-```typescript
-// Production storage configuration
+```
+// Production storage configuration (example)
 {
   "matter": {
     "storageDir": "/var/lib/homebridge/matter",
@@ -123,7 +122,6 @@ Thermostat, Fan, WindowCovering
     "encryptionEnabled": true
   }
 }
-```
 
 ### 7. Developer Experience
 
@@ -136,11 +134,11 @@ Thermostat, Fan, WindowCovering
 #### Plugin Development Features
 ```typescript
 // Enhanced API surface
-this.api.matter.deviceTypes.OnOffLight
-this.api.matter.clusters.OnOffCluster
-this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness'])
-this.api.publishMatterAccessories('my-plugin', [accessory])
-```
+**Enhanced API surface (example):**
+- `this.api.matter.deviceTypes.OnOffLight`
+- `this.api.matter.clusters.OnOffCluster`
+- `this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness'])`
+- `this.api.publishMatterAccessories('my-plugin', [accessory])`
 
 ### 8. Production Deployment Features
 
@@ -181,18 +179,7 @@ this.api.publishMatterAccessories('my-plugin', [accessory])
 #### Examples & Templates
 ```typescript
 // Complete plugin example with Matter support
-export default class MyPlugin implements DynamicPlatformPlugin {
-  constructor(public api: API) {}
-  
-  configureAccessory(accessory: PlatformAccessory) {
-    // Configure for HomeKit
-    this.api.registerPlatformAccessories('my-plugin', 'MyPlatform', [accessory]);
-    
-    // Also publish to Matter
-    this.api.publishMatterAccessories('my-plugin', [accessory]);
-  }
-}
-```
+**Complete plugin example with Matter support (pseudocode):**
 
 ## 📋 Production Readiness Checklist
 

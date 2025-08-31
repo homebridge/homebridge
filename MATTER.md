@@ -8,7 +8,7 @@ Matter is an open-source connectivity standard for smart home devices, allowing 
 
 - Apple Home (via HomeKit)
 - Google Home (via Matter)
-- Amazon Alexa (via Matter) 
+- Amazon Alexa (via Matter)
 - Samsung SmartThings (via Matter)
 - Philips Hue Bridge (via Matter)
 - And any other Matter-compatible controller
@@ -64,8 +64,12 @@ Plugin developers can use the new Matter API methods to publish accessories to b
 Publishes an array of accessories to the Matter protocol in addition to HomeKit.
 
 ```typescript
+// Example accessory definitions
+const accessory1 = {/* ... accessory object ... */}
+const accessory2 = {/* ... accessory object ... */}
+
 // Publish accessories to Matter
-this.api.publishMatterAccessories('my-plugin', [accessory1, accessory2]);
+this.api.publishMatterAccessories('my-plugin', [accessory1, accessory2])
 ```
 
 #### `api.unpublishMatterAccessories(pluginIdentifier, accessories)`
@@ -73,8 +77,12 @@ this.api.publishMatterAccessories('my-plugin', [accessory1, accessory2]);
 Removes accessories from the Matter protocol.
 
 ```typescript
+// Example accessory definitions
+const accessory1 = {/* ... accessory object ... */}
+const accessory2 = {/* ... accessory object ... */}
+
 // Unpublish accessories from Matter
-this.api.unpublishMatterAccessories('my-plugin', [accessory1, accessory2]);
+this.api.unpublishMatterAccessories('my-plugin', [accessory1, accessory2])
 ```
 
 ### Matter Device Types and Clusters
@@ -82,23 +90,31 @@ this.api.unpublishMatterAccessories('my-plugin', [accessory1, accessory2]);
 Homebridge now provides access to standard Matter device types and clusters through the API, making it easier for plugin developers to create Matter-compatible devices:
 
 ```typescript
-import { API } from 'homebridge';
+import { API } from 'homebridge'
 
 export default class MyPlatform {
   constructor(public readonly api: API) {
     // Access Matter device types
-    const onOffLight = this.api.matter.deviceTypes.OnOffLight;
-    const dimmableLight = this.api.matter.deviceTypes.DimmableLight;
-    const temperatureSensor = this.api.matter.deviceTypes.TemperatureSensor;
-    
+    const onOffLight = this.api.matter.deviceTypes.OnOffLight
+    console.warn(onOffLight)
+    const dimmableLight = this.api.matter.deviceTypes.DimmableLight
+    console.warn(dimmableLight)
+    const temperatureSensor = this.api.matter.deviceTypes.TemperatureSensor
+    console.warn(temperatureSensor)
+
     // Access Matter clusters
-    const onOffCluster = this.api.matter.clusters.OnOffCluster;
-    const levelControlCluster = this.api.matter.clusters.LevelControlCluster;
-    const temperatureMeasurementCluster = this.api.matter.clusters.TemperatureMeasurementCluster;
-    
+    const onOffCluster = this.api.matter.clusters.OnOffCluster
+    console.warn(onOffCluster)
+    const levelControlCluster = this.api.matter.clusters.LevelControlCluster
+    console.warn(levelControlCluster)
+    const temperatureMeasurementCluster = this.api.matter.clusters.TemperatureMeasurementCluster
+    console.warn(temperatureMeasurementCluster)
+
     // Use helper functions for automatic mapping
-    const deviceType = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness', 'Hue']);
-    const clusters = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness', 'Hue']);
+    const deviceType = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness', 'Hue'])
+    console.warn(deviceType)
+    const clusters = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness', 'Hue'])
+    console.warn(clusters)
   }
 }
 ```
@@ -125,7 +141,7 @@ The following Matter device types are available through `api.matter.deviceTypes`
 
 **Sensors:**
 - `TemperatureSensor` - Temperature measurement
-- `HumiditySensor` - Humidity measurement  
+- `HumiditySensor` - Humidity measurement
 - `LightSensor` - Illuminance measurement
 - `OccupancySensor` - Motion/occupancy detection
 - `ContactSensor` - Contact/door sensor
@@ -200,19 +216,24 @@ Returns the appropriate Matter device type for a given HomeKit service:
 
 ```typescript
 // Basic lightbulb
-const deviceType1 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb');
+const deviceType1 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb')
+console.warn(deviceType1)
 // Returns: 'OnOffLight'
 
 // Dimmable lightbulb
-const deviceType2 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness']);
+const deviceType2 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness'])
+console.warn(deviceType2)
+
 // Returns: 'DimmableLight'
 
 // Color lightbulb
-const deviceType3 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness', 'Hue', 'Saturation']);
+const deviceType3 = this.api.matter.getMatterDeviceTypeForHAPService('Lightbulb', ['Brightness', 'Hue', 'Saturation'])
+console.warn(deviceType3)
 // Returns: 'ExtendedColorLight'
 
 // Temperature sensor
-const deviceType4 = this.api.matter.getMatterDeviceTypeForHAPService('TemperatureSensor');
+const deviceType4 = this.api.matter.getMatterDeviceTypeForHAPService('TemperatureSensor')
+console.warn(deviceType4)
 // Returns: 'TemperatureSensor'
 ```
 
@@ -222,15 +243,18 @@ Returns the appropriate Matter clusters for a given HomeKit service:
 
 ```typescript
 // Basic lightbulb
-const clusters1 = this.api.matter.getMatterClustersForHAPService('Lightbulb');
+const clusters1 = this.api.matter.getMatterClustersForHAPService('Lightbulb')
+console.warn(clusters1)
 // Returns: ['OnOffCluster', 'IdentifyCluster']
 
-// Dimmable lightbulb  
-const clusters2 = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness']);
+// Dimmable lightbulb
+const clusters2 = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness'])
+console.warn(clusters2)
 // Returns: ['OnOffCluster', 'LevelControlCluster', 'IdentifyCluster']
 
 // Color lightbulb
-const clusters3 = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness', 'Hue']);
+const clusters3 = this.api.matter.getMatterClustersForHAPService('Lightbulb', ['Brightness', 'Hue'])
+console.warn(clusters3)
 // Returns: ['OnOffCluster', 'LevelControlCluster', 'ColorControlCluster', 'IdentifyCluster']
 ```
 
@@ -240,10 +264,10 @@ The API also provides mapping objects that show the relationship between HomeKit
 
 ```typescript
 // View the HAP to Matter device mapping
-console.log(this.api.matter.hapToMatterDeviceMapping);
+console.log(this.api.matter.hapToMatterDeviceMapping)
 
 // View the HAP to Matter cluster mapping
-console.log(this.api.matter.hapToMatterClusterMapping);
+console.log(this.api.matter.hapToMatterClusterMapping)
 ```
 
 ### CLI Tools
@@ -257,7 +281,7 @@ homebridge-matter validate --config ./config.json
 # Generate secure passcodes
 homebridge-matter generate-passcode --count 5
 
-# Generate random discriminators  
+# Generate random discriminators
 homebridge-matter generate-discriminator --count 3
 
 # Create commissioning QR codes
@@ -272,17 +296,31 @@ homebridge-matter init-config --config ./config.json --force
 All Matter configurations are automatically validated for security and correctness:
 
 ```typescript
-import { MatterConfigValidator } from 'homebridge/matterConfigValidator';
+import { MatterConfigValidator } from 'homebridge/matterConfigValidator'
+
+// Example Matter configuration object
+const matterConfig = {
+  enabled: true,
+  port: 5540,
+  discriminator: 3840,
+  passcode: 20202021,
+  vendorId: 65521,
+  productId: 32769,
+  deviceName: 'Homebridge Matter Bridge',
+  deviceType: 22
+}
 
 // Validate configuration
-const result = MatterConfigValidator.validate(matterConfig);
+const result = MatterConfigValidator.validate(matterConfig)
 if (!result.isValid) {
-  console.error('Configuration errors:', result.errors);
+  console.error('Configuration errors:', result.errors)
 }
 
 // Generate secure values
-const securePasscode = MatterConfigValidator.generateSecurePasscode();
-const randomDiscriminator = MatterConfigValidator.generateRandomDiscriminator();
+const securePasscode = MatterConfigValidator.generateSecurePasscode()
+console.warn(securePasscode)
+const randomDiscriminator = MatterConfigValidator.generateRandomDiscriminator()
+console.warn(randomDiscriminator)
 ```
 
 ## Current Limitations
@@ -361,7 +399,7 @@ See [PRODUCTION_READY_MATTER.md](PRODUCTION_READY_MATTER.md) for complete detail
 This is an experimental feature and contributions are welcome! Key areas where help is needed:
 
 1. HAP to Matter service/characteristic mapping
-2. Matter commissioning implementation  
+2. Matter commissioning implementation
 3. Device type support
 4. Testing with different Matter controllers
 5. Documentation improvements

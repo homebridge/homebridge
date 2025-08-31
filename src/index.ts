@@ -43,29 +43,6 @@ export type {
 } from './bridgeService.js'
 
 /**
- * Export Matter types and utilities
- */
-export type {
-  HAPToMatterClusterMapping,
-  HAPToMatterDeviceMapping,
-} from "./matterTypes";
-
-export {
-  MatterClusters,
-  MatterDeviceTypes,
-  getMatterDeviceTypeForHAPService,
-  getMatterClustersForHAPService,
-} from "./matterTypes";
-
-/**
- * Export Matter types
- */
-export type {
-  MatterConfiguration,
-  MatterBridgeOptions,
-} from "./matterService";
-
-/**
  * Export port types
  */
 export type { ExternalPortsConfiguration } from './externalPortService.js'
@@ -79,6 +56,29 @@ export { LogLevel } from './logger.js'
  * Export Logger types
  */
 export type { Logger, Logging } from './logger.js'
+
+/**
+ * Export Matter types
+ */
+export type {
+  MatterBridgeOptions,
+  MatterConfiguration,
+} from './matterService.js'
+
+/**
+ * Export Matter types and utilities
+ */
+export type {
+  HAPToMatterClusterMapping,
+  HAPToMatterDeviceMapping,
+} from './matterTypes.js'
+
+export {
+  getMatterClustersForHAPService,
+  getMatterDeviceTypeForHAPService,
+  MatterClusters,
+  MatterDeviceTypes,
+} from './matterTypes.js'
 
 /**
  * Export Platform Accessory const enums

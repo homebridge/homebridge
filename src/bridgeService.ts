@@ -82,27 +82,26 @@ export interface PlatformConfig extends Record<string, any> {
 }
 
 export interface HomebridgeConfig {
-  bridge: BridgeConfiguration;
+  bridge: BridgeConfiguration
 
   /**
    * Optional Matter protocol configuration
    */
   matter?: {
-    enabled?: boolean;
-    port?: number;
-    discriminator?: number;
-    passcode?: number;
-    vendorId?: number;
-    productId?: number;
-    deviceName?: string;
-    deviceType?: number;
-  };
+    enabled?: boolean
+    port?: number
+    discriminator?: number
+    passcode?: number
+    vendorId?: number
+    productId?: number
+    deviceName?: string
+    deviceType?: number
+  }
 
   /**
    * @deprecated
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mdns?: any; // this is deprecated and not used anymore
+  mdns?: any // this is deprecated and not used anymore
 
   accessories: AccessoryConfig[]
   platforms: PlatformConfig[]
