@@ -20,7 +20,8 @@
     "Andreas Bauer <mail@anderl-bauer.de>"
   ],
   "bin": {
-    "homebridge": "bin/homebridge.js"
+    "homebridge": "bin/homebridge.js",
+    "homebridge-matter": "lib/util/matter-cli.js"
   },
   "files": [
     "LICENSE",
@@ -48,6 +49,7 @@
     "watch": "nodemon"
   },
   "dependencies": {
+    "@matter/main": "0.15.3",
     "chalk": "5.6.0",
     "commander": "14.0.0",
     "fs-extra": "11.3.1",

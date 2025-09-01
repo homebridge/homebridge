@@ -85,6 +85,20 @@ export interface HomebridgeConfig {
   bridge: BridgeConfiguration
 
   /**
+   * Optional Matter protocol configuration
+   */
+  matter?: {
+    enabled?: boolean
+    port?: number
+    discriminator?: number
+    passcode?: number
+    vendorId?: number
+    productId?: number
+    deviceName?: string
+    deviceType?: number
+  }
+
+  /**
    * @deprecated
    */
   mdns?: any // this is deprecated and not used anymore

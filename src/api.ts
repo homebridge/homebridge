@@ -9,6 +9,14 @@ import hapNodeJs from 'hap-nodejs'
 import semver from 'semver'
 
 import { Logger } from './logger.js'
+import {
+  getMatterClustersForHAPService,
+  getMatterDeviceTypeForHAPService,
+  HAPToMatterClusterMapping,
+  HAPToMatterDeviceMapping,
+  MatterClusters,
+  MatterDeviceTypes,
+} from './matterTypes.js'
 import { PlatformAccessory } from './platformAccessory.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
@@ -156,6 +164,10 @@ export const enum InternalAPIEvent {
   REGISTER_PLATFORM_ACCESSORIES = 'registerPlatformAccessories',
   UPDATE_PLATFORM_ACCESSORIES = 'updatePlatformAccessories',
   UNREGISTER_PLATFORM_ACCESSORIES = 'unregisterPlatformAccessories',
+
+  // Matter support
+  PUBLISH_MATTER_ACCESSORIES = 'publishMatterAccessories',
+  UNPUBLISH_MATTER_ACCESSORIES = 'unpublishMatterAccessories',
 }
 
 export interface API {
@@ -174,6 +186,17 @@ export interface API {
   readonly hap: HAP
   readonly hapLegacyTypes: HAPLegacyTypes // used for older accessories/platforms
   readonly platformAccessory: typeof PlatformAccessory
+  // ------------------------------------------------------------------------
+
+  // ------------------ MATTER EXPORTS ------------------
+  readonly matter: {
+    readonly clusters: typeof MatterClusters
+    readonly deviceTypes: typeof MatterDeviceTypes
+    readonly hapToMatterClusterMapping: typeof HAPToMatterClusterMapping
+    readonly hapToMatterDeviceMapping: typeof HAPToMatterDeviceMapping
+    readonly getMatterDeviceTypeForHAPService: typeof getMatterDeviceTypeForHAPService
+    readonly getMatterClustersForHAPService: typeof getMatterClustersForHAPService
+  }
   // ------------------------------------------------------------------------
 
   /**
@@ -200,6 +223,20 @@ export interface API {
   updatePlatformAccessories: (accessories: PlatformAccessory[]) => void
   unregisterPlatformAccessories: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: PlatformAccessory[]) => void
 
+  /**
+   * Publish accessories via Matter protocol in addition to HomeKit HAP
+   * @param pluginIdentifier - Plugin identifier
+   * @param accessories - Array of accessories to publish via Matter
+   */
+  publishMatterAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
+
+  /**
+   * Unpublish accessories from Matter protocol
+   * @param pluginIdentifier - Plugin identifier
+   * @param accessories - Array of accessories to unpublish from Matter
+   */
+  unpublishMatterAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
+
   publishExternalAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
 
   on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
@@ -207,9 +244,8 @@ export interface API {
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface HomebridgeAPI {
-  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, listener: (accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM, listener: (platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this)
-
-  emit: ((event: 'didFinishLaunching') => boolean) & ((event: 'shutdown') => boolean) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM, platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean)
+  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, listener: (accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM, listener: (platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this)
+  emit: ((event: 'didFinishLaunching') => boolean) & ((event: 'shutdown') => boolean) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM, platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, accessories: PlatformAccessory[]) => boolean)
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
@@ -222,6 +258,17 @@ export class HomebridgeAPI extends EventEmitter implements API {
   readonly hap = hapNodeJs
   readonly hapLegacyTypes = hapNodeJs.LegacyTypes // used for older accessories/platforms
   readonly platformAccessory = PlatformAccessory
+  // ------------------------------------------------------------------------
+
+  // ------------------ MATTER EXPORTS ------------------
+  readonly matter = {
+    clusters: MatterClusters,
+    deviceTypes: MatterDeviceTypes,
+    hapToMatterClusterMapping: HAPToMatterClusterMapping,
+    hapToMatterDeviceMapping: HAPToMatterDeviceMapping,
+    getMatterDeviceTypeForHAPService,
+    getMatterClustersForHAPService,
+  }
   // ------------------------------------------------------------------------
 
   constructor() {
@@ -320,5 +367,35 @@ export class HomebridgeAPI extends EventEmitter implements API {
     })
 
     this.emit(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories)
+  }
+
+  publishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {
+    if (!PluginManager.isQualifiedPluginIdentifier(pluginIdentifier)) {
+      log.info(`One of your plugins incorrectly registered a Matter accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`)
+    }
+
+    accessories.forEach((accessory) => {
+      if (!(accessory instanceof PlatformAccessory)) {
+        throw new TypeError(`${pluginIdentifier} attempt to register a Matter accessory that isn't PlatformAccessory!`)
+      }
+
+      accessory._associatedPlugin = pluginIdentifier
+    })
+
+    this.emit(InternalAPIEvent.PUBLISH_MATTER_ACCESSORIES, accessories)
+  }
+
+  unpublishMatterAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {
+    if (!PluginManager.isQualifiedPluginIdentifier(pluginIdentifier)) {
+      log.info(`One of your plugins incorrectly unregistered a Matter accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`)
+    }
+
+    accessories.forEach((accessory) => {
+      if (!(accessory instanceof PlatformAccessory)) {
+        throw new TypeError(`${pluginIdentifier} attempt to unregister a Matter accessory that isn't PlatformAccessory!`)
+      }
+    })
+
+    this.emit(InternalAPIEvent.UNPUBLISH_MATTER_ACCESSORIES, accessories)
   }
 }

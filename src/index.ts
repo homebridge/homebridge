@@ -58,6 +58,23 @@ export { LogLevel } from './logger.js'
 export type { Logger, Logging } from './logger.js'
 
 /**
+ * Export Matter types
+ */
+export type { MatterBridgeOptions, MatterConfiguration } from './matterService.js'
+
+/**
+ * Export Matter types and utilities
+ */
+export type { HAPToMatterClusterMapping, HAPToMatterDeviceMapping } from './matterTypes.js'
+
+export {
+  getMatterClustersForHAPService,
+  getMatterDeviceTypeForHAPService,
+  MatterClusters,
+  MatterDeviceTypes,
+} from './matterTypes.js'
+
+/**
  * Export Platform Accessory const enums
  */
 export { PlatformAccessoryEvent } from './platformAccessory.js'
