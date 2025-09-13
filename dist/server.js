@@ -1,0 +1,433 @@
+import { existsSync, readFileSync } from 'node:fs';
+import process from 'node:process';
+import chalk from 'chalk';
+import qrcode from 'qrcode-terminal';
+import { HomebridgeAPI } from './api.js';
+import { BridgeService } from './bridgeService.js';
+import { ChildBridgeService } from './childBridgeService.js';
+import { ExternalPortService } from './externalPortService.js';
+import { IpcService } from './ipcService.js';
+import { Logger } from './logger.js';
+import { PluginManager } from './pluginManager.js';
+import { User } from './user.js';
+import { validMacAddress } from './util/mac.js';
+const log = Logger.internal;
+// eslint-disable-next-line no-restricted-syntax
+export var ServerStatus;
+(function (ServerStatus) {
+    /**
+     * When the server is starting up
+     */
+    ServerStatus["PENDING"] = "pending";
+    /**
+     * When the server is online and has published the main bridge
+     */
+    ServerStatus["OK"] = "ok";
+    /**
+     * When the server is shutting down
+     */
+    ServerStatus["DOWN"] = "down";
+})(ServerStatus || (ServerStatus = {}));
+export class Server {
+    options;
+    api;
+    pluginManager;
+    bridgeService;
+    ipcService;
+    externalPortService;
+    config;
+    // used to keep track of child bridges
+    childBridges = new Map();
+    // current server status
+    serverStatus = "pending" /* ServerStatus.PENDING */;
+    constructor(options = {}) {
+        this.options = options;
+        this.config = Server.loadConfig();
+        // object we feed to Plugins and BridgeService
+        this.api = new HomebridgeAPI();
+        this.ipcService = new IpcService();
+        this.externalPortService = new ExternalPortService(this.config.ports);
+        // set status to pending
+        this.setServerStatus("pending" /* ServerStatus.PENDING */);
+        // create new plugin manager
+        const pluginManagerOptions = {
+            activePlugins: this.config.plugins,
+            disabledPlugins: this.config.disabledPlugins,
+            customPluginPath: options.customPluginPath,
+            strictPluginResolution: options.strictPluginResolution,
+        };
+        this.pluginManager = new PluginManager(this.api, pluginManagerOptions);
+        // create new bridge service
+        const bridgeConfig = {
+            cachedAccessoriesDir: User.cachedAccessoryPath(),
+            cachedAccessoriesItemName: 'cachedAccessories',
+        };
+        // shallow copy the homebridge options to the bridge options object
+        Object.assign(bridgeConfig, this.options);
+        this.bridgeService = new BridgeService(this.api, this.pluginManager, this.externalPortService, bridgeConfig, this.config.bridge, this.config);
+        // watch bridge events to check when server is online
+        this.bridgeService.bridge.on("advertised" /* AccessoryEventTypes.ADVERTISED */, () => {
+            this.setServerStatus("ok" /* ServerStatus.OK */);
+        });
+        // watch for the paired event to update the server status
+        this.bridgeService.bridge.on("paired" /* AccessoryEventTypes.PAIRED */, () => {
+            this.setServerStatus(this.serverStatus);
+        });
+        // watch for the unpaired event to update the server status
+        this.bridgeService.bridge.on("unpaired" /* AccessoryEventTypes.UNPAIRED */, () => {
+            this.setServerStatus(this.serverStatus);
+        });
+    }
+    /**
+     * Set the current server status and update parent via IPC
+     * @param status
+     */
+    setServerStatus(status) {
+        this.serverStatus = status;
+        this.ipcService.sendMessage("serverStatusUpdate" /* IpcOutgoingEvent.SERVER_STATUS_UPDATE */, {
+            status: this.serverStatus,
+            paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
+            setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
+            name: this.bridgeService?.bridge?.displayName || this.config.bridge.name,
+            username: this.config.bridge.username,
+            pin: this.config.bridge.pin,
+        });
+    }
+    async start() {
+        if (this.config.bridge.disableIpc !== true) {
+            this.initializeIpcEventHandlers();
+        }
+        const promises = [];
+        // load the cached accessories
+        await this.bridgeService.loadCachedPlatformAccessoriesFromDisk();
+        // initialize plugins
+        await this.pluginManager.initializeInstalledPlugins();
+        if (this.config.platforms.length > 0) {
+            promises.push(...this.loadPlatforms());
+        }
+        if (this.config.accessories.length > 0) {
+            this.loadAccessories();
+        }
+        // start child bridges
+        for (const childBridge of this.childBridges.values()) {
+            childBridge.start();
+        }
+        // restore cached accessories
+        this.bridgeService.restoreCachedPlatformAccessories();
+        this.api.signalFinished();
+        // wait for all platforms to publish their accessories before we publish the bridge
+        await Promise.all(promises)
+            .then(() => this.publishBridge());
+    }
+    teardown() {
+        this.bridgeService.teardown();
+        this.setServerStatus("down" /* ServerStatus.DOWN */);
+    }
+    publishBridge() {
+        this.bridgeService.publishBridge();
+        this.printSetupInfo(this.config.bridge.pin);
+    }
+    static loadConfig() {
+        // Look for the configuration file
+        const configPath = User.configPath();
+        const defaultBridge = {
+            name: 'Homebridge',
+            username: 'CC:22:3D:E3:CE:30',
+            pin: '031-45-154',
+        };
+        if (!existsSync(configPath)) {
+            log.warn('config.json (%s) not found.', configPath);
+            return {
+                bridge: defaultBridge,
+                accessories: [],
+                platforms: [],
+            };
+        }
+        let config;
+        try {
+            config = JSON.parse(readFileSync(configPath, { encoding: 'utf8' }));
+        }
+        catch (error) {
+            log.error('There was a problem reading your config.json file.');
+            log.error('Please try pasting your config.json file here to validate it: https://jsonlint.com');
+            log.error('');
+            throw error;
+        }
+        if (config.ports !== undefined) {
+            if (config.ports.start && config.ports.end) {
+                if (config.ports.start > config.ports.end) {
+                    log.error('Invalid port pool configuration. End should be greater than or equal to start.');
+                    config.ports = undefined;
+                }
+            }
+            else {
+                log.error('Invalid configuration for \'ports\'. Missing \'start\' and \'end\' properties! Ignoring it!');
+                config.ports = undefined;
+            }
+        }
+        const bridge = config.bridge || defaultBridge;
+        bridge.name = bridge.name || defaultBridge.name;
+        bridge.username = bridge.username || defaultBridge.username;
+        bridge.pin = bridge.pin || defaultBridge.pin;
+        config.bridge = bridge;
+        const username = config.bridge.username;
+        if (!validMacAddress(username)) {
+            throw new Error(`Not a valid username: ${username}. Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`);
+        }
+        config.accessories = config.accessories || [];
+        config.platforms = config.platforms || [];
+        if (!Array.isArray(config.accessories)) {
+            log.error('Value provided for accessories must be an array[]');
+            config.accessories = [];
+        }
+        if (!Array.isArray(config.platforms)) {
+            log.error('Value provided for platforms must be an array[]');
+            config.platforms = [];
+        }
+        log.info('Loaded config.json with %s accessories and %s platforms.', config.accessories.length, config.platforms.length);
+        if (config.bridge.advertiser) {
+            if (![
+                "bonjour-hap" /* MDNSAdvertiser.BONJOUR */,
+                "ciao" /* MDNSAdvertiser.CIAO */,
+                "avahi" /* MDNSAdvertiser.AVAHI */,
+                "resolved" /* MDNSAdvertiser.RESOLVED */,
+            ].includes(config.bridge.advertiser)) {
+                config.bridge.advertiser = undefined;
+                log.error('Value provided in bridge.advertiser is not valid, reverting to platform default.');
+            }
+        }
+        else {
+            config.bridge.advertiser = undefined;
+        }
+        return config;
+    }
+    loadAccessories() {
+        log.info(`Loading ${this.config.accessories.length} accessories...`);
+        this.config.accessories.forEach((accessoryConfig, index) => {
+            if (!accessoryConfig.accessory) {
+                log.warn('Your config.json contains an illegal accessory configuration object at position %d. '
+                    + 'Missing property \'accessory\'. Skipping entry...', index + 1); // we rather count from 1 for the normal people?
+                return;
+            }
+            const accessoryIdentifier = accessoryConfig.accessory;
+            const displayName = accessoryConfig.name;
+            if (!displayName) {
+                log.warn('Could not load accessory %s at position %d as it is missing the required \'name\' property!', accessoryIdentifier, index + 1);
+                return;
+            }
+            let plugin;
+            let constructor;
+            try {
+                plugin = this.pluginManager.getPluginForAccessory(accessoryIdentifier);
+            }
+            catch (error) {
+                log.error(error.message);
+                return;
+            }
+            // check the plugin is not disabled
+            if (plugin.disabled) {
+                log.warn(`Ignoring config for the accessory "${accessoryIdentifier}" in your config.json as the plugin "${plugin.getPluginIdentifier()}" has been disabled.`);
+                return;
+            }
+            try {
+                constructor = plugin.getAccessoryConstructor(accessoryIdentifier);
+            }
+            catch (error) {
+                log.error(`Error loading the accessory "${accessoryIdentifier}" requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`);
+                log.error(error); // error message contains more information and full stack trace
+                return;
+            }
+            const logger = Logger.withPrefix(displayName);
+            logger('Initializing %s accessory...', accessoryIdentifier);
+            if (accessoryConfig._bridge) {
+                // ensure the username is always uppercase
+                accessoryConfig._bridge.username = accessoryConfig._bridge.username.toUpperCase();
+                try {
+                    this.validateChildBridgeConfig("accessory" /* PluginType.ACCESSORY */, accessoryIdentifier, accessoryConfig._bridge);
+                }
+                catch (error) {
+                    log.error(error.message);
+                    return;
+                }
+                let childBridge;
+                if (this.childBridges.has(accessoryConfig._bridge.username)) {
+                    childBridge = this.childBridges.get(accessoryConfig._bridge.username);
+                    logger(`Adding to existing child bridge ${accessoryConfig._bridge.username}`);
+                }
+                else {
+                    logger(`Initializing child bridge ${accessoryConfig._bridge.username}`);
+                    childBridge = new ChildBridgeService("accessory" /* PluginType.ACCESSORY */, accessoryIdentifier, plugin, accessoryConfig._bridge, this.config, this.options, this.api, this.ipcService, this.externalPortService);
+                    this.childBridges.set(accessoryConfig._bridge.username, childBridge);
+                }
+                // add config to child bridge service
+                childBridge.addConfig(accessoryConfig);
+                return;
+            }
+            const accessoryInstance = new constructor(logger, accessoryConfig, this.api);
+            // pass accessoryIdentifier for UUID generation, and optional parameter uuid_base which can be used instead of displayName for UUID generation
+            const accessory = this.bridgeService.createHAPAccessory(plugin, accessoryInstance, displayName, accessoryIdentifier, accessoryConfig.uuid_base);
+            if (accessory) {
+                try {
+                    this.bridgeService.bridge.addBridgedAccessory(accessory);
+                }
+                catch (error) {
+                    logger.error(`Error loading the accessory "${accessoryIdentifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, error.message);
+                }
+            }
+            else {
+                logger.info('Accessory %s returned empty set of services; not adding it to the bridge.', accessoryIdentifier);
+            }
+        });
+    }
+    loadPlatforms() {
+        log.info(`Loading ${this.config.platforms.length} platforms...`);
+        const promises = [];
+        this.config.platforms.forEach((platformConfig, index) => {
+            if (!platformConfig.platform) {
+                log.warn('Your config.json contains an illegal platform configuration object at position %d. '
+                    + 'Missing property \'platform\'. Skipping entry...', index + 1); // we rather count from 1 for the normal people?
+                return;
+            }
+            const platformIdentifier = platformConfig.platform;
+            const displayName = platformConfig.name || platformIdentifier;
+            let plugin;
+            let constructor;
+            // do not load homebridge-config-ui-x when running in service mode
+            if (platformIdentifier === 'config' && process.env.UIX_SERVICE_MODE === '1') {
+                return;
+            }
+            try {
+                plugin = this.pluginManager.getPluginForPlatform(platformIdentifier);
+            }
+            catch (error) {
+                log.error(error.message);
+                return;
+            }
+            // check the plugin is not disabled
+            if (plugin.disabled) {
+                log.warn(`Ignoring config for the platform "${platformIdentifier}" in your config.json as the plugin "${plugin.getPluginIdentifier()}" has been disabled.`);
+                return;
+            }
+            try {
+                constructor = plugin.getPlatformConstructor(platformIdentifier);
+            }
+            catch (error) {
+                log.error(`Error loading the platform "${platformIdentifier}" requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`);
+                log.error(error); // error message contains more information and full stack trace
+                return;
+            }
+            const logger = Logger.withPrefix(displayName);
+            logger('Initializing %s platform...', platformIdentifier);
+            if (platformConfig._bridge) {
+                // ensure the username is always uppercase
+                platformConfig._bridge.username = platformConfig._bridge.username.toUpperCase();
+                try {
+                    this.validateChildBridgeConfig("platform" /* PluginType.PLATFORM */, platformIdentifier, platformConfig._bridge);
+                }
+                catch (error) {
+                    log.error(error.message);
+                    return;
+                }
+                logger(`Initializing child bridge ${platformConfig._bridge.username}`);
+                const childBridge = new ChildBridgeService("platform" /* PluginType.PLATFORM */, platformIdentifier, plugin, platformConfig._bridge, this.config, this.options, this.api, this.ipcService, this.externalPortService);
+                this.childBridges.set(platformConfig._bridge.username, childBridge);
+                // add config to child bridge service
+                childBridge.addConfig(platformConfig);
+                return;
+            }
+            const platform = new constructor(logger, platformConfig, this.api);
+            if (HomebridgeAPI.isDynamicPlatformPlugin(platform)) {
+                plugin.assignDynamicPlatform(platformIdentifier, platform);
+            }
+            else if (HomebridgeAPI.isStaticPlatformPlugin(platform)) { // Plugin 1.0, load accessories
+                promises.push(this.bridgeService.loadPlatformAccessories(plugin, platform, platformIdentifier, logger));
+            }
+            else {
+                // otherwise it's a IndependentPlatformPlugin which doesn't expose any methods at all.
+                // We just call the constructor and let it be enabled.
+            }
+        });
+        return promises;
+    }
+    /**
+     * Validate an external bridge config
+     */
+    validateChildBridgeConfig(type, identifier, bridgeConfig) {
+        if (!validMacAddress(bridgeConfig.username)) {
+            throw new Error(`Error loading the ${type} "${identifier}" requested in your config.json - `
+                + `not a valid username in _bridge.username: "${bridgeConfig.username}". Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`);
+        }
+        if (this.childBridges.has(bridgeConfig.username)) {
+            const childBridge = this.childBridges.get(bridgeConfig.username);
+            if (type === "platform" /* PluginType.PLATFORM */) {
+                // only a single platform can exist on one child bridge
+                throw new Error(`Error loading the ${type} "${identifier}" requested in your config.json - `
+                    + `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each platform child bridge must have it's own unique username.`);
+            }
+            else if (childBridge?.identifier !== identifier) {
+                // only accessories of the same type can be added to the same child bridge
+                throw new Error(`Error loading the ${type} "${identifier}" requested in your config.json - `
+                    + `Duplicate username found in _bridge.username: "${bridgeConfig.username}". You can only group accessories of the same type in a child bridge.`);
+            }
+        }
+        if (bridgeConfig.username === this.config.bridge.username.toUpperCase()) {
+            throw new Error(`Error loading the ${type} "${identifier}" requested in your config.json - `
+                + `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have it's own unique username.`);
+        }
+    }
+    /**
+     * Takes care of the IPC Events sent to Homebridge
+     */
+    initializeIpcEventHandlers() {
+        // start ipc service
+        this.ipcService.start();
+        // handle restart child bridge event
+        this.ipcService.on("restartChildBridge" /* IpcIncomingEvent.RESTART_CHILD_BRIDGE */, (username) => {
+            // noinspection SuspiciousTypeOfGuard
+            if (typeof username === 'string') {
+                const childBridge = this.childBridges.get(username.toUpperCase());
+                childBridge?.restartChildBridge();
+            }
+        });
+        // handle stop child bridge event
+        this.ipcService.on("stopChildBridge" /* IpcIncomingEvent.STOP_CHILD_BRIDGE */, (username) => {
+            // noinspection SuspiciousTypeOfGuard
+            if (typeof username === 'string') {
+                const childBridge = this.childBridges.get(username.toUpperCase());
+                childBridge?.stopChildBridge();
+            }
+        });
+        // handle start child bridge event
+        this.ipcService.on("startChildBridge" /* IpcIncomingEvent.START_CHILD_BRIDGE */, (username) => {
+            // noinspection SuspiciousTypeOfGuard
+            if (typeof username === 'string') {
+                const childBridge = this.childBridges.get(username.toUpperCase());
+                childBridge?.startChildBridge();
+            }
+        });
+        this.ipcService.on("childBridgeMetadataRequest" /* IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST */, () => {
+            this.ipcService.sendMessage("childBridgeMetadataResponse" /* IpcOutgoingEvent.CHILD_BRIDGE_METADATA_RESPONSE */, Array.from(this.childBridges.values()).map(x => x.getMetadata()));
+        });
+    }
+    printSetupInfo(pin) {
+        /* eslint-disable no-console */
+        console.log('Setup Payload:');
+        console.log(this.bridgeService.bridge.setupURI());
+        if (!this.options.hideQRCode) {
+            console.log('Scan this code with your HomeKit app on your iOS device to pair with Homebridge:');
+            qrcode.setErrorLevel('M'); // HAP specifies level M or higher for ECC
+            qrcode.generate(this.bridgeService.bridge.setupURI());
+            console.log('Or enter this code with your HomeKit app on your iOS device to pair with Homebridge:');
+        }
+        else {
+            console.log('Enter this code with your HomeKit app on your iOS device to pair with Homebridge:');
+        }
+        console.log(chalk.black.bgWhite('                       '));
+        console.log(chalk.black.bgWhite('    ┌────────────┐     '));
+        console.log(chalk.black.bgWhite(`    │ ${pin} │     `));
+        console.log(chalk.black.bgWhite('    └────────────┘     '));
+        console.log(chalk.black.bgWhite('                       '));
+        /* eslint-enable no-console */
+    }
+}
+//# sourceMappingURL=server.js.map
