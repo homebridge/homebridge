@@ -30,7 +30,7 @@
     "dist"
   ],
   "engines": {
-    "node": "^20.7.0 || ^22"
+    "node": "^20.7.0 || ^22 || ^24"
   },
   "scripts": {
     "build": "npm run clean && tsc",
