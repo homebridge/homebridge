@@ -153,6 +153,17 @@ Try the following:
   1. Swap between the `Bonjour HAP` and `Ciao` mDNS Advertiser options. See [the wiki](https://github.com/homebridge/homebridge/wiki/mDNS-Options) for more details.
   2. iOS DNS cache has gone stale or gotten misconfigured. To fix this, turn airplane mode on and back off to flush the DNS cache. 
 
+### Node.js Version Managers (volta, nvm, etc.)
+
+Homebridge is compatible with Node.js version managers like **volta**, **nvm**, **n**, and others. The homebridge executable will automatically detect and use the appropriate Node.js installation from:
+
+- Standard system locations (`/usr/bin/node`, `/usr/local/bin/node`)
+- volta installations (`$VOLTA_HOME/bin/node`, `~/.volta/bin/node`)
+- nvm installations (when `$NVM_DIR` is set)
+- Any Node.js executable found in your `PATH`
+
+This ensures Homebridge works correctly when installed as a system service (e.g., with `hb-service`) even when using version managers that store Node.js in user-specific locations.
+
 ### Limitations
 
  * One bridge can only expose 150 accessories due to a HomeKit limit. You can however run your plugins as a [Child Bridge](https://github.com/homebridge/homebridge/wiki/Child-Bridges) or run [Multiple Homebridge Instances](https://github.com/homebridge/homebridge-config-ui-x/wiki/Homebridge-Service-Command#multiple-instances) to get around this limitation.
