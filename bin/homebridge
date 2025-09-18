@@ -1,17 +1,68 @@
-#!/usr/bin/env node
+#!/bin/bash
+# Homebridge executable wrapper
+# This script handles various Node.js installation methods including volta, nvm, and system-wide installations
 
-//
-// This executable sets up the environment and runs the HomeBridge CLI.
-//
+# Function to find node executable
+find_node() {
+    # Try standard PATH first
+    if command -v node >/dev/null 2>&1; then
+        echo "node"
+        return 0
+    fi
+    
+    # Try common volta locations
+    if [ -n "$VOLTA_HOME" ] && [ -x "$VOLTA_HOME/bin/node" ]; then
+        echo "$VOLTA_HOME/bin/node"
+        return 0
+    fi
+    
+    # Try default volta location in user home
+    if [ -x "$HOME/.volta/bin/node" ]; then
+        echo "$HOME/.volta/bin/node"
+        return 0
+    fi
+    
+    # Try volta shim directory (common volta setup)
+    for volta_dir in "$HOME/.volta/tools/image/node"/*; do
+        if [ -x "$volta_dir/bin/node" ]; then
+            echo "$volta_dir/bin/node"
+            return 0
+        fi
+    done 2>/dev/null
+    
+    # Try common system locations
+    for node_path in /usr/bin/node /usr/local/bin/node /opt/node/bin/node; do
+        if [ -x "$node_path" ]; then
+            echo "$node_path"
+            return 0
+        fi
+    done
+    
+    # Try nvm locations
+    if [ -n "$NVM_DIR" ]; then
+        # shellcheck source=/dev/null
+        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+        if command -v node >/dev/null 2>&1; then
+            echo "node"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
 
-"use strict";
+# Find Node.js executable
+NODE_EXECUTABLE=$(find_node)
 
-process.title = "homebridge";
+if [ -z "$NODE_EXECUTABLE" ]; then
+    echo "Error: Node.js executable not found." >&2
+    echo "Please ensure Node.js is installed and accessible." >&2
+    echo "If you're using volta, ensure it's properly configured." >&2
+    exit 1
+fi
 
-// Find the HomeBridge lib
-const path = require("path");
-const fs = require("fs");
-const lib = path.join(path.dirname(fs.realpathSync(__filename)), "../lib");
+# Get the directory of this script (using full path to dirname for compatibility)
+SCRIPT_DIR="$(cd "$(/usr/bin/dirname "${BASH_SOURCE[0]}" 2>/dev/null || /bin/dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-// Run HomeBridge
-require(lib + '/cli')();
+# Execute the Node.js script
+exec "$NODE_EXECUTABLE" "$SCRIPT_DIR/homebridge.js" "$@"

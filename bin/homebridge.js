@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+
+//
+// This executable sets up the environment and runs the HomeBridge CLI.
+//
+
+"use strict";
+
+process.title = "homebridge";
+
+// Find the HomeBridge lib
+const path = require("path");
+const fs = require("fs");
+const lib = path.join(path.dirname(fs.realpathSync(__filename)), "../lib");
+
+// Run HomeBridge
+require(lib + '/cli')();
