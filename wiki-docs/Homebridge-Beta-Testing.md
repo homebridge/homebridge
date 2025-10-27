@@ -1,1 +1,0 @@
-This wiki page has moved [here](https://github.com/homebridge/homebridge/wiki/How-To-Change-Homebridge-Version#manage-beta-version).

@@ -28,10 +28,10 @@ Install the LTS version of Node.js from the [official repository](https://github
 
 ```shell
 # install additional dependencies
-sudo yum install -y gcc-c++ make net-tools python2 python3
+sudo dnf install -y gcc-c++ make net-tools python2 python3
 
 # install build tools
-sudo yum groupinstall -y 'Development Tools'
+sudo dnf group install -y 'development-tools'
 
 # test node is working
 node -v
