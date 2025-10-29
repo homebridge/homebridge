@@ -48,31 +48,31 @@
   "dependencies": {
     "chalk": "4.1.2",
     "commander": "13.1.0",
-    "fs-extra": "11.3.0",
-    "hap-nodejs": "0.13.1",
+    "fs-extra": "11.3.2",
+    "hap-nodejs": "0.14.0",
     "qrcode-terminal": "0.12.0",
-    "semver": "7.7.2",
+    "semver": "7.7.3",
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^30.0.0",
-    "@types/node": "^24.0.13",
-    "@types/semver": "^7.7.0",
+    "@types/node": "^24.9.2",
+    "@types/semver": "^7.7.1",
     "@types/source-map-support": "^0.5.10",
-    "@typescript-eslint/eslint-plugin": "^8.36.0",
-    "@typescript-eslint/parser": "^8.36.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
     "eslint": "^8.57.1",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-import-newlines": "^1.4.0",
     "eslint-plugin-jest": "^29.0.1",
-    "jest": "^30.0.4",
+    "jest": "^30.2.0",
     "nodemon": "^3.1.10",
     "rimraf": "^6.0.1",
-    "ts-jest": "^29.4.0",
+    "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.28.7",
-    "typescript": "^5.8.3"
+    "typedoc": "^0.28.14",
+    "typescript": "^5.9.3"
   }
 }
