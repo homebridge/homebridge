@@ -7,6 +7,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Changed
 
 - updated dependencies
+- add node 24 to node engines in `package.json`
 
 ### Homebridge Dependencies
 
