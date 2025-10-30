@@ -1,5 +1,3 @@
-import type { MacAddress } from 'hap-nodejs'
-
 import type {
   AccessoryIdentifier,
   AccessoryName,
@@ -11,6 +9,7 @@ import type {
   PlatformPluginConstructor,
 } from './api.js'
 import type { BridgeConfiguration, BridgeOptions, HomebridgeConfig } from './bridgeService.js'
+import type { InternalMatterAccessory, MatterAccessory } from './matter/index.js'
 import type { Plugin } from './plugin.js'
 import type { PluginManagerOptions } from './pluginManager.js'
 
@@ -21,12 +20,14 @@ import chalk from 'chalk'
 import { AccessoryEventTypes, MDNSAdvertiser } from 'hap-nodejs'
 import qrcode from 'qrcode-terminal'
 
-import { HomebridgeAPI, PluginType } from './api.js'
+import { HomebridgeAPI, InternalAPIEvent, PluginType } from './api.js'
 import { BridgeService } from './bridgeService.js'
 import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
-import { IpcIncomingEvent, IpcOutgoingEvent, IpcService } from './ipcService.js'
+import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
+import { MatterBridgeManager, MatterConfigCollector } from './matter/index.js'
+import { PlatformAccessory } from './platformAccessory.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
@@ -73,7 +74,12 @@ export class Server {
   private readonly config: HomebridgeConfig
 
   // used to keep track of child bridges
-  private readonly childBridges: Map<MacAddress, ChildBridgeService> = new Map()
+  // Key is HAP username (MAC address)
+  private readonly childBridges: Map<string, ChildBridgeService> = new Map()
+
+  // Matter bridge manager (handles Matter server lifecycle)
+  // Made optional to handle initialization order - gets created in constructor after first setServerStatus call
+  private matterManager?: MatterBridgeManager
 
   // current server status
   private serverStatus: ServerStatus = ServerStatus.PENDING
@@ -86,7 +92,11 @@ export class Server {
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI()
     this.ipcService = new IpcService()
-    this.externalPortService = new ExternalPortService(this.config.ports)
+
+    // Collect all configured Matter ports to avoid conflicts
+    const configuredMatterPorts = MatterBridgeManager.collectConfiguredMatterPorts(this.config)
+
+    this.externalPortService = new ExternalPortService(this.config.ports, this.config.matterPorts, configuredMatterPorts)
 
     // set status to pending
     this.setServerStatus(ServerStatus.PENDING)
@@ -115,8 +125,34 @@ export class Server {
       this.externalPortService,
       bridgeConfig,
       this.config.bridge,
-      this.config,
     )
+
+    // Create Matter bridge manager
+    this.matterManager = new MatterBridgeManager(
+      this.config,
+      this.api,
+      this.externalPortService,
+      this.pluginManager,
+      this.options,
+    )
+
+    // Set manager reference on API for getAccessoryState
+    this.api._setMatterManager(this.matterManager)
+
+    // Handle platform accessory registration
+    this.api.on(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this.handleRegisterPlatformAccessories.bind(this))
+    this.api.on(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, this.handleUnregisterPlatformAccessories.bind(this))
+
+    // Handle external accessories (cameras, etc.)
+    this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, this.handlePublishExternalAccessories.bind(this))
+
+    // Handle Matter accessory registration (matching HAP pattern)
+    this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, this.handlePublishExternalMatterAccessories.bind(this))
+    this.api.on(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this.handleRegisterMatterPlatformAccessories.bind(this))
+    this.api.on(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, this.handleUpdateMatterPlatformAccessories.bind(this))
+    this.api.on(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this.handleUnregisterMatterPlatformAccessories.bind(this))
+    this.api.on(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, this.handleUnregisterExternalMatterAccessories.bind(this))
+    this.api.on(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, this.handleUpdateMatterAccessoryState.bind(this))
 
     // watch bridge events to check when server is online
     this.bridgeService.bridge.on(AccessoryEventTypes.ADVERTISED, () => {
@@ -140,14 +176,18 @@ export class Server {
    */
   private setServerStatus(status: ServerStatus) {
     this.serverStatus = status
-    this.ipcService.sendMessage(IpcOutgoingEvent.SERVER_STATUS_UPDATE, {
+
+    const statusUpdate: ServerStatusUpdate = {
       status: this.serverStatus,
       paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
       setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
-      name: this.bridgeService?.bridge?.displayName || this.config.bridge.name,
+      name: this.config.bridge.name,
       username: this.config.bridge.username,
       pin: this.config.bridge.pin,
-    })
+      matter: this.matterManager?.getMatterStatus() ?? { enabled: false },
+    }
+
+    this.ipcService.sendMessage(IpcOutgoingEvent.SERVER_STATUS_UPDATE, statusUpdate)
   }
 
   public async start(): Promise<void> {
@@ -163,6 +203,9 @@ export class Server {
     // initialize plugins
     await this.pluginManager.initializeInstalledPlugins()
 
+    // Initialize Matter server for main bridge if enabled
+    await this.matterManager?.initialize()
+
     if (this.config.platforms.length > 0) {
       promises.push(...this.loadPlatforms())
     }
@@ -177,6 +220,7 @@ export class Server {
 
     // restore cached accessories
     this.bridgeService.restoreCachedPlatformAccessories()
+    this.matterManager?.restoreCachedAccessories(this.options.keepOrphanedCachedAccessories ?? false)
 
     this.api.signalFinished()
 
@@ -185,14 +229,75 @@ export class Server {
       .then(() => this.publishBridge())
   }
 
-  public teardown(): void {
+  public async teardown(): Promise<void> {
     this.bridgeService.teardown()
+
+    // Teardown Matter servers (main bridge and external accessories)
+    await this.matterManager?.teardown()
+
     this.setServerStatus(ServerStatus.DOWN)
   }
 
   private publishBridge(): void {
     this.bridgeService.publishBridge()
     this.printSetupInfo(this.config.bridge.pin)
+  }
+
+  private handlePublishExternalAccessories(accessories: PlatformAccessory[]): void {
+    // External accessories are published via HAP
+    // Plugins should use api.matter to register Matter accessories explicitly
+    log.info(`Publishing ${accessories.length} external accessories`)
+  }
+
+  /**
+   * Handle external Matter accessories - delegates to MatterBridgeManager
+   */
+  private handlePublishExternalMatterAccessories(accessories: MatterAccessory[], registrationId: string): void {
+    this.matterManager?.handlePublishExternalAccessories(accessories as InternalMatterAccessory[], registrationId).catch((error) => {
+      log.error('Failed to publish external Matter accessories:', error)
+      // Make sure to resolve the registration even on error
+      this.api._resolveExternalRegistration(registrationId)
+    })
+  }
+
+  private handleRegisterPlatformAccessories(accessories: PlatformAccessory[]): void {
+    // Route to HAP bridge
+    this.bridgeService.handleRegisterPlatformAccessories(accessories)
+  }
+
+  private handleUnregisterPlatformAccessories(accessories: PlatformAccessory[]): void {
+    // Route to HAP bridge
+    this.bridgeService.handleUnregisterPlatformAccessories(accessories)
+  }
+
+  private handleRegisterMatterPlatformAccessories(pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): void {
+    this.matterManager?.handleRegisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
+      log.error(`Failed to register Matter accessories for ${pluginIdentifier}:`, error)
+    })
+  }
+
+  private handleUpdateMatterPlatformAccessories(accessories: MatterAccessory[]): void {
+    this.matterManager?.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
+      log.error('Failed to update Matter platform accessories:', error)
+    })
+  }
+
+  private handleUnregisterMatterPlatformAccessories(pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): void {
+    this.matterManager?.handleUnregisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
+      log.error(`Failed to unregister Matter accessories for ${pluginIdentifier}:`, error)
+    })
+  }
+
+  private handleUnregisterExternalMatterAccessories(accessories: MatterAccessory[]): void {
+    this.matterManager?.handleUnregisterExternalAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
+      log.error('Failed to unregister external Matter accessories:', error)
+    })
+  }
+
+  private handleUpdateMatterAccessoryState(uuid: string, cluster: string, attributes: Record<string, any>, partId?: string): void {
+    this.matterManager?.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
+      log.error(`Failed to update Matter accessory state for ${uuid}:`, error)
+    })
   }
 
   private static loadConfig(): HomebridgeConfig {
@@ -236,6 +341,18 @@ export class Server {
       }
     }
 
+    if (config.matterPorts !== undefined) {
+      if (config.matterPorts.start && config.matterPorts.end) {
+        if (config.matterPorts.start > config.matterPorts.end) {
+          log.error('Invalid Matter port pool configuration. End should be greater than or equal to start.')
+          config.matterPorts = undefined
+        }
+      } else {
+        log.error('Invalid configuration for \'matterPorts\'. Missing \'start\' and \'end\' properties! Ignoring it!')
+        config.matterPorts = undefined
+      }
+    }
+
     const bridge: BridgeConfiguration = config.bridge || defaultBridge
     bridge.name = bridge.name || defaultBridge.name
     bridge.username = bridge.username || defaultBridge.username
@@ -261,6 +378,9 @@ export class Server {
     }
 
     log.info('Loaded config.json with %s accessories and %s platforms.', config.accessories.length, config.platforms.length)
+
+    // Validate Matter configuration for port conflicts
+    MatterConfigCollector.validateMatterConfig(config as HomebridgeConfig)
 
     if (config.bridge.advertiser) {
       if (![
@@ -475,6 +595,14 @@ export class Server {
    * Validate an external bridge config
    */
   private validateChildBridgeConfig(type: PluginType, identifier: string, bridgeConfig: BridgeConfiguration): void {
+    // All child bridges require username
+    if (!bridgeConfig.username) {
+      throw new Error(
+        `Error loading the ${type} "${identifier}" requested in your config.json - `
+        + 'Missing required field "_bridge.username".',
+      )
+    }
+
     if (!validMacAddress(bridgeConfig.username)) {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - `

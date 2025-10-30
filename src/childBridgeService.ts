@@ -12,6 +12,7 @@ import type {
 import type { ExternalPortService } from './externalPortService.js'
 import type { IpcService } from './ipcService.js'
 import type { Logging } from './logger.js'
+import type { MatterConfig } from './matter/index.js'
 import type { Plugin } from './plugin.js'
 import type { HomebridgeOptions } from './server.js'
 
@@ -112,6 +113,7 @@ export interface ChildProcessPluginLoadedEventData {
 
 export interface ChildProcessPortRequestEventData {
   username: MacAddress
+  portType?: 'hap' | 'matter' // Defaults to 'hap' for backwards compatibility
 }
 
 export interface ChildProcessPortAllocatedEventData {
@@ -122,8 +124,24 @@ export interface ChildProcessPortAllocatedEventData {
 export interface ChildBridgePairedStatusEventData {
   paired: boolean | null
   setupUri: string | null
+  matter?: {
+    qrCode?: string
+    manualPairingCode?: string
+    serialNumber?: string
+    commissioned: boolean
+    deviceCount: number
+  }
 }
 
+/**
+ * Child bridge metadata
+ *
+ * Contains all metadata for a child bridge, including HAP properties
+ * like paired status, setupUri, and pin.
+ *
+ * When Matter is enabled (_bridge.matter is configured), this interface
+ * also includes Matter commissioning information for unified status reporting.
+ */
 export interface ChildMetadata {
   status: ChildBridgeStatus
   paired?: boolean | null
@@ -136,6 +154,13 @@ export interface ChildMetadata {
   identifier: string
   manuallyStopped: boolean
   pid?: number
+  matterConfig?: MatterConfig
+  matterIdentifier?: string
+  matterSetupUri?: string
+  matterPin?: string
+  matterSerialNumber?: string
+  matterCommissioned?: boolean
+  matterDeviceCount?: number
 }
 
 /**
@@ -151,6 +176,14 @@ export class ChildBridgeService {
   private pairedStatus: boolean | null = null
   private manuallyStopped = false
   private setupUri: string | null = null
+  private matterCommissioningInfo?: {
+    qrCode?: string
+    manualPairingCode?: string
+    serialNumber?: string
+    commissioned: boolean
+    deviceCount?: number
+  }
+
   private pluginConfig: Array<PlatformConfig | AccessoryConfig> = []
   private log: Logging
   private displayName?: string
@@ -271,8 +304,25 @@ export class ChildBridgeService {
           break
         }
         case ChildProcessMessageEventType.STATUS_UPDATE: {
-          this.pairedStatus = (message.data as ChildBridgePairedStatusEventData).paired
-          this.setupUri = (message.data as ChildBridgePairedStatusEventData).setupUri
+          // Handle unified status update with HAP and Matter info
+          const statusData = message.data as ChildBridgePairedStatusEventData
+
+          // Update HAP status
+          this.pairedStatus = statusData.paired
+          this.setupUri = statusData.setupUri
+
+          // Update Matter commissioning info if included
+          if (statusData.matter) {
+            this.matterCommissioningInfo = {
+              qrCode: statusData.matter.qrCode,
+              manualPairingCode: statusData.matter.manualPairingCode,
+              serialNumber: statusData.matter.serialNumber,
+              commissioned: statusData.matter.commissioned || false,
+              deviceCount: statusData.matter.deviceCount,
+            }
+          }
+
+          // Send unified status update
           this.sendStatusUpdate()
           break
         }
@@ -396,6 +446,7 @@ export class ChildBridgeService {
       model: this.bridgeConfig.model || this.homebridgeConfig.bridge.model,
       firmwareRevision: this.bridgeConfig.firmwareRevision || this.homebridgeConfig.bridge.firmwareRevision,
       serialNumber: this.bridgeConfig.serialNumber || this.bridgeConfig.username,
+      matter: this.bridgeConfig.matter,
     }
 
     const bridgeOptions: BridgeOptions = {
@@ -405,6 +456,11 @@ export class ChildBridgeService {
 
     // shallow copy the homebridge options to the bridge options object
     Object.assign(bridgeOptions, this.homebridgeOptions)
+
+    // Override with child bridge specific settings
+    if (this.bridgeConfig.debugModeEnabled !== undefined) {
+      bridgeOptions.debugModeEnabled = this.bridgeConfig.debugModeEnabled
+    }
 
     this.sendMessage<ChildProcessLoadEventData>(ChildProcessMessageEventType.LOAD, {
       type: this.type,
@@ -434,7 +490,16 @@ export class ChildBridgeService {
    * Handle external port requests from child
    */
   private async handlePortRequest(request: ChildProcessPortRequestEventData) {
-    const port = await this.externalPortService.requestPort(request.username)
+    let port: number | undefined
+
+    if (request.portType === 'matter') {
+      // Request from Matter port pool
+      port = await this.externalPortService.requestMatterPort(request.username)
+    } else {
+      // Request from HAP port pool (default)
+      port = await this.externalPortService.requestPort(request.username)
+    }
+
     this.sendMessage<ChildProcessPortAllocatedEventData>(ChildProcessMessageEventType.PORT_ALLOCATED, {
       username: request.username,
       port,
@@ -548,6 +613,13 @@ export class ChildBridgeService {
       identifier: this.identifier,
       pid: this.child?.pid,
       manuallyStopped: this.manuallyStopped,
+      matterConfig: this.bridgeConfig.matter,
+      matterIdentifier: this.bridgeConfig.matter ? this.bridgeConfig.username : undefined,
+      matterSetupUri: this.matterCommissioningInfo?.qrCode,
+      matterPin: this.matterCommissioningInfo?.manualPairingCode,
+      matterSerialNumber: this.matterCommissioningInfo?.serialNumber,
+      matterCommissioned: this.matterCommissioningInfo?.commissioned,
+      matterDeviceCount: this.matterCommissioningInfo?.deviceCount,
     }
   }
 }
