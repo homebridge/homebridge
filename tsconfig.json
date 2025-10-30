@@ -8,6 +8,7 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "strict": true,
+    "strictNullChecks": true,
     "declaration": true,
     "declarationMap": true,
     "outDir": "./dist",
@@ -18,8 +19,5 @@
   },
   "include": [
     "src/"
-  ],
-  "exclude": [
-    "**/*.spec.ts"
   ]
 }

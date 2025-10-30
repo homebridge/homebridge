@@ -16,6 +16,27 @@ export const enum IpcOutgoingEvent {
   CHILD_BRIDGE_STATUS_UPDATE = 'childBridgeStatusUpdate',
 }
 
+/**
+ * Server status update message sent from Homebridge to parent process
+ */
+export interface ServerStatusUpdate {
+  status: string
+  paired: boolean | null
+  setupUri: string | null
+  name: string
+  username: string
+  pin: string
+  matter: {
+    enabled: boolean
+    port?: number
+    setupUri?: string
+    pin?: string
+    serialNumber?: string
+    commissioned?: boolean
+    deviceCount?: number
+  }
+}
+
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface IpcService {
   on: ((event: IpcIncomingEvent.RESTART_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.STOP_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.START_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST, listener: () => void) => this)

@@ -48,6 +48,7 @@
     "watch": "nodemon"
   },
   "dependencies": {
+    "@matter/main": "0.16.0-alpha.0-20251103-b47ffa15b",
     "chalk": "5.6.2",
     "commander": "14.0.2",
     "fs-extra": "11.3.2",
@@ -57,20 +58,20 @@
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^6.1.0",
+    "@antfu/eslint-config": "^6.2.0",
     "@prettier/plugin-xml": "^3.4.2",
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^24.9.2",
+    "@types/node": "^24.10.0",
     "@types/semver": "^7.7.1",
     "@types/source-map-support": "^0.5.10",
-    "@vitest/coverage-v8": "^4.0.5",
+    "@vitest/coverage-v8": "^4.0.6",
     "eslint-plugin-format": "^1.0.2",
     "nodemon": "^3.1.10",
-    "rimraf": "^6.0.1",
+    "rimraf": "^6.1.0",
     "ts-node": "^10.9.2",
     "typedoc": "^0.28.14",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.5"
+    "vitest": "^4.0.6"
   }
 }
