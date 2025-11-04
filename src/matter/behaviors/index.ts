@@ -4,11 +4,13 @@
  * Exports all behavior classes and the registry
  */
 
+// Export all behaviors from individual files (alphabetically)
+export { HomebridgeAirQualityServer } from './AirQualityBehavior.js'
+
 // Export registry
 export { BehaviorRegistry } from './BehaviorRegistry.js'
 export type { MatterAccessoryMap, MatterCommandHandler } from './BehaviorRegistry.js'
 
-// Export all behaviors from individual files (alphabetically)
 export { HomebridgeColorControlServer } from './ColorControlBehavior.js'
 export { HomebridgeDoorLockServer } from './DoorLockBehavior.js'
 export { HomebridgeFanControlServer } from './FanControlBehavior.js'

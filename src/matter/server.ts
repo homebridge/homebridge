@@ -41,6 +41,7 @@ import getVersion from '../version.js'
 import { MatterAccessoryCache } from './accessoryCache.js'
 import {
   BehaviorRegistry,
+  HomebridgeAirQualityServer,
   HomebridgeColorControlServer,
   HomebridgeDoorLockServer,
   HomebridgeFanControlServer,
@@ -198,6 +199,7 @@ export class MatterServer extends EventEmitter {
     this.behaviorRegistry = new BehaviorRegistry(this.accessories)
 
     // Set the registry on all custom behavior classes
+    HomebridgeAirQualityServer.setRegistry(this.behaviorRegistry)
     HomebridgeOnOffServer.setRegistry(this.behaviorRegistry)
     HomebridgeLevelControlServer.setRegistry(this.behaviorRegistry)
     HomebridgeColorControlServer.setRegistry(this.behaviorRegistry)

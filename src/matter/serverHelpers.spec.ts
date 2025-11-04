@@ -521,6 +521,7 @@ describe('serverHelpers', () => {
     it('should return behavior map with all cluster types', () => {
       const map = getBehaviorMap()
 
+      expect(map.airQuality).toBeDefined()
       expect(map.onOff).toBeDefined()
       expect(map.levelControl).toBeDefined()
       expect(map.colorControl).toBeDefined()

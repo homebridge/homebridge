@@ -13,6 +13,7 @@ import * as devices from '@matter/main/devices'
 
 import { Logger } from '../logger.js'
 import {
+  HomebridgeAirQualityServer,
   HomebridgeColorControlServer,
   HomebridgeDoorLockServer,
   HomebridgeFanControlServer,
@@ -41,6 +42,7 @@ const log = Logger.withPrefix('Matter/Server')
  * Using Matter.js Cluster references instead of magic numbers
  */
 export const CLUSTER_IDS = {
+  AIR_QUALITY: clusters.AirQuality.Cluster.id,
   COLOR_CONTROL: clusters.ColorControl.Cluster.id,
   THERMOSTAT: clusters.Thermostat.Cluster.id,
   WINDOW_COVERING: clusters.WindowCovering.Cluster.id,
@@ -389,6 +391,7 @@ export function applyWindowCoveringFeatures(
  */
 export function getBehaviorMap(): Record<string, BehaviorType> {
   return {
+    airQuality: HomebridgeAirQualityServer,
     onOff: HomebridgeOnOffServer,
     levelControl: HomebridgeLevelControlServer,
     colorControl: HomebridgeColorControlServer,
