@@ -14,12 +14,17 @@ import * as devices from '@matter/main/devices'
 import { Logger } from '../logger.js'
 import {
   HomebridgeAirQualityServer,
+  HomebridgeCarbonMonoxideConcentrationMeasurementServer,
   HomebridgeColorControlServer,
   HomebridgeDoorLockServer,
   HomebridgeFanControlServer,
   HomebridgeIdentifyServer,
   HomebridgeLevelControlServer,
+  HomebridgeNitrogenDioxideConcentrationMeasurementServer,
   HomebridgeOnOffServer,
+  HomebridgeOzoneConcentrationMeasurementServer,
+  HomebridgePm10ConcentrationMeasurementServer,
+  HomebridgePm25ConcentrationMeasurementServer,
   HomebridgeRvcCleanModeServer,
   HomebridgeRvcOperationalStateServer,
   HomebridgeRvcRunModeServer,
@@ -43,12 +48,17 @@ const log = Logger.withPrefix('Matter/Server')
  */
 export const CLUSTER_IDS = {
   AIR_QUALITY: clusters.AirQuality.Cluster.id,
+  CARBON_MONOXIDE_CONCENTRATION: clusters.CarbonMonoxideConcentrationMeasurement.Cluster.id,
   COLOR_CONTROL: clusters.ColorControl.Cluster.id,
+  DOOR_LOCK: clusters.DoorLock.Cluster.id,
+  LEVEL_CONTROL: clusters.LevelControl.Cluster.id,
+  NITROGEN_DIOXIDE_CONCENTRATION: clusters.NitrogenDioxideConcentrationMeasurement.Cluster.id,
+  ON_OFF: clusters.OnOff.Cluster.id,
+  OZONE_CONCENTRATION: clusters.OzoneConcentrationMeasurement.Cluster.id,
+  PM10_CONCENTRATION: clusters.Pm10ConcentrationMeasurement.Cluster.id,
+  PM25_CONCENTRATION: clusters.Pm25ConcentrationMeasurement.Cluster.id,
   THERMOSTAT: clusters.Thermostat.Cluster.id,
   WINDOW_COVERING: clusters.WindowCovering.Cluster.id,
-  DOOR_LOCK: clusters.DoorLock.Cluster.id,
-  ON_OFF: clusters.OnOff.Cluster.id,
-  LEVEL_CONTROL: clusters.LevelControl.Cluster.id,
 } as const
 
 /**
@@ -392,18 +402,23 @@ export function applyWindowCoveringFeatures(
 export function getBehaviorMap(): Record<string, BehaviorType> {
   return {
     airQuality: HomebridgeAirQualityServer,
-    onOff: HomebridgeOnOffServer,
-    levelControl: HomebridgeLevelControlServer,
+    carbonMonoxideConcentrationMeasurement: HomebridgeCarbonMonoxideConcentrationMeasurementServer,
     colorControl: HomebridgeColorControlServer,
-    windowCovering: HomebridgeWindowCoveringServer,
-    fanControl: HomebridgeFanControlServer,
     doorLock: HomebridgeDoorLockServer,
-    thermostat: HomebridgeThermostatServer,
+    fanControl: HomebridgeFanControlServer,
+    identify: HomebridgeIdentifyServer,
+    levelControl: HomebridgeLevelControlServer,
+    nitrogenDioxideConcentrationMeasurement: HomebridgeNitrogenDioxideConcentrationMeasurementServer,
+    onOff: HomebridgeOnOffServer,
+    ozoneConcentrationMeasurement: HomebridgeOzoneConcentrationMeasurementServer,
+    pm10ConcentrationMeasurement: HomebridgePm10ConcentrationMeasurementServer,
+    pm25ConcentrationMeasurement: HomebridgePm25ConcentrationMeasurementServer,
+    rvcCleanMode: HomebridgeRvcCleanModeServer,
     rvcOperationalState: HomebridgeRvcOperationalStateServer,
     rvcRunMode: HomebridgeRvcRunModeServer,
-    rvcCleanMode: HomebridgeRvcCleanModeServer,
     serviceArea: HomebridgeServiceAreaServer,
-    identify: HomebridgeIdentifyServer,
+    thermostat: HomebridgeThermostatServer,
+    windowCovering: HomebridgeWindowCoveringServer,
   }
 }
 

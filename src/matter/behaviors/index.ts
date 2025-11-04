@@ -12,6 +12,13 @@ export { BehaviorRegistry } from './BehaviorRegistry.js'
 export type { MatterAccessoryMap, MatterCommandHandler } from './BehaviorRegistry.js'
 
 export { HomebridgeColorControlServer } from './ColorControlBehavior.js'
+export {
+  HomebridgeCarbonMonoxideConcentrationMeasurementServer,
+  HomebridgeNitrogenDioxideConcentrationMeasurementServer,
+  HomebridgeOzoneConcentrationMeasurementServer,
+  HomebridgePm10ConcentrationMeasurementServer,
+  HomebridgePm25ConcentrationMeasurementServer,
+} from './ConcentrationMeasurementBehavior.js'
 export { HomebridgeDoorLockServer } from './DoorLockBehavior.js'
 export { HomebridgeFanControlServer } from './FanControlBehavior.js'
 export { HomebridgeIdentifyServer } from './IdentifyBehavior.js'

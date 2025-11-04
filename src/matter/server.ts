@@ -42,12 +42,17 @@ import { MatterAccessoryCache } from './accessoryCache.js'
 import {
   BehaviorRegistry,
   HomebridgeAirQualityServer,
+  HomebridgeCarbonMonoxideConcentrationMeasurementServer,
   HomebridgeColorControlServer,
   HomebridgeDoorLockServer,
   HomebridgeFanControlServer,
   HomebridgeIdentifyServer,
   HomebridgeLevelControlServer,
+  HomebridgeNitrogenDioxideConcentrationMeasurementServer,
   HomebridgeOnOffServer,
+  HomebridgeOzoneConcentrationMeasurementServer,
+  HomebridgePm10ConcentrationMeasurementServer,
+  HomebridgePm25ConcentrationMeasurementServer,
   HomebridgeRvcCleanModeServer,
   HomebridgeRvcOperationalStateServer,
   HomebridgeRvcRunModeServer,
@@ -200,18 +205,23 @@ export class MatterServer extends EventEmitter {
 
     // Set the registry on all custom behavior classes
     HomebridgeAirQualityServer.setRegistry(this.behaviorRegistry)
-    HomebridgeOnOffServer.setRegistry(this.behaviorRegistry)
-    HomebridgeLevelControlServer.setRegistry(this.behaviorRegistry)
+    HomebridgeCarbonMonoxideConcentrationMeasurementServer.setRegistry(this.behaviorRegistry)
     HomebridgeColorControlServer.setRegistry(this.behaviorRegistry)
-    HomebridgeWindowCoveringServer.setRegistry(this.behaviorRegistry)
     HomebridgeDoorLockServer.setRegistry(this.behaviorRegistry)
     HomebridgeFanControlServer.setRegistry(this.behaviorRegistry)
-    HomebridgeThermostatServer.setRegistry(this.behaviorRegistry)
     HomebridgeIdentifyServer.setRegistry(this.behaviorRegistry)
+    HomebridgeLevelControlServer.setRegistry(this.behaviorRegistry)
+    HomebridgeNitrogenDioxideConcentrationMeasurementServer.setRegistry(this.behaviorRegistry)
+    HomebridgeOnOffServer.setRegistry(this.behaviorRegistry)
+    HomebridgeOzoneConcentrationMeasurementServer.setRegistry(this.behaviorRegistry)
+    HomebridgePm10ConcentrationMeasurementServer.setRegistry(this.behaviorRegistry)
+    HomebridgePm25ConcentrationMeasurementServer.setRegistry(this.behaviorRegistry)
+    HomebridgeRvcCleanModeServer.setRegistry(this.behaviorRegistry)
     HomebridgeRvcOperationalStateServer.setRegistry(this.behaviorRegistry)
     HomebridgeRvcRunModeServer.setRegistry(this.behaviorRegistry)
-    HomebridgeRvcCleanModeServer.setRegistry(this.behaviorRegistry)
     HomebridgeServiceAreaServer.setRegistry(this.behaviorRegistry)
+    HomebridgeThermostatServer.setRegistry(this.behaviorRegistry)
+    HomebridgeWindowCoveringServer.setRegistry(this.behaviorRegistry)
   }
 
   /**
