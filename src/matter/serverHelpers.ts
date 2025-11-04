@@ -22,6 +22,7 @@ import {
   HomebridgeLevelControlServer,
   HomebridgeNitrogenDioxideConcentrationMeasurementServer,
   HomebridgeOnOffServer,
+
   HomebridgeOzoneConcentrationMeasurementServer,
   HomebridgePm10ConcentrationMeasurementServer,
   HomebridgePm25ConcentrationMeasurementServer,
@@ -59,6 +60,12 @@ export const CLUSTER_IDS = {
   PM25_CONCENTRATION: clusters.Pm25ConcentrationMeasurement.Cluster.id,
   THERMOSTAT: clusters.Thermostat.Cluster.id,
   WINDOW_COVERING: clusters.WindowCovering.Cluster.id,
+  COLOR_CONTROL: clusters.ColorControl.Cluster.id,
+  THERMOSTAT: clusters.Thermostat.Cluster.id,
+  WINDOW_COVERING: clusters.WindowCovering.Cluster.id,
+  DOOR_LOCK: clusters.DoorLock.Cluster.id,
+  ON_OFF: clusters.OnOff.Cluster.id,
+  LEVEL_CONTROL: clusters.LevelControl.Cluster.id,
 } as const
 
 /**
@@ -419,6 +426,18 @@ export function getBehaviorMap(): Record<string, BehaviorType> {
     serviceArea: HomebridgeServiceAreaServer,
     thermostat: HomebridgeThermostatServer,
     windowCovering: HomebridgeWindowCoveringServer,
+    onOff: HomebridgeOnOffServer,
+    levelControl: HomebridgeLevelControlServer,
+    colorControl: HomebridgeColorControlServer,
+    windowCovering: HomebridgeWindowCoveringServer,
+    fanControl: HomebridgeFanControlServer,
+    doorLock: HomebridgeDoorLockServer,
+    thermostat: HomebridgeThermostatServer,
+    rvcOperationalState: HomebridgeRvcOperationalStateServer,
+    rvcRunMode: HomebridgeRvcRunModeServer,
+    rvcCleanMode: HomebridgeRvcCleanModeServer,
+    serviceArea: HomebridgeServiceAreaServer,
+    identify: HomebridgeIdentifyServer,
   }
 }
 

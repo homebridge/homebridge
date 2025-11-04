@@ -222,6 +222,18 @@ export class MatterServer extends EventEmitter {
     HomebridgeServiceAreaServer.setRegistry(this.behaviorRegistry)
     HomebridgeThermostatServer.setRegistry(this.behaviorRegistry)
     HomebridgeWindowCoveringServer.setRegistry(this.behaviorRegistry)
+    HomebridgeOnOffServer.setRegistry(this.behaviorRegistry)
+    HomebridgeLevelControlServer.setRegistry(this.behaviorRegistry)
+    HomebridgeColorControlServer.setRegistry(this.behaviorRegistry)
+    HomebridgeWindowCoveringServer.setRegistry(this.behaviorRegistry)
+    HomebridgeDoorLockServer.setRegistry(this.behaviorRegistry)
+    HomebridgeFanControlServer.setRegistry(this.behaviorRegistry)
+    HomebridgeThermostatServer.setRegistry(this.behaviorRegistry)
+    HomebridgeIdentifyServer.setRegistry(this.behaviorRegistry)
+    HomebridgeRvcOperationalStateServer.setRegistry(this.behaviorRegistry)
+    HomebridgeRvcRunModeServer.setRegistry(this.behaviorRegistry)
+    HomebridgeRvcCleanModeServer.setRegistry(this.behaviorRegistry)
+    HomebridgeServiceAreaServer.setRegistry(this.behaviorRegistry)
   }
 
   /**

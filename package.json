@@ -48,7 +48,7 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@matter/main": "0.16.0-alpha.0-20251102-faee7ab25",
+    "@matter/main": "0.16.0-alpha.0-20251103-b47ffa15b",
     "chalk": "5.6.2",
     "commander": "14.0.2",
     "fs-extra": "11.3.2",
@@ -62,7 +62,7 @@
     "@prettier/plugin-xml": "^3.4.2",
     "@types/debug": "^4.1.12",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^24.9.2",
+    "@types/node": "^24.10.0",
     "@types/semver": "^7.7.1",
     "@types/source-map-support": "^0.5.10",
     "@vitest/coverage-v8": "^4.0.6",
