@@ -7,14 +7,10 @@
 // Export all behaviors from individual files (alphabetically)
 export { HomebridgeAirQualityServer } from './AirQualityBehavior.js'
 
-export { HomebridgeAirQualityServer } from './AirQualityBehavior.js'
 // Export registry
 export { BehaviorRegistry } from './BehaviorRegistry.js'
+export type { MatterAccessoryMap, MatterCommandHandler } from './BehaviorRegistry.js'
 
-export type { MatterAccessoryMap, MatterCommandHandler } from './BehaviorRegistry.js'
-export type { MatterAccessoryMap, MatterCommandHandler } from './BehaviorRegistry.js'
-export { BehaviorRegistry } from './BehaviorRegistry.js'
-export { HomebridgeColorControlServer } from './ColorControlBehavior.js'
 export { HomebridgeColorControlServer } from './ColorControlBehavior.js'
 export {
   HomebridgeCarbonMonoxideConcentrationMeasurementServer,
