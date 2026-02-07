@@ -8,6 +8,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - updated dependencies
 - regenerate docs after `typedoc` update
+- update homebridge v2 info notice with more info
 
 ## v1.11.1 (2025-10-29)
 
@@ -81,7 +82,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - Updated dependencies, fix `typedoc` generation
 - Added log messaging about upcoming Homebridge v2.0.0 update
   - NOTICE TO USERS AND PLUGIN DEVELOPERS
-    - Homebridge 2.0 is on the way and brings some breaking changes to existing plugins.
+    - Homebridge v2.0 is on the way and brings some breaking changes to existing plugins.
     - Please visit the following link to learn more about the changes and how to prepare:
       - [Updating-To-Homebridge-v2.0](https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0)
 

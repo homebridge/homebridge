@@ -179,12 +179,14 @@ export class Server {
 
     // wait for all platforms to publish their accessories before we publish the bridge
     await Promise.all(promises).then(() => {
+      const nodeMajor = parseInt(process.versions.node.split(".")[0], 10);
       log.warn(
         "\n\nNOTICE TO USERS AND PLUGIN DEVELOPERS"
-        + "\n> Homebridge v2.0 is on the way and brings some breaking changes to existing plugins.\n"
-        + "> Please visit the following link to learn more about the changes and how to prepare:\n"
-        + "> https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0\n"
-        + "> Homebridge v2.0 will also drop support for Node.js v18, so now is a good time to update to v20 or v22.\n",
+        + "\n> 🎯 Homebridge v2.0 is planned for May 2026! See the following link for details:\n"
+        + "> ℹ️ https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0\n"
+        + (nodeMajor < 22
+          ? "> ⚠️ This will drop support for Node.js v20 and lower, so now is a good time to update to v22 or v24.\n"
+          : "> 🚀 Your current Node.js version will be compatible with Homebridge v2.0.\n"),
       );
       this.publishBridge();
     });
