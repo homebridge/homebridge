@@ -7,6 +7,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Changed
 
 - updated dependencies
+- regenerate docs after `typedoc` update
 
 ## v1.11.1 (2025-10-29)
 
