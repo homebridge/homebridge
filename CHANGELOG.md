@@ -18,6 +18,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Added
 
 - set debug `-D` setting per child bridge
+- feat: matter implementation
 
 ### Changed
 
@@ -34,7 +35,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.1.0`
+- `@homebridge/hap-nodejs` @ `v2.1.3`
 
 ## v1.11.4 (2026-03-29)
 
