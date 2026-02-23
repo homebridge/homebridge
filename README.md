@@ -16,7 +16,9 @@
 
 <img src="https://media.giphy.com/media/10l79ICohTu4iQ/giphy.gif" align="right" alt="Unlocking Door">
 
-**Homebridge** is a lightweight Node.js server you can run on your home network to emulate the HomeKit Accessory Protocol (HAP). It supports plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices.
+**Homebridge** is a lightweight Node.js server you can run on your home network to emulate the HomeKit Accessory Protocol (HAP). It supports plugins, which are community-contributed modules that provide a basic bridge from HomeKit to various 3rd-party APIs provided by manufacturers of "smart home" devices. From v2, plugins can also expose accessories over [Matter](#matter-support) for use with Apple Home, Google Home, Amazon Alexa, SmartThings and other Matter-capable controllers.
+
+Homebridge is a free, non-commercial, community-driven open-source project. It is not affiliated with Apple, Google, Amazon, or the Connectivity Standards Alliance, and no part of it is offered as a paid or certified product.
 
 Since Siri supports devices added through HomeKit, this means that with Homebridge you can ask Siri to control devices that don't have any support for HomeKit at all. For instance, using just some of the available plugins, you can say:
 
@@ -109,6 +111,29 @@ Once your device has been added to HomeKit, you should be able to tell Siri to c
 
 One final thing to remember is that Siri will almost always prefer its default phrase handling over HomeKit devices. For instance, if you name your Sonos device "Radio" and try saying "Siri, turn on the Radio" then Siri will probably start playing an iTunes Radio station on your phone. Even if you name it "Sonos" and say "Siri, turn on the Sonos", Siri will probably just launch the Sonos app instead. This is why, for instance, the suggested `name` for the Sonos accessory is "Speakers".
 
+## Matter Support
+
+Homebridge v2 introduces optional support for the [Matter](https://csa-iot.org/all-solutions/matter/) smart home standard, allowing plugins to expose their devices to any Matter-capable controller — Apple Home, Google Home, Amazon Alexa, Samsung SmartThings and others — alongside (or instead of) HomeKit.
+
+> [!IMPORTANT]
+> Homebridge's Matter support is **not certified by the Connectivity Standards Alliance (CSA)** and Homebridge is **not a "Matter product"** in any commercial sense. It is a community, non-profit implementation that re-uses the open-source [matter.js](https://github.com/project-chip/matter.js) library to speak the protocol. Matter-certified controllers may treat uncertified bridges as "uncertified accessories" and display a warning during pairing — this is expected.
+
+### How it works
+
+- The Matter stack runs in-process inside Homebridge using the open-source [matter.js](https://github.com/project-chip/matter.js) library (the [`@matter/main`](https://www.npmjs.com/package/@matter/main) npm package) as its protocol engine.
+- Matter is **opt-in per bridge**. Add a `matter` block to `bridge` (the main bridge) and/or to a plugin's `_bridge` (a child bridge) in your config, and Homebridge will start a separate Matter server on its own port and advertise it on your LAN. Bridges without a `matter` block keep working exactly as before.
+- Each Matter-enabled bridge appears as its own pairing — you scan a Matter QR code in the controller of your choice (Apple Home, Google Home, etc.). Multiple controllers can commission the same bridge ("multi-admin"), so it can sit alongside HomeKit rather than replacing it.
+- Plugins decide whether to publish accessories to Matter by calling the `api.matter` API — analogous to the existing `api.hap` API. Plugins that don't opt in are unaffected.
+- Currently supported device types include lights (on/off, dimmable, colour-temperature, full-colour), switches and outlets, a wide range of sensors (motion, contact, temperature, humidity, light, leak, smoke/CO, air quality), door locks, thermostats, fans, window coverings, robotic vacuum cleaners, water valves and generic switches. See the [developer docs](https://github.com/homebridge-plugins/homebridge-matter/wiki) for the full list.
+
+### Limitations
+
+- Matter pairing requires the controller and Homebridge to be on the same IP subnet with mDNS/IPv6 working — the same network constraints as HomeKit.
+- A Matter-enabled bridge cannot be moved between controllers without re-commissioning.
+- Because the implementation is uncertified, some controllers may surface warnings during pairing or restrict access to features that require certification.
+
+For setup instructions and the latest list of supported device types, see the developer docs at https://github.com/homebridge-plugins/homebridge-matter/wiki.
+
 ## Plugin Development
 
 The https://developers.homebridge.io website contains the Homebridge API reference, available service and characteristic types, and plugin examples.
@@ -161,8 +186,10 @@ Try the following:
 
 Technically, the device manufacturers should be the ones implementing the HomeKit API. And I'm sure they will - eventually. When they do, this project will be obsolete, and I hope that happens soon. In the meantime, Homebridge is a fun way to get a taste of the future, for those who just can't bear to wait until "real" HomeKit devices are on the market.
 
+Homebridge is maintained on a volunteer basis by a community of contributors. There is no company behind it, nothing is sold, and no part of the project is certified or endorsed by Apple, Google, Amazon, the Connectivity Standards Alliance, or any device manufacturer. If a plugin or page asks you to pay for "Homebridge" itself, it isn't us.
+
 ## Credit
 
-Homebridge was originally created by [Nick Farina](https://twitter.com/nfarina).
-
-The original HomeKit API work was done by [Khaos Tian](https://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS) project.
+- Homebridge was originally created by [Nick Farina](https://twitter.com/nfarina).
+- The original HomeKit API work was done by [Khaos Tian](https://twitter.com/khaost) in his [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS) project.
+- Matter support is built on top of [matter.js](https://github.com/project-chip/matter.js), the open-source TypeScript implementation of Matter — without it, Homebridge's Matter bridge would not exist. Thanks to the matter.js maintainers and contributors.

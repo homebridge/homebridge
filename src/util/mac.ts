@@ -1,6 +1,7 @@
+/* global NodeJS */
+
 import type { Buffer } from 'node:buffer'
 
-/* global NodeJS */
 import { createHash } from 'node:crypto'
 
 const validMac = /^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/

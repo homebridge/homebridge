@@ -17,6 +17,7 @@ export type {
   API,
   DynamicPlatformPlugin,
   IndependentPlatformPlugin,
+  MatterAPI,
   PlatformIdentifier,
   PlatformName,
   PlatformPluginConstructor,
@@ -56,6 +57,142 @@ export { LogLevel } from './logger.js'
  * Export Logger types
  */
 export type { Logger, Logging } from './logger.js'
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════
+ * Matter Protocol - Plugin API Exports
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Matter cache types
+ */
+export type { SerializedMatterAccessory } from './matter/accessoryCache.js'
+
+/**
+ * Matter cluster handler types for type-safe handler definitions
+ */
+export type {
+  ClusterHandlerMap,
+  ColorControlHandlers,
+  DoorLockHandlers,
+  FanControlHandlers,
+  IdentifyHandlers,
+  LevelControlHandlers,
+  OnOffHandlers,
+  RvcCleanModeHandlers,
+  RvcOperationalStateHandlers,
+  RvcRunModeHandlers,
+  ServiceAreaHandlers,
+  ThermostatHandlers,
+  WindowCoveringHandlers,
+} from './matter/clusterHandlerMap.js'
+
+/**
+ * Matter cluster state map for type-safe state access
+ */
+export type { ClusterStateMap } from './matter/clusterStateMap.js'
+
+/**
+ * Matter cluster state types (per-cluster attribute interfaces)
+ */
+export type {
+  ColorControlState,
+  DoorLockState,
+  FanControlState,
+  LevelControlState,
+  OnOffState,
+  RvcCleanModeState,
+  RvcOperationalState,
+  RvcRunModeState,
+  ServiceAreaState,
+  ThermostatState,
+  WindowCoveringState,
+} from './matter/clusterTypes.js'
+
+/**
+ * Matter cluster command request types namespace for type-safe handlers
+ * @example
+ * ```typescript
+ * import type { MatterRequests } from 'homebridge'
+ *
+ * handlers: {
+ *   levelControl: {
+ *     moveToLevel: async (args: MatterRequests.MoveToLevel) => {
+ *       console.log(`Level: ${args.level}`)
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export { MatterRequests } from './matter/index.js'
+
+/**
+ * Matter protocol status errors for plugin handlers
+ * @example
+ * ```typescript
+ * import { MatterStatus } from 'homebridge'
+ *
+ * handlers: {
+ *   onOff: {
+ *     on: async () => {
+ *       if (deviceIsBusy) {
+ *         throw new MatterStatus.Busy('Device is processing another command')
+ *       }
+ *       // ... control device
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export { MatterStatus } from './matter/index.js'
+
+export type {
+  MatterAccessoriesResponse,
+  MatterAccessoryInfo,
+  MatterBridgeMetadata,
+  MatterCommissioningInfo,
+  MatterServerConfig,
+} from './matter/sharedTypes.js'
+
+export { ChildMatterMessageType, MatterBridgeStatus } from './matter/sharedTypes.js'
+
+/**
+ * Matter accessory and configuration types
+ */
+export type {
+  MatterAccessory,
+  MatterClusterHandlers,
+  MatterClusterName,
+  MatterCommandHandler,
+  MatterConfig,
+} from './matter/types.js'
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════
+ * Matter Protocol - UI Integration Types
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Matter device types, clusters, and cluster names
+ * Access via api.matter.deviceTypes, api.matter.clusters, api.matter.clusterNames
+ */
+export { clusterNames, clusters, devices, deviceTypes, MatterAccessoryEventTypes } from './matter/types.js'
+
+/**
+ * Matter error types for error handling
+ */
+export {
+  MatterCommissioningError,
+  MatterDeviceError,
+  MatterError,
+  MatterErrorType,
+  MatterNetworkError,
+  MatterStorageError,
+} from './matter/types.js'
+
+export type { EndpointType, MatterErrorDetails } from './matter/types.js'
 
 /**
  * Export Platform Accessory const enums
@@ -129,12 +266,12 @@ export {
   TargetUpdates,
   Topics,
   Units,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS namespaces as type only
  */
-export type { DataStreamParser } from 'hap-nodejs'
+export type { DataStreamParser } from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS classes as type only
@@ -160,7 +297,7 @@ export type {
   RTPStreamManagement,
   Service,
   SiriAudioSession,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS interfaces as type only
@@ -197,7 +334,7 @@ export type {
   SiriAudioStreamProducerConstructor,
   SourceResponse,
   VideoRecordingOptions,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS type aliases as type only
@@ -282,12 +419,12 @@ export type {
   VoidCallback,
   WithUUID,
   WriteCharacteristicsCallback,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS variables as type only
  */
-export type { LegacyTypes, uuid } from 'hap-nodejs'
+export type { LegacyTypes, uuid } from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS functions as type only
@@ -301,4 +438,4 @@ export type {
   epochMillisFromMillisSince2001_01_01,
   epochMillisFromMillisSince2001_01_01Buffer,
   once,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'

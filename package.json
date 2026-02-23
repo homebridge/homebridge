@@ -48,7 +48,8 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.1.0",
+    "@homebridge/hap-nodejs": "2.1.4",
+    "@matter/main": "0.17.0-alpha.0-20260504-3d4995178",
     "chalk": "5.6.2",
     "commander": "14.0.3",
     "fs-extra": "11.3.4",
@@ -57,20 +58,20 @@
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^7.7.3",
+    "@antfu/eslint-config": "^8.2.0",
     "@prettier/plugin-xml": "^3.4.2",
     "@types/debug": "^4.1.13",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.6.0",
     "@types/semver": "^7.7.1",
     "@types/source-map-support": "^0.5.10",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "eslint-plugin-format": "^2.0.1",
     "nodemon": "^3.1.14",
     "rimraf": "^6.1.3",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.28.17",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.0"
+    "typedoc": "^0.28.19",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.4"
   }
 }
