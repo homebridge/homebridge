@@ -113,6 +113,15 @@ export class Logger {
   }
 
   /**
+   * Check if timestamps are enabled in log messages.
+   *
+   * @returns {boolean} true if timestamps are enabled
+   */
+  public static isTimestampEnabled(): boolean {
+    return Logger.timestampEnabled
+  }
+
+  /**
    * Forces color in logging output, even if it seems like color is unsupported.
    */
   public static forceColor(): void {

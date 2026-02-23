@@ -3,8 +3,8 @@ import type { MockInstance } from 'vitest'
 import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { HAPStorage } from '@homebridge/hap-nodejs'
 import fs from 'fs-extra'
-import { HAPStorage } from 'hap-nodejs'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Server } from './server.js'

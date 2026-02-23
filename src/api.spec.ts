@@ -1,7 +1,8 @@
 import type { AccessoryPlugin, DynamicPlatformPlugin } from './api.js'
+import type { MatterAccessory } from './matter/index.js'
 
-import { Service } from 'hap-nodejs'
-import { describe, expect, it, vi } from 'vitest'
+import { Service } from '@homebridge/hap-nodejs'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
 
@@ -46,6 +47,532 @@ describe('homebridgeAPI', () => {
     it('should register platform without passing plugin name', () => {
       api.registerPlatform(platformName, ExamplePlatform)
       expect(emitSpy).toHaveBeenLastCalledWith(InternalAPIEvent.REGISTER_PLATFORM, platformName, ExamplePlatform)
+    })
+  })
+
+  describe('matter API', () => {
+    const matterPluginName = 'homebridge-matter-example'
+    const matterPlatformName = 'MatterExamplePlatform'
+
+    // Ensure Matter API is loaded before running tests
+    // Matter uses lazy loading to improve startup performance
+    beforeEach(async () => {
+      await api.loadMatterAPI()
+    })
+
+    describe('api.matter property access', () => {
+      it('should expose matter API', () => {
+        expect(api.matter).toBeDefined()
+        expect(typeof api.matter).toBe('object')
+      })
+
+      it('should expose uuid generator (alias of hap.uuid)', () => {
+        expect(api.matter.uuid).toBeDefined()
+        expect(api.matter.uuid).toBe(api.hap.uuid)
+      })
+
+      it('should expose deviceTypes', () => {
+        expect(api.matter.deviceTypes).toBeDefined()
+        expect(typeof api.matter.deviceTypes).toBe('object')
+      })
+
+      it('should expose clusters', () => {
+        expect(api.matter.clusters).toBeDefined()
+        expect(typeof api.matter.clusters).toBe('object')
+      })
+
+      it('should expose clusterNames', () => {
+        expect(api.matter.clusterNames).toBeDefined()
+        expect(typeof api.matter.clusterNames).toBe('object')
+      })
+
+      it('should expose types', () => {
+        expect(api.matter.types).toBeDefined()
+        expect(typeof api.matter.types).toBe('object')
+      })
+    })
+
+    describe('api.matter.registerPlatformAccessories', () => {
+      it('should register Matter platform accessories', () => {
+        const matterAccessories: MatterAccessory[] = [
+          {
+            UUID: api.matter.uuid.generate('test-light-1'),
+            displayName: 'Test Light 1',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-001',
+            manufacturer: 'Test Manufacturer',
+            model: 'Test Model',
+            clusters: {
+              onOff: {
+                onOff: false,
+              },
+            },
+            context: {},
+          },
+        ]
+
+        api.matter.registerPlatformAccessories(matterPluginName, matterPlatformName, matterAccessories)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES,
+          matterPluginName,
+          matterPlatformName,
+          matterAccessories,
+        )
+      })
+
+      it('should register multiple Matter platform accessories', () => {
+        const matterAccessories: MatterAccessory[] = [
+          {
+            UUID: api.matter.uuid.generate('test-light-1'),
+            displayName: 'Test Light 1',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-001',
+            manufacturer: 'Test',
+            model: 'Test',
+            clusters: { onOff: { onOff: false } },
+            context: {},
+          },
+          {
+            UUID: api.matter.uuid.generate('test-light-2'),
+            displayName: 'Test Light 2',
+            deviceType: api.matter.deviceTypes.DimmableLight,
+            serialNumber: 'SN-002',
+            manufacturer: 'Test',
+            model: 'Test',
+            clusters: {
+              onOff: { onOff: true },
+              levelControl: { currentLevel: 100 },
+            },
+            context: {},
+          },
+        ]
+
+        api.matter.registerPlatformAccessories(matterPluginName, matterPlatformName, matterAccessories)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES,
+          matterPluginName,
+          matterPlatformName,
+          matterAccessories,
+        )
+      })
+    })
+
+    describe('api.matter.updatePlatformAccessories', () => {
+      it('should update Matter platform accessories', () => {
+        const matterAccessories: MatterAccessory[] = [
+          {
+            UUID: api.matter.uuid.generate('test-light-1'),
+            displayName: 'Updated Light Name',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-001',
+            manufacturer: 'Updated Manufacturer',
+            model: 'Updated Model',
+            firmwareRevision: '2.0.0',
+            clusters: { onOff: { onOff: true } },
+            context: {},
+          },
+        ]
+
+        api.matter.updatePlatformAccessories(matterAccessories)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
+          matterAccessories,
+        )
+      })
+
+      it('should update multiple Matter platform accessories', () => {
+        const matterAccessories: MatterAccessory[] = [
+          {
+            UUID: api.matter.uuid.generate('test-light-1'),
+            displayName: 'Light 1 - Updated',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-001',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+          {
+            UUID: api.matter.uuid.generate('test-light-2'),
+            displayName: 'Light 2 - Updated',
+            deviceType: api.matter.deviceTypes.DimmableLight,
+            serialNumber: 'SN-002',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+        ]
+
+        api.matter.updatePlatformAccessories(matterAccessories)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
+          matterAccessories,
+        )
+      })
+
+      it('should handle updating single accessory', () => {
+        const accessory: MatterAccessory = {
+          UUID: api.matter.uuid.generate('test-vacuum'),
+          displayName: 'Kitchen Vacuum - Renamed',
+          deviceType: api.matter.deviceTypes.RoboticVacuumCleaner,
+          serialNumber: 'VAC-001',
+          manufacturer: 'Test',
+          model: 'V2',
+          firmwareRevision: '3.1.0',
+          context: {},
+        }
+
+        api.matter.updatePlatformAccessories([accessory])
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
+          [accessory],
+        )
+      })
+    })
+
+    describe('api.matter.unregisterPlatformAccessories', () => {
+      it('should unregister Matter platform accessories', () => {
+        const matterAccessories: MatterAccessory[] = [
+          {
+            UUID: api.matter.uuid.generate('test-light-1'),
+            displayName: 'Test Light 1',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-001',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+        ]
+
+        api.matter.unregisterPlatformAccessories(matterPluginName, matterPlatformName, matterAccessories)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES,
+          matterPluginName,
+          matterPlatformName,
+          matterAccessories,
+        )
+      })
+
+      it('should unregister multiple Matter platform accessories', () => {
+        const matterAccessories: MatterAccessory[] = [
+          {
+            UUID: api.matter.uuid.generate('test-light-1'),
+            displayName: 'Light 1',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-001',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+          {
+            UUID: api.matter.uuid.generate('test-light-2'),
+            displayName: 'Light 2',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-002',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+        ]
+
+        api.matter.unregisterPlatformAccessories(matterPluginName, matterPlatformName, matterAccessories)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES,
+          matterPluginName,
+          matterPlatformName,
+          matterAccessories,
+        )
+      })
+
+      it('should automatically unregister RoboticVacuumCleaner as external accessory', () => {
+        const vacuumAccessory: MatterAccessory = {
+          UUID: api.matter.uuid.generate('test-vacuum-1'),
+          displayName: 'Test Vacuum',
+          deviceType: api.matter.deviceTypes.RoboticVacuumCleaner,
+          serialNumber: 'SN-VAC-001',
+          manufacturer: 'Test Manufacturer',
+          model: 'Vacuum Model',
+          context: {},
+        }
+
+        api.matter.unregisterPlatformAccessories(matterPluginName, matterPlatformName, [vacuumAccessory])
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES,
+          [vacuumAccessory],
+        )
+      })
+
+      it('should split unregister into normal and external based on device type', () => {
+        emitSpy.mockClear()
+
+        const mixedAccessories: MatterAccessory[] = [
+          {
+            UUID: api.matter.uuid.generate('test-light-1'),
+            displayName: 'Light 1',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-001',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+          {
+            UUID: api.matter.uuid.generate('test-vacuum-1'),
+            displayName: 'Vacuum 1',
+            deviceType: api.matter.deviceTypes.RoboticVacuumCleaner,
+            serialNumber: 'SN-002',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+          {
+            UUID: api.matter.uuid.generate('test-light-2'),
+            displayName: 'Light 2',
+            deviceType: api.matter.deviceTypes.DimmableLight,
+            serialNumber: 'SN-003',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+        ]
+
+        api.matter.unregisterPlatformAccessories(matterPluginName, matterPlatformName, mixedAccessories)
+
+        expect(emitSpy).toHaveBeenCalledTimes(2)
+
+        const calls = emitSpy.mock.calls as any[]
+        const unregisterCall = calls.find(call => call[0] === InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES) as any[]
+        const unregisterExternalCall = calls.find(call => call[0] === InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES) as any[]
+
+        expect(unregisterCall).toBeDefined()
+        expect(unregisterCall[3]).toHaveLength(2)
+        expect(unregisterCall[3][0].displayName).toBe('Light 1')
+        expect(unregisterCall[3][1].displayName).toBe('Light 2')
+
+        expect(unregisterExternalCall).toBeDefined()
+        expect(unregisterExternalCall[1]).toHaveLength(1)
+        expect(unregisterExternalCall[1][0].displayName).toBe('Vacuum 1')
+      })
+    })
+
+    describe('registerPlatformAccessories - external device handling', () => {
+      it('should automatically publish RoboticVacuumCleaner as external accessory', () => {
+        const vacuumAccessory: MatterAccessory = {
+          UUID: api.matter.uuid.generate('test-vacuum-1'),
+          displayName: 'Test Vacuum',
+          deviceType: api.matter.deviceTypes.RoboticVacuumCleaner,
+          serialNumber: 'SN-VAC-001',
+          manufacturer: 'Test Manufacturer',
+          model: 'Vacuum Model',
+          context: {},
+          clusters: {
+            onOff: { onOff: false },
+            rvcRunMode: { currentMode: 0 },
+          },
+        }
+
+        api.matter.registerPlatformAccessories(matterPluginName, matterPlatformName, [vacuumAccessory])
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES,
+          expect.arrayContaining([
+            expect.objectContaining({
+              UUID: vacuumAccessory.UUID,
+              displayName: 'Test Vacuum',
+              _associatedPlugin: matterPluginName,
+            }),
+          ]),
+          expect.any(String), // registrationId for async tracking
+        )
+      })
+
+      it('should split accessories into normal and external based on device type', () => {
+        emitSpy.mockClear()
+
+        const mixedAccessories: MatterAccessory[] = [
+          {
+            UUID: api.matter.uuid.generate('test-light-1'),
+            displayName: 'Light 1',
+            deviceType: api.matter.deviceTypes.OnOffLight,
+            serialNumber: 'SN-001',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+          {
+            UUID: api.matter.uuid.generate('test-vacuum-1'),
+            displayName: 'Vacuum 1',
+            deviceType: api.matter.deviceTypes.RoboticVacuumCleaner,
+            serialNumber: 'SN-002',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+          {
+            UUID: api.matter.uuid.generate('test-light-2'),
+            displayName: 'Light 2',
+            deviceType: api.matter.deviceTypes.DimmableLight,
+            serialNumber: 'SN-003',
+            manufacturer: 'Test',
+            model: 'Test',
+            context: {},
+          },
+        ]
+
+        api.matter.registerPlatformAccessories(matterPluginName, matterPlatformName, mixedAccessories)
+
+        expect(emitSpy).toHaveBeenCalledTimes(2)
+
+        const calls = emitSpy.mock.calls as any[]
+        const registerCall = calls.find(call => call[0] === InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES) as any[]
+        const publishCall = calls.find(call => call[0] === InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES) as any[]
+
+        expect(registerCall).toBeDefined()
+        expect(registerCall[3]).toHaveLength(2)
+        expect(registerCall[3][0].displayName).toBe('Light 1')
+        expect(registerCall[3][1].displayName).toBe('Light 2')
+
+        expect(publishCall).toBeDefined()
+        expect(publishCall[1]).toHaveLength(1)
+        expect(publishCall[1][0].displayName).toBe('Vacuum 1')
+      })
+    })
+
+    describe('api.matter.updateAccessoryState', () => {
+      beforeEach(() => {
+        emitSpy.mockClear()
+      })
+
+      it('should update Matter accessory state', () => {
+        const uuid = api.matter.uuid.generate('test-light-update')
+        const cluster = api.matter.clusterNames.OnOff
+        const attributes = { onOff: true }
+
+        api.matter.updateAccessoryState(uuid, cluster, attributes)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          cluster,
+          attributes,
+          undefined, // no partId
+        )
+      })
+
+      it('should update Matter accessory state for specific part', () => {
+        const uuid = api.matter.uuid.generate('test-power-strip')
+        const cluster = api.matter.clusterNames.OnOff
+        const attributes = { onOff: true }
+        const partId = 'outlet-2'
+
+        api.matter.updateAccessoryState(uuid, cluster, attributes, partId)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          cluster,
+          attributes,
+          partId,
+        )
+      })
+
+      it('should update different cluster types', () => {
+        const uuid = api.matter.uuid.generate('test-dimmable-light')
+
+        // Update OnOff cluster
+        api.matter.updateAccessoryState(uuid, api.matter.clusterNames.OnOff, { onOff: true })
+        expect(emitSpy).toHaveBeenCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          api.matter.clusterNames.OnOff,
+          { onOff: true },
+          undefined,
+        )
+
+        // Update LevelControl cluster
+        api.matter.updateAccessoryState(uuid, api.matter.clusterNames.LevelControl, { currentLevel: 200 })
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          api.matter.clusterNames.LevelControl,
+          { currentLevel: 200 },
+          undefined,
+        )
+      })
+    })
+
+    describe('api.matter.getAccessoryState', () => {
+      it('should have getAccessoryState method', () => {
+        expect(typeof api.matter.getAccessoryState).toBe('function')
+      })
+
+      it('should accept uuid and cluster parameters', () => {
+        const uuid = api.matter.uuid.generate('test-light-get')
+        const cluster = api.matter.clusterNames.OnOff
+
+        // Just verify it can be called without error
+        // Actual state retrieval requires MatterServer to be running
+        expect(() => api.matter.getAccessoryState(uuid, cluster)).not.toThrow()
+      })
+
+      it('should accept optional partId parameter', () => {
+        const uuid = api.matter.uuid.generate('test-power-strip-get')
+        const cluster = api.matter.clusterNames.OnOff
+        const partId = 'outlet-1'
+
+        expect(() => api.matter.getAccessoryState(uuid, cluster, partId)).not.toThrow()
+      })
+    })
+
+    describe('matter cluster names', () => {
+      it('should include common cluster names', () => {
+        expect(api.matter.clusterNames.OnOff).toBe('onOff')
+        expect(api.matter.clusterNames.LevelControl).toBe('levelControl')
+        expect(api.matter.clusterNames.ColorControl).toBe('colorControl')
+        expect(api.matter.clusterNames.DoorLock).toBe('doorLock')
+        expect(api.matter.clusterNames.Thermostat).toBe('thermostat')
+        expect(api.matter.clusterNames.WindowCovering).toBe('windowCovering')
+        expect(api.matter.clusterNames.FanControl).toBe('fanControl')
+      })
+
+      it('should include RVC cluster names', () => {
+        expect(api.matter.clusterNames.RvcRunMode).toBe('rvcRunMode')
+        expect(api.matter.clusterNames.RvcCleanMode).toBe('rvcCleanMode')
+        expect(api.matter.clusterNames.RvcOperationalState).toBe('rvcOperationalState')
+        expect(api.matter.clusterNames.ServiceArea).toBe('serviceArea')
+      })
+    })
+
+    describe('matter device types', () => {
+      it('should include common device types', () => {
+        expect(api.matter.deviceTypes.OnOffLight).toBeDefined()
+        expect(api.matter.deviceTypes.DimmableLight).toBeDefined()
+        expect(api.matter.deviceTypes.ColorTemperatureLight).toBeDefined()
+        expect(api.matter.deviceTypes.ExtendedColorLight).toBeDefined()
+        expect(api.matter.deviceTypes.OnOffOutlet).toBeDefined()
+        expect(api.matter.deviceTypes.OnOffSwitch).toBeDefined()
+        expect(api.matter.deviceTypes.DoorLock).toBeDefined()
+        expect(api.matter.deviceTypes.Thermostat).toBeDefined()
+        expect(api.matter.deviceTypes.WindowCovering).toBeDefined()
+        expect(api.matter.deviceTypes.Fan).toBeDefined()
+      })
+
+      it('should include specialized device types', () => {
+        expect(api.matter.deviceTypes.RoboticVacuumCleaner).toBeDefined()
+        expect(api.matter.deviceTypes.ContactSensor).toBeDefined()
+        expect(api.matter.deviceTypes.LightSensor).toBeDefined()
+        expect(api.matter.deviceTypes.MotionSensor).toBeDefined()
+        expect(api.matter.deviceTypes.TemperatureSensor).toBeDefined()
+        expect(api.matter.deviceTypes.HumiditySensor).toBeDefined()
+        expect(api.matter.deviceTypes.LeakSensor).toBeDefined()
+        expect(api.matter.deviceTypes.SmokeSensor).toBeDefined()
+      })
     })
   })
 })
