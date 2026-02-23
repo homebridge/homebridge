@@ -1,13 +1,12 @@
 /* global NodeJS */
 
-import type { MacAddress } from 'hap-nodejs'
+import type { MacAddress } from '@homebridge/hap-nodejs'
 
 import type { AccessoryPlugin, PlatformPlugin } from './api.js'
 import type {
   AccessoryConfig,
   BridgeConfiguration,
   BridgeOptions,
-  HomebridgeConfig,
   PlatformConfig,
 } from './bridgeService.js'
 import type {
@@ -18,17 +17,20 @@ import type {
   ChildProcessPortAllocatedEventData,
   ChildProcessPortRequestEventData,
 } from './childBridgeService.js'
+import type { ChildBridgeMatterManager } from './matter/index.js'
+import type { MatterEvent } from './matter/ipc-types.js'
 import type { Plugin } from './plugin.js'
 
 import process from 'node:process'
 
-import { AccessoryEventTypes, HAPStorage } from 'hap-nodejs'
+import { AccessoryEventTypes, HAPStorage } from '@homebridge/hap-nodejs'
 
 import { HomebridgeAPI, PluginType } from './api.js'
 import { BridgeService } from './bridgeService.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { ChildBridgeExternalPortService } from './externalPortService.js'
 import { Logger } from './logger.js'
+import { ChildBridgeMatterMessageHandler } from './matter/ChildBridgeMatterMessageHandler.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 
@@ -40,11 +42,19 @@ import 'source-map-support/register.js'
 
 process.title = 'homebridge: child bridge'
 
+const matterLogger = Logger.withPrefix('Matter/ChildManager')
+
 export class ChildBridgeFork {
   private bridgeService!: BridgeService
   private api!: HomebridgeAPI
   private pluginManager!: PluginManager
   private externalPortService!: ChildBridgeExternalPortService
+
+  // Matter bridge manager (handles Matter server lifecycle)
+  private matterManager?: ChildBridgeMatterManager
+
+  // Matter message handler (delegates Matter IPC handling)
+  private matterMessageHandler?: ChildBridgeMatterMessageHandler
 
   private type!: PluginType
   private plugin!: Plugin
@@ -52,7 +62,6 @@ export class ChildBridgeFork {
   private pluginConfig!: Array<PlatformConfig | AccessoryConfig>
   private bridgeConfig!: BridgeConfiguration
   private bridgeOptions!: BridgeOptions
-  private homebridgeConfig!: HomebridgeConfig
 
   private portRequestCallback: Map<MacAddress, (port: number | undefined) => void> = new Map()
 
@@ -77,7 +86,6 @@ export class ChildBridgeFork {
     this.pluginConfig = data.pluginConfig
     this.bridgeConfig = data.bridgeConfig
     this.bridgeOptions = data.bridgeOptions
-    this.homebridgeConfig = data.homebridgeConfig
 
     // remove the _bridge key (some plugins do not like unknown config)
     for (const config of this.pluginConfig) {
@@ -123,13 +131,54 @@ export class ChildBridgeFork {
   }
 
   async startBridge(): Promise<void> {
+    // Conditionally load Matter support only if this child bridge has Matter configured
+    // This prevents loading heavy Matter.js libraries for child bridges that don't use it
+    if (this.bridgeConfig.matter) {
+      matterLogger.info('Loading Matter support for child bridge...')
+
+      // Pre-load Matter API for plugin access
+      // This must happen before plugins are loaded so they can access api.matter synchronously
+      await this.api.loadMatterAPI()
+
+      // Dynamically import Matter manager only when needed
+      const { ChildBridgeMatterManager } = await import('./matter/index.js')
+
+      // Create Matter bridge manager
+      this.matterManager = new ChildBridgeMatterManager(
+        this.bridgeConfig,
+        this.bridgeOptions,
+        this.api,
+        this.externalPortService,
+        this.pluginManager,
+      )
+
+      // Set manager reference on API for getAccessoryState
+      this.api._setMatterManager(this.matterManager)
+
+      // Initialize Matter server if configured
+      // Pass callback to send status updates when commissioning changes
+      await this.matterManager.initialize(() => {
+        this.sendPairedStatusEvent()
+      })
+
+      // Create Matter message handler to delegate IPC handling
+      matterLogger.debug('Creating ChildBridgeMatterMessageHandler...')
+      this.matterMessageHandler = new ChildBridgeMatterMessageHandler(
+        this.matterManager,
+        this.bridgeConfig.username,
+        (type, data) => this.sendMessage(type as ChildProcessMessageEventType, data),
+      )
+      matterLogger.debug(`Matter message handler created for child bridge ${this.bridgeConfig.username}`)
+    } else {
+      matterLogger.debug('Matter not configured for this child bridge, skipping Matter setup')
+    }
+
     this.bridgeService = new BridgeService(
       this.api,
       this.pluginManager,
       this.externalPortService,
       this.bridgeOptions,
       this.bridgeConfig,
-      this.homebridgeConfig,
     )
 
     // watch bridge events to check when server is online
@@ -193,15 +242,24 @@ export class ChildBridgeFork {
     // restore the cached accessories
     this.bridgeService.restoreCachedPlatformAccessories()
 
+    // Restore Matter accessories if Matter is enabled for this bridge
+    if (this.matterManager) {
+      this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
+    }
+
     this.bridgeService.publishBridge()
     this.api.signalFinished()
+
+    // Send initial status update with HAP and Matter info BEFORE telling parent we're online
+    // This ensures the parent's cache is populated before any UI status updates
+    this.sendPairedStatusEvent()
 
     // tell the parent we are online
     this.sendMessage(ChildProcessMessageEventType.ONLINE)
   }
 
   /**
-   * Request the next available external port from the parent process
+   * Request the next available external HAP port from the parent process
    * @param username
    */
   public async requestExternalPort(username: MacAddress): Promise<number | undefined> {
@@ -225,6 +283,36 @@ export class ChildBridgeFork {
   }
 
   /**
+   * Request the next available Matter port from the parent process
+   * @param uniqueId - MAC-derived identifier (without colons)
+   */
+  public async requestMatterPort(uniqueId: string): Promise<number | undefined> {
+    return new Promise((resolve) => {
+      const requestTimeout = setTimeout(() => {
+        matterLogger.warn('Parent process did not respond to Matter port allocation request within 5 seconds - assigning random port.')
+        resolve(undefined)
+      }, 5000)
+
+      // Use uniqueId as the key for the callback map
+      const mac = uniqueId as MacAddress
+
+      // setup callback
+      const callback = (port: number | undefined) => {
+        clearTimeout(requestTimeout)
+        resolve(port)
+        this.portRequestCallback.delete(mac)
+      }
+      this.portRequestCallback.set(mac, callback)
+
+      // send Matter port request
+      this.sendMessage<ChildProcessPortRequestEventData>(ChildProcessMessageEventType.PORT_REQUEST, {
+        username: mac,
+        portType: 'matter',
+      })
+    })
+  }
+
+  /**
    * Handles the port allocation response message from the parent process
    * @param data
    */
@@ -239,14 +327,84 @@ export class ChildBridgeFork {
    * Sends the current pairing status of the child bridge to the parent process
    */
   public sendPairedStatusEvent() {
+    // Get Matter commissioning info if Matter is enabled
+    const matterInfo = this.matterManager?.getMatterStatusInfo()
+
     this.sendMessage<ChildBridgePairedStatusEventData>(ChildProcessMessageEventType.STATUS_UPDATE, {
       paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
       setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
+      // Include Matter commissioning info in unified message
+      ...(matterInfo && { matter: matterInfo }),
     })
+  }
+
+  /**
+   * Handle start Matter monitoring request from parent process
+   */
+  handleStartMatterMonitoring(): void {
+    this.matterMessageHandler?.handleStartMatterMonitoring()
+  }
+
+  /**
+   * Handle stop Matter monitoring request from parent process
+   */
+  handleStopMatterMonitoring(): void {
+    this.matterMessageHandler?.handleStopMatterMonitoring()
+  }
+
+  /**
+   * Handle get Matter accessories request from parent process
+   */
+  handleGetMatterAccessories(): void {
+    if (!this.matterMessageHandler) {
+      // Matter not initialized yet or not configured - send empty response
+      // This can happen during startup before Matter finishes initializing
+      if (!this.bridgeConfig) {
+        // Bridge config not loaded yet, too early to respond
+        return
+      }
+
+      const event: MatterEvent = {
+        type: 'accessoriesData',
+        data: {
+          bridgeUsername: this.bridgeConfig.username,
+          accessories: [],
+        },
+      }
+      this.sendMessage(ChildProcessMessageEventType.MATTER_EVENT, event)
+      return
+    }
+    this.matterMessageHandler.handleGetMatterAccessories()
+  }
+
+  /**
+   * Handle get Matter accessory info request from parent process
+   */
+  handleGetMatterAccessoryInfo(data: { uuid: string }): void {
+    this.matterMessageHandler?.handleGetMatterAccessoryInfo(data)
+  }
+
+  /**
+   * Handle Matter accessory control request from parent process
+   */
+  handleMatterAccessoryControl(data: {
+    uuid: string
+    cluster: string
+    attributes: Record<string, unknown>
+    partId?: string
+  }): void {
+    this.matterMessageHandler?.handleMatterAccessoryControl(data)
   }
 
   shutdown(): void {
     this.bridgeService.teardown()
+
+    // Teardown Matter servers (main bridge and external accessories)
+    if (this.matterManager) {
+      this.matterManager.teardown().catch((error: unknown) => {
+        matterLogger.error('Error tearing down Matter manager:', error)
+      })
+    }
   }
 }
 
@@ -274,6 +432,31 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
     }
     case ChildProcessMessageEventType.PORT_ALLOCATED: {
       childPluginFork.handleExternalResponse(message.data as ChildProcessPortAllocatedEventData)
+      break
+    }
+    case ChildProcessMessageEventType.START_MATTER_MONITORING: {
+      childPluginFork.handleStartMatterMonitoring()
+      break
+    }
+    case ChildProcessMessageEventType.STOP_MATTER_MONITORING: {
+      childPluginFork.handleStopMatterMonitoring()
+      break
+    }
+    case ChildProcessMessageEventType.GET_MATTER_ACCESSORIES: {
+      childPluginFork.handleGetMatterAccessories()
+      break
+    }
+    case ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO: {
+      childPluginFork.handleGetMatterAccessoryInfo(message.data as { uuid: string })
+      break
+    }
+    case ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL: {
+      childPluginFork.handleMatterAccessoryControl(message.data as {
+        uuid: string
+        cluster: string
+        attributes: Record<string, unknown>
+        partId?: string
+      })
       break
     }
   }

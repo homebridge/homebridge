@@ -6,7 +6,7 @@ import type {
   MDNSAdvertiser,
   PublishInfo,
   VoidCallback,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 
 import type {
   AccessoryIdentifier,
@@ -20,6 +20,7 @@ import type {
 } from './api.js'
 import type { ExternalPortsConfiguration, ExternalPortService } from './externalPortService.js'
 import type { Logging } from './logger.js'
+import type { MatterConfig } from './matter/index.js'
 import type { SerializedPlatformAccessory } from './platformAccessory.js'
 import type { Plugin } from './plugin.js'
 import type { HomebridgeOptions } from './server.js'
@@ -36,7 +37,7 @@ import {
   once,
   Service,
   uuid,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 
 import { InternalAPIEvent } from './api.js'
 import { getLogPrefix, Logger } from './logger.js'
@@ -62,6 +63,7 @@ export interface BridgeConfiguration {
   firmwareRevision?: string
   serialNumber?: string
   debugModeEnabled?: boolean
+  matter?: MatterConfig
   env?: {
     DEBUG?: string
     NODE_OPTIONS?: string
@@ -103,6 +105,10 @@ export interface HomebridgeConfig {
 
   // This section is used to control the range of ports (inclusive) that separate accessory (like camera or television) should be bind to
   ports?: ExternalPortsConfiguration
+
+  // This section is used to control the range of ports (inclusive) that Matter accessories should bind to
+  // If not specified, falls back to range 5530-5541
+  matterPorts?: ExternalPortsConfiguration
 }
 
 export interface BridgeOptions extends HomebridgeOptions {
@@ -128,7 +134,6 @@ export class BridgeService {
     private externalPortService: ExternalPortService,
     private bridgeOptions: BridgeOptions,
     private bridgeConfig: BridgeConfiguration,
-    private config: HomebridgeConfig,
   ) {
     this.storageService = new StorageService(this.bridgeOptions.cachedAccessoriesDir)
     this.storageService.initSync()

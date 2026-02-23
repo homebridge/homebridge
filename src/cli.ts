@@ -4,8 +4,8 @@ import type { HomebridgeOptions } from './server.js'
 
 import process from 'node:process'
 
+import { HAPStorage } from '@homebridge/hap-nodejs'
 import { Command } from 'commander'
-import { HAPStorage } from 'hap-nodejs'
 import { satisfies } from 'semver'
 
 import { Logger } from './logger.js'
