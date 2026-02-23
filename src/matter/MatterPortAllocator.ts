@@ -1,0 +1,82 @@
+/**
+ * Matter Port Allocator
+ *
+ * Handles allocation of Matter protocol ports for the main bridge and external accessories.
+ */
+
+import type { ExternalPortsConfiguration } from '../externalPortService.js'
+
+import { Logger } from '../logger.js'
+
+const log = Logger.withPrefix('Matter/PortAllocator')
+
+/**
+ * Allocates Matter ports from the user-defined `config.matterPorts` option.
+ * Separate from HAP port allocation to avoid conflicts.
+ */
+export class MatterPortAllocator {
+  private allocatedPorts: Map<string, number | undefined> = new Map()
+  private readonly configuredPorts: Set<number> = new Set()
+
+  constructor(
+    private matterPorts?: ExternalPortsConfiguration,
+    configuredMatterPorts?: number[],
+  ) {
+    if (configuredMatterPorts) {
+      this.configuredPorts = new Set(configuredMatterPorts)
+    }
+  }
+
+  /**
+   * Returns the next available Matter port in the Matter port config.
+   * If Matter ports are not configured, falls back to range 5530-5541.
+   * If the port range has been exhausted it will return undefined.
+   *
+   * @param uuid - Unique identifier for the Matter accessory (can be accessory UUID or other unique string)
+   */
+  public async requestPort(uuid: string): Promise<number | undefined> {
+    // Check to see if this accessory has already requested a Matter port
+    const existingPortAllocation = this.allocatedPorts.get(uuid)
+    if (existingPortAllocation) {
+      return existingPortAllocation
+    }
+
+    // Get the next unused Matter port
+    const port = this.getNextFreePort()
+    this.allocatedPorts.set(uuid, port)
+    return port
+  }
+
+  /**
+   * Get the next free Matter port from the configured range
+   */
+  private getNextFreePort(): number | undefined {
+    // Fallback to default range 5530-5541, avoiding already allocated ports
+    const rangeStart = this.matterPorts?.start || 5530
+    const rangeEnd = this.matterPorts?.end || 5541
+    const allocatedPortValues = new Set([
+      ...this.configuredPorts,
+      ...[...this.allocatedPorts.values()].filter((p): p is number => p !== undefined),
+    ])
+
+    // Find first unallocated port in range
+    for (let port = rangeStart; port <= rangeEnd; port += 1) {
+      if (!allocatedPortValues.has(port)) {
+        return port
+      }
+    }
+
+    log.warn(`Matter port pool ran out of ports in range ${rangeStart}-${rangeEnd}. All ports are already allocated.`)
+    return undefined
+  }
+
+  /**
+   * Get statistics about port allocation
+   */
+  public getStats(): { allocatedCount: number, configuredPortsCount: number } {
+    return {
+      allocatedCount: this.allocatedPorts.size,
+      configuredPortsCount: this.configuredPorts.size,
+    }
+  }
+}

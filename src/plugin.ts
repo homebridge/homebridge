@@ -204,7 +204,7 @@ not satisfy the current Node.js version of ${process.version}. You may need to u
     }
 
     const dependencies = context.dependencies || {}
-    if (dependencies.homebridge || dependencies['hap-nodejs']) {
+    if (dependencies.homebridge || dependencies['hap-nodejs'] || dependencies['@homebridge/hap-nodejs']) {
       log.error(`The plugin "${this.pluginName}" defines 'homebridge' and/or 'hap-nodejs' in their 'dependencies' section, \
 meaning they carry an additional copy of homebridge and hap-nodejs. This not only wastes disk space, but also can cause \
 major incompatibility issues and thus is considered bad practice. Please inform the developer to update their plugin!`)

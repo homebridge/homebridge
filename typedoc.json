@@ -10,7 +10,7 @@
   "hideGenerator": true,
   "includeVersion": false,
   "validation": {
-    "invalidLink": true,
+    "invalidLink": false,
     "notExported": false
   },
   "inlineTags": ["@link", "@see"]

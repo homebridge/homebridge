@@ -6,7 +6,7 @@ import type {
   MDNSAdvertiser,
   PublishInfo,
   VoidCallback,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 
 import type {
   AccessoryIdentifier,
@@ -20,6 +20,7 @@ import type {
 } from './api.js'
 import type { ExternalPortsConfiguration, ExternalPortService } from './externalPortService.js'
 import type { Logging } from './logger.js'
+import type { MatterConfig } from './matter/index.js'
 import type { SerializedPlatformAccessory } from './platformAccessory.js'
 import type { Plugin } from './plugin.js'
 import type { HomebridgeOptions } from './server.js'
@@ -36,7 +37,7 @@ import {
   once,
   Service,
   uuid,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 
 import { InternalAPIEvent } from './api.js'
 import { getLogPrefix, Logger } from './logger.js'
@@ -62,6 +63,7 @@ export interface BridgeConfiguration {
   firmwareRevision?: string
   serialNumber?: string
   debugModeEnabled?: boolean
+  matter?: MatterConfig
   env?: {
     DEBUG?: string
     NODE_OPTIONS?: string
@@ -96,13 +98,17 @@ export interface HomebridgeConfig {
 
   /**
    * Array of disabled plugins.
-   * Unlike the plugins[] config which prevents plugins from being initialised at all, disabled plugins still have their alias loaded, so
+   * Unlike the plugins[] config which prevents plugins from being initialized at all, disabled plugins still have their alias loaded, so
    * we can match config blocks of disabled plugins and show an appropriate message in the logs.
    */
   disabledPlugins?: PluginIdentifier[]
 
   // This section is used to control the range of ports (inclusive) that separate accessory (like camera or television) should be bind to
   ports?: ExternalPortsConfiguration
+
+  // This section is used to control the range of ports (inclusive) that Matter accessories should bind to
+  // If not specified, falls back to range 5530-5541
+  matterPorts?: ExternalPortsConfiguration
 }
 
 export interface BridgeOptions extends HomebridgeOptions {
@@ -128,7 +134,6 @@ export class BridgeService {
     private externalPortService: ExternalPortService,
     private bridgeOptions: BridgeOptions,
     private bridgeConfig: BridgeConfiguration,
-    private config: HomebridgeConfig,
   ) {
     this.storageService = new StorageService(this.bridgeOptions.cachedAccessoriesDir)
     this.storageService.initSync()
@@ -213,7 +218,7 @@ export class BridgeService {
     }
 
     log.debug('Publishing bridge accessory (name: %s, publishInfo: %o).', this.bridge.displayName, BridgeService.strippingPinCode(publishInfo))
-    this.bridge.publish(publishInfo, this.allowInsecureAccess)
+    void this.bridge.publish(publishInfo, this.allowInsecureAccess)
   }
 
   /**
@@ -227,7 +232,7 @@ export class BridgeService {
     } catch (error: any) {
       log.error('Failed to load cached accessories from disk:', error.message)
       if (error instanceof SyntaxError) {
-        // syntax error probably means invalid json / corrupted file; try and restore from backup
+        // syntax error probably means invalid JSON / corrupted file; try and restore from backup
         cachedAccessories = await this.restoreCachedAccessoriesBackup()
       } else {
         log.error('Not restoring cached accessories - some accessories may be reset.')
@@ -450,7 +455,7 @@ export class BridgeService {
       }
 
       log.debug('Publishing external accessory (name: %s, publishInfo: %o).', hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo))
-      hapAccessory.publish(publishInfo, this.allowInsecureAccess)
+      void hapAccessory.publish(publishInfo, this.allowInsecureAccess)
     }
   }
 
@@ -540,9 +545,9 @@ export class BridgeService {
   }
 
   teardown(): void {
-    this.bridge.unpublish()
+    void this.bridge.unpublish()
     for (const accessory of this.publishedExternalAccessories.values()) {
-      accessory._associatedHAPAccessory.unpublish()
+      void accessory._associatedHAPAccessory.unpublish()
     }
 
     this.saveCachedPlatformAccessoriesOnDisk()
