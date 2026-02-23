@@ -10,26 +10,11 @@ import type { MatterAccessory } from './types.js'
 
 import { Logger } from '../logger.js'
 import {
-  HomebridgeAirQualityServer,
-  HomebridgeCarbonMonoxideConcentrationMeasurementServer,
-  HomebridgeColorControlServer,
-  HomebridgeDoorLockServer,
-  HomebridgeFanControlServer,
-  HomebridgeIdentifyServer,
-  HomebridgeLevelControlServer,
-  HomebridgeNitrogenDioxideConcentrationMeasurementServer,
-  HomebridgeOnOffServer,
-  HomebridgeOzoneConcentrationMeasurementServer,
-  HomebridgePm10ConcentrationMeasurementServer,
-  HomebridgePm25ConcentrationMeasurementServer,
   HomebridgeRvcCleanModeServer,
-  HomebridgeRvcOperationalStateServer,
-  HomebridgeRvcRunModeServer,
   HomebridgeServiceAreaServer,
-  HomebridgeThermostatServer,
   HomebridgeWindowCoveringServer,
 } from './behaviors/index.js'
-import { withBehaviors, withFeatures } from './typeHelpers.js'
+// Direct matter.js .with() API used instead of typeHelpers wrappers
 import { clusters, devices, MatterDeviceError } from './types.js'
 
 /**
@@ -375,8 +360,8 @@ export function applyWindowCoveringFeatures(
   log.info(`Auto-detected WindowCovering features for ${accessory.displayName}: ${features.join(', ')}`)
 
   // Add WindowCoveringServer with features to the device type
-  const windowCoveringWithFeatures = withFeatures(HomebridgeWindowCoveringServer, features)
-  const modifiedDeviceType = withBehaviors(deviceType, [windowCoveringWithFeatures])
+  const windowCoveringWithFeatures = (HomebridgeWindowCoveringServer as any).with(...features)
+  const modifiedDeviceType = (deviceType as any).with(windowCoveringWithFeatures)
 
   const hasTiltFeatures = features.includes('Tilt')
   if (hasTiltFeatures && accessory.clusters) {
@@ -391,32 +376,6 @@ export function applyWindowCoveringFeatures(
   (accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior = true
 
   return modifiedDeviceType
-}
-
-/**
- * Get the behavior map for custom cluster handlers
- */
-export function getBehaviorMap(): Record<string, BehaviorType> {
-  return {
-    airQuality: HomebridgeAirQualityServer,
-    carbonMonoxideConcentrationMeasurement: HomebridgeCarbonMonoxideConcentrationMeasurementServer,
-    colorControl: HomebridgeColorControlServer,
-    doorLock: HomebridgeDoorLockServer,
-    fanControl: HomebridgeFanControlServer,
-    identify: HomebridgeIdentifyServer,
-    levelControl: HomebridgeLevelControlServer,
-    nitrogenDioxideConcentrationMeasurement: HomebridgeNitrogenDioxideConcentrationMeasurementServer,
-    onOff: HomebridgeOnOffServer,
-    ozoneConcentrationMeasurement: HomebridgeOzoneConcentrationMeasurementServer,
-    pm10ConcentrationMeasurement: HomebridgePm10ConcentrationMeasurementServer,
-    pm25ConcentrationMeasurement: HomebridgePm25ConcentrationMeasurementServer,
-    rvcCleanMode: HomebridgeRvcCleanModeServer,
-    rvcOperationalState: HomebridgeRvcOperationalStateServer,
-    rvcRunMode: HomebridgeRvcRunModeServer,
-    serviceArea: HomebridgeServiceAreaServer,
-    thermostat: HomebridgeThermostatServer,
-    windowCovering: HomebridgeWindowCoveringServer,
-  }
 }
 
 /**
@@ -445,7 +404,7 @@ export function buildRvcCustomBehaviors(
       : ServiceAreaServer
 
     if (serviceAreaFeatures && serviceAreaFeatures.length > 0) {
-      behaviorClass = withFeatures(behaviorClass, serviceAreaFeatures)
+      behaviorClass = (behaviorClass as any).with(...serviceAreaFeatures)
       log.info(`ServiceArea ${accessory.handlers?.serviceArea ? 'custom behavior' : 'base server'} will have features: ${serviceAreaFeatures.join(', ')}`)
     }
 
@@ -467,7 +426,7 @@ export function applyFeaturesToBehavior(
     return behaviorClass
   }
 
-  const modifiedBehavior = withFeatures(behaviorClass, features)
+  const modifiedBehavior = (behaviorClass as any).with(...features)
   log.info(`${clusterName} custom behavior will preserve features: ${features.join(', ')}`)
   return modifiedBehavior
 }

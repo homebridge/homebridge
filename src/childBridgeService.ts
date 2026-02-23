@@ -373,7 +373,7 @@ export class ChildBridgeService {
           break
         }
         case ChildProcessMessageEventType.PORT_REQUEST: {
-          this.handlePortRequest(message.data as ChildProcessPortRequestEventData)
+          void this.handlePortRequest(message.data as ChildProcessPortRequestEventData)
           break
         }
         case ChildProcessMessageEventType.STATUS_UPDATE: {
@@ -625,7 +625,7 @@ export class ChildBridgeService {
       this.startChildBridge()
     } else {
       this.log.warn('Child bridge restarting...')
-      this.refreshConfig()
+      void this.refreshConfig()
       this.teardown()
     }
   }
@@ -652,7 +652,7 @@ export class ChildBridgeService {
    */
   public startChildBridge(): void {
     if (this.manuallyStopped && this.bridgeStatus === ChildBridgeStatus.DOWN && (!this.child || !this.child.connected)) {
-      this.refreshConfig()
+      void this.refreshConfig()
       this.startChildProcess()
       this.shuttingDown = false
       this.manuallyStopped = false

@@ -66,6 +66,9 @@ export interface ColorControlState {
   // Options
   options?: number
 
+  // Color temperature coupling (optional, requires ColorTemperature feature)
+  coupleColorTempToLevelMinMireds?: number
+
   // Transition time (not part of state, but used in commands)
   transitionTime?: number
 }
@@ -125,6 +128,7 @@ export interface WindowCoveringState {
   // Config/Status
   configStatus?: {
     operational?: boolean
+    onlineReserved?: boolean
     online?: boolean
     liftMovementReversed?: boolean
     liftPositionAware?: boolean
@@ -141,11 +145,18 @@ export interface WindowCoveringState {
   targetPositionTiltPercent100ths?: number | null
   currentPositionTiltPercent100ths?: number | null
 
-  // Operational status
-  operationalStatus?: number
+  // Operational status (bitmap: global, lift, tilt movement status)
+  operationalStatus?: {
+    global: number
+    lift: number
+    tilt: number
+  }
 
   // Safety
   safetyStatus?: number
+
+  // End product type
+  endProductType?: number
 
   // Mode
   mode?: number
@@ -173,7 +184,7 @@ export interface FanControlState {
  */
 export interface ThermostatState {
   // Temperature measurements
-  localTemperature?: number | null // read-only, auto-populated from externalMeasuredIndoorTemperature or TemperatureMeasurement cluster
+  localTemperature?: number | null // read-only, autopopulated from externalMeasuredIndoorTemperature or TemperatureMeasurement cluster
   externalMeasuredIndoorTemperature?: number | null // writable state for external temperature sensor (in hundredths of degrees Celsius)
   outdoorTemperature?: number | null
 
@@ -219,6 +230,7 @@ export interface DoorLockState {
   lockState?: number | null
   lockType?: number
   actuatorEnabled?: boolean
+  operatingMode?: number
   doorState?: number | null
   doorOpenEvents?: number
   doorClosedEvents?: number
@@ -280,9 +292,16 @@ export interface ServiceAreaState {
     areaId: number
     mapId: number | null
     areaInfo: {
-      locationName?: string
-      floorNumber?: number | null
-      areaType?: number | null
+      locationInfo?: {
+        locationName?: string
+        floorNumber?: number | null
+        areaType?: number | null
+      } | null
+      landmarkInfo?: {
+        landmarkTag?: number
+        positionTag?: number | null
+        relativePositionTag?: number | null
+      } | null
     }
   }>
   supportedMaps?: Array<{

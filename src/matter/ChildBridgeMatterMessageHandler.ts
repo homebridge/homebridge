@@ -44,8 +44,9 @@ export class ChildBridgeMatterMessageHandler {
   /**
    * Handle get Matter accessories request from parent process
    */
-  handleGetMatterAccessories(): void {
+  handleGetMatterAccessories(data?: { correlationId?: string }): void {
     log.debug(`handleGetMatterAccessories called for bridge ${this.bridgeUsername}`)
+    const correlationId = data?.correlationId
     try {
       // Only collect accessories if Matter is actually enabled for this bridge
       if (!this.matterManager?.isMatterEnabled()) {
@@ -53,6 +54,7 @@ export class ChildBridgeMatterMessageHandler {
         // Return empty accessories list for bridges without Matter
         const event: MatterEvent = {
           type: 'accessoriesData',
+          correlationId,
           data: {
             bridgeUsername: this.bridgeUsername,
             accessories: [],
@@ -67,6 +69,7 @@ export class ChildBridgeMatterMessageHandler {
 
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername: this.bridgeUsername,
           accessories,
@@ -77,6 +80,7 @@ export class ChildBridgeMatterMessageHandler {
       log.error('Failed to get Matter accessories:', error)
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername: this.bridgeUsername,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -89,7 +93,8 @@ export class ChildBridgeMatterMessageHandler {
   /**
    * Handle get Matter accessory info request from parent process
    */
-  handleGetMatterAccessoryInfo(data: { uuid: string }): void {
+  handleGetMatterAccessoryInfo(data: { uuid: string, correlationId?: string }): void {
+    const correlationId = data?.correlationId
     try {
       // Only process if Matter is enabled for this bridge
       if (!this.matterManager?.isMatterEnabled()) {
@@ -102,6 +107,7 @@ export class ChildBridgeMatterMessageHandler {
       if (accessoryInfo) {
         const event: MatterEvent = {
           type: 'accessoryInfoData',
+          correlationId,
           data: accessoryInfo,
         }
         this.sendMessage('matterEvent', event)
@@ -111,6 +117,7 @@ export class ChildBridgeMatterMessageHandler {
       log.error('Failed to get Matter accessory info:', error)
       const event: MatterEvent = {
         type: 'accessoryInfoData',
+        correlationId,
         data: {
           error: error instanceof Error ? error.message : 'Unknown error',
         },
@@ -127,7 +134,9 @@ export class ChildBridgeMatterMessageHandler {
     cluster: string
     attributes: Record<string, unknown>
     partId?: string
+    correlationId?: string
   }): void {
+    const correlationId = data?.correlationId
     // Only process if Matter is enabled for this bridge
     if (!this.matterManager?.isMatterEnabled()) {
       // Silently ignore - this bridge doesn't have Matter enabled
@@ -144,6 +153,7 @@ export class ChildBridgeMatterMessageHandler {
         // Send control response
         const controlResponse: MatterEvent = {
           type: 'accessoryControlResponse',
+          correlationId,
           data: {
             success: true,
             uuid: data.uuid,
@@ -160,6 +170,7 @@ export class ChildBridgeMatterMessageHandler {
         log.error(`Failed to control ${data.uuid} on child bridge ${this.bridgeUsername}: ${error.message}`)
         const event: MatterEvent = {
           type: 'accessoryControlResponse',
+          correlationId,
           data: {
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error',

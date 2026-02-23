@@ -95,7 +95,7 @@ export default function cli(): void {
     log.info('Got %s, shutting down Homebridge...', signal)
     setTimeout(() => process.exit(128 + signalNum), 5000)
 
-    server.teardown()
+    void server.teardown()
   }
   process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))
   process.on('SIGTERM', signalHandler.bind(undefined, 'SIGTERM', 15))

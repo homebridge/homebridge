@@ -6,8 +6,11 @@
  */
 
 import type { Endpoint, EndpointType } from '@matter/main'
+import type { Behavior } from '@matter/node'
 
 import type { UnknownContext } from '../platformAccessory.js'
+import type { ClusterHandlerMap } from './clusterHandlerMap.js'
+import type { ClusterStateMap } from './clusterStateMap.js'
 
 import { EventEmitter } from 'node:events'
 
@@ -66,7 +69,7 @@ import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/t
 import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detector'
 import { WindowCoveringDevice } from '@matter/main/devices/window-covering'
 
-import { BehaviorType } from './typeHelpers.js'
+type BehaviorType = Behavior.Type
 
 // Re-export Matter.js types for plugin use
 export type { EndpointType }
@@ -90,7 +93,7 @@ export interface MatterHandlerContext {
  * The args parameter contains the command arguments passed by Matter.js (optional).
  * The context parameter provides information about which part triggered the handler (for composed devices).
  */
-export type MatterCommandHandler<TArgs = unknown> = (args?: TArgs, context?: MatterHandlerContext) => Promise<void> | void
+export type MatterCommandHandler<TArgs = unknown> = (args: TArgs, context?: MatterHandlerContext) => Promise<void> | void
 
 /**
  * Matter cluster handlers interface
@@ -125,18 +128,24 @@ export interface MatterAccessoryPart {
   /**
    * Initial cluster states for this part
    * Same format as `MatterAccessory.clusters`
+   *
+   * Known clusters get full autocomplete; unknown clusters use the fallback type.
    */
   clusters: {
-    [clusterName: string]: {
-      [attributeName: string]: unknown
-    }
+    [K in keyof ClusterStateMap]?: Partial<ClusterStateMap[K]>
+  } & {
+    [clusterName: string]: Record<string, unknown>
   }
 
   /**
    * Handlers for this part's commands
    * Handlers receive context.partId to identify which part was triggered
+   *
+   * Known clusters get full autocomplete; unknown clusters use the fallback type.
    */
   handlers?: {
+    [K in keyof ClusterHandlerMap]?: Partial<ClusterHandlerMap[K]>
+  } & {
     [clusterName: string]: MatterClusterHandlers
   }
 }
@@ -189,27 +198,53 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
    * Initial cluster states
    * Key is the cluster name, value is an object of attribute name -> value
    *
-   * Example:
-   * {
+   * Known clusters (onOff, levelControl, colorControl, etc.) provide full autocomplete.
+   * Unknown clusters are still supported with the fallback `Record<string, unknown>` type.
+   *
+   * @example
+   * ```typescript
+   * clusters: {
    *   onOff: { onOff: true },
-   *   levelControl: { currentLevel: 127, minLevel: 1, maxLevel: 254 }
+   *   levelControl: { currentLevel: 127, minLevel: 1, maxLevel: 254 },
    * }
+   * ```
    *
    * Note: If using `parts`, this is optional (main accessory may only be a container)
    */
   clusters?: {
-    [clusterName: string]: {
-      [attributeName: string]: unknown
-    }
+    [K in keyof ClusterStateMap]?: Partial<ClusterStateMap[K]>
+  } & {
+    [clusterName: string]: Record<string, unknown>
   }
 
   /**
-   * Handlers for Matter commands (Home app → Device)
+   * Handlers for Matter commands (Home app -> Device)
    *
    * These handlers are called when a user controls the accessory via the Home app.
    * Use handlers to send commands to your actual device (cloud API, local network, etc.).
+   *
+   * Known clusters (onOff, levelControl, colorControl, etc.) provide full autocomplete
+   * for handler method names and argument types.
+   *
+   * @example
+   * ```typescript
+   * handlers: {
+   *   onOff: {
+   *     on: async () => { await device.turnOn() },
+   *     off: async () => { await device.turnOff() },
+   *   },
+   *   levelControl: {
+   *     moveToLevel: async (args) => {
+   *       // args is typed as LevelControl.MoveToLevelRequest
+   *       await device.setBrightness(args?.level ?? 0)
+   *     },
+   *   },
+   * }
+   * ```
    */
   handlers?: {
+    [K in keyof ClusterHandlerMap]?: Partial<ClusterHandlerMap[K]>
+  } & {
     [clusterName: string]: MatterClusterHandlers
   }
 
@@ -706,7 +741,7 @@ export async function updateEndpointState(
 
 /**
  * Device type with behaviors (internal Matter.js structure)
- * Note: Prefer using ExtendableEndpointType from typeHelpers.ts for new code
+ * Used when we need to check if a device type supports .with()
  */
 export interface DeviceTypeWithBehaviors extends EndpointType {
   with: (...behaviors: BehaviorType[]) => DeviceTypeWithBehaviors
@@ -718,6 +753,9 @@ export interface DeviceTypeWithBehaviors extends EndpointType {
 export interface WindowCoveringCluster {
   type?: number
   configStatus?: {
+    operational?: boolean
+    onlineReserved?: boolean
+    liftMovementReversed?: boolean
     liftPositionAware?: boolean
     tiltPositionAware?: boolean
     liftEncoderControlled?: boolean
@@ -727,7 +765,11 @@ export interface WindowCoveringCluster {
   currentPositionLiftPercent100ths?: number
   targetPositionTiltPercent100ths?: number
   currentPositionTiltPercent100ths?: number
-  operationalStatus?: number
+  operationalStatus?: {
+    global: number
+    lift: number
+    tilt: number
+  }
 }
 
 /**

@@ -6,7 +6,7 @@
  * Architecture:
  * - Separates Matter-specific logic from core HomebridgeAPI class
  * - Uses dynamic imports to prevent loading Matter.js at module parse time
- * - Loads Matter types on first access to api.matter properties
+ * - Loads Matter types on first access to `api.matter` properties
  * - Child bridges that don't use Matter have zero Matter.js overhead
  *
  * Performance Impact:

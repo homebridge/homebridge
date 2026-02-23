@@ -290,20 +290,68 @@ describe('clusterCommandMapper', () => {
       expect(result).toBeNull()
     })
 
-    it('should map _command=step to "step" command', () => {
-      const result = mapAttributesToCommand('fanControl', {
-        _command: 'step',
-        direction: 0,
-        wrap: false,
-        lowestOff: true,
-      })
+    it('should return null for unknown attributes', () => {
+      const result = mapAttributesToCommand('fanControl', { unknownAttr: 100 })
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('rvcOperationalState cluster', () => {
+    it('should map operationalState=2 (Paused) to "pause" command', () => {
+      const result = mapAttributesToCommand('rvcOperationalState', { operationalState: 2 })
+      expect(result).toEqual({ command: 'pause' })
+    })
+
+    it('should map operationalState=1 (Running) to "resume" command', () => {
+      const result = mapAttributesToCommand('rvcOperationalState', { operationalState: 1 })
+      expect(result).toEqual({ command: 'resume' })
+    })
+
+    it('should return null for operationalState=0 (Stopped) - state-only update', () => {
+      const result = mapAttributesToCommand('rvcOperationalState', { operationalState: 0 })
+      expect(result).toBeNull()
+    })
+
+    it('should return null for dock states - state-only update', () => {
+      const result = mapAttributesToCommand('rvcOperationalState', { operationalState: 66 })
+      expect(result).toBeNull()
+    })
+
+    it('should map _command=pause to "pause" command', () => {
+      const result = mapAttributesToCommand('rvcOperationalState', { _command: 'pause' })
+      expect(result).toEqual({ command: 'pause' })
+    })
+
+    it('should map _command=resume to "resume" command', () => {
+      const result = mapAttributesToCommand('rvcOperationalState', { _command: 'resume' })
+      expect(result).toEqual({ command: 'resume' })
+    })
+
+    it('should map _command=goHome to "goHome" command', () => {
+      const result = mapAttributesToCommand('rvcOperationalState', { _command: 'goHome' })
+      expect(result).toEqual({ command: 'goHome' })
+    })
+
+    it('should return null for unsupported _command values', () => {
+      const result = mapAttributesToCommand('rvcOperationalState', { _command: 'stop' })
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('rvcRunMode cluster', () => {
+    it('should map currentMode to "changeToMode" command', () => {
+      const result = mapAttributesToCommand('rvcRunMode', { currentMode: 1 })
       expect(result).toEqual({
-        command: 'step',
-        args: {
-          direction: 0,
-          wrap: false,
-          lowestOff: true,
-        },
+        command: 'changeToMode',
+        args: { newMode: 1 },
+      })
+    })
+
+    it('should map currentMode=0 (Idle) to "changeToMode" command', () => {
+      const result = mapAttributesToCommand('rvcRunMode', { currentMode: 0 })
+      expect(result).toEqual({
+        command: 'changeToMode',
+        args: { newMode: 0 },
       })
     })
   })

@@ -70,6 +70,47 @@ export type { Logger, Logging } from './logger.js'
 export type { SerializedMatterAccessory } from './matter/accessoryCache.js'
 
 /**
+ * Matter cluster handler types for type-safe handler definitions
+ */
+export type {
+  ClusterHandlerMap,
+  ColorControlHandlers,
+  DoorLockHandlers,
+  FanControlHandlers,
+  IdentifyHandlers,
+  LevelControlHandlers,
+  OnOffHandlers,
+  RvcCleanModeHandlers,
+  RvcOperationalStateHandlers,
+  RvcRunModeHandlers,
+  ServiceAreaHandlers,
+  ThermostatHandlers,
+  WindowCoveringHandlers,
+} from './matter/clusterHandlerMap.js'
+
+/**
+ * Matter cluster state map for type-safe state access
+ */
+export type { ClusterStateMap } from './matter/clusterStateMap.js'
+
+/**
+ * Matter cluster state types (per-cluster attribute interfaces)
+ */
+export type {
+  ColorControlState,
+  DoorLockState,
+  FanControlState,
+  LevelControlState,
+  OnOffState,
+  RvcCleanModeState,
+  RvcOperationalState,
+  RvcRunModeState,
+  ServiceAreaState,
+  ThermostatState,
+  WindowCoveringState,
+} from './matter/clusterTypes.js'
+
+/**
  * Matter cluster command request types namespace for type-safe handlers
  * @example
  * ```typescript

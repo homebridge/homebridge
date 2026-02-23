@@ -7,7 +7,7 @@
 import type { MacAddress } from '@homebridge/hap-nodejs'
 
 /**
- * Type guard for NodeJS error objects with code property
+ * Type guard for Node.js error objects with code property
  */
 export interface NodeError extends Error {
   code?: string

@@ -13,7 +13,7 @@ import type { ExternalPortService } from '../externalPortService.js'
 import type { IpcService } from '../ipcService.js'
 import type { HomebridgeOptions } from '../server.js'
 import type { SerializedMatterAccessory } from './accessoryCache.js'
-import type { MatterEvent } from './ipc-types.js'
+import type { MatterEvent, MatterStatusInfo } from './ipc-types.js'
 import type { AccessoryInfo } from './managerTypes.js'
 import type { InternalMatterAccessory } from './types.js'
 
@@ -28,19 +28,6 @@ import { MatterServer } from './server.js'
 import { getErrorCode, normalizeBindConfig } from './utils.js'
 
 const log = Logger.withPrefix('Matter/MainManager')
-
-/**
- * Matter server status information for IPC communication
- */
-export interface MatterStatusInfo {
-  enabled: boolean
-  port?: number
-  setupUri?: string
-  pin?: string
-  serialNumber?: string
-  commissioned?: boolean
-  deviceCount?: number
-}
 
 /**
  * Manages Matter server and accessories for the main bridge
@@ -253,6 +240,21 @@ export class MatterBridgeManager extends BaseMatterManager {
 
           // Store the server instance
           this.externalMatterServers.set(accessory.UUID, result.server)
+
+          // Listen for state changes and forward to UI via IPC
+          // (same pattern as the main bridge server listener in initialize())
+          result.server.on('stateChange', ({ uuid, cluster, state, partId }) => {
+            const event: MatterEvent = {
+              type: 'accessoryUpdate',
+              data: {
+                uuid,
+                cluster,
+                state,
+                partId,
+              },
+            }
+            this.server.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+          })
 
           // Register the external bridge username for direct routing
           // Use main bridge's username for consistent lookups

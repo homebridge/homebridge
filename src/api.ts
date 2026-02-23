@@ -3,7 +3,15 @@ import type { Controller, Service } from '@homebridge/hap-nodejs'
 import type { AccessoryConfig, PlatformConfig } from './bridgeService.js'
 import type { Logging } from './logger.js'
 import type { BaseMatterManager } from './matter/BaseMatterManager.js'
-import type { clusterNames, clusters, deviceTypes, MatterAccessory, MatterServer, MatterTypes } from './matter/index.js'
+import type {
+  clusterNames,
+  clusters,
+  ClusterStateMap,
+  deviceTypes,
+  MatterAccessory,
+  MatterServer,
+  MatterTypes,
+} from './matter/index.js'
 
 import { EventEmitter } from 'node:events'
 
@@ -182,7 +190,7 @@ export const enum InternalAPIEvent {
 /**
  * Matter API Interface
  * Provides access to Matter protocol functionality for creating Matter-compatible accessories.
- * Similar to api.hap for HomeKit Accessory Protocol.
+ * Similar to `api.hap` for HomeKit Accessory Protocol.
  *
  * @example
  * ```typescript
@@ -345,7 +353,12 @@ export interface MatterAPI {
    * )
    * ```
    */
-  updateAccessoryState: (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string) => Promise<void>
+  updateAccessoryState: {
+    /** Typed overload for known clusters - provides autocomplete for attribute names */
+    <K extends keyof ClusterStateMap>(uuid: string, cluster: K, attributes: Partial<ClusterStateMap[K]>, partId?: string): Promise<void>
+    /** Fallback for unknown/custom clusters */
+    (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): Promise<void>
+  }
 
   /**
    * Get a Matter accessory's current cluster state
@@ -356,7 +369,7 @@ export interface MatterAPI {
    * - Verifying current state before making changes
    * - Debugging and logging
    *
-   * Similar to HAP's characteristic.value getter.
+   * Similar to HAP's `characteristic.value` getter.
    *
    * @param uuid - The UUID of the accessory
    * @param cluster - The cluster name (use api.matter.clusterNames for autocomplete)
@@ -378,7 +391,12 @@ export interface MatterAPI {
    * )
    * ```
    */
-  getAccessoryState: (uuid: string, cluster: string, partId?: string) => Promise<Record<string, unknown> | undefined>
+  getAccessoryState: {
+    /** Typed overload for known clusters - returns typed state */
+    <K extends keyof ClusterStateMap>(uuid: string, cluster: K, partId?: string): Promise<Partial<ClusterStateMap[K]> | undefined>
+    /** Fallback for unknown/custom clusters */
+    (uuid: string, cluster: string, partId?: string): Promise<Record<string, unknown> | undefined>
+  }
 }
 
 export interface API {
@@ -401,7 +419,7 @@ export interface API {
 
   /**
    * Matter Protocol API
-   * Provides access to Matter functionality, similar to api.hap for HomeKit
+   * Provides access to Matter functionality, similar to `api.hap` for HomeKit
    *
    * @example
    * ```typescript
@@ -528,7 +546,7 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   /**
    * Load Matter API implementation
-   * Must be called before accessing api.matter
+   * Must be called before accessing `api.matter`
    *
    * @internal
    */

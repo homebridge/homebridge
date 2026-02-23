@@ -21,12 +21,13 @@ import type {
 } from '@matter/main/clusters'
 
 export { ChildBridgeMatterManager } from './ChildBridgeMatterManager.js'
+export type { ClusterHandlerMap } from './clusterHandlerMap.js'
+export type { ClusterStateMap } from './clusterStateMap.js'
 export { MatterConfigCollector } from './config.js'
 export { type MatterConfigValidationResult, MatterConfigValidator } from './configValidator.js'
 export { MatterStatus } from './errors.js'
 export { MatterBridgeManager } from './MatterBridgeManager.js'
 export { MatterServer } from './server.js'
-export { HomebridgeMatterStorage, MatterStorageManager } from './storage.js'
 export {
   clusterNames,
   clusters,

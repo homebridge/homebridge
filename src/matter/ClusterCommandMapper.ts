@@ -109,20 +109,9 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
   // ============================================================================
 
   // FanControl Cluster - Used by fans
+  // Fan mode and percent changes trigger change handlers automatically via attribute updates
   fanControl: {
     map: (attributes) => {
-      // Step command (increase/decrease speed)
-      if ('_command' in attributes && attributes._command === 'step') {
-        return {
-          command: 'step',
-          args: {
-            direction: attributes.direction ?? 0,
-            wrap: attributes.wrap ?? false,
-            lowestOff: attributes.lowestOff ?? true,
-          },
-        }
-      }
-
       // Fan mode change
       if ('fanMode' in attributes) {
         // This triggers fanModeChange handler automatically
@@ -254,29 +243,33 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
   // ROBOTIC VACUUM
   // ============================================================================
 
-  // Robotic Vacuum Operational State - for action buttons (start, pause, stop, etc.)
+  // Robotic Vacuum Operational State - for action buttons (pause, resume, goHome)
+  // Note: Start/stop is controlled via rvcRunMode.changeToMode, not rvcOperationalState.
+  // The behavior supports: pause, resume, goHome
   rvcOperationalState: {
     map: (attributes) => {
       // Direct command invocation via _command attribute
-      // UI sends: { _command: 'start' } or { _command: 'pause' }, etc.
       if ('_command' in attributes) {
-        return { command: attributes._command as string }
+        const cmd = attributes._command as string
+        if (cmd === 'pause' || cmd === 'resume' || cmd === 'goHome') {
+          return { command: cmd }
+        }
+        return null
       }
 
       // Handle operationalState attribute changes
-      // Map state values to commands:
-      // 0 = Stopped → stop, 1 = Running → resume/start, 2 = Paused → pause, 3 = Error (no command)
+      // Map state values to available commands:
+      // 1 = Running → resume, 2 = Paused → pause
+      // Other states (0=Stopped, 64+=dock states) → state-only update
       if ('operationalState' in attributes) {
         const state = attributes.operationalState as number
         switch (state) {
-          case 0: // Stopped
-            return { command: 'stop' }
           case 1: // Running
             return { command: 'resume' }
           case 2: // Paused
             return { command: 'pause' }
           default:
-            return null // Error state or unknown
+            return null // State-only update for stopped/docked/charging etc.
         }
       }
 

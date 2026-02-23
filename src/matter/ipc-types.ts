@@ -24,6 +24,7 @@ export type MatterEventType
  */
 export interface MatterEvent<T = unknown> {
   type: MatterEventType
+  correlationId?: string
   data?: T
 }
 

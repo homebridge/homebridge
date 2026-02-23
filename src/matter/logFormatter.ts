@@ -50,11 +50,11 @@ export function createHomebridgeLogFormatter(): (diagnostic: unknown) => string 
         }
 
         // Apply color based on Matter log level
-        // Matter DEBUG/INFO → gray (Homebridge debug)
-        // Matter NOTICE → no color (Homebridge info)
-        // Matter WARN → yellow (Homebridge warn)
-        // Matter ERROR/FATAL → red (Homebridge error)
-        // For 'notice' or anything else, leave it uncolored (Homebridge info style)
+        // Matter DEBUG/INFO → gray (Homebridge debug).
+        // Matter NOTICE → no color (Homebridge info).
+        // Matter WARN → yellow (Homebridge warn).
+        // Matter ERROR/FATAL → red (Homebridge error).
+        // For 'notice' or anything else, leave it uncolored (Homebridge info style).
         let coloredMessage = messageText
         if (msg.level !== undefined) {
           switch (msg.level) {

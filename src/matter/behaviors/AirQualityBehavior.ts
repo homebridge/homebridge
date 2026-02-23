@@ -25,8 +25,6 @@
  * ```
  */
 
-import type { BehaviorRegistry } from './BehaviorRegistry.js'
-
 import { AirQualityServer } from '@matter/main/behaviors/air-quality'
 
 /**
@@ -39,15 +37,6 @@ import { AirQualityServer } from '@matter/main/behaviors/air-quality'
  * and Matter controllers read these values. No commands are defined.
  */
 export class HomebridgeAirQualityServer extends AirQualityServer {
-  private static registry: BehaviorRegistry
-
-  /**
-   * Set the behavior registry (called once during server initialization)
-   */
-  static setRegistry(registry: BehaviorRegistry): void {
-    this.registry = registry
-  }
-
   /**
    * Initialize the air quality server
    * Sets up any required state or listeners

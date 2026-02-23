@@ -10,7 +10,6 @@ import {
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
   extractThermostatFeatures,
-  getBehaviorMap,
   validateAccessoryRequiredFields,
 } from './serverHelpers.js'
 import { MatterDeviceError } from './types.js'
@@ -514,31 +513,6 @@ describe('serverHelpers', () => {
 
       expect(accessory.context).toBeDefined()
       expect((accessory.context as any)._skipWindowCoveringBehavior).toBe(true)
-    })
-  })
-
-  describe('getBehaviorMap', () => {
-    it('should return behavior map with all cluster types', () => {
-      const map = getBehaviorMap()
-
-      expect(map.airQuality).toBeDefined()
-      expect(map.carbonMonoxideConcentrationMeasurement).toBeDefined()
-      expect(map.colorControl).toBeDefined()
-      expect(map.doorLock).toBeDefined()
-      expect(map.fanControl).toBeDefined()
-      expect(map.identify).toBeDefined()
-      expect(map.levelControl).toBeDefined()
-      expect(map.nitrogenDioxideConcentrationMeasurement).toBeDefined()
-      expect(map.onOff).toBeDefined()
-      expect(map.ozoneConcentrationMeasurement).toBeDefined()
-      expect(map.pm10ConcentrationMeasurement).toBeDefined()
-      expect(map.pm25ConcentrationMeasurement).toBeDefined()
-      expect(map.rvcCleanMode).toBeDefined()
-      expect(map.rvcOperationalState).toBeDefined()
-      expect(map.rvcRunMode).toBeDefined()
-      expect(map.serviceArea).toBeDefined()
-      expect(map.thermostat).toBeDefined()
-      expect(map.windowCovering).toBeDefined()
     })
   })
 

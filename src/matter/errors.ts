@@ -153,7 +153,7 @@ export class ResourceExhausted extends MatterProtocolError {
 }
 
 /**
- * The sender does not have sufficient permissions (Status.PermissionDenied = 15)
+ * The sender does not have sufficient permissions (Status.UnsupportedAccess = 126)
  *
  * Use when access control prevents the operation.
  *

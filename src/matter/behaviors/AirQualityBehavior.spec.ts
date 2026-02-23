@@ -2,30 +2,11 @@
  * Tests for Air Quality Cluster Behavior
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAirQualityServer } from './AirQualityBehavior.js'
-import { BehaviorRegistry } from './BehaviorRegistry.js'
 
 describe('homebridgeAirQualityServer', () => {
-  let registry: BehaviorRegistry
-  let accessoriesMap: Map<string, any>
-
-  beforeEach(() => {
-    accessoriesMap = new Map()
-    registry = new BehaviorRegistry(accessoriesMap)
-    HomebridgeAirQualityServer.setRegistry(registry)
-  })
-
-  describe('setRegistry', () => {
-    it('should set the registry', () => {
-      const newRegistry = new BehaviorRegistry(new Map())
-      HomebridgeAirQualityServer.setRegistry(newRegistry)
-      // eslint-disable-next-line dot-notation
-      expect(HomebridgeAirQualityServer['registry']).toBe(newRegistry)
-    })
-  })
-
   describe('initialize', () => {
     it('should initialize without errors', () => {
       // Mock super.initialize

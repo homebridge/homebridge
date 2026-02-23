@@ -60,8 +60,6 @@
  * ```
  */
 
-import type { BehaviorRegistry } from './BehaviorRegistry.js'
-
 import { CarbonMonoxideConcentrationMeasurementServer } from '@matter/node/behaviors/carbon-monoxide-concentration-measurement'
 import { NitrogenDioxideConcentrationMeasurementServer } from '@matter/node/behaviors/nitrogen-dioxide-concentration-measurement'
 import { OzoneConcentrationMeasurementServer } from '@matter/node/behaviors/ozone-concentration-measurement'
@@ -75,12 +73,6 @@ import { Pm25ConcentrationMeasurementServer } from '@matter/node/behaviors/pm25-
  * This is a read-only cluster - plugins update state via the Matter API
  */
 export class HomebridgePm25ConcentrationMeasurementServer extends Pm25ConcentrationMeasurementServer {
-  private static registry: BehaviorRegistry
-
-  static setRegistry(registry: BehaviorRegistry): void {
-    this.registry = registry
-  }
-
   override initialize(): void {
     super.initialize()
     // Read-only cluster, no command handlers needed
@@ -94,12 +86,6 @@ export class HomebridgePm25ConcentrationMeasurementServer extends Pm25Concentrat
  * This is a read-only cluster - plugins update state via the Matter API
  */
 export class HomebridgePm10ConcentrationMeasurementServer extends Pm10ConcentrationMeasurementServer {
-  private static registry: BehaviorRegistry
-
-  static setRegistry(registry: BehaviorRegistry): void {
-    this.registry = registry
-  }
-
   override initialize(): void {
     super.initialize()
     // Read-only cluster, no command handlers needed
@@ -113,12 +99,6 @@ export class HomebridgePm10ConcentrationMeasurementServer extends Pm10Concentrat
  * This is a read-only cluster - plugins update state via the Matter API
  */
 export class HomebridgeOzoneConcentrationMeasurementServer extends OzoneConcentrationMeasurementServer {
-  private static registry: BehaviorRegistry
-
-  static setRegistry(registry: BehaviorRegistry): void {
-    this.registry = registry
-  }
-
   override initialize(): void {
     super.initialize()
     // Read-only cluster, no command handlers needed
@@ -132,12 +112,6 @@ export class HomebridgeOzoneConcentrationMeasurementServer extends OzoneConcentr
  * This is a read-only cluster - plugins update state via the Matter API
  */
 export class HomebridgeNitrogenDioxideConcentrationMeasurementServer extends NitrogenDioxideConcentrationMeasurementServer {
-  private static registry: BehaviorRegistry
-
-  static setRegistry(registry: BehaviorRegistry): void {
-    this.registry = registry
-  }
-
   override initialize(): void {
     super.initialize()
     // Read-only cluster, no command handlers needed
@@ -151,12 +125,6 @@ export class HomebridgeNitrogenDioxideConcentrationMeasurementServer extends Nit
  * This is a read-only cluster - plugins update state via the Matter API
  */
 export class HomebridgeCarbonMonoxideConcentrationMeasurementServer extends CarbonMonoxideConcentrationMeasurementServer {
-  private static registry: BehaviorRegistry
-
-  static setRegistry(registry: BehaviorRegistry): void {
-    this.registry = registry
-  }
-
   override initialize(): void {
     super.initialize()
     // Read-only cluster, no command handlers needed

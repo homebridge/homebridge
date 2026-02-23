@@ -107,6 +107,7 @@ describe('homebridgeAPI', () => {
                 onOff: false,
               },
             },
+            context: {},
           },
         ]
 
@@ -130,6 +131,7 @@ describe('homebridgeAPI', () => {
             manufacturer: 'Test',
             model: 'Test',
             clusters: { onOff: { onOff: false } },
+            context: {},
           },
           {
             UUID: api.matter.uuid.generate('test-light-2'),
@@ -142,6 +144,7 @@ describe('homebridgeAPI', () => {
               onOff: { onOff: true },
               levelControl: { currentLevel: 100 },
             },
+            context: {},
           },
         ]
 
@@ -168,6 +171,7 @@ describe('homebridgeAPI', () => {
             model: 'Updated Model',
             firmwareRevision: '2.0.0',
             clusters: { onOff: { onOff: true } },
+            context: {},
           },
         ]
 
@@ -188,6 +192,7 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-001',
             manufacturer: 'Test',
             model: 'Test',
+            context: {},
           },
           {
             UUID: api.matter.uuid.generate('test-light-2'),
@@ -196,6 +201,7 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-002',
             manufacturer: 'Test',
             model: 'Test',
+            context: {},
           },
         ]
 
@@ -216,6 +222,7 @@ describe('homebridgeAPI', () => {
           manufacturer: 'Test',
           model: 'V2',
           firmwareRevision: '3.1.0',
+          context: {},
         }
 
         api.matter.updatePlatformAccessories([accessory])
@@ -237,6 +244,7 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-001',
             manufacturer: 'Test',
             model: 'Test',
+            context: {},
           },
         ]
 
@@ -259,6 +267,7 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-001',
             manufacturer: 'Test',
             model: 'Test',
+            context: {},
           },
           {
             UUID: api.matter.uuid.generate('test-light-2'),
@@ -267,6 +276,7 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-002',
             manufacturer: 'Test',
             model: 'Test',
+            context: {},
           },
         ]
 
@@ -393,6 +403,7 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-001',
             manufacturer: 'Test',
             model: 'Test',
+            context: {},
           },
           {
             UUID: api.matter.uuid.generate('test-vacuum-1'),
@@ -401,6 +412,7 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-002',
             manufacturer: 'Test',
             model: 'Test',
+            context: {},
           },
           {
             UUID: api.matter.uuid.generate('test-light-2'),
@@ -409,6 +421,7 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-003',
             manufacturer: 'Test',
             model: 'Test',
+            context: {},
           },
         ]
 

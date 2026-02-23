@@ -1,14 +1,20 @@
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { InternalMatterAccessory } from './types.js'
 
-import fs from 'fs-extra'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../logger.js'
 import { MatterAccessoryCache } from './accessoryCache.js'
 
 // Mock dependencies
-vi.mock('fs-extra')
+vi.mock('node:fs/promises', () => ({
+  stat: vi.fn(),
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
+  rename: vi.fn(),
+  mkdir: vi.fn(),
+  rm: vi.fn(),
+}))
 vi.mock('../logger.js', () => {
   const mockLogger = {
     error: vi.fn(),
@@ -23,6 +29,15 @@ vi.mock('../logger.js', () => {
     },
   }
 })
+
+// Import mocked fs functions
+const { stat, readFile, writeFile, rename, mkdir, rm } = await import('node:fs/promises')
+const mockedStat = vi.mocked(stat)
+const mockedReadFile = vi.mocked(readFile)
+const mockedWriteFile = vi.mocked(writeFile)
+const mockedRename = vi.mocked(rename)
+const mockedMkdir = vi.mocked(mkdir)
+const mockedRm = vi.mocked(rm)
 
 describe('matterAccessoryCache', () => {
   let cache: MatterAccessoryCache
@@ -54,7 +69,7 @@ describe('matterAccessoryCache', () => {
 
   describe('load', () => {
     it('should return empty map on first run (file does not exist)', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(false)
+      mockedStat.mockRejectedValue(new Error('ENOENT'))
 
       const result = await cache.load()
 
@@ -74,6 +89,7 @@ describe('matterAccessoryCache', () => {
           manufacturer: 'Test Mfg',
           model: 'Test Model',
           clusters: { onOff: { onOff: false } },
+          context: {},
         },
         {
           plugin: 'homebridge-test',
@@ -85,11 +101,12 @@ describe('matterAccessoryCache', () => {
           manufacturer: 'Test Mfg',
           model: 'Test Model',
           clusters: { onOff: { onOff: true } },
+          context: {},
         },
       ]
 
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockResolvedValue(mockData)
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       const result = await cache.load()
 
@@ -123,8 +140,8 @@ describe('matterAccessoryCache', () => {
         },
       ]
 
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockResolvedValue(mockData)
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       const result = await cache.load()
 
@@ -133,33 +150,33 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should handle non-array cache data', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockResolvedValue({ notAnArray: true })
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue(JSON.stringify({ notAnArray: true }) as any)
 
       const result = await cache.load()
 
       expect(result.size).toBe(0)
       expect(logErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to load'))
       expect(logWarnSpy).toHaveBeenCalledWith('Deleting corrupted cache file and starting fresh')
-      expect(fs.remove).toHaveBeenCalled()
+      expect(mockedRm).toHaveBeenCalled()
     })
 
     it('should handle corrupted JSON file', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockRejectedValue(new Error('Invalid JSON'))
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue('not valid json{{{' as any)
 
       const result = await cache.load()
 
       expect(result.size).toBe(0)
       expect(logErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to load'))
       expect(logWarnSpy).toHaveBeenCalledWith('Deleting corrupted cache file and starting fresh')
-      expect(fs.remove).toHaveBeenCalled()
+      expect(mockedRm).toHaveBeenCalled()
     })
 
     it('should handle error when deleting corrupted file', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockRejectedValue(new Error('Invalid JSON'))
-      ;(vi.mocked(fs.remove) as any).mockRejectedValue(new Error('Cannot delete'))
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue('invalid json' as any)
+      mockedRm.mockRejectedValue(new Error('Cannot delete'))
 
       const result = await cache.load()
 
@@ -168,13 +185,13 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should not load twice (cacheLoaded flag)', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(false)
+      mockedStat.mockRejectedValue(new Error('ENOENT'))
 
       await cache.load()
       await cache.load() // second load
 
-      // pathExists should only be called once
-      expect(fs.pathExists).toHaveBeenCalledTimes(1)
+      // stat should only be called once
+      expect(mockedStat).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -195,9 +212,9 @@ describe('matterAccessoryCache', () => {
 
       accessories.set('test-uuid', mockAccessory)
 
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.writeJson) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.move) as any).mockResolvedValue(undefined)
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
 
       // Request multiple saves rapidly
       cache.requestSave(accessories)
@@ -208,7 +225,7 @@ describe('matterAccessoryCache', () => {
       await vi.runAllTimersAsync()
 
       // Only one actual save should occur
-      expect(fs.writeJson).toHaveBeenCalledTimes(1)
+      expect(mockedWriteFile).toHaveBeenCalledTimes(1)
 
       vi.useRealTimers()
     })
@@ -216,10 +233,9 @@ describe('matterAccessoryCache', () => {
 
   describe('save', () => {
     it('should save accessories to cache', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.ensureDir) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.writeJson) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.move) as any).mockResolvedValue(undefined)
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
 
       const accessories = new Map<string, InternalMatterAccessory>()
       const mockAccessory: InternalMatterAccessory = {
@@ -239,24 +255,19 @@ describe('matterAccessoryCache', () => {
 
       await cache.save(accessories)
 
-      expect(fs.writeJson).toHaveBeenCalledWith(
+      expect(mockedWriteFile).toHaveBeenCalledWith(
         expect.stringContaining('.tmp'),
-        expect.arrayContaining([
-          expect.objectContaining({
-            uuid: 'test-uuid', // Serialized with lowercase uuid for JSON storage
-            displayName: 'Test Device',
-          }),
-        ]),
-        { spaces: 2 },
+        expect.stringContaining('"uuid": "test-uuid"'),
+        'utf-8',
       )
-      expect(fs.move).toHaveBeenCalled()
+      expect(mockedRename).toHaveBeenCalled()
       expect(logDebugSpy).toHaveBeenCalledWith('Saved 1 Matter accessory to cache')
     })
 
     it('should serialize accessories with parts', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.writeJson) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.move) as any).mockResolvedValue(undefined)
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
 
       const accessories = new Map<string, InternalMatterAccessory>()
       const mockAccessory: InternalMatterAccessory = {
@@ -283,28 +294,32 @@ describe('matterAccessoryCache', () => {
 
       await cache.save(accessories)
 
-      const savedData = vi.mocked(fs.writeJson).mock.calls[0][1] as SerializedMatterAccessory[]
+      const savedJson = mockedWriteFile.mock.calls[0][1] as string
+      const savedData = JSON.parse(savedJson) as SerializedMatterAccessory[]
       expect(savedData[0].parts).toBeDefined()
       expect(savedData[0].parts![0].id).toBe('part-1')
     })
 
     it('should ensure directory exists on first save', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.ensureDir) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.writeJson) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.move) as any).mockResolvedValue(undefined)
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
       await cache.save(accessories)
 
-      expect(fs.ensureDir).toHaveBeenCalledWith(expect.stringContaining('/mock/storage/test-bridge'))
+      expect(mockedMkdir).toHaveBeenCalledWith(
+        expect.stringContaining('/mock/storage/test-bridge'),
+        { recursive: true },
+      )
       expect(logDebugSpy).toHaveBeenCalledWith(expect.stringContaining('Cache directory ensured'))
     })
 
-    it('should throw error if directory creation fails', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(false) // directory doesn't exist after creation
-      ;(vi.mocked(fs.ensureDir) as any).mockResolvedValue(undefined)
+    it('should handle write error gracefully', async () => {
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockRejectedValue(new Error('Write failed'))
+      mockedRm.mockResolvedValue(undefined)
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
@@ -313,48 +328,46 @@ describe('matterAccessoryCache', () => {
       expect(logErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to save'))
     })
 
-    it('should use atomic write pattern (temp file then move)', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.writeJson) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.move) as any).mockResolvedValue(undefined)
+    it('should use atomic write pattern (temp file then rename)', async () => {
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
       await cache.save(accessories)
 
       // Should write to temp file first
-      expect(fs.writeJson).toHaveBeenCalledWith(
+      expect(mockedWriteFile).toHaveBeenCalledWith(
         expect.stringContaining('.tmp'),
         expect.anything(),
-        expect.anything(),
+        'utf-8',
       )
 
-      // Then move temp file to final location
-      expect(fs.move).toHaveBeenCalledWith(
+      // Then rename temp file to final location
+      expect(mockedRename).toHaveBeenCalledWith(
         expect.stringContaining('.tmp'),
         expect.stringContaining('accessories.json'),
-        { overwrite: true },
       )
     })
 
     it('should clean up temp file on write error', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      vi.mocked(fs.writeJson).mockRejectedValue(new Error('Write failed'))
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockRejectedValue(new Error('Write failed'))
+      mockedRm.mockResolvedValue(undefined)
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
       await cache.save(accessories)
 
       expect(logErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to save'))
-      expect(fs.pathExists).toHaveBeenCalled()
+      expect(mockedRm).toHaveBeenCalledWith(expect.stringContaining('.tmp'), { force: true })
     })
 
     it('should handle cleanup error gracefully', async () => {
-      ;(vi.mocked(fs.pathExists) as any)
-        .mockResolvedValueOnce(true) // directory exists
-        .mockResolvedValueOnce(true) // temp file exists for cleanup
-      ;(vi.mocked(fs.writeJson) as any).mockRejectedValue(new Error('Write failed'))
-      ;(vi.mocked(fs.remove) as any).mockRejectedValue(new Error('Remove failed'))
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockRejectedValue(new Error('Write failed'))
+      mockedRm.mockRejectedValue(new Error('Remove failed'))
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
@@ -364,9 +377,9 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should serialize multiple accessories', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.writeJson) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.move) as any).mockResolvedValue(undefined)
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
 
       const accessories = new Map<string, InternalMatterAccessory>()
       for (let i = 1; i <= 3; i++) {
@@ -383,15 +396,16 @@ describe('matterAccessoryCache', () => {
 
       await cache.save(accessories)
 
-      const savedData = vi.mocked(fs.writeJson).mock.calls[0][1] as SerializedMatterAccessory[]
+      const savedJson = mockedWriteFile.mock.calls[0][1] as string
+      const savedData = JSON.parse(savedJson) as SerializedMatterAccessory[]
       expect(savedData).toHaveLength(3)
       expect(logDebugSpy).toHaveBeenCalledWith('Saved 3 Matter accessories to cache')
     })
 
     it('should queue concurrent saves to prevent race conditions', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.writeJson) as any).mockResolvedValue(undefined)
-      ;(vi.mocked(fs.move) as any).mockResolvedValue(undefined)
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
@@ -403,7 +417,7 @@ describe('matterAccessoryCache', () => {
       ])
 
       // All saves should complete (queued sequentially)
-      expect(fs.writeJson).toHaveBeenCalled()
+      expect(mockedWriteFile).toHaveBeenCalled()
     })
   })
 
@@ -419,11 +433,12 @@ describe('matterAccessoryCache', () => {
           serialNumber: 'SN-001',
           manufacturer: 'Test',
           model: 'Test',
+          context: {},
         },
       ]
 
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockResolvedValue(mockData)
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       await cache.load()
 
@@ -432,7 +447,7 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should return undefined for non-existent UUID', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(false)
+      mockedStat.mockRejectedValue(new Error('ENOENT'))
       await cache.load()
 
       const result = cache.getCached('non-existent')
@@ -452,11 +467,12 @@ describe('matterAccessoryCache', () => {
           serialNumber: 'SN-001',
           manufacturer: 'Test',
           model: 'Test',
+          context: {},
         },
       ]
 
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockResolvedValue(mockData)
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       await cache.load()
 
@@ -464,7 +480,7 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should return false for non-existent accessory', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(false)
+      mockedStat.mockRejectedValue(new Error('ENOENT'))
       await cache.load()
 
       expect(cache.hasCached('non-existent')).toBe(false)
@@ -483,11 +499,12 @@ describe('matterAccessoryCache', () => {
           serialNumber: 'SN-001',
           manufacturer: 'Test',
           model: 'Test',
+          context: {},
         },
       ]
 
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockResolvedValue(mockData)
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       await cache.load()
 
@@ -509,6 +526,7 @@ describe('matterAccessoryCache', () => {
           serialNumber: 'SN-001',
           manufacturer: 'Test',
           model: 'Test',
+          context: {},
         },
         {
           plugin: 'homebridge-test',
@@ -519,11 +537,12 @@ describe('matterAccessoryCache', () => {
           serialNumber: 'SN-002',
           manufacturer: 'Test',
           model: 'Test',
+          context: {},
         },
       ]
 
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(true)
-      ;(vi.mocked(fs.readJson) as any).mockResolvedValue(mockData)
+      mockedStat.mockResolvedValue({} as any)
+      mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       await cache.load()
 
@@ -534,7 +553,7 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should return a copy of the cache (not reference)', async () => {
-      ;(vi.mocked(fs.pathExists) as any).mockResolvedValue(false)
+      mockedStat.mockRejectedValue(new Error('ENOENT'))
       await cache.load()
 
       const all = cache.getAllCached()

@@ -237,6 +237,25 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
           // Store the server instance
           this.externalMatterServers.set(accessory.UUID, result.server)
 
+          // Listen for state changes and forward to parent process
+          // (same pattern as the child bridge server listener in initialize())
+          result.server.on('stateChange', ({ uuid, cluster, state, partId }) => {
+            if (process.send) {
+              process.send({
+                id: 'matterEvent',
+                data: {
+                  type: 'accessoryUpdate',
+                  data: {
+                    uuid,
+                    cluster,
+                    state,
+                    partId,
+                  },
+                },
+              })
+            }
+          })
+
           // Register the external bridge username with parent process for routing
           // Send via IPC to parent - parent will register in externalMatterBridgeRegistry
           if (process.send) {

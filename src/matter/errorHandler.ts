@@ -1,3 +1,5 @@
+/* global NodeJS */
+
 /**
  * Simplified Matter Error Handler
  *
@@ -54,16 +56,18 @@ export class MatterErrorHandler {
     }
 
     const errorMessage = error.message.toLowerCase()
+    const errorCode = 'code' in error ? (error as NodeJS.ErrnoException).code : undefined
 
-    // Network errors (port conflicts, connection failures)
-    if (errorMessage.includes('eaddrinuse')) {
+    // Network errors — prefer error.code for Node.js system errors, fallback to string matching
+    if (errorCode === 'EADDRINUSE' || errorMessage.includes('eaddrinuse')) {
       return new MatterNetworkError(
         `Port is already in use: ${error.message}`,
         { code: 'PORT_IN_USE', recoverable: false },
       )
     }
 
-    if (errorMessage.includes('econnrefused') || errorMessage.includes('etimedout')) {
+    if (errorCode === 'ECONNREFUSED' || errorCode === 'ETIMEDOUT'
+      || errorMessage.includes('econnrefused') || errorMessage.includes('etimedout')) {
       return new MatterNetworkError(
         `Connection failed: ${error.message}`,
         { code: 'CONNECTION_FAILED', recoverable: true },
@@ -78,8 +82,10 @@ export class MatterErrorHandler {
       )
     }
 
-    // Storage errors
-    if (errorMessage.includes('storage') || errorMessage.includes('enoent') || errorMessage.includes('corrupted')) {
+    // Storage errors — prefer error.code for filesystem errors, fallback to string matching
+    if (errorCode === 'ENOENT' || errorCode === 'EACCES'
+      || errorMessage.includes('enoent')
+      || errorMessage.includes('storage') || errorMessage.includes('corrupted')) {
       return new MatterStorageError(
         `Storage error: ${error.message}`,
         { recoverable: true },

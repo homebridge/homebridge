@@ -9,9 +9,8 @@
 
 import type { InternalMatterAccessory } from './types.js'
 
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-
-import fs from 'fs-extra'
 
 import { Logger } from '../logger.js'
 
@@ -89,14 +88,16 @@ export class MatterAccessoryCache {
 
     try {
       // Check if cache file exists
-      if (!await fs.pathExists(this.cacheFilePath)) {
+      try {
+        await stat(this.cacheFilePath)
+      } catch {
         log.info('No cached Matter accessories found (first run)')
         this.cacheLoaded = true
         return this.cachedAccessories
       }
 
       // Read and parse cache file
-      const cacheData = await fs.readJson(this.cacheFilePath)
+      const cacheData = JSON.parse(await readFile(this.cacheFilePath, 'utf-8'))
 
       if (!Array.isArray(cacheData)) {
         throw new TypeError('Cache file does not contain an array')
@@ -123,7 +124,7 @@ export class MatterAccessoryCache {
       log.warn('Deleting corrupted cache file and starting fresh')
 
       try {
-        await fs.remove(this.cacheFilePath)
+        await rm(this.cacheFilePath, { force: true })
       } catch (removeError) {
         // non-fatal: couldn't delete corrupted file
         log.debug('Could not delete corrupted cache file:', removeError)
@@ -188,24 +189,16 @@ export class MatterAccessoryCache {
       // Ensure directory exists (only check once, not on every save)
       if (!this.directoryEnsured) {
         const directory = dirname(this.cacheFilePath)
-        await fs.ensureDir(directory)
-
-        // Verify directory was created successfully
-        const dirExists = await fs.pathExists(directory)
-        if (!dirExists) {
-          throw new Error(`Failed to create cache directory: ${directory}`)
-        }
-
+        await mkdir(directory, { recursive: true })
         this.directoryEnsured = true
         log.debug(`Cache directory ensured: ${directory}`)
       }
 
       // Write to temporary file first (atomic write pattern to prevent corruption)
-      await fs.writeJson(tempFilePath, serialized, { spaces: 2 })
+      await writeFile(tempFilePath, JSON.stringify(serialized, null, 2), 'utf-8')
 
       // Atomically move temp file to final location
-      // Use move instead of rename for better cross-device compatibility
-      await fs.move(tempFilePath, this.cacheFilePath, { overwrite: true })
+      await rename(tempFilePath, this.cacheFilePath)
 
       log.debug(`Saved ${serialized.length} Matter accessor${serialized.length === 1 ? 'y' : 'ies'} to cache`)
     } catch (error: unknown) {
@@ -214,9 +207,7 @@ export class MatterAccessoryCache {
 
       // Clean up temp file if it exists
       try {
-        if (await fs.pathExists(tempFilePath)) {
-          await fs.remove(tempFilePath)
-        }
+        await rm(tempFilePath, { force: true })
       } catch (cleanupError) {
         // non-fatal: couldn't clean up temp file
         log.debug('Could not clean up temporary cache file:', cleanupError)
