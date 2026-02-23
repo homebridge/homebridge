@@ -1,5 +1,3 @@
-import type { MacAddress } from 'hap-nodejs'
-
 import type {
   AccessoryIdentifier,
   AccessoryName,
@@ -11,27 +9,32 @@ import type {
   PlatformPluginConstructor,
 } from './api.js'
 import type { BridgeConfiguration, BridgeOptions, HomebridgeConfig } from './bridgeService.js'
+import type { MatterEvent } from './ipcService.js'
+import type { MatterBridgeManager } from './matter/index.js'
 import type { Plugin } from './plugin.js'
 import type { PluginManagerOptions } from './pluginManager.js'
 
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 
+import { AccessoryEventTypes, MDNSAdvertiser } from '@homebridge/hap-nodejs'
 import chalk from 'chalk'
-import { AccessoryEventTypes, MDNSAdvertiser } from 'hap-nodejs'
 import qrcode from 'qrcode-terminal'
 
-import { HomebridgeAPI, PluginType } from './api.js'
+import { HomebridgeAPI, InternalAPIEvent, PluginType } from './api.js'
 import { BridgeService } from './bridgeService.js'
 import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
-import { IpcIncomingEvent, IpcOutgoingEvent, IpcService } from './ipcService.js'
+import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
+import { MatterConfigCollector } from './matter/config.js'
+import { PlatformAccessory } from './platformAccessory.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
 
 const log = Logger.internal
+const matterLogger = Logger.withPrefix('Matter/MainManager')
 
 export interface HomebridgeOptions {
   keepOrphanedCachedAccessories?: boolean
@@ -67,13 +70,27 @@ export class Server {
   private readonly api: HomebridgeAPI
   private readonly pluginManager: PluginManager
   private readonly bridgeService: BridgeService
-  private readonly ipcService: IpcService
   private readonly externalPortService: ExternalPortService
+  readonly ipcService: IpcService
 
   private readonly config: HomebridgeConfig
 
   // used to keep track of child bridges
-  private readonly childBridges: Map<MacAddress, ChildBridgeService> = new Map()
+  // Key is HAP username (MAC address)
+  private readonly childBridges: Map<string, ChildBridgeService> = new Map()
+
+  // Matter bridge manager (handles Matter server lifecycle)
+  // Lazy-loaded only when Matter is configured to avoid loading heavy Matter.js libraries
+  private matterManager?: MatterBridgeManager
+
+  // Registry of external Matter bridge usernames to their owning bridge
+  // Key: external Matter bridge username (e.g., CE:65:F2:E2:D5:98)
+  // Value: owner bridge username (main bridge or child bridge MAC address)
+  private readonly externalMatterBridgeRegistry: Map<string, string> = new Map()
+
+  // Matter monitoring state (for UI accessories page)
+  private matterMonitoringActive = false
+  private matterMonitoringClients = 0
 
   // current server status
   private serverStatus: ServerStatus = ServerStatus.PENDING
@@ -86,7 +103,11 @@ export class Server {
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI()
     this.ipcService = new IpcService()
-    this.externalPortService = new ExternalPortService(this.config.ports)
+
+    // Collect all configured Matter ports to avoid conflicts
+    const configuredMatterPorts = MatterConfigCollector.collectConfiguredMatterPorts(this.config)
+
+    this.externalPortService = new ExternalPortService(this.config.ports, this.config.matterPorts, configuredMatterPorts)
 
     // set status to pending
     this.setServerStatus(ServerStatus.PENDING)
@@ -115,10 +136,19 @@ export class Server {
       this.externalPortService,
       bridgeConfig,
       this.config.bridge,
-      this.config,
     )
 
-    // watch bridge events to check when server is online
+    // Note: MatterBridgeManager creation is deferred to start() to avoid loading
+    // heavy Matter.js libraries during construction when Matter may not be configured
+
+    // Handle platform accessory registration
+    this.api.on(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this.handleRegisterPlatformAccessories.bind(this))
+    this.api.on(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, this.handleUnregisterPlatformAccessories.bind(this))
+
+    // Handle external accessories (cameras, etc.)
+    this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, this.handlePublishExternalAccessories.bind(this))
+
+    // Watch bridge events to check when server is online
     this.bridgeService.bridge.on(AccessoryEventTypes.ADVERTISED, () => {
       this.setServerStatus(ServerStatus.OK)
     })
@@ -140,14 +170,18 @@ export class Server {
    */
   private setServerStatus(status: ServerStatus) {
     this.serverStatus = status
-    this.ipcService.sendMessage(IpcOutgoingEvent.SERVER_STATUS_UPDATE, {
+
+    const statusUpdate: ServerStatusUpdate = {
       status: this.serverStatus,
       paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
       setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
-      name: this.bridgeService?.bridge?.displayName || this.config.bridge.name,
+      name: this.config.bridge.name,
       username: this.config.bridge.username,
       pin: this.config.bridge.pin,
-    })
+      matter: this.matterManager?.getMatterStatus() ?? { enabled: false },
+    }
+
+    this.ipcService.sendMessage(IpcOutgoingEvent.SERVER_STATUS_UPDATE, statusUpdate)
   }
 
   public async start(): Promise<void> {
@@ -163,6 +197,36 @@ export class Server {
     // initialize plugins
     await this.pluginManager.initializeInstalledPlugins()
 
+    // Lazy-load and initialize Matter only if configured
+    // Heavy Matter.js libraries are loaded here (async), avoiding sync blocking during construction
+    if (MatterConfigCollector.hasMatterConfig(this.config)) {
+      // Validate Matter configuration (lazy-loads validator)
+      await MatterConfigCollector.validateMatterConfig(this.config)
+
+      // Check again after validation (invalid configs may have been removed)
+      if (MatterConfigCollector.hasMatterConfig(this.config)) {
+        // Dynamically import MatterBridgeManager only when needed
+        // This prevents loading heavy Matter.js libraries when Matter is not configured
+        const { MatterBridgeManager } = await import('./matter/MatterBridgeManager.js')
+
+        // Create the manager
+        this.matterManager = new MatterBridgeManager(
+          this.config,
+          this.api,
+          this.externalPortService,
+          this.pluginManager,
+          this.options,
+          this, // Pass server instance for registry access
+        )
+
+        // Set manager reference on API for getAccessoryState
+        this.api._setMatterManager(this.matterManager)
+
+        // Initialize Matter server for main bridge if enabled
+        await this.matterManager.initialize()
+      }
+    }
+
     if (this.config.platforms.length > 0) {
       promises.push(...this.loadPlatforms())
     }
@@ -177,22 +241,54 @@ export class Server {
 
     // restore cached accessories
     this.bridgeService.restoreCachedPlatformAccessories()
+    this.matterManager?.restoreCachedAccessories(this.options.keepOrphanedCachedAccessories ?? false)
 
     this.api.signalFinished()
 
     // wait for all platforms to publish their accessories before we publish the bridge
     await Promise.all(promises)
-      .then(() => this.publishBridge())
+    this.publishBridge()
   }
 
-  public teardown(): void {
+  public async teardown(): Promise<void> {
     this.bridgeService.teardown()
+
+    // Teardown Matter servers (main bridge and external accessories)
+    await this.matterManager?.teardown()
+
     this.setServerStatus(ServerStatus.DOWN)
   }
 
   private publishBridge(): void {
     this.bridgeService.publishBridge()
     this.printSetupInfo(this.config.bridge.pin)
+  }
+
+  private handlePublishExternalAccessories(accessories: PlatformAccessory[]): void {
+    // External accessories are published via HAP
+    // Plugins should use api.matter to register Matter accessories explicitly
+    log.info(`Publishing ${accessories.length} external accessories`)
+  }
+
+  private handleRegisterPlatformAccessories(accessories: PlatformAccessory[]): void {
+    // Route to HAP bridge
+    this.bridgeService.handleRegisterPlatformAccessories(accessories)
+  }
+
+  private handleUnregisterPlatformAccessories(accessories: PlatformAccessory[]): void {
+    // Route to HAP bridge
+    this.bridgeService.handleUnregisterPlatformAccessories(accessories)
+  }
+
+  /**
+   * Handle Matter command trigger from IPC (for UI control)
+   * This is called by IPC handlers, not API events
+   */
+  private async handleTriggerMatterCommand(uuid: string, cluster: string, attributes: Record<string, any>, partId?: string): Promise<void> {
+    if (!this.matterManager) {
+      throw new Error('Matter manager not initialized')
+    }
+    await this.matterManager.handleTriggerCommand(uuid, cluster, attributes, partId)
   }
 
   private static loadConfig(): HomebridgeConfig {
@@ -235,6 +331,9 @@ export class Server {
         config.ports = undefined
       }
     }
+
+    // Validate Matter port pool configuration
+    MatterConfigCollector.validateMatterPortsPool(config as HomebridgeConfig)
 
     const bridge: BridgeConfiguration = config.bridge || defaultBridge
     bridge.name = bridge.name || defaultBridge.name
@@ -353,6 +452,9 @@ export class Server {
             this.externalPortService,
           )
 
+          // Set callback for external Matter bridge registration
+          childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+
           this.childBridges.set(accessoryConfig._bridge.username, childBridge)
         }
 
@@ -449,6 +551,9 @@ export class Server {
           this.externalPortService,
         )
 
+        // Set callback for external Matter bridge registration
+        childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+
         this.childBridges.set(platformConfig._bridge.username, childBridge)
 
         // add config to child bridge service
@@ -475,6 +580,14 @@ export class Server {
    * Validate an external bridge config
    */
   private validateChildBridgeConfig(type: PluginType, identifier: string, bridgeConfig: BridgeConfiguration): void {
+    // All child bridges require username
+    if (!bridgeConfig.username) {
+      throw new Error(
+        `Error loading the ${type} "${identifier}" requested in your config.json - `
+        + 'Missing required field "_bridge.username".',
+      )
+    }
+
     if (!validMacAddress(bridgeConfig.username)) {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - `
@@ -547,6 +660,407 @@ export class Server {
         Array.from(this.childBridges.values(), x => x.getMetadata()),
       )
     })
+
+    // Matter monitoring lifecycle handlers
+    this.ipcService.on(IpcIncomingEvent.START_MATTER_MONITORING, () => {
+      this.handleStartMatterMonitoring()
+    })
+
+    this.ipcService.on(IpcIncomingEvent.STOP_MATTER_MONITORING, () => {
+      this.handleStopMatterMonitoring()
+    })
+
+    this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORIES, (data) => {
+      void this.handleGetMatterAccessories(data?.bridgeUsername)
+    })
+
+    this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORY_INFO, (data) => {
+      this.handleGetMatterAccessoryInfo(data?.uuid)
+    })
+
+    this.ipcService.on(IpcIncomingEvent.MATTER_ACCESSORY_CONTROL, (data) => {
+      void this.handleMatterAccessoryControl(data)
+    })
+  }
+
+  /**
+   * Handle start Matter monitoring request from UI
+   * Only starts monitoring if this is the first client
+   */
+  private handleStartMatterMonitoring(): void {
+    this.matterMonitoringClients++
+
+    // Only setup monitoring if this is the first client
+    if (this.matterMonitoringClients === 1) {
+      this.matterMonitoringActive = true
+
+      // Enable monitoring on main bridge Matter servers
+      this.matterManager?.enableStateMonitoring()
+
+      // Enable monitoring on all child bridges
+      for (const childBridge of this.childBridges.values()) {
+        childBridge.startMatterMonitoring()
+      }
+
+      const event: MatterEvent = {
+        type: 'monitoringStarted',
+        data: { success: true },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+    } else {
+      // Already monitoring, just acknowledge
+      const event: MatterEvent = {
+        type: 'monitoringStarted',
+        data: { success: true, alreadyActive: true },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+    }
+  }
+
+  /**
+   * Handle stop Matter monitoring request from UI
+   * Only stops monitoring when no more clients
+   */
+  private handleStopMatterMonitoring(): void {
+    this.matterMonitoringClients--
+
+    // Only stop monitoring when no more clients
+    if (this.matterMonitoringClients <= 0) {
+      this.matterMonitoringClients = 0
+      this.matterMonitoringActive = false
+
+      // Disable monitoring on main bridge Matter servers
+      this.matterManager?.disableStateMonitoring()
+
+      // Disable monitoring on all child bridges
+      for (const childBridge of this.childBridges.values()) {
+        childBridge.stopMatterMonitoring()
+      }
+
+      const event: MatterEvent = {
+        type: 'monitoringStopped',
+        data: { success: true },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+    } else {
+      // Other clients still monitoring
+      const event: MatterEvent = {
+        type: 'monitoringStopped',
+        data: { success: true, othersActive: true },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+    }
+  }
+
+  /**
+   * Register an external Matter bridge (e.g., robot vacuum with own bridge)
+   * This allows routing control commands directly to the correct owner
+   * @param externalBridgeUsername - Username of the external Matter bridge
+   * @param ownerUsername - Username of the bridge that owns it (main bridge or child bridge username)
+   */
+  public registerExternalMatterBridge(externalBridgeUsername: string, ownerUsername: string): void {
+    const normalizedExternal = externalBridgeUsername.toUpperCase()
+    const normalizedOwner = ownerUsername.toUpperCase()
+    matterLogger.debug(`Registering external Matter bridge ${normalizedExternal} → owner: ${normalizedOwner}`)
+    this.externalMatterBridgeRegistry.set(normalizedExternal, normalizedOwner)
+  }
+
+  /**
+   * Get Matter accessories for a specific bridge or all bridges
+   * @param bridgeUsername - Optional: specific bridge username (MAC format)
+   */
+  private async handleGetMatterAccessories(bridgeUsername?: string): Promise<void> {
+    // Check if monitoring is active
+    if (!this.matterMonitoringActive) {
+      matterLogger.warn('Matter monitoring not active - cannot get accessories')
+      const event: MatterEvent = {
+        type: 'accessoriesData',
+        data: {
+          bridgeUsername,
+          error: 'Matter monitoring not active',
+        },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+      return
+    }
+
+    // Check if Matter is enabled on main bridge
+    if (!this.api.isMatterEnabled() && this.childBridges.size === 0) {
+      const event: MatterEvent = {
+        type: 'accessoriesData',
+        data: {
+          bridgeUsername,
+          accessories: [],
+        },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+      return
+    }
+
+    try {
+      // Get accessories from main bridge
+      const allAccessories = this.matterManager?.collectAllAccessories(bridgeUsername) || []
+
+      // Request from child bridges and wait briefly for responses
+      if (this.childBridges.size > 0) {
+        // Clear previous responses
+        for (const childBridge of this.childBridges.values()) {
+          childBridge.lastMatterAccessoriesResponse = undefined
+        }
+
+        // Request from all child bridges
+        for (const childBridge of this.childBridges.values()) {
+          childBridge.getMatterAccessories()
+        }
+
+        // Wait up to 500ms for child bridges to respond
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        // Collect responses from child bridges
+        for (const childBridge of this.childBridges.values()) {
+          if (childBridge.lastMatterAccessoriesResponse?.accessories) {
+            const accessories = childBridge.lastMatterAccessoriesResponse.accessories
+            allAccessories.push(...accessories)
+          }
+        }
+      }
+
+      const event: MatterEvent = {
+        type: 'accessoriesData',
+        data: {
+          bridgeUsername: bridgeUsername || 'all',
+          accessories: allAccessories,
+        },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+    } catch (error) {
+      matterLogger.error('Failed to get Matter accessories:', error)
+      const event: MatterEvent = {
+        type: 'accessoriesData',
+        data: {
+          bridgeUsername,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+    }
+  }
+
+  /**
+   * Get detailed info for a specific Matter accessory
+   */
+  private handleGetMatterAccessoryInfo(uuid?: string): void {
+    if (!uuid) {
+      const event: MatterEvent = {
+        type: 'accessoryInfoData',
+        data: {
+          error: 'UUID is required',
+        },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+      return
+    }
+
+    try {
+      // Try to get from main bridge first
+      const accessoryInfo = this.matterManager?.getAccessoryInfo(uuid)
+
+      if (accessoryInfo) {
+        const event: MatterEvent = {
+          type: 'accessoryInfoData',
+          data: accessoryInfo,
+        }
+        this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+        return
+      }
+
+      // If not found in main bridge, forward to child bridges with Matter enabled.
+      // Child bridges will respond directly if they have the accessory
+      for (const childBridge of this.childBridges.values()) {
+        // Only forward to bridges with Matter enabled
+        if (childBridge.getMetadata().matterConfig) {
+          childBridge.getMatterAccessoryInfo(uuid)
+        }
+      }
+
+      // If no child bridge responds, we'll send error after a timeout
+      // For now, assume child bridges will handle it
+    } catch (error) {
+      matterLogger.error('Failed to get Matter accessory info:', error)
+      const event: MatterEvent = {
+        type: 'accessoryInfoData',
+        data: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+    }
+  }
+
+  /**
+   * Handle Matter accessory control command
+   */
+  private async handleMatterAccessoryControl(data?: {
+    uuid: string
+    cluster: string
+    attributes: Record<string, unknown>
+    bridgeUsername?: string
+    partId?: string
+  }): Promise<void> {
+    matterLogger.debug(`Matter control request: uuid=${data?.uuid}, cluster=${data?.cluster}, bridge=${data?.bridgeUsername || 'auto'}, part=${data?.partId || 'main'}`)
+
+    if (!data?.uuid || !data?.cluster || !data?.attributes) {
+      matterLogger.error('Missing required parameters for Matter control')
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+        type: 'accessoryControlResponse',
+        data: {
+          success: false,
+          error: 'Missing required parameters',
+        },
+      })
+      return
+    }
+
+    // If bridge username is provided, route directly to that bridge
+    if (data.bridgeUsername) {
+      const targetUsername = data.bridgeUsername.toUpperCase()
+
+      // Check if it's the main bridge
+      if (targetUsername === this.config.bridge.username.toUpperCase()) {
+        matterLogger.debug(`Routing to main bridge (${targetUsername})`)
+        try {
+          await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
+          matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
+          this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+            type: 'accessoryControlResponse',
+            data: {
+              success: true,
+              uuid: data.uuid,
+            },
+          })
+        } catch (error: any) {
+          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${error.message}`)
+          this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+            type: 'accessoryControlResponse',
+            data: {
+              success: false,
+              error: error.message,
+              uuid: data.uuid,
+            },
+          })
+        }
+        return
+      }
+
+      // Check if it's a specific child bridge
+      for (const childBridge of this.childBridges.values()) {
+        if (childBridge.getMetadata().username.toUpperCase() === targetUsername) {
+          matterLogger.debug(`Routing to child bridge ${childBridge.identifier} (${targetUsername})`)
+          childBridge.controlMatterAccessory(data)
+          return
+        }
+      }
+
+      // Check if it's an external Matter bridge (e.g., robot vacuum with own bridge)
+      // Use registry for efficient direct routing
+      const ownerUsername = this.externalMatterBridgeRegistry.get(targetUsername)
+      if (ownerUsername) {
+        matterLogger.debug(`Found external bridge ${targetUsername} in registry, owned by ${ownerUsername}`)
+
+        if (ownerUsername === this.config.bridge.username.toUpperCase()) {
+          // External accessory on main bridge
+          matterLogger.debug(`Routing to main bridge's external accessories for ${data.uuid}`)
+          try {
+            await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
+            matterLogger.debug(`External accessory ${data.uuid} successfully controlled via main bridge`)
+            this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+              type: 'accessoryControlResponse',
+              data: {
+                success: true,
+                uuid: data.uuid,
+              },
+            })
+          } catch (error: any) {
+            matterLogger.error(`Main bridge failed to control external accessory ${data.uuid}: ${error.message}`)
+            this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+              type: 'accessoryControlResponse',
+              data: {
+                success: false,
+                error: error.message,
+                uuid: data.uuid,
+              },
+            })
+          }
+        } else {
+          // External accessory on child bridge - lookup by username
+          const childBridge = this.childBridges.get(ownerUsername)
+          if (childBridge) {
+            matterLogger.debug(`Routing to child bridge ${childBridge.identifier} (${ownerUsername}) for external accessory ${data.uuid}`)
+            childBridge.controlMatterAccessory(data)
+          } else {
+            matterLogger.error(`Owner bridge ${ownerUsername} not found for external bridge ${targetUsername}`)
+            this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+              type: 'accessoryControlResponse',
+              data: {
+                success: false,
+                error: `Owner bridge ${ownerUsername} not found`,
+                uuid: data.uuid,
+              },
+            })
+          }
+        }
+        return
+      }
+
+      // Bridge username provided but not found anywhere
+      // With registry, we should always be able to find the bridge if the data is correct
+      matterLogger.error(`Bridge ${targetUsername} not found in main/child bridges or registry`)
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+        type: 'accessoryControlResponse',
+        data: {
+          success: false,
+          error: `Bridge ${targetUsername} not found`,
+          uuid: data.uuid,
+        },
+      })
+      return
+    }
+
+    // No bridge username provided - broadcast mode (try main, then all children)
+    matterLogger.debug(`Broadcast mode: trying main bridge for accessory ${data.uuid}`)
+    try {
+      await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
+      matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+        type: 'accessoryControlResponse',
+        data: {
+          success: true,
+          uuid: data.uuid,
+        },
+      })
+    } catch (error) {
+      // Main bridge doesn't have accessory - forward to child bridges with Matter enabled
+      const matterChildBridges = [...this.childBridges.values()].filter(
+        bridge => bridge.getMetadata().matterConfig,
+      )
+
+      if (matterChildBridges.length > 0) {
+        matterLogger.debug(`Main bridge doesn't have accessory ${data.uuid}, forwarding to ${matterChildBridges.length} child bridge(s) with Matter enabled`)
+        for (const childBridge of matterChildBridges) {
+          childBridge.controlMatterAccessory(data)
+        }
+      } else {
+        matterLogger.warn(`Accessory ${data.uuid} not found - not on main bridge and no child bridges with Matter available`)
+        this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+          type: 'accessoryControlResponse',
+          data: {
+            success: false,
+            error: 'Accessory not found',
+            uuid: data.uuid,
+          },
+        })
+      }
+    }
   }
 
   private printSetupInfo(pin: string): void {

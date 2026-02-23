@@ -8,10 +8,12 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "strict": true,
+    "strictNullChecks": true,
     "declaration": true,
     "declarationMap": true,
     "outDir": "./dist",
     "preserveConstEnums": true,
+    "removeComments": true,
     "sourceMap": true,
     "esModuleInterop": true,
     "skipLibCheck": true
