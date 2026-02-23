@@ -79,7 +79,7 @@ export class CommissioningManager {
     do {
       // Use cryptographically secure random number generation with rejection sampling
       const maxRange = 99999998
-      const maxUint32 = 0xffffffff
+      const maxUint32 = 0xFFFFFFFF
       const limit = Math.floor(maxUint32 / maxRange) * maxRange
 
       let randomValue: number
