@@ -6,7 +6,7 @@ import {
   RemoteController,
   Service,
   uuid,
-} from 'hap-nodejs'
+} from '@homebridge/hap-nodejs'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PlatformAccessory } from './platformAccessory.js'

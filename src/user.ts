@@ -16,6 +16,10 @@ export class User {
     return join(User.storagePath(), 'persist') // hap-nodejs data is stored here
   }
 
+  static matterPath(): string {
+    return join(User.storagePath(), 'matter') // matter data is stored here
+  }
+
   static cachedAccessoryPath(): string {
     return join(User.storagePath(), 'accessories')
   }
