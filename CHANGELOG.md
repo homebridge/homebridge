@@ -2,6 +2,63 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.0.0 (Unreleased)
+
+### ⚠️ Breaking Changes
+
+- **For Users:**
+  - Before upgrading, you will want to ensure that the plugin(s) you are using are compatible with this new version of Homebridge. If you are unsure, see the link below or open an issue with the developer of your plugin(s) in question.
+
+- **For Plugin Developers:**
+  - The new version of Homebridge includes a major version update to HAP-Nodejs. Some old deprecated functions have been removed. See the link below for a list of changes that you may need to make to your plugin(s).
+
+- Please visit the following link to learn more about the changes and how to prepare:
+  - [Updating-To-Homebridge-v2.0](https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0)
+
+### Added
+
+- set debug `-D` setting per child bridge
+
+### Changed
+
+- Address legacy deprecation cleanup (#3648) (@hjdhjd)
+- general code modernisation:
+  - move from `commonjs` to `esm` modules
+  - use lint rules from `@antfu/eslint-config`
+  - migrate from `jest` to `vitest` for testing
+  - ⚠️ drop support for node `v18`
+
+### Removed
+
+- remove deprecated `--remove-orphans` flag
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.1.0`
+
+## v1.11.2 (2026-02-08)
+
+### Changed
+
+- updated dependencies
+- regenerate docs after `typedoc` update
+- update homebridge v2 info notice with more info
+
+### Homebridge Dependencies
+
+- `hap-nodejs` @ `v0.14.1`
+
+## v1.11.1 (2025-10-29)
+
+### Changed
+
+- updated dependencies
+- add node 24 to node engines in `package.json`
+
+### Homebridge Dependencies
+
+- `hap-nodejs` @ `v0.14.0`
+
 ## v1.11.0 (2025-07-13)
 
 ### Changes
@@ -63,7 +120,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - Updated dependencies, fix `typedoc` generation
 - Added log messaging about upcoming Homebridge v2.0.0 update
   - NOTICE TO USERS AND PLUGIN DEVELOPERS
-    - Homebridge 2.0 is on the way and brings some breaking changes to existing plugins.
+    - Homebridge v2.0 is on the way and brings some breaking changes to existing plugins.
     - Please visit the following link to learn more about the changes and how to prepare:
       - [Updating-To-Homebridge-v2.0](https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0)
 

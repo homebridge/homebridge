@@ -1,36 +1,143 @@
-name: Node Release
+name: Release
+
+# This workflow handles latest, beta, and alpha releases:
+# - Latest: Triggered by GitHub releases (tag vX.Y.Z)
+# - Beta: Triggered by pushes to beta-X.Y.Z branches
+# - Alpha: Triggered by pushes to alpha-X.Y.Z branches
 
 on:
+  release:
+    types: [released]
   push:
-    tags:
-      - 'v*.*.*'
-  workflow_dispatch:
+    branches:
+      - beta-*.*.*
+      - alpha-*.*.*
+
+permissions:
+  id-token: write
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build_and_test:
+  determine-npm-tag:
+    name: Determine NPM Tag
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'homebridge/homebridge' }}
+    outputs:
+      npm_tag: ${{ steps.npm-tag.outputs.tag }}
+    steps:
+      - name: Determine NPM Tag
+        id: npm-tag
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/heads/beta-* ]]; then
+            echo "tag=beta" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/heads/alpha-* ]]; then
+            echo "tag=alpha" >> $GITHUB_OUTPUT
+          else
+            echo "tag=none" >> $GITHUB_OUTPUT
+            echo "No valid release type detected - skipping publish"
+          fi
+
+  lint:
+    needs: determine-npm-tag
+    name: Lint
+    if: needs.determine-npm-tag.outputs.npm_tag != 'none'
+    uses: homebridge/.github/.github/workflows/eslint.yml@latest
+
+  build_and_test_latest:
+    needs: [determine-npm-tag, lint]
+    name: Build & Test (Latest)
+    if: needs.determine-npm-tag.outputs.npm_tag == 'latest'
     uses: homebridge/.github/.github/workflows/nodejs-build-and-test.yml@latest
     with:
       enable_coverage: true
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
 
-  publish:
-    needs: build_and_test
-
-    if: ${{ github.repository == 'homebridge/homebridge' }}
-
-    uses: homebridge/.github/.github/workflows/npm-publish.yml@latest
+  build_and_test_beta:
+    needs: [determine-npm-tag, lint]
+    name: Build & Test (Beta)
+    if: needs.determine-npm-tag.outputs.npm_tag == 'beta'
+    uses: homebridge/.github/.github/workflows/nodejs-build-and-test.yml@latest
+    with:
+      enable_coverage: false
     secrets:
-      npm_auth_token: ${{ secrets.npm_token }}
+      token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-to-npm:
+    needs: [determine-npm-tag, lint, build_and_test_latest, build_and_test_beta]
+    if: |
+      always() &&
+      needs.determine-npm-tag.outputs.npm_tag != 'none' &&
+      (needs.determine-npm-tag.outputs.npm_tag != 'alpha' ||
+       needs.lint.result == 'success') &&
+      (needs.determine-npm-tag.outputs.npm_tag == 'alpha' ||
+       needs.build_and_test_latest.result == 'success' ||
+       needs.build_and_test_latest.result == 'skipped') &&
+      (needs.build_and_test_beta.result == 'success' ||
+       needs.build_and_test_beta.result == 'skipped')
+    name: Publish To NPM (${{ needs.determine-npm-tag.outputs.npm_tag }})
+    runs-on: ubuntu-latest
+    outputs:
+      npm_version: ${{ steps.get-published-version.outputs.version }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade NPM (OIDC Support)
+        run: npm install -g npm@latest
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Handle Prerelease Versioning
+        if: needs.determine-npm-tag.outputs.npm_tag == 'beta' || needs.determine-npm-tag.outputs.npm_tag == 'alpha'
+        run: |
+          # Download versioning script from homebridge/.github
+          mkdir -p .github
+          wget -q https://raw.githubusercontent.com/homebridge/.github/latest/.github/npm-version-script-esm.js -O .github/npm-version-script-esm.js
+
+          # Run the script to set base version
+          node .github/npm-version-script-esm.js ${{ github.ref }} ${{ needs.determine-npm-tag.outputs.npm_tag }}
+
+          # Add prerelease suffix
+          npm version pre --preid=${{ needs.determine-npm-tag.outputs.npm_tag }} --no-git-tag-version
+
+      - name: Build
+        run: npm run build
+
+      - name: NPM Publish (OIDC)
+        run: npm publish --tag ${{ needs.determine-npm-tag.outputs.npm_tag }} --provenance --access public
+
+      - name: Get Published Version
+        id: get-published-version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Published Version: $VERSION"
 
   github-releases-to-discord:
     name: Discord Webhooks
-    needs: [build_and_test,publish]
+    needs: [determine-npm-tag, publish-to-npm]
+    if: |
+      always() &&
+      needs.publish-to-npm.result == 'success'
     uses: homebridge/.github/.github/workflows/discord-webhooks.yml@latest
     with:
-      title: "Homebridge Release"
+      title: ${{ needs.determine-npm-tag.outputs.npm_tag == 'latest' && 'Homebridge Release' || needs.determine-npm-tag.outputs.npm_tag == 'beta' && 'Homebridge Beta Release' || 'Homebridge Alpha Release' }}
       description: |
-        Version `v${{ needs.publish.outputs.NPM_VERSION }}`
-      url: "https://github.com/homebridge/homebridge/releases/tag/v${{ needs.publish.outputs.NPM_VERSION }}"
+        Version `v${{ needs.publish-to-npm.outputs.npm_version }}`
+      url: 'https://github.com/homebridge/homebridge/releases/tag/v${{ needs.publish-to-npm.outputs.npm_version }}'
     secrets:
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL_LATEST }}
+      DISCORD_WEBHOOK: ${{ needs.determine-npm-tag.outputs.npm_tag == 'latest' && secrets.DISCORD_WEBHOOK_URL_LATEST || secrets.DISCORD_WEBHOOK_URL_BETA }}

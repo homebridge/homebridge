@@ -14,7 +14,6 @@ coverage/
 # (this is a sandbox for the user)
 example-plugins
 dist
-lib
 
 .idea
 
