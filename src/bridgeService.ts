@@ -204,7 +204,7 @@ export class BridgeService {
       category: Categories.BRIDGE,
       bind: bridgeConfig.bind,
       mdns: this.config.mdns, // this is deprecated now
-      addIdentifyingMaterial: true,
+      addIdentifyingMaterial: bridgeConfig.addNameSuffix !== false,
       advertiser: bridgeConfig.advertiser,
     };
 
