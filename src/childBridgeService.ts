@@ -1,126 +1,198 @@
-import child_process from "child_process";
-import path from "path";
-import fs from "fs-extra";
-import { MacAddress } from "hap-nodejs";
-import { HomebridgeAPI, PluginType } from "./api";
-import {
+import type { MacAddress } from '@homebridge/hap-nodejs'
+import type { ChildProcess, ForkOptions } from 'node:child_process'
+
+import type { HomebridgeAPI } from './api.js'
+import type {
   AccessoryConfig,
   BridgeConfiguration,
   BridgeOptions,
   HomebridgeConfig,
   PlatformConfig,
-} from "./bridgeService";
-import { ExternalPortService } from "./externalPortService";
-import { IpcOutgoingEvent, IpcService } from "./ipcService";
-import { Logger, Logging } from "./logger";
-import { Plugin } from "./plugin";
-import { HomebridgeOptions } from "./server";
-import { User } from "./user";
+} from './bridgeService.js'
+import type { ExternalPortService } from './externalPortService.js'
+import type { IpcService, MatterEvent } from './ipcService.js'
+import type { Logging } from './logger.js'
+import type { MatterConfig } from './matter/index.js'
+import type { Plugin } from './plugin.js'
+import type { HomebridgeOptions } from './server.js'
 
+import { fork } from 'node:child_process'
+import { dirname, resolve } from 'node:path'
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
+
+import fs from 'fs-extra'
+
+import { PluginType } from './api.js'
+import { IpcOutgoingEvent } from './ipcService.js'
+import { Logger } from './logger.js'
+import { User } from './user.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+// eslint-disable-next-line no-restricted-syntax
 export const enum ChildProcessMessageEventType {
   /**
    * Sent from the child process when it is ready to accept config
    */
-  READY = "ready",
+  READY = 'ready',
 
   /**
    * Sent to the child process with a ChildProcessLoadEventData payload
    */
-  LOAD = "load",
+  LOAD = 'load',
 
   /**
    * Sent from the child process once it has loaded the plugin
    */
-  LOADED = "loaded",
+  LOADED = 'loaded',
 
   /**
    * Sent to the child process telling it to start
    */
-  START = "start",
+  START = 'start',
 
   /**
    * Sent from the child process when the bridge is online
    */
-  ONLINE = "online",
+  ONLINE = 'online',
 
   /**
    * Sent from the child when it wants to request port allocation for an external accessory
    */
-  PORT_REQUEST = "portRequest",
+  PORT_REQUEST = 'portRequest',
 
   /**
    * Sent from the parent with the port allocation response
    */
-  PORT_ALLOCATED= "portAllocated",
+  PORT_ALLOCATED = 'portAllocated',
 
   /**
    * Sent from the child to update its current status
    */
-  STATUS_UPDATE = "status",
+  STATUS_UPDATE = 'status',
+
+  /**
+   * Sent to the child to start Matter monitoring
+   */
+  START_MATTER_MONITORING = 'startMatterMonitoring',
+
+  /**
+   * Sent to the child to stop Matter monitoring
+   */
+  STOP_MATTER_MONITORING = 'stopMatterMonitoring',
+
+  /**
+   * Sent to the child to get Matter accessories
+   */
+  GET_MATTER_ACCESSORIES = 'getMatterAccessories',
+
+  /**
+   * Sent to the child to get specific Matter accessory info
+   */
+  GET_MATTER_ACCESSORY_INFO = 'getMatterAccessoryInfo',
+
+  /**
+   * Sent to the child to control a Matter accessory
+   */
+  MATTER_ACCESSORY_CONTROL = 'matterAccessoryControl',
+
+  /**
+   * Unified Matter event from child process
+   * Includes: accessoriesData, accessoryInfoData, accessoryControlResponse,
+   * accessoryUpdate, accessoryAdded, accessoryRemoved
+   */
+  MATTER_EVENT = 'matterEvent',
 }
 
+// eslint-disable-next-line no-restricted-syntax
 export const enum ChildBridgeStatus {
   /**
    * When the child bridge is loading, or restarting
    */
-  PENDING = "pending",
+  PENDING = 'pending',
 
   /**
    * The child bridge is online and has published it's accessory
    */
-  OK = "ok",
+  OK = 'ok',
 
   /**
    * The bridge is shutting down, or the process ended unexpectedly
    */
-  DOWN = "down"
+  DOWN = 'down',
 }
 
 export interface ChildProcessMessageEvent<T> {
-  id: ChildProcessMessageEventType;
+  id: ChildProcessMessageEventType
   data?: T
 }
 
 export interface ChildProcessLoadEventData {
-  type: PluginType;
-  identifier: string;
-  pluginPath: string;
-  pluginConfig: Array<PlatformConfig | AccessoryConfig>;
-  bridgeConfig: BridgeConfiguration;
-  homebridgeConfig: HomebridgeConfig;
-  bridgeOptions: BridgeOptions;
+  type: PluginType
+  identifier: string
+  pluginPath: string
+  pluginConfig: Array<PlatformConfig | AccessoryConfig>
+  bridgeConfig: BridgeConfiguration
+  homebridgeConfig: HomebridgeConfig
+  bridgeOptions: BridgeOptions
 }
 
 export interface ChildProcessPluginLoadedEventData {
-  version: string;
+  version: string
 }
 
 export interface ChildProcessPortRequestEventData {
-  username: MacAddress;
+  username: MacAddress
+  portType?: 'hap' | 'matter' // Defaults to 'hap' for backwards compatibility
 }
 
 export interface ChildProcessPortAllocatedEventData {
-  username: MacAddress;
-  port?: number;
+  username: MacAddress
+  port?: number
 }
 
 export interface ChildBridgePairedStatusEventData {
-  paired: boolean | null;
-  setupUri: string | null;
+  paired: boolean | null
+  setupUri: string | null
+  matter?: {
+    qrCode?: string
+    manualPairingCode?: string
+    serialNumber?: string
+    commissioned: boolean
+    deviceCount: number
+  }
 }
 
+/**
+ * Child bridge metadata
+ *
+ * Contains all metadata for a child bridge, including HAP properties
+ * like paired status, setupUri, and pin.
+ *
+ * When Matter is enabled (_bridge.matter is configured), this interface
+ * also includes Matter commissioning information for unified status reporting.
+ */
 export interface ChildMetadata {
-  status: ChildBridgeStatus;
-  paired?: boolean | null;
-  setupUri?: string | null;
-  username: MacAddress;
-  port?: number;
-  pin: string;
-  name: string;
-  plugin: string;
-  identifier: string;
-  manuallyStopped: boolean;
-  pid?: number;
+  status: ChildBridgeStatus
+  paired?: boolean | null
+  setupUri?: string | null
+  username: MacAddress
+  port?: number
+  pin: string
+  name: string
+  plugin: string
+  identifier: string
+  manuallyStopped: boolean
+  pid?: number
+  matterConfig?: MatterConfig
+  matterIdentifier?: string
+  matterSetupUri?: string
+  matterPin?: string
+  matterSerialNumber?: string
+  matterCommissioned?: boolean
+  matterDeviceCount?: number
 }
 
 /**
@@ -128,17 +200,33 @@ export interface ChildMetadata {
  * A child bridge runs a single platform or accessory.
  */
 export class ChildBridgeService {
-  private child?: child_process.ChildProcess;
-  private args: string[] = [];
-  private processEnv: child_process.ForkOptions = {};
-  private shuttingDown = false;
-  private lastBridgeStatus: ChildBridgeStatus = ChildBridgeStatus.PENDING;
-  private pairedStatus: boolean | null = null;
-  private manuallyStopped = false;
-  private setupUri: string | null = null;
-  private pluginConfig: Array<PlatformConfig | AccessoryConfig> = [];
-  private log: Logging;
-  private displayName?: string;
+  private child?: ChildProcess
+  private args: string[] = []
+  private processEnv: ForkOptions = {}
+  private shuttingDown = false
+  private lastBridgeStatus: ChildBridgeStatus = ChildBridgeStatus.PENDING
+  private pairedStatus: boolean | null = null
+  private manuallyStopped = false
+  private setupUri: string | null = null
+  private matterCommissioningInfo?: {
+    qrCode?: string
+    manualPairingCode?: string
+    serialNumber?: string
+    commissioned: boolean
+    deviceCount?: number
+  }
+
+  private pluginConfig: Array<PlatformConfig | AccessoryConfig> = []
+  private log: Logging
+  private displayName?: string
+  private restartCount = 0
+  private readonly maxRestarts = 4
+
+  // Matter accessories cache for collection by main server
+  public lastMatterAccessoriesResponse?: { accessories: any[], bridgeUsername: string }
+
+  // Callback for external Matter bridge registration
+  public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
 
   constructor(
     public type: PluginType,
@@ -151,33 +239,33 @@ export class ChildBridgeService {
     private ipcService: IpcService,
     private externalPortService: ExternalPortService,
   ) {
-    this.log = Logger.withPrefix(this.plugin.getPluginIdentifier());
-    this.api.on("shutdown", () => {
-      this.shuttingDown = true;
-      this.teardown();
-    });
+    this.log = Logger.withPrefix(this.plugin.getPluginIdentifier())
+    this.api.on('shutdown', () => {
+      this.shuttingDown = true
+      this.teardown()
+    })
 
     // make sure we don't hit the max listeners limit
-    this.api.setMaxListeners(this.api.getMaxListeners() + 1);
+    this.api.setMaxListeners(this.api.getMaxListeners() + 1)
   }
 
   /**
    * Start the child bridge service
    */
   public start(): void {
-    this.setProcessFlags();
-    this.setProcessEnv();
-    this.startChildProcess();
+    this.setProcessFlags()
+    this.setProcessEnv()
+    this.startChildProcess()
 
     // set display name
     if (this.pluginConfig.length > 1 || this.pluginConfig.length === 0) {
-      this.displayName = this.plugin.getPluginIdentifier();
+      this.displayName = this.plugin.getPluginIdentifier()
     } else {
-      this.displayName = this.pluginConfig[0]?.name || this.plugin.getPluginIdentifier();
+      this.displayName = this.pluginConfig[0]?.name || this.plugin.getPluginIdentifier()
     }
 
     // re-configured log with display name
-    this.log = Logger.withPrefix(this.displayName);
+    this.log = Logger.withPrefix(this.displayName)
   }
 
   /**
@@ -186,86 +274,153 @@ export class ChildBridgeService {
    * @param config
    */
   public addConfig(config: PlatformConfig | AccessoryConfig): void {
-    this.pluginConfig.push(config);
+    this.pluginConfig.push(config)
+  }
+
+  /**
+   * Start Matter monitoring on this child bridge
+   */
+  public startMatterMonitoring(): void {
+    this.sendMessage(ChildProcessMessageEventType.START_MATTER_MONITORING)
+  }
+
+  /**
+   * Stop Matter monitoring on this child bridge
+   */
+  public stopMatterMonitoring(): void {
+    this.sendMessage(ChildProcessMessageEventType.STOP_MATTER_MONITORING)
+  }
+
+  /**
+   * Get Matter accessories from this child bridge
+   */
+  public getMatterAccessories(): void {
+    this.sendMessage(ChildProcessMessageEventType.GET_MATTER_ACCESSORIES)
+  }
+
+  /**
+   * Get specific Matter accessory info from this child bridge
+   */
+  public getMatterAccessoryInfo(uuid: string): void {
+    this.sendMessage(ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO, { uuid })
+  }
+
+  /**
+   * Control a Matter accessory on this child bridge
+   */
+  public controlMatterAccessory(data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string }): void {
+    this.sendMessage(ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL, data)
   }
 
   private get bridgeStatus(): ChildBridgeStatus {
-    return this.lastBridgeStatus;
+    return this.lastBridgeStatus
   }
 
   private set bridgeStatus(value: ChildBridgeStatus) {
-    this.lastBridgeStatus = value;
-    this.sendStatusUpdate();
+    this.lastBridgeStatus = value
+    this.sendStatusUpdate()
   }
 
   /**
    * Start the child bridge process
    */
   private startChildProcess(): void {
-    this.bridgeStatus = ChildBridgeStatus.PENDING;
+    this.bridgeStatus = ChildBridgeStatus.PENDING
 
-    this.child = child_process.fork(path.resolve(__dirname, "childBridgeFork.js"), this.args, this.processEnv);
+    this.child = fork(resolve(__dirname, 'childBridgeFork.js'), this.args, this.processEnv)
 
-    this.child.stdout?.on("data", (data) => {
-      process.stdout.write(data);
-    });
+    this.child.stdout?.on('data', (data) => {
+      process.stdout.write(data)
+    })
 
-    this.child.stderr?.on("data", (data) => {
-      process.stderr.write(data);
-    });
+    this.child.stderr?.on('data', (data) => {
+      process.stderr.write(data)
+    })
 
-    this.child.on("exit", () => {
-      this.log.warn("Child bridge process ended");
-    });
+    this.child.on('error', (e) => {
+      this.bridgeStatus = ChildBridgeStatus.DOWN
+      this.log.error('Child bridge process error', e)
+    })
 
-    this.child.on("error", (e) => {
-      this.bridgeStatus = ChildBridgeStatus.DOWN;
-      this.log.error("Child process error", e);
-    });
-
-    this.child.once("close", (code, signal) => {
-      this.bridgeStatus = ChildBridgeStatus.DOWN;
-      this.handleProcessClose(code, signal);
-    });
+    this.child.once('close', (code, signal) => {
+      this.handleProcessClose(code, signal)
+    })
 
     // handle incoming ipc messages from the child process
-    this.child.on("message", (message: ChildProcessMessageEvent<unknown>) => {
-      if (typeof message !== "object" || !message.id) {
-        return;
+    this.child.on('message', (message: ChildProcessMessageEvent<unknown>) => {
+      if (typeof message !== 'object' || !message.id) {
+        return
       }
 
-      switch(message.id) {
+      switch (message.id) {
         case ChildProcessMessageEventType.READY: {
-          this.log(`Launched child bridge with PID ${this.child?.pid}`);
-          this.loadPlugin();
-          break;
+          this.log(`Child bridge starting${this.child?.pid ? ` (pid ${this.child.pid})` : ''}...`)
+          this.loadPlugin()
+          break
         }
         case ChildProcessMessageEventType.LOADED: {
-          const version = (message.data as ChildProcessPluginLoadedEventData).version;
+          const version = (message.data as ChildProcessPluginLoadedEventData).version
           if (this.pluginConfig.length > 1) {
-            this.log(`Loaded ${this.plugin.getPluginIdentifier()} v${version} child bridge successfully with ${this.pluginConfig.length} accessories`);
+            this.log.success(`Child bridge started successfully with ${this.pluginConfig.length} accessories (plugin v${version}).`)
           } else {
-            this.log(`Loaded ${this.plugin.getPluginIdentifier()} v${version} child bridge successfully`);
+            this.log.success(`Child bridge started successfully (plugin v${version}).`)
           }
-          this.startBridge();
-          break;
+          this.startBridge()
+          break
         }
         case ChildProcessMessageEventType.ONLINE: {
-          this.bridgeStatus = ChildBridgeStatus.OK;
-          break;
+          this.bridgeStatus = ChildBridgeStatus.OK
+          break
         }
         case ChildProcessMessageEventType.PORT_REQUEST: {
-          this.handlePortRequest(message.data as ChildProcessPortRequestEventData);
-          break;
+          void this.handlePortRequest(message.data as ChildProcessPortRequestEventData)
+          break
         }
         case ChildProcessMessageEventType.STATUS_UPDATE: {
-          this.pairedStatus = (message.data as ChildBridgePairedStatusEventData).paired;
-          this.setupUri = (message.data as ChildBridgePairedStatusEventData).setupUri;
-          this.sendStatusUpdate();
-          break;
+          // Handle unified status update with HAP and Matter info
+          const statusData = message.data as ChildBridgePairedStatusEventData
+
+          // Update HAP status
+          this.pairedStatus = statusData.paired
+          this.setupUri = statusData.setupUri
+
+          // Update Matter commissioning info if included
+          if (statusData.matter) {
+            this.matterCommissioningInfo = {
+              qrCode: statusData.matter.qrCode,
+              manualPairingCode: statusData.matter.manualPairingCode,
+              serialNumber: statusData.matter.serialNumber,
+              commissioned: statusData.matter.commissioned || false,
+              deviceCount: statusData.matter.deviceCount,
+            }
+          }
+
+          // Send unified status update
+          this.sendStatusUpdate()
+          break
+        }
+        case ChildProcessMessageEventType.MATTER_EVENT: {
+          // Handle unified Matter event
+          const matterEvent = message.data as MatterEvent
+
+          // Special handling for accessoriesData - store for collection by main server
+          if (matterEvent.type === 'accessoriesData') {
+            this.lastMatterAccessoriesResponse = matterEvent.data as any
+          } else if (matterEvent.type === 'externalBridgeRegistration') {
+            // Handle external bridge registration - register directly with callback
+            const data = matterEvent.data as any
+            if (this.onExternalBridgeRegistered) {
+              // Pass the child bridge username (not identifier) so it can be looked up in childBridges Map
+              this.onExternalBridgeRegistered(data.externalBridgeUsername, this.bridgeConfig.username)
+            }
+          } else {
+            // Forward all other Matter events to main process IPC
+            this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, matterEvent)
+          }
+          break
         }
       }
-    });
+    })
   }
 
   /**
@@ -274,14 +429,36 @@ export class ChildBridgeService {
    * @param signal
    */
   private handleProcessClose(code: number | null, signal: string | null): void {
-    this.log(`Process Ended. Code: ${code}, Signal: ${signal}`);
+    const isLikelyPluginCrash = code === 1 && signal === null
+    this.log.warn(`Child bridge ended (code ${code}, signal ${signal}).${isLikelyPluginCrash
+      ? ' The child bridge ended unexpectedly, which is normally due to the plugin not catching its errors properly. Please report this to the plugin developer by clicking on the'
+      + ' \'Report An Issue\' option in the plugin menu dropdown from the Homebridge UI. If there are related logs shown above, please include them in your report.'
+      : ''}`)
 
-    setTimeout(() => {
-      if (!this.shuttingDown) {
-        this.log("Restarting Process...");
-        this.startChildProcess();
+    if (isLikelyPluginCrash) {
+      if (this.restartCount < this.maxRestarts) {
+        this.bridgeStatus = ChildBridgeStatus.PENDING
+        this.restartCount += 1
+        const delay = this.restartCount * 10 // first attempt after 10 seconds, second after 20 seconds, etc.
+        this.log(`Child bridge will automatically restart in ${delay} seconds (restart attempt ${this.restartCount} of ${this.maxRestarts}).`)
+        setTimeout(() => {
+          if (!this.shuttingDown) {
+            this.startChildProcess()
+          }
+        }, delay * 1000)
+      } else {
+        this.bridgeStatus = ChildBridgeStatus.DOWN
+        this.manuallyStopped = true
+        this.log.error(`Child bridge will no longer restart after failing ${this.maxRestarts + 1} times, you will need to manually start this child bridge from the Homebridge UI.`)
       }
-    }, 7000);
+      return
+    }
+
+    if (!this.shuttingDown) {
+      this.bridgeStatus = ChildBridgeStatus.DOWN
+      this.restartCount = 0
+      this.startChildProcess()
+    }
   }
 
   /**
@@ -294,7 +471,7 @@ export class ChildBridgeService {
       this.child.send({
         id: type,
         data,
-      });
+      })
     }
   }
 
@@ -303,32 +480,32 @@ export class ChildBridgeService {
    * These will be passed through to the forked process
    */
   private setProcessFlags(): void {
-    if (this.homebridgeOptions.debugModeEnabled) {
-      this.args.push("-D");
+    if (this.bridgeConfig.debugModeEnabled) {
+      this.args.push('-D')
     }
 
     if (this.homebridgeOptions.forceColourLogging) {
-      this.args.push("-C");
+      this.args.push('-C')
     }
 
     if (this.homebridgeOptions.insecureAccess) {
-      this.args.push("-I");
+      this.args.push('-I')
     }
 
     if (this.homebridgeOptions.noLogTimestamps) {
-      this.args.push("-T");
+      this.args.push('-T')
     }
 
     if (this.homebridgeOptions.keepOrphanedCachedAccessories) {
-      this.args.push("-K");
+      this.args.push('-K')
     }
 
     if (this.homebridgeOptions.customStoragePath) {
-      this.args.push("-U", this.homebridgeOptions.customStoragePath);
+      this.args.push('-U', this.homebridgeOptions.customStoragePath)
     }
 
     if (this.homebridgeOptions.customPluginPath) {
-      this.args.push("-P", this.homebridgeOptions.customPluginPath);
+      this.args.push('-P', this.homebridgeOptions.customPluginPath)
     }
   }
 
@@ -339,11 +516,11 @@ export class ChildBridgeService {
     this.processEnv = {
       env: {
         ...process.env,
-        DEBUG: `${process.env.DEBUG || ""} ${this.bridgeConfig.env?.DEBUG || ""}`.trim(),
-        NODE_OPTIONS: `${process.env.NODE_OPTIONS || ""} ${this.bridgeConfig.env?.NODE_OPTIONS || ""}`.trim(),
+        DEBUG: `${process.env.DEBUG || ''} ${this.bridgeConfig.env?.DEBUG || ''}`.trim(),
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} ${this.bridgeConfig.env?.NODE_OPTIONS || ''}`.trim(),
       },
       silent: true,
-    };
+    }
   }
 
   /**
@@ -362,15 +539,21 @@ export class ChildBridgeService {
       model: this.bridgeConfig.model || this.homebridgeConfig.bridge.model,
       firmwareRevision: this.bridgeConfig.firmwareRevision || this.homebridgeConfig.bridge.firmwareRevision,
       serialNumber: this.bridgeConfig.serialNumber || this.bridgeConfig.username,
-    };
+      matter: this.bridgeConfig.matter,
+    }
 
     const bridgeOptions: BridgeOptions = {
       cachedAccessoriesDir: User.cachedAccessoryPath(),
-      cachedAccessoriesItemName: "cachedAccessories." + this.bridgeConfig.username.replace(/:/g, "").toUpperCase(),
-    };
+      cachedAccessoriesItemName: `cachedAccessories.${this.bridgeConfig.username.replace(/:/g, '').toUpperCase()}`,
+    }
 
     // shallow copy the homebridge options to the bridge options object
-    Object.assign(bridgeOptions, this.homebridgeOptions);
+    Object.assign(bridgeOptions, this.homebridgeOptions)
+
+    // Override with child bridge specific settings
+    if (this.bridgeConfig.debugModeEnabled !== undefined) {
+      bridgeOptions.debugModeEnabled = this.bridgeConfig.debugModeEnabled
+    }
 
     this.sendMessage<ChildProcessLoadEventData>(ChildProcessMessageEventType.LOAD, {
       type: this.type,
@@ -381,31 +564,39 @@ export class ChildBridgeService {
       bridgeOptions,
       homebridgeConfig: { // need to break this out to avoid a circular structure to JSON from other plugins modifying their config at runtime.
         bridge: this.homebridgeConfig.bridge,
-        mdns: this.homebridgeConfig.mdns,
         ports: this.homebridgeConfig.ports,
         disabledPlugins: [], // not used by child bridges
         accessories: [], // not used by child bridges
         platforms: [], // not used by child bridges
       },
-    });
+    })
   }
 
   /**
    * Tell the child bridge to start broadcasting
    */
   private startBridge(): void {
-    this.sendMessage(ChildProcessMessageEventType.START);
+    this.sendMessage(ChildProcessMessageEventType.START)
   }
 
   /**
    * Handle external port requests from child
    */
   private async handlePortRequest(request: ChildProcessPortRequestEventData) {
-    const port = await this.externalPortService.requestPort(request.username);
+    let port: number | undefined
+
+    if (request.portType === 'matter') {
+      // Request from Matter port pool
+      port = await this.externalPortService.requestMatterPort(request.username)
+    } else {
+      // Request from HAP port pool (default)
+      port = await this.externalPortService.requestPort(request.username)
+    }
+
     this.sendMessage<ChildProcessPortAllocatedEventData>(ChildProcessMessageEventType.PORT_ALLOCATED, {
       username: request.username,
-      port: port,
-    });
+      port,
+    })
   }
 
   /**
@@ -413,8 +604,8 @@ export class ChildBridgeService {
    */
   private teardown(): void {
     if (this.child && this.child.connected) {
-      this.bridgeStatus = ChildBridgeStatus.DOWN;
-      this.child.kill("SIGTERM");
+      this.bridgeStatus = ChildBridgeStatus.DOWN
+      this.child.kill('SIGTERM')
     }
   }
 
@@ -422,7 +613,7 @@ export class ChildBridgeService {
    * Trigger sending child bridge metadata to the process parent via IPC
    */
   private sendStatusUpdate(): void {
-    this.ipcService.sendMessage(IpcOutgoingEvent.CHILD_BRIDGE_STATUS_UPDATE, this.getMetadata());
+    this.ipcService.sendMessage(IpcOutgoingEvent.CHILD_BRIDGE_STATUS_UPDATE, this.getMetadata())
   }
 
   /**
@@ -430,11 +621,12 @@ export class ChildBridgeService {
    */
   public restartChildBridge(): void {
     if (this.manuallyStopped) {
-      this.startChildBridge();
+      this.restartCount = 0
+      this.startChildBridge()
     } else {
-      this.log.warn("Restarting child bridge...");
-      this.refreshConfig();
-      this.teardown();
+      this.log.warn('Child bridge restarting...')
+      void this.refreshConfig()
+      this.teardown()
     }
   }
 
@@ -443,13 +635,15 @@ export class ChildBridgeService {
    */
   public stopChildBridge(): void {
     if (!this.shuttingDown) {
-      this.log.warn("Stopping child bridge (will not restart)...");
-      this.shuttingDown = true;
-      this.manuallyStopped = true;
-      this.child?.removeAllListeners("close");
-      this.teardown();
+      this.log.warn('Child bridge stopping, will not restart.')
+      this.shuttingDown = true
+      this.manuallyStopped = true
+      this.restartCount = 0
+      this.bridgeStatus = ChildBridgeStatus.DOWN
+      this.child?.removeAllListeners('close')
+      this.teardown()
     } else {
-      this.log.warn("Bridge already shutting down or stopped.");
+      this.log.warn('Child bridge already shutting down or stopped.')
     }
   }
 
@@ -458,13 +652,12 @@ export class ChildBridgeService {
    */
   public startChildBridge(): void {
     if (this.manuallyStopped && this.bridgeStatus === ChildBridgeStatus.DOWN && (!this.child || !this.child.connected)) {
-      this.log.warn("Starting child bridge...");
-      this.refreshConfig();
-      this.startChildProcess();
-      this.shuttingDown = false;
-      this.manuallyStopped = false;
+      void this.refreshConfig()
+      this.startChildProcess()
+      this.shuttingDown = false
+      this.manuallyStopped = false
     } else {
-      this.log.warn("Cannot start child bridge, it is still running or was not manually stopped");
+      this.log.warn('Child bridge cannot be started, it is still running or was not manually stopped.')
     }
   }
 
@@ -473,28 +666,27 @@ export class ChildBridgeService {
    */
   public async refreshConfig(): Promise<void> {
     try {
-      const homebridgeConfig: HomebridgeConfig = await fs.readJson(User.configPath());
+      const homebridgeConfig: HomebridgeConfig = await fs.readJson(User.configPath())
 
       if (this.type === PluginType.PLATFORM) {
-        const config = homebridgeConfig.platforms?.filter(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username);
+        const config = homebridgeConfig.platforms?.filter(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username)
         if (config.length) {
-          this.pluginConfig = config;
-          this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig;
+          this.pluginConfig = config
+          this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig
         } else {
-          this.log.warn("Platform config could not be found, using existing config.");
+          this.log.warn('Platform config could not be found, using existing config.')
         }
       } else if (this.type === PluginType.ACCESSORY) {
-        const config = homebridgeConfig.accessories?.filter(x => x.accessory === this.identifier && x._bridge?.username === this.bridgeConfig.username);
+        const config = homebridgeConfig.accessories?.filter(x => x.accessory === this.identifier && x._bridge?.username === this.bridgeConfig.username)
         if (config.length) {
-          this.pluginConfig = config;
-          this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig;
+          this.pluginConfig = config
+          this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig
         } else {
-          this.log.warn("Accessory config could not be found, using existing config.");
+          this.log.warn('Accessory config could not be found, using existing config.')
         }
       }
-
-    } catch (e) {
-      this.log.error("Failed to refresh plugin config:", e.message);
+    } catch (error: any) {
+      this.log.error('Failed to refresh plugin config:', error.message)
     }
   }
 
@@ -514,7 +706,13 @@ export class ChildBridgeService {
       identifier: this.identifier,
       pid: this.child?.pid,
       manuallyStopped: this.manuallyStopped,
-    };
+      matterConfig: this.bridgeConfig.matter,
+      matterIdentifier: this.bridgeConfig.matter ? this.bridgeConfig.username : undefined,
+      matterSetupUri: this.matterCommissioningInfo?.qrCode,
+      matterPin: this.matterCommissioningInfo?.manualPairingCode,
+      matterSerialNumber: this.matterCommissioningInfo?.serialNumber,
+      matterCommissioned: this.matterCommissioningInfo?.commissioned,
+      matterDeviceCount: this.matterCommissioningInfo?.deviceCount,
+    }
   }
-
 }

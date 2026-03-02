@@ -1,101 +1,218 @@
 /**
  * Export HAP
  */
-import type { API } from "./api";
+import type { API } from './api.js'
 
 // noinspection JSUnusedGlobalSymbols
-export type HAP = API["hap"];
-
-/**
- * Export API const enums
- */
-export {
-  APIEvent,
-  PluginType,
-} from "./api";
+export type HAP = API['hap']
 
 /**
  * Export types for basically everything but the actual API implementation
  */
 export type {
+  AccessoryIdentifier,
+  AccessoryName,
+  AccessoryPlugin,
+  AccessoryPluginConstructor,
+  API,
+  DynamicPlatformPlugin,
+  IndependentPlatformPlugin,
+  MatterAPI,
+  PlatformIdentifier,
+  PlatformName,
+  PlatformPluginConstructor,
   PluginIdentifier,
+  PluginInitializer,
   PluginName,
   ScopedPluginName,
-  AccessoryName,
-  PlatformName,
-
-  AccessoryIdentifier,
-  PlatformIdentifier,
-
-  PluginInitializer,
-  AccessoryPluginConstructor,
-  AccessoryPlugin,
-  PlatformPluginConstructor,
-  DynamicPlatformPlugin,
   StaticPlatformPlugin,
-  IndependentPlatformPlugin,
-
-  API,
-} from "./api";
+} from './api.js'
 
 /**
- * Export Platform Accessory const enums
+ * Export API const enums
  */
-export {
-  PlatformAccessoryEvent,
-} from "./platformAccessory";
-
-/**
- * Export Platform Accessory Types
- */
-export type {
-  PlatformAccessory,
-  UnknownContext,
-} from "./platformAccessory";
-
-/**
- * Export server types
- */
-export type {
-  HomebridgeOptions,
-} from "./server";
+export { APIEvent, PluginType } from './api.js'
 
 /**
  * Export bridge types
  */
 export type {
-  HomebridgeConfig,
-  BridgeConfiguration,
   AccessoryConfig,
+  BridgeConfiguration,
+  HomebridgeConfig,
   PlatformConfig,
-} from "./bridgeService";
+} from './bridgeService.js'
 
 /**
  * Export port types
  */
-export type {
-  ExternalPortsConfiguration,
-} from "./externalPortService";
-
-/**
- * Export User Types
- */
-export type { User } from "./user";
+export type { ExternalPortsConfiguration } from './externalPortService.js'
 
 /**
  * Export Logger const enums
  */
-export {
-  LogLevel,
-} from "./logger";
+export { LogLevel } from './logger.js'
 
 /**
  * Export Logger types
  */
+export type { Logger, Logging } from './logger.js'
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════
+ * Matter Protocol - Plugin API Exports
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Matter cache types
+ */
+export type { SerializedMatterAccessory } from './matter/accessoryCache.js'
+
+/**
+ * Matter cluster handler types for type-safe handler definitions
+ */
 export type {
-  Logger,
-  Logging,
-} from "./logger";
+  ClusterHandlerMap,
+  ColorControlHandlers,
+  DoorLockHandlers,
+  FanControlHandlers,
+  IdentifyHandlers,
+  LevelControlHandlers,
+  OnOffHandlers,
+  RvcCleanModeHandlers,
+  RvcOperationalStateHandlers,
+  RvcRunModeHandlers,
+  ServiceAreaHandlers,
+  ThermostatHandlers,
+  WindowCoveringHandlers,
+} from './matter/clusterHandlerMap.js'
+
+/**
+ * Matter cluster state map for type-safe state access
+ */
+export type { ClusterStateMap } from './matter/clusterStateMap.js'
+
+/**
+ * Matter cluster state types (per-cluster attribute interfaces)
+ */
+export type {
+  ColorControlState,
+  DoorLockState,
+  FanControlState,
+  LevelControlState,
+  OnOffState,
+  RvcCleanModeState,
+  RvcOperationalState,
+  RvcRunModeState,
+  ServiceAreaState,
+  ThermostatState,
+  WindowCoveringState,
+} from './matter/clusterTypes.js'
+
+/**
+ * Matter cluster command request types namespace for type-safe handlers
+ * @example
+ * ```typescript
+ * import type { MatterRequests } from 'homebridge'
+ *
+ * handlers: {
+ *   levelControl: {
+ *     moveToLevel: async (args: MatterRequests.MoveToLevel) => {
+ *       console.log(`Level: ${args.level}`)
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export { MatterRequests } from './matter/index.js'
+
+/**
+ * Matter protocol status errors for plugin handlers
+ * @example
+ * ```typescript
+ * import { MatterStatus } from 'homebridge'
+ *
+ * handlers: {
+ *   onOff: {
+ *     on: async () => {
+ *       if (deviceIsBusy) {
+ *         throw new MatterStatus.Busy('Device is processing another command')
+ *       }
+ *       // ... control device
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export { MatterStatus } from './matter/index.js'
+
+export type {
+  MatterAccessoriesResponse,
+  MatterAccessoryInfo,
+  MatterBridgeMetadata,
+  MatterCommissioningInfo,
+  MatterServerConfig,
+} from './matter/sharedTypes.js'
+
+export { ChildMatterMessageType, MatterBridgeStatus } from './matter/sharedTypes.js'
+
+/**
+ * Matter accessory and configuration types
+ */
+export type {
+  MatterAccessory,
+  MatterClusterHandlers,
+  MatterClusterName,
+  MatterCommandHandler,
+  MatterConfig,
+} from './matter/types.js'
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════
+ * Matter Protocol - UI Integration Types
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Matter device types, clusters, and cluster names
+ * Access via api.matter.deviceTypes, api.matter.clusters, api.matter.clusterNames
+ */
+export { clusterNames, clusters, devices, deviceTypes, MatterAccessoryEventTypes } from './matter/types.js'
+
+/**
+ * Matter error types for error handling
+ */
+export {
+  MatterCommissioningError,
+  MatterDeviceError,
+  MatterError,
+  MatterErrorType,
+  MatterNetworkError,
+  MatterStorageError,
+} from './matter/types.js'
+
+export type { EndpointType, MatterErrorDetails } from './matter/types.js'
+
+/**
+ * Export Platform Accessory const enums
+ */
+export { PlatformAccessoryEvent } from './platformAccessory.js'
+
+/**
+ * Export Platform Accessory Types
+ */
+export type { PlatformAccessory, UnknownContext } from './platformAccessory.js'
+
+/**
+ * Export server types
+ */
+export type { HomebridgeOptions } from './server.js'
+
+/**
+ * Export User Types
+ */
+export type { User } from './user.js'
 
 /**
  * Export the CONST ENUMS from hap-nodejs
@@ -122,7 +239,6 @@ export {
   Categories,
   ChangeReason,
   CharacteristicEventTypes,
-  // CharacteristicWarningType,
   DataFormatTags,
   DataStreamConnectionEvent,
   DataStreamServerEvent,
@@ -132,8 +248,6 @@ export {
   Formats,
   H264Level,
   H264Profile,
-  // HAPHTTPCode,
-  // HAPPairingHTTPCode,
   HAPServerEventTypes,
   HAPStatus,
   HDSProtocolSpecificErrorReason,
@@ -144,31 +258,27 @@ export {
   Protocols,
   RemoteControllerEvents,
   ResourceRequestReason,
-  SRTPCryptoSuites,
   ServiceEventTypes,
   SiriAudioSessionEvents,
+  SRTPCryptoSuites,
   StreamRequestTypes,
   TargetCategory,
   TargetUpdates,
   Topics,
   Units,
-} from "hap-nodejs";
+} from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS namespaces as type only
  */
-export type {
-  DataStreamParser,
-} from "hap-nodejs";
+export type { DataStreamParser } from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS classes as type only
  */
 export type {
   AccessControlManagement,
-  // Accessory,
   AdaptiveLightingController,
-  // Bridge,
   CameraController,
   Characteristic,
   ColorUtils,
@@ -178,28 +288,16 @@ export type {
   DataStreamServer,
   DataStreamWriter,
   DoorbellController,
-  // Float32,
-  // Float64,
   HAPServer,
-  HAPStorage,
   HapStatusError,
-  HomeKitRemoteController,
-  // Int16,
-  // Int32,
-  // Int64,
-  // Int8,
+  HAPStorage,
   HDSProtocolError,
-  LegacyCameraSourceAdapter,
   RecordingManagement,
   RemoteController,
   RTPStreamManagement,
-  // SecondsSince2001,
   Service,
   SiriAudioSession,
-  StreamController,
-  // UUID,
-  // ValueWrapper,
-} from "hap-nodejs";
+} from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS interfaces as type only
@@ -222,7 +320,6 @@ export type {
   DataStreamProtocolHandler,
   DoorbellOptions,
   H264CodecParameters,
-  LegacyCameraSource,
   MediaContainerConfiguration,
   ProxiedSourceResponse,
   PublishInfo,
@@ -237,18 +334,16 @@ export type {
   SiriAudioStreamProducerConstructor,
   SourceResponse,
   VideoRecordingOptions,
-} from "hap-nodejs";
+} from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS type aliases as type only
  */
-export type  {
+export type {
   AccessoriesCallback,
   AccessoryCharacteristicChange,
-  AddPairingCallback,
   AdditionalAuthorizationHandler,
-  Address,
-  AudioCodec,
+  AddPairingCallback,
   AudioCodecConfiguration,
   AudioCodecParameters,
   AudioFrame,
@@ -258,7 +353,6 @@ export type  {
   AudioStreamingCodec,
   AudioStreamingOptions,
   ButtonConfiguration,
-  Camera,
   CameraRecordingOptions,
   CameraStreamingOptions,
   CharacteristicChange,
@@ -269,7 +363,6 @@ export type  {
   CharacteristicValue,
   ConstructorArgs,
   ControllerType,
-  DataSendCloseReason,
   ErrorHandler,
   EventHandler,
   FrameHandler,
@@ -277,12 +370,12 @@ export type  {
   GlobalRequestHandler,
   HAPHttpError,
   HAPPincode,
-  IPAddress,
-  IPv4Address,
-  IPv6Address,
   IdentificationCallback,
   IdentifyCallback,
   InterfaceName,
+  IPAddress,
+  IPv4Address,
+  IPv6Address,
   ListPairingsCallback,
   MacAddress,
   NodeCallback,
@@ -290,22 +383,20 @@ export type  {
   PairCallback,
   PairingsCallback,
   PartialAllowingNull,
+  PreparedDataStreamSession,
   PrepareStreamCallback,
   PrepareStreamRequest,
   PrepareStreamResponse,
-  PreparedDataStreamSession,
-  PreparedStreamRequestCallback,
-  PreparedStreamResponse,
   PrimitiveTypes,
-  RTPTime,
   ReadCharacteristicsCallback,
-  ReconfigureStreamRequest,
   ReconfiguredVideoInfo,
+  ReconfigureStreamRequest,
   RemovePairingCallback,
   RequestHandler,
   Resolution,
   ResourceRequestCallback,
   ResponseHandler,
+  RTPTime,
   SerializedServiceMap,
   ServiceCharacteristicChange,
   ServiceId,
@@ -316,35 +407,24 @@ export type  {
   StartStreamRequest,
   StateChangeDelegate,
   StopStreamRequest,
-  StreamAudioParams,
-  StreamControllerOptions,
-  StreamRequest,
+  StreamingRequest,
   StreamRequestCallback,
   StreamSessionIdentifier,
-  StreamVideoParams,
-  StreamingRequest,
   SupportedButtonConfiguration,
   SupportedConfiguration,
-  TLVEncodable,
   TargetConfiguration,
-  VideoCodec,
+  TLVEncodable,
   VideoInfo,
   VideoStreamingOptions,
   VoidCallback,
   WithUUID,
   WriteCharacteristicsCallback,
-} from "hap-nodejs";
+} from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS variables as type only
  */
-export type {
-  // AccessoryLoader,
-  Codes,
-  LegacyTypes,
-  Status,
-  uuid,
-} from "hap-nodejs";
+export type { LegacyTypes, uuid } from '@homebridge/hap-nodejs'
 
 /**
  * Export HAP-NodeJS functions as type only
@@ -357,18 +437,5 @@ export type {
   encode,
   epochMillisFromMillisSince2001_01_01,
   epochMillisFromMillisSince2001_01_01Buffer,
-  // init,
-  // isSerializableController,
-  // loadDirectory,
   once,
-  // parseAccessoryJSON,
-  // parseCharacteristicJSON,
-  // parseServiceJSON,
-  // readUInt16,
-  // readUInt32,
-  // readUInt64,
-  // readUInt64BE,
-  // writeUInt16,
-  // writeUInt32,
-  // writeUInt64,
-} from "hap-nodejs";
+} from '@homebridge/hap-nodejs'

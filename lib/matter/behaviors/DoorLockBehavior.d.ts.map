@@ -1,0 +1,1 @@
+{"version":3,"file":"DoorLockBehavior.d.ts","sourceRoot":"","sources":["../../../src/matter/behaviors/DoorLockBehavior.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,OAAO,EAAE,cAAc,EAAE,MAAM,kCAAkC,CAAA;AAMjE;;GAEG;AACH,qBAAa,wBAAyB,SAAQ,cAAc;IAC1D;;OAEG;IACH,OAAO,CAAC,WAAW;IAIJ,QAAQ,IAAI,OAAO,CAAC,IAAI,CAAC;IA8BzB,UAAU,IAAI,OAAO,CAAC,IAAI,CAAC;CA6B3C"}
