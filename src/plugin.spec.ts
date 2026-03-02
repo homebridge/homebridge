@@ -50,3 +50,4 @@ describe('pluginManager reload', () => {
   })
 })
 
+
