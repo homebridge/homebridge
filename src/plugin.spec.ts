@@ -49,3 +49,4 @@ describe('pluginManager reload', () => {
       .toThrow('Plugin \'homebridge-nonexistent\' not found or not registered.')
   })
 })
+
