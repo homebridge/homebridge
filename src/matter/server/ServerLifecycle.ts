@@ -54,9 +54,6 @@ export interface ServerLifecycleDeps {
   setIsRunning: (running: boolean) => void
   getIsRunning: () => boolean
   cleanupHandlers: Array<() => void | Promise<void>>
-  shutdownHandler: (() => Promise<void>) | null
-  setShutdownHandler: (handler: (() => Promise<void>) | null) => void
-  onStop: () => Promise<void>
 }
 
 export class ServerLifecycle {
@@ -188,6 +185,11 @@ export class ServerLifecycle {
     const environment = Environment.default
     environment.set(Filesystem, new NodeJsFilesystem(this.matterStoragePath))
 
+    // Disable matter.js ProcessManager signal handlers - Homebridge manages its own
+    // shutdown lifecycle. Without this, three competing SIGINT/SIGTERM handlers race
+    // to close the server node, which can prevent proper fabric data persistence.
+    environment.vars.set('runtime.signals', false)
+
     // Create accessory cache
     const { MatterAccessoryCache } = await import('../accessoryCache.js')
     const cache = new MatterAccessoryCache(normalizedPath, bridgeId)
@@ -295,15 +297,10 @@ export class ServerLifecycle {
       // Generate and display commissioning information
       await deps.commissioningManager.generateCommissioningInfo(deps.getCommissioningDeps())
 
-      // Set up graceful shutdown handler
-      const shutdownHandler = async () => {
-        log.info('Shutting down Matter server...')
-        await deps.onStop()
-      }
-      deps.setShutdownHandler(shutdownHandler)
-
-      process.on('SIGINT', shutdownHandler)
-      process.on('SIGTERM', shutdownHandler)
+      // Note: no SIGINT/SIGTERM handlers here - Homebridge manages shutdown via
+      // childBridgeFork.shutdown() → matterManager.teardown() → matterServer.stop()
+      // Adding handlers here would create competing shutdown paths that race to close
+      // the server node, risking incomplete fabric data persistence.
 
       if (!deps.config.externalAccessory) {
         await this.startServerNode(serverNode, deps)
@@ -431,12 +428,6 @@ export class ServerLifecycle {
    * Cleanup resources
    */
   async cleanup(deps: ServerLifecycleDeps): Promise<void> {
-    if (deps.shutdownHandler) {
-      process.off('SIGINT', deps.shutdownHandler)
-      process.off('SIGTERM', deps.shutdownHandler)
-      deps.setShutdownHandler(null)
-    }
-
     for (const handler of deps.cleanupHandlers) {
       try {
         await handler()

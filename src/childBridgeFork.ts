@@ -396,14 +396,17 @@ export class ChildBridgeFork {
     this.matterMessageHandler?.handleMatterAccessoryControl(data)
   }
 
-  shutdown(): void {
+  async shutdown(): Promise<void> {
     this.bridgeService.teardown()
 
     // Teardown Matter servers (main bridge and external accessories)
+    // Must be awaited to ensure matter.js persists fabric data before process exits
     if (this.matterManager) {
-      this.matterManager.teardown().catch((error: unknown) => {
+      try {
+        await this.matterManager.teardown()
+      } catch (error: unknown) {
         matterLogger.error('Error tearing down Matter manager:', error)
-      })
+      }
     }
   }
 }
@@ -474,13 +477,16 @@ function signalHandler(signal: NodeJS.Signals, signalNum: number): void {
 
   Logger.internal.info('Got %s, shutting down child bridge process...', signal)
 
-  try {
-    childPluginFork.shutdown()
-  } catch (error: any) {
-    // do nothing
-  }
+  // Hard deadline: force exit after 5 seconds regardless
+  const exitTimer = setTimeout(() => process.exit(128 + signalNum), 5000)
 
-  setTimeout(() => process.exit(128 + signalNum), 5000)
+  // Await the async shutdown (including matter.js fabric persistence) then exit cleanly
+  childPluginFork.shutdown()
+    .catch(() => {})
+    .finally(() => {
+      clearTimeout(exitTimer)
+      process.exit(128 + signalNum)
+    })
 }
 
 process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))

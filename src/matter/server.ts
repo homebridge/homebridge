@@ -60,7 +60,6 @@ export class MatterServer extends EventEmitter {
   private readonly behaviorRegistry: BehaviorRegistry
   private readonly registryManager: RegistryManager
   private isRunning = false
-  private shutdownHandler: (() => Promise<void>) | null = null
   private cleanupHandlers: Array<() => void | Promise<void>> = []
   private accessoryCache: MatterAccessoryCache | null = null
   private monitoringEnabled = false
@@ -373,11 +372,6 @@ export class MatterServer extends EventEmitter {
       },
       getIsRunning: () => this.isRunning,
       cleanupHandlers: this.cleanupHandlers,
-      shutdownHandler: this.shutdownHandler,
-      setShutdownHandler: (handler: (() => Promise<void>) | null) => {
-        this.shutdownHandler = handler
-      },
-      onStop: () => this.stop(),
     }
   }
 
