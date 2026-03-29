@@ -19,6 +19,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - set debug `-D` setting per child bridge
 - feat: matter implementation
+  - fix: matter fix [1] - matter cache getter (@talrhv)
 
 ### Changed
 
