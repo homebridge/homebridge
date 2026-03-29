@@ -356,7 +356,7 @@ export class MatterServer extends EventEmitter {
       commissioningManager: this.commissioningManager,
       fabricManager: this.fabricManager,
       getCommissioningDeps: () => this.getCommissioningDeps(),
-      accessoryCache: this.accessoryCache,
+      getAccessoryCache: () => this.accessoryCache,
       setAccessoryCache: (cache: MatterAccessoryCache) => {
         this.accessoryCache = cache
       },
