@@ -46,7 +46,7 @@ export interface ServerLifecycleDeps {
   commissioningManager: CommissioningManager
   fabricManager: FabricManager
   getCommissioningDeps: () => CommissioningDeps
-  accessoryCache: MatterAccessoryCache | null
+  getAccessoryCache: () => MatterAccessoryCache | null
   setAccessoryCache: (cache: MatterAccessoryCache) => void
   setServerNode: (node: ServerNode | null) => void
   getServerNode: () => ServerNode | null
@@ -363,8 +363,9 @@ export class ServerLifecycle {
 
     await this.waitForServerReady(deps)
 
-    if (deps.accessoryCache) {
-      const loaded = await deps.accessoryCache.load()
+    const cache = deps.getAccessoryCache()
+    if (cache) {
+      const loaded = await cache.load()
       log.debug(`Matter cache loaded: ${loaded.size} accessories`)
     } else {
       log.debug('No accessory cache available')
@@ -406,8 +407,9 @@ export class ServerLifecycle {
 
     try {
       // Save accessory cache before shutting down
-      if (deps.accessoryCache && accessories.size > 0) {
-        await deps.accessoryCache.save(accessories)
+      const cache = deps.getAccessoryCache()
+      if (cache && accessories.size > 0) {
+        await cache.save(accessories)
         log.debug('Saved accessory cache before shutdown')
       }
 
