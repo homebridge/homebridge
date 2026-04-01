@@ -12,19 +12,6 @@ import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
- * State interface for RVC Operational State cluster
- */
-interface RvcOperationalStateAttributes {
-  operationalState?: number
-  operationalError?: {
-    errorStateId: number
-    errorStateLabel?: string
-    errorStateDetails?: string
-  }
-  [key: string]: unknown
-}
-
-/**
  * Custom RvcOperationalState Server that calls plugin handlers
  */
 export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServer {
@@ -42,7 +29,7 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
   private syncOperationalStateToCache(): void {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
-    const currentState = this.state as RvcOperationalStateAttributes
+    const currentState = this.state
 
     if (currentState.operationalState !== undefined) {
       registry.syncStateToCache(endpointId, 'rvcOperationalState', {

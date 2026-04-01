@@ -4,8 +4,6 @@
  * Handles on/off commands for lights, switches, and outlets
  */
 
-import type { OnOffState } from '../clusterTypes.js'
-
 import { OnOffServer } from '@matter/main/behaviors/on-off'
 import { Status, StatusResponseError } from '@matter/main/types'
 
@@ -94,10 +92,8 @@ export class HomebridgeOnOffServer extends OnOffServer {
       // Only reached if handler succeeded - update Matter state
       await super.toggle()
 
-      // Sync state to cache (toggle changes the value)
-      const currentState = this.state as OnOffState
-      const newState = !currentState.onOff
-      registry.syncStateToCache(endpointId, 'onOff', { onOff: newState })
+      // Sync state to cache (super.toggle() already updated this.state.onOff)
+      registry.syncStateToCache(endpointId, 'onOff', { onOff: this.state.onOff })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is
       // This sends a proper Matter protocol error response to the controller

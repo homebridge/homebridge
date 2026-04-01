@@ -2,6 +2,7 @@ import type { MatterServerConfig } from '../sharedTypes.js'
 
 import { describe, expect, it, vi } from 'vitest'
 
+import { DEFAULT_BRIDGE_DEFAULTS } from '../../bridgeService.js'
 import { DEFAULT_MATTER_PORT, validateAndSanitizeConfig } from './ServerConfig.js'
 
 // Mock the configValidator module
@@ -35,6 +36,12 @@ describe('serverConfig', () => {
   describe('constants', () => {
     it('should export default port', () => {
       expect(DEFAULT_MATTER_PORT).toBe(5540)
+    })
+
+    it('should export default bridge defaults', () => {
+      expect(DEFAULT_BRIDGE_DEFAULTS.vendorName).toBe('Homebridge')
+      expect(DEFAULT_BRIDGE_DEFAULTS.manufacturer).toBe('homebridge.io')
+      expect(DEFAULT_BRIDGE_DEFAULTS.model).toBe('homebridge')
     })
   })
 
@@ -108,6 +115,26 @@ describe('serverConfig', () => {
     it('should leave storagePath undefined when not provided', () => {
       const result = validateAndSanitizeConfig(validConfig)
       expect(result.storagePath).toBeUndefined()
+    })
+
+    it('should pass through displayName', () => {
+      const result = validateAndSanitizeConfig({ ...validConfig, displayName: 'My Bridge' })
+      expect(result.displayName).toBe('My Bridge')
+    })
+
+    it('should leave displayName undefined when not provided', () => {
+      const result = validateAndSanitizeConfig(validConfig)
+      expect(result.displayName).toBeUndefined()
+    })
+
+    it('should pass through networkInterfaces', () => {
+      const result = validateAndSanitizeConfig({ ...validConfig, networkInterfaces: ['eth0', 'wlan0'] })
+      expect(result.networkInterfaces).toEqual(['eth0', 'wlan0'])
+    })
+
+    it('should leave networkInterfaces undefined when not provided', () => {
+      const result = validateAndSanitizeConfig(validConfig)
+      expect(result.networkInterfaces).toBeUndefined()
     })
 
     it('should collect multiple errors and report all at once', () => {

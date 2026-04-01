@@ -50,7 +50,9 @@ describe('homebridgeOnOffServer', () => {
     // Mock super methods to prevent actual execution
     vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'on').mockReturnValue(undefined)
     vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'off').mockReturnValue(undefined)
-    vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'toggle').mockReturnValue(undefined)
+    vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'toggle').mockImplementation(() => {
+      mockState.onOff = !mockState.onOff
+    })
   })
 
   describe('on', () => {
