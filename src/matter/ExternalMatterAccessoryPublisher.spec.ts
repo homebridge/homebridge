@@ -179,6 +179,7 @@ describe('externalMatterAccessoryPublisher', () => {
           port: 5530,
           uniqueId: 'AABBCCDDEEFF',
           storagePath: '/mock/matter/path',
+          displayName: 'Test Vacuum',
           manufacturer: 'Test Mfg',
           model: 'Test Model',
           firmwareRevision: '1.0.0',
