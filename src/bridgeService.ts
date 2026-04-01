@@ -47,6 +47,12 @@ import { StorageService } from './storageService.js'
 import { generate } from './util/mac.js'
 import getVersion from './version.js'
 
+export const DEFAULT_BRIDGE_DEFAULTS = {
+  vendorName: 'Homebridge',
+  manufacturer: 'homebridge.io',
+  model: 'homebridge',
+} as const
+
 const log = Logger.internal
 
 export interface BridgeConfiguration {
@@ -194,8 +200,8 @@ export class BridgeService {
     const bridgeConfig = this.bridgeConfig
 
     const info = this.bridge.getService(Service.AccessoryInformation)!
-    info.setCharacteristic(Characteristic.Manufacturer, bridgeConfig.manufacturer || 'homebridge.io')
-    info.setCharacteristic(Characteristic.Model, bridgeConfig.model || 'homebridge')
+    info.setCharacteristic(Characteristic.Manufacturer, bridgeConfig.manufacturer || DEFAULT_BRIDGE_DEFAULTS.manufacturer)
+    info.setCharacteristic(Characteristic.Model, bridgeConfig.model || DEFAULT_BRIDGE_DEFAULTS.model)
     info.setCharacteristic(Characteristic.SerialNumber, bridgeConfig.serialNumber || bridgeConfig.username)
     info.setCharacteristic(Characteristic.FirmwareRevision, bridgeConfig.firmwareRevision || getVersion())
 

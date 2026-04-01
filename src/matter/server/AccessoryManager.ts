@@ -210,12 +210,22 @@ export class AccessoryManager {
       if (cached?.clusters && accessory.clusters) {
         for (const [clusterName, cachedAttrs] of Object.entries(cached.clusters)) {
           if (!accessory.clusters[clusterName]) {
-            accessory.clusters[clusterName] = cachedAttrs
-          } else {
-            accessory.clusters[clusterName] = {
-              ...accessory.clusters[clusterName],
-              ...cachedAttrs,
+            // Skip clusters that the accessory no longer declares
+            continue
+          }
+
+          // Only restore attributes that the accessory's current definition includes
+          const currentAttrs = accessory.clusters[clusterName] as Record<string, unknown>
+          const filteredCached: Record<string, unknown> = {}
+          for (const key of Object.keys(cachedAttrs as Record<string, unknown>)) {
+            if (key in currentAttrs) {
+              filteredCached[key] = (cachedAttrs as Record<string, unknown>)[key]
             }
+          }
+
+          accessory.clusters[clusterName] = {
+            ...currentAttrs,
+            ...filteredCached,
           }
         }
 
