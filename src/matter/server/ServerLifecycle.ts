@@ -28,6 +28,7 @@ import {
 import { AggregatorEndpoint as AggregatorEndpointType } from '@matter/main/endpoints'
 import { NodeJsFilesystem } from '@matter/nodejs'
 
+import { DEFAULT_BRIDGE_DEFAULTS } from '../../bridgeService.js'
 import { Logger } from '../../logger.js'
 import getVersion from '../../version.js'
 import { errorHandler } from '../errorHandler.js'
@@ -238,9 +239,7 @@ export class ServerLifecycle {
 
       log.info(`Using commissioning credentials: passcode=${deps.commissioningManager.passcode}, discriminator=${deps.commissioningManager.discriminator}`)
 
-      const displayName = deps.config.externalAccessory
-        ? (deps.config.model || 'Matter Device')
-        : 'Homebridge Matter Bridge'
+      const displayName = deps.config.displayName || 'Matter Device'
 
       const sanitizedId = deps.config.uniqueId!
 
@@ -254,7 +253,7 @@ export class ServerLifecycle {
         basicInformation: {
           nodeLabel: displayName.slice(0, 32),
           vendorId: VendorId(deps.commissioningManager.vendorId),
-          vendorName: (deps.config.manufacturer || 'Homebridge').slice(0, 32),
+          vendorName: DEFAULT_BRIDGE_DEFAULTS.vendorName,
           productId: deps.commissioningManager.productId,
           productName: displayName.slice(0, 32),
           productLabel: displayName.slice(0, 64),

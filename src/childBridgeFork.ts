@@ -133,7 +133,11 @@ export class ChildBridgeFork {
   async startBridge(): Promise<void> {
     // Conditionally load Matter support only if this child bridge has Matter configured
     // This prevents loading heavy Matter.js libraries for child bridges that don't use it
-    if (this.bridgeConfig.matter) {
+    if (this.bridgeConfig.matter && this.type === PluginType.ACCESSORY) {
+      matterLogger.warn('Matter is not supported on accessory child bridges. Ignoring matter configuration.')
+    }
+
+    if (this.bridgeConfig.matter && this.type !== PluginType.ACCESSORY) {
       matterLogger.info('Loading Matter support for child bridge...')
 
       // Pre-load Matter API for plugin access

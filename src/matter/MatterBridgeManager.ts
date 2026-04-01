@@ -18,10 +18,12 @@ import type { AccessoryInfo } from './managerTypes.js'
 import type { InternalMatterAccessory } from './types.js'
 
 import { InternalAPIEvent } from '../api.js'
+import { DEFAULT_BRIDGE_DEFAULTS } from '../bridgeService.js'
 import { IpcOutgoingEvent } from '../ipcService.js'
 import { Logger } from '../logger.js'
 import { PluginManager } from '../pluginManager.js'
 import { User } from '../user.js'
+import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterServer } from './server.js'
@@ -131,9 +133,10 @@ export class MatterBridgeManager extends BaseMatterManager {
         storagePath: User.matterPath(),
         port: matterPort,
         uniqueId: serialNumber,
-        manufacturer: this.config.bridge.manufacturer,
-        model: this.config.bridge.model,
-        firmwareRevision: this.config.bridge.firmwareRevision,
+        displayName: this.config.bridge.name || 'Main Bridge',
+        manufacturer: this.config.bridge.manufacturer || DEFAULT_BRIDGE_DEFAULTS.manufacturer,
+        model: this.config.bridge.model || DEFAULT_BRIDGE_DEFAULTS.model,
+        firmwareRevision: this.config.bridge.firmwareRevision || getVersion(),
         serialNumber,
         debugModeEnabled: this.options.debugModeEnabled,
         networkInterfaces,

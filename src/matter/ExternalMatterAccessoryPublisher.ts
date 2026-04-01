@@ -93,6 +93,7 @@ export async function publishExternalMatterAccessory(
     port,
     uniqueId,
     storagePath: User.matterPath(),
+    displayName: accessory.displayName || 'Matter Device',
     manufacturer: accessory.manufacturer,
     model: accessory.model,
     firmwareRevision: accessory.firmwareRevision,
