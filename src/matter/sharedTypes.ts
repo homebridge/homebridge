@@ -186,6 +186,9 @@ export interface MatterServerConfig {
   /** Enable debug mode for verbose logging */
   debugModeEnabled?: boolean
 
+  /** Display name for the Matter bridge/device */
+  displayName?: string
+
   /** External accessory mode - device is not bridged and so added before server starts */
   externalAccessory?: boolean
 
