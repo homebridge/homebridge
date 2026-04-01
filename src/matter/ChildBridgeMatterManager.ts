@@ -14,9 +14,11 @@ import type { InternalMatterAccessory, MatterAccessory, MatterConfig } from './t
 import process from 'node:process'
 
 import { InternalAPIEvent } from '../api.js'
+import { DEFAULT_BRIDGE_DEFAULTS } from '../bridgeService.js'
 import { Logger } from '../logger.js'
 import { PluginManager } from '../pluginManager.js'
 import { User } from '../user.js'
+import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterServer } from './server.js'
@@ -134,10 +136,11 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       port: matterConfig.port || 5540,
       uniqueId: serialNumber,
       storagePath: User.matterPath(),
+      displayName: this.bridgeConfig.name || 'Child Bridge',
       debugModeEnabled: this.bridgeOptions.debugModeEnabled,
-      manufacturer: this.bridgeConfig.manufacturer,
-      model: this.bridgeConfig.model,
-      firmwareRevision: this.bridgeConfig.firmwareRevision,
+      manufacturer: this.bridgeConfig.manufacturer || DEFAULT_BRIDGE_DEFAULTS.manufacturer,
+      model: this.bridgeConfig.model || DEFAULT_BRIDGE_DEFAULTS.model,
+      firmwareRevision: this.bridgeConfig.firmwareRevision || getVersion(),
       serialNumber,
       networkInterfaces,
     })
