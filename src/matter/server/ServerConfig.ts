@@ -94,11 +94,13 @@ export function validateAndSanitizeConfig(config: MatterServerConfig): MatterSer
     port,
     uniqueId,
     storagePath,
+    displayName: config.displayName,
     manufacturer,
     model,
     firmwareRevision,
     serialNumber,
     debugModeEnabled,
     externalAccessory,
+    networkInterfaces: config.networkInterfaces,
   }
 }

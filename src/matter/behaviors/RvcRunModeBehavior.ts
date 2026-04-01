@@ -4,26 +4,13 @@
  * Handles robotic vacuum cleaner run mode changes
  */
 
+import type { ModeBase } from '@matter/main/clusters'
+
 import { RvcRunModeServer } from '@matter/main/behaviors/rvc-run-mode'
 import { Status, StatusResponseError } from '@matter/main/types'
 
 import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
-
-/**
- * Request type for changeToMode command
- */
-interface ChangeToModeRequest {
-  newMode: number
-}
-
-/**
- * Response type for changeToMode command
- */
-interface ChangeToModeResponse {
-  status: number
-  statusText: string
-}
 
 /**
  * Custom RvcRunMode Server that calls plugin handlers
@@ -43,7 +30,7 @@ export class HomebridgeRvcRunModeServer extends RvcRunModeServer {
    * @param request - Mode change request containing the new mode
    * @returns Response indicating success or failure
    */
-  override async changeToMode(request: ChangeToModeRequest): Promise<ChangeToModeResponse> {
+  override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 

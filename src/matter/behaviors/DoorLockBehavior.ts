@@ -1,19 +1,26 @@
 /**
  * DoorLock Cluster Behavior
  *
- * Handles door lock commands for smart locks
+ * Handles door lock commands for smart locks.
+ * Uses the featureless DoorLockBehavior base to avoid advertising credential
+ * features (PIN, RFID, etc.) that cause issues with Apple Home.
  */
 
-import { DoorLockServer } from '@matter/main/behaviors/door-lock'
+import { DoorLockBehavior } from '@matter/main/behaviors/door-lock'
+import { DoorLock } from '@matter/main/clusters/door-lock'
 import { Status, StatusResponseError } from '@matter/main/types'
 
 import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
- * Custom DoorLock Server that calls plugin handlers
+ * Custom DoorLock Server that calls plugin handlers.
+ *
+ * Extends DoorLockBehavior (no credential features) instead of DoorLockServer
+ * (which includes PinCredential, RfidCredential, etc.). This prevents Apple Home
+ * from seeing credential capabilities that aren't fully implemented.
  */
-export class HomebridgeDoorLockServer extends DoorLockServer {
+export class HomebridgeDoorLockServer extends DoorLockBehavior {
   /**
    * Get the registry for this behavior's endpoint
    */
@@ -21,22 +28,19 @@ export class HomebridgeDoorLockServer extends DoorLockServer {
     return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
   }
 
-  override async lockDoor(): Promise<void> {
+  override async lockDoor(request: DoorLock.LockDoorRequest): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
     try {
       // Execute user handler
-      await registry.executeHandler(endpointId, 'doorLock', 'lockDoor')
+      await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request)
 
       // Only reached if handler succeeded - update Matter state
-      await super.lockDoor()
+      this.state.lockState = DoorLock.LockState.Locked
 
       // Sync lock state to cache
-      const currentState = this.state
-      if (currentState.lockState !== undefined) {
-        registry.syncStateToCache(endpointId, 'doorLock', { lockState: currentState.lockState })
-      }
+      registry.syncStateToCache(endpointId, 'doorLock', { lockState: this.state.lockState })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is
       // This sends a proper Matter protocol error response to the controller
@@ -51,22 +55,19 @@ export class HomebridgeDoorLockServer extends DoorLockServer {
     }
   }
 
-  override async unlockDoor(): Promise<void> {
+  override async unlockDoor(request: DoorLock.UnlockDoorRequest): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
     try {
       // Execute user handler
-      await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor')
+      await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request)
 
       // Only reached if handler succeeded - update Matter state
-      await super.unlockDoor()
+      this.state.lockState = DoorLock.LockState.Unlocked
 
       // Sync lock state to cache
-      const currentState = this.state
-      if (currentState.lockState !== undefined) {
-        registry.syncStateToCache(endpointId, 'doorLock', { lockState: currentState.lockState })
-      }
+      registry.syncStateToCache(endpointId, 'doorLock', { lockState: this.state.lockState })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is
       // This sends a proper Matter protocol error response to the controller
