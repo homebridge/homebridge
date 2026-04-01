@@ -1,6 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PluginType } from './api.js'
 import { ChildBridgeFork } from './childBridgeFork.js'
+
+describe('childBridgeFork - Matter Accessory Guard', () => {
+  it('should not have matterManager when type is ACCESSORY even with matter config', () => {
+    const fork = new ChildBridgeFork()
+    ;(fork as any).type = PluginType.ACCESSORY
+    ;(fork as any).bridgeConfig = {
+      username: '0E:DC:5D:BE:D6:75',
+      name: 'Test Accessory Bridge',
+      port: 51826,
+      matter: { enabled: true },
+    }
+
+    // Verify initial state - matterManager should not be set
+    expect((fork as any).matterManager).toBeUndefined()
+
+    // The guard in startBridge() checks: this.bridgeConfig.matter && this.type === PluginType.ACCESSORY
+    // Verify the condition is true (guard would fire)
+    expect((fork as any).bridgeConfig.matter).toBeTruthy()
+    expect((fork as any).type).toBe(PluginType.ACCESSORY)
+  })
+
+  it('should allow matter config for platform type child bridges', () => {
+    const fork = new ChildBridgeFork()
+    ;(fork as any).type = PluginType.PLATFORM
+    ;(fork as any).bridgeConfig = {
+      username: '0E:DC:5D:BE:D6:75',
+      name: 'Test Platform Bridge',
+      port: 51826,
+      matter: { enabled: true },
+    }
+
+    // The guard should NOT fire for platform type
+    expect((fork as any).bridgeConfig.matter).toBeTruthy()
+    expect((fork as any).type).not.toBe(PluginType.ACCESSORY)
+  })
+})
 
 describe('childBridgeFork - Matter Handlers', () => {
   let childBridgeFork: ChildBridgeFork

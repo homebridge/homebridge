@@ -46,19 +46,25 @@ describe('homebridgeDoorLockServer', () => {
       },
       configurable: true,
     })
+
+    // Mock super methods to prevent actual execution
+    vi.spyOn(Object.getPrototypeOf(HomebridgeDoorLockServer.prototype), 'lockDoor').mockReturnValue(undefined)
+    vi.spyOn(Object.getPrototypeOf(HomebridgeDoorLockServer.prototype), 'unlockDoor').mockReturnValue(undefined)
   })
 
   describe('lockDoor', () => {
-    it('should execute handler for lockDoor command', async () => {
-      await behavior.lockDoor()
+    const request = {} as any
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(testEndpointId, 'doorLock', 'lockDoor')
+    it('should execute handler for lockDoor command', async () => {
+      await behavior.lockDoor(request)
+
+      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(testEndpointId, 'doorLock', 'lockDoor', request)
     })
 
     it('should sync lockState to cache after locking', async () => {
       mockState.lockState = 1 // locked
 
-      await behavior.lockDoor()
+      await behavior.lockDoor(request)
 
       expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
         testEndpointId,
@@ -71,7 +77,7 @@ describe('homebridgeDoorLockServer', () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
 
       // Should throw/reject when handler fails
-      await expect(behavior.lockDoor()).rejects.toThrow('Handler failed')
+      await expect(behavior.lockDoor(request)).rejects.toThrow('Handler failed')
     })
 
     it('should not sync state if handler fails', async () => {
@@ -79,7 +85,7 @@ describe('homebridgeDoorLockServer', () => {
       mockState.lockState = 1
 
       try {
-        await behavior.lockDoor()
+        await behavior.lockDoor(request)
       } catch {
         // Expected to throw
       }
@@ -92,23 +98,25 @@ describe('homebridgeDoorLockServer', () => {
       // When lockState is defined, it syncs
       mockState.lockState = 1
 
-      await behavior.lockDoor()
+      await behavior.lockDoor(request)
 
       expect(mockRegistry.syncStateToCache).toHaveBeenCalled()
     })
   })
 
   describe('unlockDoor', () => {
-    it('should execute handler for unlockDoor command', async () => {
-      await behavior.unlockDoor()
+    const request = {} as any
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(testEndpointId, 'doorLock', 'unlockDoor')
+    it('should execute handler for unlockDoor command', async () => {
+      await behavior.unlockDoor(request)
+
+      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(testEndpointId, 'doorLock', 'unlockDoor', request)
     })
 
     it('should sync lockState to cache after unlocking', async () => {
       mockState.lockState = 2 // unlocked
 
-      await behavior.unlockDoor()
+      await behavior.unlockDoor(request)
 
       expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
         testEndpointId,
@@ -121,7 +129,7 @@ describe('homebridgeDoorLockServer', () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
 
       // Should throw/reject when handler fails
-      await expect(behavior.unlockDoor()).rejects.toThrow('Handler failed')
+      await expect(behavior.unlockDoor(request)).rejects.toThrow('Handler failed')
     })
 
     it('should not sync state if handler fails', async () => {
@@ -129,7 +137,7 @@ describe('homebridgeDoorLockServer', () => {
       mockState.lockState = 2
 
       try {
-        await behavior.unlockDoor()
+        await behavior.unlockDoor(request)
       } catch {
         // Expected to throw
       }
@@ -142,7 +150,7 @@ describe('homebridgeDoorLockServer', () => {
       // When lockState is defined, it syncs
       mockState.lockState = 2
 
-      await behavior.unlockDoor()
+      await behavior.unlockDoor(request)
 
       expect(mockRegistry.syncStateToCache).toHaveBeenCalled()
     })
@@ -153,7 +161,7 @@ describe('homebridgeDoorLockServer', () => {
       // Test that we sync the current state after lock command
       mockState.lockState = 1
 
-      await behavior.lockDoor()
+      await behavior.lockDoor({} as any)
 
       expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
         testEndpointId,
