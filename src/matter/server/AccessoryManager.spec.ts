@@ -12,6 +12,7 @@ vi.mock('@matter/main', () => {
     options: any
     id: string | undefined
     close = vi.fn()
+    add = vi.fn()
     constructor(deviceType: any, options: any) {
       this.deviceType = deviceType
       this.options = options
