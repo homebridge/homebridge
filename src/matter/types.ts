@@ -68,6 +68,7 @@ import { TemperatureSensorDevice } from '@matter/main/devices/temperature-sensor
 import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/thermostat'
 import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detector'
 import { WindowCoveringDevice } from '@matter/main/devices/window-covering'
+import { BridgedNodeEndpoint } from '@matter/main/endpoints/bridged-node'
 
 type BehaviorType = Behavior.Type
 
@@ -621,6 +622,10 @@ export const deviceTypes = {
   GenericSwitch: devices.GenericSwitchDevice,
   Pump: devices.PumpDevice,
   RoomAirConditioner: devices.RoomAirConditionerDevice,
+
+  // Composed device container — use as parent for accessories with parts.
+  // Children appear as a single accessory in Apple Home, expandable into separate tiles.
+  BridgedNode: BridgedNodeEndpoint,
 } as const
 
 /**
