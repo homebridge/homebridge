@@ -120,7 +120,12 @@ export class AccessoryManager {
       }
 
       if (!deps.config.externalAccessory) {
-        deviceType = (deviceType as any).with(BridgedDeviceBasicInformationServer)
+        // Skip if device type already includes BridgedDeviceBasicInformation
+        // (e.g., BridgedNodeEndpoint used as a composed device container)
+        const hasBridgedInfo = (deviceType as any).behaviors?.supported?.bridgedDeviceBasicInformation
+        if (!hasBridgedInfo) {
+          deviceType = (deviceType as any).with(BridgedDeviceBasicInformationServer)
+        }
         log.debug(`Added BridgedDeviceBasicInformationServer to ${accessory.displayName}`)
       }
 
@@ -144,7 +149,7 @@ export class AccessoryManager {
       }
 
       this.registerAccessoryHandlers(accessory, deps)
-      const internalParts = await this.createAccessoryParts(accessory, deps)
+      const internalParts = await this.createAccessoryParts(accessory, endpoint, deps)
 
       await this.finalizeAccessoryRegistration(accessory, endpoint, internalParts, deps)
     } catch (error) {
@@ -463,9 +468,15 @@ export class AccessoryManager {
 
   /**
    * Create and register child endpoints (parts) for an accessory
+   *
+   * Parts are added as sub-endpoints of the parent endpoint, creating a composed
+   * device per the Matter spec. Children are plain device types with no
+   * BridgedDeviceBasicInformation — only the parent has that.
+   * See: https://github.com/matter-js/matter.js/blob/main/docs/MIGRATION_GUIDE_08.md
    */
   private async createAccessoryParts(
     accessory: MatterAccessory,
+    parentEndpoint: Endpoint,
     deps: AccessoryManagerDeps,
   ): Promise<InternalMatterAccessoryPart[]> {
     const internalParts: InternalMatterAccessoryPart[] = []
@@ -501,38 +512,17 @@ export class AccessoryManager {
         }
       }
 
-      if (!deps.config.externalAccessory) {
-        partDeviceType = (partDeviceType as any).with(BridgedDeviceBasicInformationServer)
-      }
-
       const partEndpointOptions: any = {
         id: partEndpointId,
         ...part.clusters,
       }
 
-      if (!deps.config.externalAccessory) {
-        partEndpointOptions.bridgedDeviceBasicInformation = {
-          vendorName: accessory.manufacturer,
-          nodeLabel: part.displayName || `${accessory.displayName} - ${part.id}`,
-          productName: accessory.model,
-          productLabel: part.displayName || part.id,
-          serialNumber: `${accessory.serialNumber}-${part.id}`,
-          reachable: true,
-        }
-      }
-
       const partEndpoint = new Endpoint(partDeviceType, partEndpointOptions)
       setRegistryManager(partEndpoint, deps.registryManager)
 
-      const serverNode = deps.getServerNode()
-      const aggregator = deps.getAggregator()
-      if (deps.config.externalAccessory) {
-        await serverNode!.add(partEndpoint)
-      } else {
-        await aggregator!.add(partEndpoint)
-      }
+      await parentEndpoint.add(partEndpoint)
 
-      log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId})`)
+      log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
 
       if (part.handlers) {
         deps.registryManager.registerEndpoint(partEndpointId, deps.behaviorRegistry)
