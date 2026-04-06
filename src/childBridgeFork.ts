@@ -270,14 +270,15 @@ export class ChildBridgeFork {
     return new Promise((resolve) => {
       const requestTimeout = setTimeout(() => {
         Logger.internal.warn('Parent process did not respond to port allocation request within 5 seconds - assigning random port.')
+        this.portRequestCallback.delete(username)
         resolve(undefined)
       }, 5000)
 
       // setup callback
       const callback = (port: number | undefined) => {
         clearTimeout(requestTimeout)
-        resolve(port)
         this.portRequestCallback.delete(username)
+        resolve(port)
       }
       this.portRequestCallback.set(username, callback)
 
@@ -292,19 +293,20 @@ export class ChildBridgeFork {
    */
   public async requestMatterPort(uniqueId: string): Promise<number | undefined> {
     return new Promise((resolve) => {
-      const requestTimeout = setTimeout(() => {
-        matterLogger.warn('Parent process did not respond to Matter port allocation request within 5 seconds - assigning random port.')
-        resolve(undefined)
-      }, 5000)
-
       // Use uniqueId as the key for the callback map
       const mac = uniqueId as MacAddress
+
+      const requestTimeout = setTimeout(() => {
+        matterLogger.warn('Parent process did not respond to Matter port allocation request within 5 seconds - assigning random port.')
+        this.portRequestCallback.delete(mac)
+        resolve(undefined)
+      }, 5000)
 
       // setup callback
       const callback = (port: number | undefined) => {
         clearTimeout(requestTimeout)
-        resolve(port)
         this.portRequestCallback.delete(mac)
+        resolve(port)
       }
       this.portRequestCallback.set(mac, callback)
 
@@ -461,6 +463,10 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
         attributes: Record<string, unknown>
         partId?: string
       })
+      break
+    }
+    default: {
+      Logger.internal.warn(`Received unknown message type from parent process: ${message.id}`)
       break
     }
   }
