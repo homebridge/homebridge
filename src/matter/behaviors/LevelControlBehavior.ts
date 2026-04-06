@@ -178,7 +178,7 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
       })
 
       // Update OnOff cluster state through Matter.js to trigger subscription reports
-      const targetOnOff = request.level > 0
+      const targetOnOff = (request.level ?? 0) > 0
 
       // This is critical for the Home app to receive the state change
       // Using 'as any' because endpoint.set() type doesn't know about dynamically added clusters

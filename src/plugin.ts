@@ -150,7 +150,7 @@ export class Plugin {
     // If it's a dynamic platform plugin, ensure it's not enabled multiple times.
     if (this.activeDynamicPlatforms.has(name)) {
       throw new Error(`The dynamic platform ${name} from the plugin ${this.getPluginIdentifier()} is configured `
-        + 'times in your config.json.')
+        + 'multiple times in your config.json.')
     }
 
     return constructor
