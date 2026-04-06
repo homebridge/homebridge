@@ -37,7 +37,7 @@ export class MatterPortAllocator {
   public async requestPort(uuid: string): Promise<number | undefined> {
     // Check to see if this accessory has already requested a Matter port
     const existingPortAllocation = this.allocatedPorts.get(uuid)
-    if (existingPortAllocation) {
+    if (existingPortAllocation !== undefined) {
       return existingPortAllocation
     }
 
@@ -54,19 +54,33 @@ export class MatterPortAllocator {
     // Fallback to default range 5530-5541, avoiding already allocated ports
     const rangeStart = this.matterPorts?.start || 5530
     const rangeEnd = this.matterPorts?.end || 5541
+
+    if (rangeStart > rangeEnd) {
+      log.error(`Invalid Matter port range: start (${rangeStart}) is greater than end (${rangeEnd}).`)
+      return undefined
+    }
+
     const allocatedPortValues = new Set([
       ...this.configuredPorts,
       ...[...this.allocatedPorts.values()].filter((p): p is number => p !== undefined),
     ])
 
-    // Find first unallocated port in range
+    // Find first unallocated port in preferred range
     for (let port = rangeStart; port <= rangeEnd; port += 1) {
       if (!allocatedPortValues.has(port)) {
         return port
       }
     }
 
-    log.warn(`Matter port pool ran out of ports in range ${rangeStart}-${rangeEnd}. All ports are already allocated.`)
+    // Preferred range exhausted - find any available port above the range
+    log.warn(`Matter port range ${rangeStart}-${rangeEnd} exhausted, allocating from extended range.`)
+    for (let port = rangeEnd + 1; port <= 65535; port += 1) {
+      if (!allocatedPortValues.has(port)) {
+        return port
+      }
+    }
+
+    log.error('No available ports remaining for Matter allocation.')
     return undefined
   }
 

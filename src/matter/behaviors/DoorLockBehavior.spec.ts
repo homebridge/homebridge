@@ -102,6 +102,14 @@ describe('homebridgeDoorLockServer', () => {
 
       expect(mockRegistry.syncStateToCache).toHaveBeenCalled()
     })
+
+    it('should call super.lockDoor to update Matter state via proper channel', async () => {
+      const superLockDoor = vi.spyOn(Object.getPrototypeOf(HomebridgeDoorLockServer.prototype), 'lockDoor')
+
+      await behavior.lockDoor(request)
+
+      expect(superLockDoor).toHaveBeenCalledWith(request)
+    })
   })
 
   describe('unlockDoor', () => {
@@ -153,6 +161,14 @@ describe('homebridgeDoorLockServer', () => {
       await behavior.unlockDoor(request)
 
       expect(mockRegistry.syncStateToCache).toHaveBeenCalled()
+    })
+
+    it('should call super.unlockDoor to update Matter state via proper channel', async () => {
+      const superUnlockDoor = vi.spyOn(Object.getPrototypeOf(HomebridgeDoorLockServer.prototype), 'unlockDoor')
+
+      await behavior.unlockDoor(request)
+
+      expect(superUnlockDoor).toHaveBeenCalledWith(request)
     })
   })
 

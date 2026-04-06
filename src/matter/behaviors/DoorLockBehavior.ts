@@ -36,11 +36,11 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
       // Execute user handler
       await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request)
 
-      // Only reached if handler succeeded - update Matter state
-      this.state.lockState = DoorLock.LockState.Locked
+      // Only reached if handler succeeded - update Matter state via super
+      await super.lockDoor(request)
 
       // Sync lock state to cache
-      registry.syncStateToCache(endpointId, 'doorLock', { lockState: this.state.lockState })
+      registry.syncStateToCache(endpointId, 'doorLock', { lockState: DoorLock.LockState.Locked })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is
       // This sends a proper Matter protocol error response to the controller
@@ -63,11 +63,11 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
       // Execute user handler
       await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request)
 
-      // Only reached if handler succeeded - update Matter state
-      this.state.lockState = DoorLock.LockState.Unlocked
+      // Only reached if handler succeeded - update Matter state via super
+      await super.unlockDoor(request)
 
       // Sync lock state to cache
-      registry.syncStateToCache(endpointId, 'doorLock', { lockState: this.state.lockState })
+      registry.syncStateToCache(endpointId, 'doorLock', { lockState: DoorLock.LockState.Unlocked })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is
       // This sends a proper Matter protocol error response to the controller
