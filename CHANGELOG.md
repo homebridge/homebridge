@@ -22,6 +22,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: matter fix [1] - matter cache getter (@talrhv)
   - fix: matter fix [2] - various fixes
   - fix: matter fix [3] - combined devices
+  - fix: matter fix [4] - general fixes
 
 ### Changed
 

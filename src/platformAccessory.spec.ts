@@ -137,6 +137,22 @@ describe('platformAccessory', () => {
       expect(json.context).toStrictEqual(accessory.context)
       expect(spy).toHaveBeenCalledWith(accessory._associatedHAPAccessory)
     })
+
+    it('should throw when _associatedPlugin is missing', () => {
+      const accessory = createAccessory()
+      accessory._associatedPlugin = undefined
+
+      expect(() => PlatformAccessory.serialize(accessory))
+        .toThrow('Cannot serialize accessory \'TestAccessory\' - missing associated plugin')
+    })
+
+    it('should throw when _associatedPlatform is missing', () => {
+      const accessory = createAccessory()
+      accessory._associatedPlatform = undefined
+
+      expect(() => PlatformAccessory.serialize(accessory))
+        .toThrow('Cannot serialize accessory \'TestAccessory\' - missing associated platform')
+    })
   })
 
   describe('platformAccessory.deserialize', () => {

@@ -33,17 +33,17 @@ describe('matterPortAllocator', () => {
       expect(port1).toBe(5530)
     })
 
-    it('should exhaust port pool and return undefined', async () => {
+    it('should fall back to extended range when preferred range is exhausted', async () => {
       // Default range is 5530-5541 (12 ports)
       const ports: (number | undefined)[] = []
       for (let i = 0; i < 13; i++) {
         ports.push(await allocator.requestPort(`uuid-${i}`))
       }
 
-      // First 12 should get valid ports
+      // First 12 should get ports in preferred range
       expect(ports.slice(0, 12).every(p => p !== undefined)).toBe(true)
-      // 13th should be undefined (pool exhausted)
-      expect(ports[12]).toBeUndefined()
+      // 13th should fall back to extended range (5542)
+      expect(ports[12]).toBe(5542)
     })
 
     it('should provide correct statistics', async () => {
@@ -68,7 +68,7 @@ describe('matterPortAllocator', () => {
       expect(port2).toBe(6001)
     })
 
-    it('should exhaust custom range', async () => {
+    it('should fall back to extended range when custom range is exhausted', async () => {
       const allocator = new MatterPortAllocator({ start: 6000, end: 6002 })
 
       const port1 = await allocator.requestPort('uuid-1')
@@ -79,7 +79,7 @@ describe('matterPortAllocator', () => {
       expect(port1).toBe(6000)
       expect(port2).toBe(6001)
       expect(port3).toBe(6002)
-      expect(port4).toBeUndefined()
+      expect(port4).toBe(6003) // falls back to extended range
     })
   })
 
@@ -122,24 +122,43 @@ describe('matterPortAllocator', () => {
   })
 
   describe('edge cases', () => {
-    it('should handle single port range', async () => {
+    it('should handle single port range and fall back to extended range', async () => {
       const allocator = new MatterPortAllocator({ start: 6000, end: 6000 })
 
       const port1 = await allocator.requestPort('uuid-1')
       const port2 = await allocator.requestPort('uuid-2')
 
       expect(port1).toBe(6000)
-      expect(port2).toBeUndefined()
+      expect(port2).toBe(6001) // falls back to extended range
     })
 
-    it('should handle all ports being configured', async () => {
+    it('should handle all ports being configured by using extended range', async () => {
       const allocator = new MatterPortAllocator(
         { start: 6000, end: 6002 },
         [6000, 6001, 6002],
       )
 
       const port = await allocator.requestPort('uuid-1')
+      expect(port).toBe(6003) // falls back to extended range, skipping configured ports
+    })
+
+    it('should return undefined for inverted port range', async () => {
+      const allocator = new MatterPortAllocator({ start: 6005, end: 6000 })
+
+      const port = await allocator.requestPort('uuid-1')
       expect(port).toBeUndefined()
+    })
+
+    it('should recognise an existing allocation and not re-allocate', async () => {
+      // Regression: ensure requestPort returns the cached port for the same UUID
+      const allocator = new MatterPortAllocator({ start: 7000, end: 7000 })
+
+      const port1 = await allocator.requestPort('uuid-1')
+      expect(port1).toBe(7000)
+
+      // Same UUID should return the same port, not re-allocate
+      const port2 = await allocator.requestPort('uuid-1')
+      expect(port2).toBe(7000)
     })
 
     it('should handle empty UUID gracefully', async () => {

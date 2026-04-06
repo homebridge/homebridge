@@ -143,10 +143,10 @@ describe('behaviorRegistry', () => {
       expect(result).toBe(true)
     })
 
-    it('should return false when handler does not exist', async () => {
-      const result = await registry.executeHandler('nonexistent', 'onOff', 'toggle')
-
-      expect(result).toBe(false)
+    it('should throw when handler does not exist', async () => {
+      await expect(registry.executeHandler('nonexistent', 'onOff', 'toggle'))
+        .rejects
+        .toThrow('No handler registered for nonexistent.onOff.toggle')
     })
 
     it('should log and rethrow errors from handlers', async () => {

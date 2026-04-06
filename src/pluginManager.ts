@@ -109,11 +109,19 @@ export class PluginManager {
   }
 
   public static extractPluginName(name: string): PluginName { // extract plugin name without @scope/ prefix
-    return name.match(PluginManager.PLUGIN_IDENTIFIER_PATTERN)![4]
+    const match = name.match(PluginManager.PLUGIN_IDENTIFIER_PATTERN)
+    if (!match) {
+      throw new Error(`Cannot extract plugin name from invalid identifier: '${name}'`)
+    }
+    return match[4]
   }
 
   public static extractPluginScope(name: string): string { // extract the "@scope" of a npm module name
-    return name.match(PluginManager.PLUGIN_IDENTIFIER_PATTERN)![2]
+    const match = name.match(PluginManager.PLUGIN_IDENTIFIER_PATTERN)
+    if (!match) {
+      throw new Error(`Cannot extract plugin scope from invalid identifier: '${name}'`)
+    }
+    return match[2]
   }
 
   public static getAccessoryName(identifier: AccessoryIdentifier): AccessoryName {
@@ -340,7 +348,7 @@ export class PluginManager {
           log.warn(error.message)
         }
       } else { // read through each directory in this node_modules folder
-        const relativePluginPaths = readdirSync(searchPath) // search for directories only
+        let relativePluginPaths = readdirSync(searchPath) // search for directories only
           .filter((relativePath) => {
             try {
               return statSync(resolve(searchPath, relativePath)).isDirectory()
@@ -351,26 +359,23 @@ export class PluginManager {
           })
 
         // expand out @scoped plugins
-        relativePluginPaths.slice()
-          .filter(path => path.charAt(0) === '@') // is it a scope directory?
-          .forEach((scopeDirectory) => {
-            // remove scopeDirectory from the path list
-            const index = relativePluginPaths.indexOf(scopeDirectory)
-            relativePluginPaths.splice(index, 1)
+        const scopeDirectories = relativePluginPaths.filter(path => path.startsWith('@'))
+        relativePluginPaths = relativePluginPaths.filter(path => !path.startsWith('@'))
 
-            const absolutePath = join(searchPath, scopeDirectory)
-            readdirSync(absolutePath)
-              .filter(name => PluginManager.isQualifiedPluginIdentifier(name))
-              .filter((name) => {
-                try {
-                  return statSync(resolve(absolutePath, name)).isDirectory()
-                } catch (error: any) {
-                  log.debug(`Ignoring path ${resolve(absolutePath, name)} - ${error.message}`)
-                  return false
-                }
-              })
-              .forEach(name => relativePluginPaths.push(`${scopeDirectory}/${name}`))
-          })
+        for (const scopeDirectory of scopeDirectories) {
+          const absolutePath = join(searchPath, scopeDirectory)
+          readdirSync(absolutePath)
+            .filter(name => PluginManager.isQualifiedPluginIdentifier(name))
+            .filter((name) => {
+              try {
+                return statSync(resolve(absolutePath, name)).isDirectory()
+              } catch (error: any) {
+                log.debug(`Ignoring path ${resolve(absolutePath, name)} - ${error.message}`)
+                return false
+              }
+            })
+            .forEach(name => relativePluginPaths.push(`${scopeDirectory}/${name}`))
+        }
 
         relativePluginPaths
           .filter((pluginIdentifier) => {
