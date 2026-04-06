@@ -367,6 +367,20 @@ export class BridgeService {
 
   handleRegisterPlatformAccessories(accessories: PlatformAccessory[]): void {
     const hapAccessories = accessories.map((accessory) => {
+      // Check for UUID collision with existing bridged accessories
+      const existingAccessory = this.cachedPlatformAccessories.find(
+        cached => cached._associatedHAPAccessory.UUID === accessory._associatedHAPAccessory.UUID,
+      )
+      if (existingAccessory) {
+        log.warn(
+          'Accessory \'%s\' has the same UUID as existing accessory \'%s\' (UUID: %s). Skipping duplicate.',
+          accessory.displayName,
+          existingAccessory.displayName,
+          accessory._associatedHAPAccessory.UUID,
+        )
+        return undefined
+      }
+
       this.cachedPlatformAccessories.push(accessory)
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
@@ -383,7 +397,7 @@ export class BridgeService {
       }
 
       return accessory._associatedHAPAccessory
-    })
+    }).filter((hapAccessory): hapAccessory is Accessory => hapAccessory !== undefined)
 
     this.bridge.addBridgedAccessories(hapAccessories)
     this.saveCachedPlatformAccessoriesOnDisk()
