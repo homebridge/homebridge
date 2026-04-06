@@ -106,8 +106,7 @@ export class BehaviorRegistry {
   ): Promise<boolean> {
     const handler = this.getHandler(endpointId, clusterName, commandName)
     if (!handler) {
-      log.warn(`No handler registered for ${endpointId}.${clusterName}.${commandName}`)
-      return false
+      throw new Error(`No handler registered for ${endpointId}.${clusterName}.${commandName}`)
     }
 
     try {
