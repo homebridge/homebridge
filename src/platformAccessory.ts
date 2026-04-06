@@ -127,10 +127,17 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
 
   // private
   static serialize(accessory: PlatformAccessory): SerializedPlatformAccessory {
+    if (!accessory._associatedPlugin) {
+      throw new Error(`Cannot serialize accessory '${accessory.displayName}' - missing associated plugin`)
+    }
+    if (!accessory._associatedPlatform) {
+      throw new Error(`Cannot serialize accessory '${accessory.displayName}' - missing associated platform`)
+    }
+
     accessory._associatedHAPAccessory.displayName = accessory.displayName
     return {
-      plugin: accessory._associatedPlugin!,
-      platform: accessory._associatedPlatform!,
+      plugin: accessory._associatedPlugin,
+      platform: accessory._associatedPlatform,
       context: accessory.context,
       ...Accessory.serialize(accessory._associatedHAPAccessory),
     }

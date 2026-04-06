@@ -21,6 +21,11 @@ describe('pluginManager', () => {
     it('should extract scoped plugin names', () => {
       expect(PluginManager.extractPluginName('@organisation/homebridge-dummy-plugin')).toBe('homebridge-dummy-plugin')
     })
+
+    it('should throw for invalid identifiers', () => {
+      expect(() => PluginManager.extractPluginName('invalid-name'))
+        .toThrow('Cannot extract plugin name from invalid identifier: \'invalid-name\'')
+    })
   })
 
   describe('pluginManager.extractPluginScope', () => {
@@ -30,6 +35,11 @@ describe('pluginManager', () => {
 
     it('should extract scope for scoped plugin names', () => {
       expect(PluginManager.extractPluginScope('@organisation/homebridge-dummy-plugin')).toBe('@organisation')
+    })
+
+    it('should throw for invalid identifiers', () => {
+      expect(() => PluginManager.extractPluginScope('invalid-name'))
+        .toThrow('Cannot extract plugin scope from invalid identifier: \'invalid-name\'')
     })
   })
 

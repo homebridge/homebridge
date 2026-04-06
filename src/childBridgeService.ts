@@ -222,9 +222,10 @@ export class ChildBridgeService {
   private displayName?: string
   private restartCount = 0
   private readonly maxRestarts = 4
+  private scheduledRestartTimeout?: ReturnType<typeof setTimeout>
 
-  // Matter accessories cache for collection by main server
-  public lastMatterAccessoriesResponse?: { accessories: any[], bridgeUsername: string }
+  // Matter accessories pending response callback
+  private matterAccessoriesResolve?: (data: { accessories: any[], bridgeUsername: string } | undefined) => void
 
   // Callback for external Matter bridge registration
   public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
@@ -259,7 +260,7 @@ export class ChildBridgeService {
     this.startChildProcess()
 
     // set display name
-    if (this.pluginConfig.length > 1 || this.pluginConfig.length === 0) {
+    if (this.pluginConfig.length !== 1) {
       this.displayName = this.plugin.getPluginIdentifier()
     } else {
       this.displayName = this.pluginConfig[0]?.name || this.plugin.getPluginIdentifier()
@@ -293,10 +294,24 @@ export class ChildBridgeService {
   }
 
   /**
-   * Get Matter accessories from this child bridge
+   * Request Matter accessories from this child bridge.
+   * Returns a promise that resolves when the child responds, or undefined on timeout.
    */
-  public getMatterAccessories(): void {
-    this.sendMessage(ChildProcessMessageEventType.GET_MATTER_ACCESSORIES)
+  public requestMatterAccessories(timeoutMs = 500): Promise<{ accessories: any[], bridgeUsername: string } | undefined> {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        this.matterAccessoriesResolve = undefined
+        resolve(undefined)
+      }, timeoutMs)
+
+      this.matterAccessoriesResolve = (data) => {
+        clearTimeout(timeout)
+        this.matterAccessoriesResolve = undefined
+        resolve(data)
+      }
+
+      this.sendMessage(ChildProcessMessageEventType.GET_MATTER_ACCESSORIES)
+    })
   }
 
   /**
@@ -404,9 +419,9 @@ export class ChildBridgeService {
           // Handle unified Matter event
           const matterEvent = message.data as MatterEvent
 
-          // Special handling for accessoriesData - store for collection by main server
+          // Special handling for accessoriesData - resolve pending request
           if (matterEvent.type === 'accessoriesData') {
-            this.lastMatterAccessoriesResponse = matterEvent.data as any
+            this.matterAccessoriesResolve?.(matterEvent.data as any)
           } else if (matterEvent.type === 'externalBridgeRegistration') {
             // Handle external bridge registration - register directly with callback
             const data = matterEvent.data as any
@@ -442,8 +457,9 @@ export class ChildBridgeService {
         this.restartCount += 1
         const delay = this.restartCount * 10 // first attempt after 10 seconds, second after 20 seconds, etc.
         this.log(`Child bridge will automatically restart in ${delay} seconds (restart attempt ${this.restartCount} of ${this.maxRestarts}).`)
-        setTimeout(() => {
-          if (!this.shuttingDown) {
+        this.scheduledRestartTimeout = setTimeout(() => {
+          this.scheduledRestartTimeout = undefined
+          if (!this.shuttingDown && !this.manuallyStopped) {
             this.startChildProcess()
           }
         }, delay * 1000)
@@ -640,8 +656,12 @@ export class ChildBridgeService {
       this.shuttingDown = true
       this.manuallyStopped = true
       this.restartCount = 0
+      if (this.scheduledRestartTimeout) {
+        clearTimeout(this.scheduledRestartTimeout)
+        this.scheduledRestartTimeout = undefined
+      }
       this.bridgeStatus = ChildBridgeStatus.DOWN
-      this.child?.removeAllListeners('close')
+      this.child?.removeAllListeners()
       this.teardown()
     } else {
       this.log.warn('Child bridge already shutting down or stopped.')

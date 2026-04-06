@@ -722,11 +722,14 @@ export class Server {
    * Only stops monitoring when no more clients
    */
   private handleStopMatterMonitoring(): void {
+    if (this.matterMonitoringClients <= 0) {
+      return
+    }
+
     this.matterMonitoringClients--
 
     // Only stop monitoring when no more clients
-    if (this.matterMonitoringClients <= 0) {
-      this.matterMonitoringClients = 0
+    if (this.matterMonitoringClients === 0) {
       this.matterMonitoringActive = false
 
       // Disable monitoring on main bridge Matter servers
@@ -801,26 +804,15 @@ export class Server {
       // Get accessories from main bridge
       const allAccessories = this.matterManager?.collectAllAccessories(bridgeUsername) || []
 
-      // Request from child bridges and wait briefly for responses
+      // Request from child bridges and wait for responses (with timeout)
       if (this.childBridges.size > 0) {
-        // Clear previous responses
-        for (const childBridge of this.childBridges.values()) {
-          childBridge.lastMatterAccessoriesResponse = undefined
-        }
+        const results = await Promise.allSettled(
+          Array.from(this.childBridges.values(), childBridge => childBridge.requestMatterAccessories()),
+        )
 
-        // Request from all child bridges
-        for (const childBridge of this.childBridges.values()) {
-          childBridge.getMatterAccessories()
-        }
-
-        // Wait up to 500ms for child bridges to respond
-        await new Promise(resolve => setTimeout(resolve, 500))
-
-        // Collect responses from child bridges
-        for (const childBridge of this.childBridges.values()) {
-          if (childBridge.lastMatterAccessoriesResponse?.accessories) {
-            const accessories = childBridge.lastMatterAccessoriesResponse.accessories
-            allAccessories.push(...accessories)
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value?.accessories) {
+            allAccessories.push(...result.value.accessories)
           }
         }
       }
