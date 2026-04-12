@@ -249,6 +249,52 @@ export function extractThermostatFeatures(supportedFeatures: Record<string, bool
 }
 
 /**
+ * Detect FanControl features from accessory attributes.
+ */
+export function detectFanControlFeatures(
+  fanControlCluster: Record<string, unknown> | undefined,
+): string[] {
+  const features: string[] = []
+
+  if (!fanControlCluster) {
+    return features
+  }
+
+  const fanModeSequence = fanControlCluster.fanModeSequence as number | undefined
+  if (
+    fanModeSequence === clusters.FanControl.FanModeSequence.OffLowMedHighAuto
+    || fanModeSequence === clusters.FanControl.FanModeSequence.OffLowHighAuto
+    || fanModeSequence === clusters.FanControl.FanModeSequence.OffHighAuto
+  ) {
+    features.push('Auto')
+  }
+
+  if (
+    fanControlCluster.speedMax !== undefined
+    || fanControlCluster.speedSetting !== undefined
+    || fanControlCluster.speedCurrent !== undefined
+  ) {
+    features.push('MultiSpeed')
+  }
+
+  if (
+    fanControlCluster.rockSupport !== undefined
+    || fanControlCluster.rockSetting !== undefined
+  ) {
+    features.push('Rocking')
+  }
+
+  if (
+    fanControlCluster.windSupport !== undefined
+    || fanControlCluster.windSetting !== undefined
+  ) {
+    features.push('Wind')
+  }
+
+  return features
+}
+
+/**
  * Determine ColorControl features based on handlers
  * Only includes features that have corresponding handler methods
  */

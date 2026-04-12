@@ -438,6 +438,12 @@ export interface API {
   readonly matter: MatterAPI
 
   /**
+   * Preloads the Matter API so plugins can safely access `api.matter`
+   * before `didFinishLaunching` when needed.
+   */
+  loadMatterAPI: () => Promise<void>
+
+  /**
    * Returns true if the current running homebridge version is greater or equal to the
    * passed version string.
    *

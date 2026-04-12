@@ -5,6 +5,7 @@ import {
   applyWindowCoveringFeatures,
   CLUSTER_IDS,
   detectBehaviorFeatures,
+  detectFanControlFeatures,
   detectServiceAreaFeatures,
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
@@ -265,6 +266,33 @@ describe('serverHelpers', () => {
 
     it('should return empty array when no features are enabled', () => {
       const features = extractThermostatFeatures({})
+      expect(features).toEqual([])
+    })
+  })
+
+  describe('detectFanControlFeatures', () => {
+    it('should detect Auto from fan mode sequence', () => {
+      const features = detectFanControlFeatures({ fanModeSequence: 2 })
+      expect(features).toContain('Auto')
+    })
+
+    it('should detect MultiSpeed from speed attributes', () => {
+      const features = detectFanControlFeatures({ speedMax: 4 })
+      expect(features).toContain('MultiSpeed')
+    })
+
+    it('should detect Rocking from rocking attributes', () => {
+      const features = detectFanControlFeatures({ rockSupport: 1 })
+      expect(features).toContain('Rocking')
+    })
+
+    it('should detect Wind from wind attributes', () => {
+      const features = detectFanControlFeatures({ windSetting: 1 })
+      expect(features).toContain('Wind')
+    })
+
+    it('should return empty array when no fan features are present', () => {
+      const features = detectFanControlFeatures({ fanModeSequence: 5 })
       expect(features).toEqual([])
     })
   })

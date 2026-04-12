@@ -44,6 +44,7 @@ vi.mock('../serverHelpers.js', () => ({
   detectWindowCoveringFeatures: vi.fn(() => []),
   applyWindowCoveringFeatures: vi.fn((dt: any) => dt),
   detectBehaviorFeatures: vi.fn(() => null),
+  detectFanControlFeatures: vi.fn(() => []),
   extractColorControlFeatures: vi.fn(() => []),
   extractThermostatFeatures: vi.fn(() => []),
   determineColorControlFeaturesFromHandlers: vi.fn(() => []),
@@ -90,7 +91,10 @@ vi.mock('./BehaviorMap.js', () => ({
       with: vi.fn((...args: any[]) => ({ name: `HomebridgeWindowCoveringServer.with(${args.join(',')})` })),
     },
     doorLock: { name: 'HomebridgeDoorLockServer' },
-    fanControl: { name: 'HomebridgeFanControlServer' },
+    fanControl: {
+      name: 'HomebridgeFanControlServer',
+      with: vi.fn((...args: any[]) => ({ name: `HomebridgeFanControlServer.with(${args.join(',')})` })),
+    },
     identify: { name: 'HomebridgeIdentifyServer' },
     rvcOperationalState: { name: 'HomebridgeRvcOperationalStateServer' },
     rvcRunMode: { name: 'HomebridgeRvcRunModeServer' },
@@ -235,6 +239,33 @@ describe('accessoryManager', () => {
       expect(deps.registryManager.registerEndpoint).toHaveBeenCalledWith('test-uuid-001', deps.behaviorRegistry)
       expect(deps.behaviorRegistry.registerHandler).toHaveBeenCalledWith('test-uuid-001', 'onOff', 'on', expect.any(Function))
       expect(deps.behaviorRegistry.registerHandler).toHaveBeenCalledWith('test-uuid-001', 'onOff', 'off', expect.any(Function))
+    })
+
+    it('should preserve FanControl features for custom behaviors', async () => {
+      const helpers = await import('../serverHelpers.js')
+      const behaviorMap = await import('./BehaviorMap.js')
+      vi.mocked(helpers.detectFanControlFeatures).mockReturnValue(['Auto', 'MultiSpeed'])
+
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        displayName: 'Test AC',
+        handlers: {
+          fanControl: {
+            fanModeChange: vi.fn(),
+          },
+        },
+        clusters: {
+          fanControl: {
+            fanModeSequence: 5,
+            speedMax: 4,
+          },
+        },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(helpers.detectFanControlFeatures).toHaveBeenCalledWith({ fanModeSequence: 5, speedMax: 4 })
+      expect((behaviorMap.CORE_CLUSTER_BEHAVIOR_MAP.fanControl as any).with).toHaveBeenCalledWith('Auto', 'MultiSpeed')
     })
 
     it('should save to cache after registration', async () => {

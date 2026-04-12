@@ -35,6 +35,7 @@ import {
   applyWindowCoveringFeatures,
   CLUSTER_IDS,
   detectBehaviorFeatures,
+  detectFanControlFeatures,
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
@@ -252,6 +253,7 @@ export class AccessoryManager {
     windowCoveringFeatures: string[]
     serviceAreaFeatures: string[] | null
     colorControlFeatures: string[] | null
+    fanControlFeatures: string[] | null
     thermostatFeatures: string[] | null
   } {
     const windowCoveringFeatures = detectWindowCoveringFeatures(accessory)
@@ -292,10 +294,16 @@ export class AccessoryManager {
       )
     }
 
+    let fanControlFeatures: string[] | null = null
+    if (accessory.handlers?.fanControl) {
+      fanControlFeatures = detectFanControlFeatures(accessory.clusters?.fanControl as Record<string, unknown> | undefined)
+    }
+
     return {
       windowCoveringFeatures,
       serviceAreaFeatures,
       colorControlFeatures,
+      fanControlFeatures,
       thermostatFeatures,
     }
   }
@@ -310,6 +318,7 @@ export class AccessoryManager {
       windowCoveringFeatures: string[]
       serviceAreaFeatures: string[] | null
       colorControlFeatures: string[] | null
+      fanControlFeatures: string[] | null
       thermostatFeatures: string[] | null
     },
   ): Promise<BehaviorType[]> {
@@ -390,6 +399,11 @@ export class AccessoryManager {
       if (clusterName === 'thermostat' && behaviorClass && features.thermostatFeatures && features.thermostatFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.thermostatFeatures)
         log.info(`Thermostat custom behavior will preserve features: ${features.thermostatFeatures.join(', ')}`)
+      }
+
+      if (clusterName === 'fanControl' && behaviorClass && features.fanControlFeatures && features.fanControlFeatures.length > 0) {
+        behaviorClass = (behaviorClass as any).with(...features.fanControlFeatures)
+        log.info(`FanControl custom behavior will preserve features: ${features.fanControlFeatures.join(', ')}`)
       }
 
       if (clusterName === 'serviceArea' && behaviorClass && features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
