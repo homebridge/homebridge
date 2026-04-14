@@ -4,9 +4,8 @@
  * Handles open/close commands for water valves and irrigation controllers.
  */
 
-import type { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
-
 import { ValveConfigurationAndControlServer } from '@matter/main/behaviors/valve-configuration-and-control'
+import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
 import { Status, StatusResponseError } from '@matter/main/types'
 
 import { MatterStatus } from '../errors.js'
@@ -39,8 +38,8 @@ export class HomebridgeValveConfigurationAndControlServer extends ValveConfigura
 
       // Sync state to cache
       registry.syncStateToCache(endpointId, 'valveConfigurationAndControl', {
-        currentState: 1, // ValveConfigurationAndControl.ValveState.Open
-        targetState: 1,
+        currentState: ValveConfigurationAndControl.ValveState.Open,
+        targetState: ValveConfigurationAndControl.ValveState.Open,
       })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is
@@ -72,8 +71,8 @@ export class HomebridgeValveConfigurationAndControlServer extends ValveConfigura
 
       // Sync state to cache
       registry.syncStateToCache(endpointId, 'valveConfigurationAndControl', {
-        currentState: 0, // ValveConfigurationAndControl.ValveState.Closed
-        targetState: 0,
+        currentState: ValveConfigurationAndControl.ValveState.Closed,
+        targetState: ValveConfigurationAndControl.ValveState.Closed,
       })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is
