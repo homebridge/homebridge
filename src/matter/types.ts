@@ -43,6 +43,7 @@ import { Pm10ConcentrationMeasurement } from '@matter/main/clusters/pm10-concent
 import { Pm25ConcentrationMeasurement } from '@matter/main/clusters/pm25-concentration-measurement'
 import { RvcOperationalState } from '@matter/main/clusters/rvc-operational-state'
 import { Thermostat } from '@matter/main/clusters/thermostat'
+import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
 import { WindowCovering } from '@matter/main/clusters/window-covering'
 // Direct imports from individual device files
 import { AirQualitySensorDevice } from '@matter/main/devices/air-quality-sensor'
@@ -67,6 +68,7 @@ import { SmokeCoAlarmDevice } from '@matter/main/devices/smoke-co-alarm'
 import { TemperatureSensorDevice } from '@matter/main/devices/temperature-sensor'
 import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/thermostat'
 import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detector'
+import { WaterValveDevice, WaterValveRequirements } from '@matter/main/devices/water-valve'
 import { WindowCoveringDevice } from '@matter/main/devices/window-covering'
 import { BridgedNodeEndpoint } from '@matter/main/endpoints/bridged-node'
 
@@ -546,6 +548,8 @@ const devices = {
   ThermostatDevice,
   ThermostatRequirements,
   WaterLeakDetectorDevice,
+  WaterValveDevice,
+  WaterValveRequirements,
   WindowCoveringDevice,
 }
 
@@ -569,6 +573,7 @@ const clusters = {
   Pm25ConcentrationMeasurement,
   RvcOperationalState,
   Thermostat,
+  ValveConfigurationAndControl,
   WindowCovering,
 }
 
@@ -617,6 +622,9 @@ export const deviceTypes = {
   // RVC optional clusters (RvcCleanMode, ServiceArea) are added dynamically in matterServer
   // based on whether they're defined in the accessory configuration
   RoboticVacuumCleaner: devices.RoboticVacuumCleanerDevice,
+
+  // Water Valve
+  WaterValve: devices.WaterValveDevice.with(devices.WaterValveRequirements.ValveConfigurationAndControlServer),
 
   // Other
   GenericSwitch: devices.GenericSwitchDevice,
@@ -672,6 +680,9 @@ export const clusterNames = {
 
   // Pump & Other
   PumpConfigurationAndControl: 'pumpConfigurationAndControl',
+
+  // Valve
+  ValveConfigurationAndControl: 'valveConfigurationAndControl',
 
   // Identification
   Identify: 'identify',

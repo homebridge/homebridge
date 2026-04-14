@@ -17,6 +17,7 @@ import type {
   ScenesManagement,
   ServiceArea,
   Thermostat,
+  ValveConfigurationAndControl,
   WindowCovering,
 } from '@matter/main/clusters'
 
@@ -200,6 +201,11 @@ export namespace MatterRequests {
   // ============================================================================
   export type SelectAreas = ServiceArea.SelectAreasRequest
   export type SkipArea = ServiceArea.SkipAreaRequest
+
+  // ============================================================================
+  // Valve Configuration and Control Cluster (§4.6) - for water valves
+  // ============================================================================
+  export type OpenValve = ValveConfigurationAndControl.OpenRequest
 }
 
 /**

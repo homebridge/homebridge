@@ -285,6 +285,18 @@ export interface RvcCleanModeState {
 }
 
 /**
+ * ValveConfigurationAndControl cluster state
+ */
+export interface ValveConfigurationAndControlState {
+  openDuration?: number | null
+  defaultOpenDuration?: number | null
+  remainingDuration?: number | null
+  currentState?: number | null
+  targetState?: number | null
+  valveFault?: number
+}
+
+/**
  * Service Area state
  */
 export interface ServiceAreaState {
