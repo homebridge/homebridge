@@ -21,6 +21,7 @@ import type {
   RvcRunModeState,
   ServiceAreaState,
   ThermostatState,
+  ValveConfigurationAndControlState,
   WindowCoveringState,
 } from './clusterTypes.js'
 
@@ -62,6 +63,9 @@ export interface ClusterStateMap {
   illuminanceMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null }
   occupancySensing: { occupancy: { occupied: boolean }, occupancySensorType?: number, occupancySensorTypeBitmap?: { pir?: boolean, ultrasonic?: boolean, physicalContact?: boolean } }
   booleanState: { stateValue: boolean }
+
+  // Valve clusters
+  valveConfigurationAndControl: ValveConfigurationAndControlState
 
   // Air quality clusters
   airQuality: { airQuality: number }
