@@ -23,6 +23,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: matter fix [2] - various fixes
   - fix: matter fix [3] - combined devices
   - fix: matter fix [4] - general fixes
+  - fix: matter fix [5] - expose `WaterValve` device (#3909) (@donavanbecker)
 
 ### Changed
 

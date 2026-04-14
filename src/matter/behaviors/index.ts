@@ -25,4 +25,5 @@ export { HomebridgeRvcOperationalStateServer } from './RvcOperationalStateBehavi
 export { HomebridgeRvcRunModeServer } from './RvcRunModeBehavior.js'
 export { HomebridgeServiceAreaServer } from './ServiceAreaBehavior.js'
 export { HomebridgeThermostatServer } from './ThermostatBehavior.js'
+export { HomebridgeValveConfigurationAndControlServer } from './ValveConfigurationAndControlBehavior.js'
 export { HomebridgeWindowCoveringServer } from './WindowCoveringBehavior.js'
