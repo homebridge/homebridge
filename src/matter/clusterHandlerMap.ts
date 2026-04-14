@@ -9,7 +9,7 @@
  * so they automatically update when matter.js is bumped.
  */
 
-import type { ColorControl, DoorLock, FanControl, Identify, LevelControl, ModeBase, ServiceArea, Thermostat, WindowCovering } from '@matter/main/clusters'
+import type { ColorControl, DoorLock, FanControl, Identify, LevelControl, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WindowCovering } from '@matter/main/clusters'
 
 import type { MatterCommandHandler } from './types.js'
 
@@ -156,6 +156,14 @@ export interface ServiceAreaHandlers {
 }
 
 /**
+ * ValveConfigurationAndControl cluster handler methods
+ */
+export interface ValveConfigurationAndControlHandlers {
+  open?: MatterCommandHandler<ValveConfigurationAndControl.OpenRequest>
+  close?: MatterCommandHandler
+}
+
+/**
  * Maps known cluster names to their typed handler interfaces.
  *
  * Plugin developers get autocomplete for handler methods within each cluster.
@@ -194,4 +202,5 @@ export interface ClusterHandlerMap {
   rvcCleanMode: RvcCleanModeHandlers
   rvcOperationalState: RvcOperationalStateHandlers
   serviceArea: ServiceAreaHandlers
+  valveConfigurationAndControl: ValveConfigurationAndControlHandlers
 }
