@@ -25,6 +25,7 @@ import {
   HomebridgeRvcRunModeServer,
   HomebridgeServiceAreaServer,
   HomebridgeThermostatServer,
+  HomebridgeValveConfigurationAndControlServer,
   HomebridgeWindowCoveringServer,
 } from '../behaviors/index.js'
 
@@ -61,6 +62,9 @@ export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
 
   // Identification
   identify: HomebridgeIdentifyServer,
+
+  // Valve
+  valveConfigurationAndControl: HomebridgeValveConfigurationAndControlServer,
 } as const
 
 /**
