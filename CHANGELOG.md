@@ -29,6 +29,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: add powerSource to clusterNames and ClusterStateMap (#3912) (@gtalusan)
   - fix: enable Rechargeable feature for PowerSource cluster when batChargeState is provided (#3914) (@gtalusan)
   - fix: remove API event listeners in Matter manager teardown (#3915) (@gtalusan)
+  - fix: remove stateChange/commissioning listeners from MatterServer on teardown (#3916) (@gtalusan)
 
 ### Changed
 
