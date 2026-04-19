@@ -401,8 +401,12 @@ export class AccessoryManager {
       if (accessory.clusters?.powerSource) {
         const hasBattery = accessory.clusters.powerSource.batPercentRemaining !== undefined
           || accessory.clusters.powerSource.batChargeLevel !== undefined
+        const hasRechargeable = accessory.clusters.powerSource.batChargeState !== undefined
         let powerSourceBehavior: BehaviorType = PowerSourceServer
-        if (hasBattery) {
+        if (hasBattery && hasRechargeable) {
+          powerSourceBehavior = (PowerSourceServer as any).with('Battery', 'Rechargeable')
+          log.debug('Adding PowerSource server with battery and rechargeable features')
+        } else if (hasBattery) {
           powerSourceBehavior = (PowerSourceServer as any).with('Battery')
           log.debug('Adding PowerSource server with battery feature')
         } else {
