@@ -27,6 +27,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: matter fix [6] - crash when bridge bind is set (#3910) (@gtalusan)
   - fix: matter fix [7] - fix level control for non-lighting devices
   - fix: add powerSource to clusterNames and ClusterStateMap (#3912) (@gtalusan)
+  - fix: enable Rechargeable feature for PowerSource cluster when batChargeState is provided (#3914) (@gtalusan)
 
 ### Changed
 
