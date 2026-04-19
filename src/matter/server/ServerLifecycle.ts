@@ -5,6 +5,7 @@
  * runServer(), createServerNodeWithRecovery(), and storage setup.
  */
 
+import type { VariableService } from '@matter/general'
 import type { ServerNode } from '@matter/main'
 
 import type { MatterAccessoryCache } from '../accessoryCache.js'
@@ -270,8 +271,8 @@ export class ServerLifecycle {
       // property when initializing NetworkBehavior on this new node.
       // VariableService.get() returns a direct reference to the internal vars object,
       // so deleting the key here mutates the stored value without needing a private API.
-      const networkVars = Environment.default.vars.get('network') as unknown as Record<string, unknown> | undefined
-      if (networkVars && 'interface' in networkVars) {
+      const networkVars = Environment.default.vars.get<VariableService.Map>('network')
+      if (typeof networkVars === 'object' && networkVars !== null && 'interface' in networkVars) {
         delete networkVars.interface
         log.debug('Cleared network.interface from environment before ServerNode creation')
       }

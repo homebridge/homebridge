@@ -38,6 +38,7 @@ import {
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
+  extractLevelControlFeatures,
   extractThermostatFeatures,
   validateAccessoryRequiredFields,
 } from '../serverHelpers.js'
@@ -49,6 +50,22 @@ import { stripVendorFromLabel } from '../utils.js'
 import { CORE_CLUSTER_BEHAVIOR_MAP } from './BehaviorMap.js'
 
 type BehaviorType = Behavior.Type
+
+interface DetectedClusterFeatures {
+  windowCoveringFeatures: string[]
+  serviceAreaFeatures: string[] | null
+  colorControlFeatures: string[] | null
+  thermostatFeatures: string[] | null
+  /**
+   * LevelControl features to apply via `.with(...)`. `null` means the accessory
+   * has no `levelControl` handler and we should leave the base class alone.
+   * An empty array means "apply `.with()` with no features" — used to strip
+   * the Lighting/OnOff features that `HomebridgeLevelControlServer` inherits
+   * from matter.js's internal `LevelControlBase` when the device type itself
+   * doesn't declare them (e.g. Pump).
+   */
+  levelControlFeatures: string[] | null
+}
 
 const log = Logger.withPrefix('Matter/Server')
 
@@ -249,12 +266,7 @@ export class AccessoryManager {
   private detectClusterFeatures(
     accessory: MatterAccessory,
     deviceType: EndpointType,
-  ): {
-    windowCoveringFeatures: string[]
-    serviceAreaFeatures: string[] | null
-    colorControlFeatures: string[] | null
-    thermostatFeatures: string[] | null
-  } {
+  ): DetectedClusterFeatures {
     const windowCoveringFeatures = detectWindowCoveringFeatures(accessory)
 
     let serviceAreaFeatures: string[] | null = null
@@ -293,11 +305,46 @@ export class AccessoryManager {
       )
     }
 
+    // LevelControl: matter.js's public `LevelControlServer` inherits the
+    // Lighting+OnOff feature set from its internal `LevelControlBase` (see
+    // LevelControlServer.ts line ~20: `LevelControlBehavior.with(OnOff, Lighting)`).
+    // The `.for(LevelControl)` pattern that's supposed to reset features is a
+    // no-op because the raw `LevelControl` cluster doesn't declare
+    // `supportedFeatures`, so `syncFeatures` returns the base schema unchanged.
+    //
+    // Consequence: on a Pump endpoint (whose device-type requirements put
+    // LevelControl in `optional`, not `SupportedBehaviors`), attaching our
+    // behavior as-is leaves `features.lighting === true` at runtime. matter.js
+    // then picks the spec's `[LT]` branch for MinLevel ("constraint 1 to 254")
+    // and rejects `minLevel: 0` with a ValidationError, plus
+    // `initializeLighting()` emits "currentLevel/minLevel invalid" warnings.
+    //
+    // Fix: detect the device type's declared LevelControl features and apply
+    // them via `.with(...)`. When the device type declares nothing (Pump and
+    // similar), fall back to an EMPTY feature set so `.with()` explicitly
+    // strips the inherited Lighting/OnOff — the `[!LT]` branch then applies,
+    // `minLevel: 0` is valid, and `initializeLighting()` is skipped.
+    //
+    // See homebridge#3905 and the matter.js Device Library spec § 5 (Pump).
+    let levelControlFeatures: string[] | null = null
+    if (accessory.handlers?.levelControl) {
+      levelControlFeatures = detectBehaviorFeatures(
+        deviceType,
+        CLUSTER_IDS.LEVEL_CONTROL,
+        extractLevelControlFeatures,
+      )
+      if (levelControlFeatures === null) {
+        levelControlFeatures = []
+        log.debug(`[${accessory.displayName}] Device type declares no LevelControl requirement; stripping inherited Lighting via .with()`)
+      }
+    }
+
     return {
       windowCoveringFeatures,
       serviceAreaFeatures,
       colorControlFeatures,
       thermostatFeatures,
+      levelControlFeatures,
     }
   }
 
@@ -307,12 +354,7 @@ export class AccessoryManager {
   private async buildCustomBehaviors(
     accessory: MatterAccessory,
     deviceType: EndpointType,
-    features: {
-      windowCoveringFeatures: string[]
-      serviceAreaFeatures: string[] | null
-      colorControlFeatures: string[] | null
-      thermostatFeatures: string[] | null
-    },
+    features: DetectedClusterFeatures,
   ): Promise<BehaviorType[]> {
     const customBehaviors: BehaviorType[] = []
 
@@ -391,6 +433,20 @@ export class AccessoryManager {
       if (clusterName === 'thermostat' && behaviorClass && features.thermostatFeatures && features.thermostatFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.thermostatFeatures)
         log.info(`Thermostat custom behavior will preserve features: ${features.thermostatFeatures.join(', ')}`)
+      }
+
+      // LevelControl: unlike the branches above, we apply `.with(...)` even when
+      // the feature array is empty. That's deliberate — an empty feature set is
+      // what strips the Lighting/OnOff features HomebridgeLevelControlServer
+      // inherits from matter.js's LevelControlBase. See detectClusterFeatures()
+      // above for the full explanation.
+      if (clusterName === 'levelControl' && behaviorClass && features.levelControlFeatures !== null) {
+        behaviorClass = (behaviorClass as any).with(...features.levelControlFeatures)
+        if (features.levelControlFeatures.length > 0) {
+          log.info(`LevelControl custom behavior will preserve features: ${features.levelControlFeatures.join(', ')}`)
+        } else {
+          log.debug('LevelControl custom behavior applied with empty feature set (strips inherited Lighting)')
+        }
       }
 
       if (clusterName === 'serviceArea' && behaviorClass && features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
