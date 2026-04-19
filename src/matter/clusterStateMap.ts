@@ -16,6 +16,7 @@ import type {
   FanControlState,
   LevelControlState,
   OnOffState,
+  PowerSourceState,
   RvcCleanModeState,
   RvcOperationalState,
   RvcRunModeState,
@@ -56,6 +57,9 @@ export interface ClusterStateMap {
   rvcRunMode: RvcRunModeState
   rvcCleanMode: RvcCleanModeState
   serviceArea: ServiceAreaState
+
+  // Power
+  powerSource: PowerSourceState
 
   // Sensor clusters
   temperatureMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null }
