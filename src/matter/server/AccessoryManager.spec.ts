@@ -45,10 +45,12 @@ vi.mock('../serverHelpers.js', () => ({
   applyWindowCoveringFeatures: vi.fn((dt: any) => dt),
   detectBehaviorFeatures: vi.fn(() => null),
   extractColorControlFeatures: vi.fn(() => []),
+  extractLevelControlFeatures: vi.fn(() => []),
   extractThermostatFeatures: vi.fn(() => []),
   determineColorControlFeaturesFromHandlers: vi.fn(() => []),
   CLUSTER_IDS: {
     COLOR_CONTROL: 0x0300,
+    LEVEL_CONTROL: 0x0008,
     THERMOSTAT: 0x0201,
   },
 }))
@@ -76,7 +78,10 @@ vi.mock('../types.js', () => {
 vi.mock('./BehaviorMap.js', () => ({
   CORE_CLUSTER_BEHAVIOR_MAP: {
     onOff: { name: 'HomebridgeOnOffServer' },
-    levelControl: { name: 'HomebridgeLevelControlServer' },
+    levelControl: {
+      name: 'HomebridgeLevelControlServer',
+      with: vi.fn((...args: any[]) => ({ name: `HomebridgeLevelControlServer.with(${args.join(',')})` })),
+    },
     colorControl: {
       name: 'HomebridgeColorControlServer',
       with: vi.fn((...args: any[]) => ({ name: `HomebridgeColorControlServer.with(${args.join(',')})` })),
