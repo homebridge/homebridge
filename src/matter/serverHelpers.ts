@@ -4,6 +4,7 @@
  */
 
 import type { EndpointType } from '@matter/main'
+import type { LevelControl } from '@matter/main/clusters/level-control'
 import type { Behavior } from '@matter/node'
 
 import type { MatterAccessory } from './types.js'
@@ -243,6 +244,38 @@ export function extractThermostatFeatures(supportedFeatures: Record<string, bool
   }
   if (supportedFeatures.autoMode) {
     features.push('AutoMode')
+  }
+
+  return features
+}
+
+/**
+ * Extract LevelControl features from supportedFeatures.
+ *
+ * Used to read features off a device type's declared LevelControl requirement
+ * (e.g. DimmableLightDevice's `LevelControlServer.with("Lighting","OnOff")`).
+ * When the device type doesn't declare LevelControl at all (e.g. PumpDevice,
+ * which has LevelControl only in its `optional` requirements and not in
+ * `SupportedBehaviors`), the caller should apply an empty feature set via
+ * `.with()` so the Lighting feature inherited from matter.js's internal
+ * `LevelControlBase = LevelControlBehavior.with(OnOff, Lighting)` is stripped
+ * — otherwise the Pump endpoint inherits the `[LT]` branch of the spec
+ * (minLevel constraint 1-254, initializeLighting warnings) that only applies
+ * to lighting devices.
+ */
+export function extractLevelControlFeatures(
+  supportedFeatures: Record<string, boolean>,
+): LevelControl.Features[] {
+  const features: LevelControl.Features[] = []
+
+  if (supportedFeatures.onOff) {
+    features.push('OnOff')
+  }
+  if (supportedFeatures.lighting) {
+    features.push('Lighting')
+  }
+  if (supportedFeatures.frequency) {
+    features.push('Frequency')
   }
 
   return features

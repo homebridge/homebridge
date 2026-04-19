@@ -25,6 +25,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: matter fix [4] - general fixes
   - fix: matter fix [5] - expose `WaterValve` device (#3909) (@donavanbecker)
   - fix: matter fix [6] - crash when bridge bind is set (#3910) (@gtalusan)
+  - fix: matter fix [7] - fix level control for non-lighting devices
 
 ### Changed
 
