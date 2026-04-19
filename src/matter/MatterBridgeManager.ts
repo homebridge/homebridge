@@ -89,6 +89,15 @@ export class MatterBridgeManager extends BaseMatterManager {
     })
   }
 
+  // Stored reference so the stateChange listener can be removed in teardown()
+  private readonly _onMatterServerStateChange = ({ uuid, cluster, state, partId }: { uuid: string, cluster: string, state: Record<string, unknown>, partId?: string }): void => {
+    const event: MatterEvent = {
+      type: 'accessoryUpdate',
+      data: { uuid, cluster, state, partId },
+    }
+    this.server.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
+  }
+
   /**
    * Set up event listeners for Matter accessory operations
    * Subscribes directly to API events instead of requiring server.ts to delegate
@@ -160,18 +169,7 @@ export class MatterBridgeManager extends BaseMatterManager {
       this.api._setMatterServer(this.matterServer)
 
       // Listen for state changes and forward to UI via IPC
-      this.matterServer.on('stateChange', ({ uuid, cluster, state, partId }) => {
-        const event: MatterEvent = {
-          type: 'accessoryUpdate',
-          data: {
-            uuid,
-            cluster,
-            state,
-            partId,
-          },
-        }
-        this.server.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
-      })
+      this.matterServer.on('stateChange', this._onMatterServerStateChange)
     } catch (error: unknown) {
       log.error('Failed to initialize Matter server for main bridge:', error)
 
@@ -253,18 +251,7 @@ export class MatterBridgeManager extends BaseMatterManager {
 
           // Listen for state changes and forward to UI via IPC
           // (same pattern as the main bridge server listener in initialize())
-          result.server.on('stateChange', ({ uuid, cluster, state, partId }) => {
-            const event: MatterEvent = {
-              type: 'accessoryUpdate',
-              data: {
-                uuid,
-                cluster,
-                state,
-                partId,
-              },
-            }
-            this.server.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
-          })
+          result.server.on('stateChange', this._onMatterServerStateChange)
 
           // Register the external bridge username for direct routing
           // Use main bridge's username for consistent lookups
@@ -585,6 +572,7 @@ export class MatterBridgeManager extends BaseMatterManager {
     // Stop main Matter server if running
     if (this.matterServer) {
       try {
+        this.matterServer.removeListener('stateChange', this._onMatterServerStateChange)
         await this.matterServer.stop()
       } catch (error) {
         log.error('Failed to stop Matter server:', error)
@@ -594,6 +582,7 @@ export class MatterBridgeManager extends BaseMatterManager {
     // Stop all external Matter servers
     for (const [uuid, matterServer] of this.externalMatterServers) {
       try {
+        matterServer.removeListener('stateChange', this._onMatterServerStateChange)
         await matterServer.stop()
         log.debug(`Stopped external Matter server for ${uuid}`)
       } catch (error) {
