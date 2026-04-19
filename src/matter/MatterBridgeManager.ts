@@ -15,7 +15,7 @@ import type { HomebridgeOptions } from '../server.js'
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { MatterEvent, MatterStatusInfo } from './ipc-types.js'
 import type { AccessoryInfo } from './managerTypes.js'
-import type { InternalMatterAccessory } from './types.js'
+import type { InternalMatterAccessory, MatterAccessory } from './types.js'
 
 import { InternalAPIEvent } from '../api.js'
 import { DEFAULT_BRIDGE_DEFAULTS } from '../bridgeService.js'
@@ -51,49 +51,55 @@ export class MatterBridgeManager extends BaseMatterManager {
     this.setupEventListeners()
   }
 
+  // Stored listener references so they can be removed in teardown()
+  private readonly _onPublishExternalMatterAccessories = (accessories: MatterAccessory[], registrationId: string): void => {
+    this.handlePublishExternalAccessories(accessories as InternalMatterAccessory[], registrationId).catch((error) => {
+      log.error('Failed to publish external Matter accessories:', error)
+      this.api._resolveExternalRegistration(registrationId)
+    })
+  }
+
+  private readonly _onRegisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): void => {
+    this.handleRegisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
+      log.error(`Failed to register Matter accessories for ${pluginIdentifier}:`, error)
+    })
+  }
+
+  private readonly _onUpdateMatterPlatformAccessories = (accessories: MatterAccessory[]): void => {
+    this.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
+      log.error('Failed to update Matter platform accessories:', error)
+    })
+  }
+
+  private readonly _onUnregisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): void => {
+    this.handleUnregisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
+      log.error(`Failed to unregister Matter accessories for ${pluginIdentifier}:`, error)
+    })
+  }
+
+  private readonly _onUnregisterExternalMatterAccessories = (accessories: MatterAccessory[]): void => {
+    this.handleUnregisterExternalAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
+      log.error('Failed to unregister external Matter accessories:', error)
+    })
+  }
+
+  private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): void => {
+    this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
+      log.error('Failed to update Matter accessory state:', error)
+    })
+  }
+
   /**
    * Set up event listeners for Matter accessory operations
    * Subscribes directly to API events instead of requiring server.ts to delegate
    */
   private setupEventListeners(): void {
-    // Handle Matter accessory registration (matching HAP pattern)
-    this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, (accessories, registrationId) => {
-      this.handlePublishExternalAccessories(accessories as InternalMatterAccessory[], registrationId).catch((error) => {
-        log.error('Failed to publish external Matter accessories:', error)
-        // Make sure to resolve the registration even on error
-        this.api._resolveExternalRegistration(registrationId)
-      })
-    })
-
-    this.api.on(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, (pluginIdentifier, platformName, accessories) => {
-      this.handleRegisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
-        log.error(`Failed to register Matter accessories for ${pluginIdentifier}:`, error)
-      })
-    })
-
-    this.api.on(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, (accessories) => {
-      this.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
-        log.error('Failed to update Matter platform accessories:', error)
-      })
-    })
-
-    this.api.on(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, (pluginIdentifier, platformName, accessories) => {
-      this.handleUnregisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
-        log.error(`Failed to unregister Matter accessories for ${pluginIdentifier}:`, error)
-      })
-    })
-
-    this.api.on(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, (accessories) => {
-      this.handleUnregisterExternalAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
-        log.error('Failed to unregister external Matter accessories:', error)
-      })
-    })
-
-    this.api.on(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, (uuid, cluster, attributes, partId) => {
-      this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
-        log.error('Failed to update Matter accessory state:', error)
-      })
-    })
+    this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, this._onPublishExternalMatterAccessories)
+    this.api.on(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this._onRegisterMatterPlatformAccessories)
+    this.api.on(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, this._onUpdateMatterPlatformAccessories)
+    this.api.on(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this._onUnregisterMatterPlatformAccessories)
+    this.api.on(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, this._onUnregisterExternalMatterAccessories)
+    this.api.on(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, this._onUpdateMatterAccessoryState)
   }
 
   /**
@@ -568,6 +574,14 @@ export class MatterBridgeManager extends BaseMatterManager {
    * Teardown Matter servers
    */
   async teardown(): Promise<void> {
+    // Remove API event listeners to prevent retention of this manager after teardown
+    this.api.removeListener(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, this._onPublishExternalMatterAccessories)
+    this.api.removeListener(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this._onRegisterMatterPlatformAccessories)
+    this.api.removeListener(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, this._onUpdateMatterPlatformAccessories)
+    this.api.removeListener(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this._onUnregisterMatterPlatformAccessories)
+    this.api.removeListener(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, this._onUnregisterExternalMatterAccessories)
+    this.api.removeListener(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, this._onUpdateMatterAccessoryState)
+
     // Stop main Matter server if running
     if (this.matterServer) {
       try {
