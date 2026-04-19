@@ -220,19 +220,6 @@ export class ServerLifecycle {
 
       log.info(`Configuration: Port=${deps.config.port}, Passcode=${deps.commissioningManager.passcode}, Discriminator=${deps.commissioningManager.discriminator}`)
 
-      // Configure network interfaces if specified
-      if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
-        const environment = Environment.default
-        const interfaceConfig: Record<string, { type: number }> = {}
-        for (const interfaceName of deps.config.networkInterfaces) {
-          interfaceConfig[interfaceName] = { type: 2 }
-        }
-        environment.vars.set('network.interface', interfaceConfig)
-        log.info(`Configured Matter server to use network interfaces: ${deps.config.networkInterfaces.join(', ')}`)
-      } else {
-        log.debug('No network interfaces specified, using all available interfaces')
-      }
-
       const commissioningOptions = {
         passcode: deps.commissioningManager.passcode,
         discriminator: deps.commissioningManager.discriminator,
@@ -276,8 +263,39 @@ export class ServerLifecycle {
         }
       }
 
+      // Clear any previously set network.interface from the global environment BEFORE
+      // creating the ServerNode. Environment.default is a singleton shared across all
+      // server instances in the process. If a previous server already set network.interface,
+      // the ValueCaster in Behaviors.defaultsFor() would reject the unknown 'interface'
+      // property when initializing NetworkBehavior on this new node.
+      // VariableService.get() returns a direct reference to the internal vars object,
+      // so deleting the key here mutates the stored value without needing a private API.
+      const networkVars = Environment.default.vars.get('network') as unknown as Record<string, unknown> | undefined
+      if (networkVars && 'interface' in networkVars) {
+        delete networkVars.interface
+        log.debug('Cleared network.interface from environment before ServerNode creation')
+      }
+
       const serverNode = await this.createServerNodeWithRecovery(nodeOptions, sanitizedId)
       deps.setServerNode(serverNode)
+
+      // Configure network interfaces if specified.
+      // This must happen after ServerNode creation because during creation,
+      // Behaviors.defaultsFor('network') picks up the entire 'network' env var
+      // subtree via EndpointVariableService.forBehaviorType() and the ValueCaster
+      // rejects the unknown 'interface' property. ServerNetworkRuntime reads
+      // 'network.interface' lazily (via a getter) so it only needs it at run() time.
+      if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
+        const environment = Environment.default
+        const interfaceConfig: Record<string, { type: number }> = {}
+        for (const interfaceName of deps.config.networkInterfaces) {
+          interfaceConfig[interfaceName] = { type: 2 }
+        }
+        environment.vars.set('network.interface', interfaceConfig)
+        log.info(`Configured Matter server to use network interfaces: ${deps.config.networkInterfaces.join(', ')}`)
+      } else {
+        log.debug('No network interfaces specified, using all available interfaces')
+      }
 
       // Set up commissioning event listeners
       deps.commissioningManager.setupCommissioningEventListeners(deps.getCommissioningDeps())
