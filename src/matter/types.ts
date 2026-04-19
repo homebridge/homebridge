@@ -678,6 +678,9 @@ export const clusterNames = {
   RvcCleanMode: 'rvcCleanMode',
   ServiceArea: 'serviceArea',
 
+  // Power
+  PowerSource: 'powerSource',
+
   // Pump & Other
   PumpConfigurationAndControl: 'pumpConfigurationAndControl',
 
