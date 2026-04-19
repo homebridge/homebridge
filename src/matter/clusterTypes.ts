@@ -329,3 +329,31 @@ export interface ServiceAreaState {
     totalOperationalTime?: number | null
   }>
 }
+
+/**
+ * Power Source state
+ * @see {@link https://matter-standard.github.io/matter/specification/latest/#ref-power-source-cluster}
+ *
+ * `batPercentRemaining` is encoded as double the percentage (0–200), so 100% = 200.
+ * `batChargeLevel`: 0 = Ok, 1 = Warning, 2 = Critical
+ */
+export interface PowerSourceState {
+  status?: number
+  order?: number
+  description?: string
+  batVoltage?: number | null
+  batPercentRemaining?: number | null
+  batTimeRemaining?: number | null
+  batChargeLevel?: number
+  batReplacementNeeded?: boolean
+  batReplaceability?: number
+  batPresent?: boolean
+  activeBatFaults?: number[]
+  batReplacementDescription?: string
+  batQuantity?: number
+  batChargeState?: number
+  batTimeToFullCharge?: number | null
+  batFunctionalWhileCharging?: boolean
+  batChargingCurrent?: number | null
+  activeBatChargeFaults?: number[]
+}
