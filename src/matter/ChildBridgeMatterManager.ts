@@ -97,6 +97,21 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     })
   }
 
+  // Stored references so listeners can be removed in teardown()
+  private readonly _onMatterServerStateChange = ({ uuid, cluster, state, partId }: { uuid: string, cluster: string, state: Record<string, unknown>, partId?: string }): void => {
+    if (process.send) {
+      process.send({
+        id: 'matterEvent',
+        data: {
+          type: 'accessoryUpdate',
+          data: { uuid, cluster, state, partId },
+        },
+      })
+    }
+  }
+
+  private _onCommissioningStatusChanged?: (commissioned: boolean, fabricCount: number) => void
+
   /**
    * Initialize Matter server for child bridge if enabled
    * @param onCommissioningChanged Optional callback when commissioning status changes
@@ -131,30 +146,16 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
     // Listen for commissioning status changes to update parent process
     if (onCommissioningChanged && this.matterServer) {
-      this.matterServer.on('commissioning-status-changed', (commissioned, fabricCount) => {
+      this._onCommissioningStatusChanged = (commissioned, fabricCount) => {
         log.info(`Matter commissioning status changed for child bridge ${this.bridgeConfig.username}: commissioned=${commissioned}, fabricCount=${fabricCount}`)
         onCommissioningChanged()
-      })
+      }
+      this.matterServer.on('commissioning-status-changed', this._onCommissioningStatusChanged)
     }
 
     // Listen for state changes and forward to parent process
     if (this.matterServer) {
-      this.matterServer.on('stateChange', ({ uuid, cluster, state, partId }) => {
-        if (process.send) {
-          process.send({
-            id: 'matterEvent',
-            data: {
-              type: 'accessoryUpdate',
-              data: {
-                uuid,
-                cluster,
-                state,
-                partId,
-              },
-            },
-          })
-        }
-      })
+      this.matterServer.on('stateChange', this._onMatterServerStateChange)
     }
   }
 
@@ -250,22 +251,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
           // Listen for state changes and forward to parent process
           // (same pattern as the child bridge server listener in initialize())
-          result.server.on('stateChange', ({ uuid, cluster, state, partId }) => {
-            if (process.send) {
-              process.send({
-                id: 'matterEvent',
-                data: {
-                  type: 'accessoryUpdate',
-                  data: {
-                    uuid,
-                    cluster,
-                    state,
-                    partId,
-                  },
-                },
-              })
-            }
-          })
+          result.server.on('stateChange', this._onMatterServerStateChange)
 
           // Register the external bridge username with parent process for routing
           // Send via IPC to parent - parent will register in externalMatterBridgeRegistry
@@ -412,6 +398,10 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     if (this.matterServer) {
       log.debug(`Stopping Matter server for child bridge ${this.bridgeConfig.username}`)
       try {
+        this.matterServer.removeListener('stateChange', this._onMatterServerStateChange)
+        if (this._onCommissioningStatusChanged) {
+          this.matterServer.removeListener('commissioning-status-changed', this._onCommissioningStatusChanged)
+        }
         await this.matterServer.stop()
       } catch (error: unknown) {
         log.error('Error stopping Matter server:', error)
@@ -422,6 +412,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     for (const [uuid, matterServer] of this.externalMatterServers) {
       log.debug(`Stopping external Matter server for ${uuid}`)
       try {
+        matterServer.removeListener('stateChange', this._onMatterServerStateChange)
         await matterServer.stop()
       } catch (error: unknown) {
         log.error(`Error stopping external Matter server for ${uuid}:`, error)
