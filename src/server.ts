@@ -21,14 +21,13 @@ import { AccessoryEventTypes, MDNSAdvertiser } from '@homebridge/hap-nodejs'
 import chalk from 'chalk'
 import qrcode from 'qrcode-terminal'
 
-import { HomebridgeAPI, InternalAPIEvent, PluginType } from './api.js'
+import { HomebridgeAPI, PluginType } from './api.js'
 import { BridgeService } from './bridgeService.js'
 import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
 import { MatterConfigCollector } from './matter/config.js'
-import { PlatformAccessory } from './platformAccessory.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
@@ -140,13 +139,6 @@ export class Server {
 
     // Note: MatterBridgeManager creation is deferred to start() to avoid loading
     // heavy Matter.js libraries during construction when Matter may not be configured
-
-    // Handle platform accessory registration
-    this.api.on(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this.handleRegisterPlatformAccessories.bind(this))
-    this.api.on(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, this.handleUnregisterPlatformAccessories.bind(this))
-
-    // Handle external accessories (cameras, etc.)
-    this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, this.handlePublishExternalAccessories.bind(this))
 
     // Watch bridge events to check when server is online
     this.bridgeService.bridge.on(AccessoryEventTypes.ADVERTISED, () => {
@@ -262,22 +254,6 @@ export class Server {
   private publishBridge(): void {
     this.bridgeService.publishBridge()
     this.printSetupInfo(this.config.bridge.pin)
-  }
-
-  private handlePublishExternalAccessories(accessories: PlatformAccessory[]): void {
-    // External accessories are published via HAP
-    // Plugins should use api.matter to register Matter accessories explicitly
-    log.info(`Publishing ${accessories.length} external accessories`)
-  }
-
-  private handleRegisterPlatformAccessories(accessories: PlatformAccessory[]): void {
-    // Route to HAP bridge
-    this.bridgeService.handleRegisterPlatformAccessories(accessories)
-  }
-
-  private handleUnregisterPlatformAccessories(accessories: PlatformAccessory[]): void {
-    // Route to HAP bridge
-    this.bridgeService.handleUnregisterPlatformAccessories(accessories)
   }
 
   /**
