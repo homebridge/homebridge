@@ -32,21 +32,30 @@ export declare interface IpcService {
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export class IpcService extends EventEmitter {
+  private readonly messageHandler = (message: { id: string, data: never }) => {
+    if (!message || typeof message !== 'object' || !message.id) {
+      return
+    }
+    this.emit(message.id, message.data)
+  }
+
   constructor() {
     super()
   }
 
   /**
-   * Start the IPC service listeners/
+   * Start the IPC service listeners.
    * Currently this will only listen for messages from a parent process.
    */
   public start(): void {
-    process.on('message', (message: { id: string, data: never }) => {
-      if (!message || typeof message !== 'object' || !message.id) {
-        return
-      }
-      this.emit(message.id, message.data)
-    })
+    process.on('message', this.messageHandler)
+  }
+
+  /**
+   * Stop the IPC service listeners.
+   */
+  public stop(): void {
+    process.removeListener('message', this.messageHandler)
   }
 
   /**
