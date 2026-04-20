@@ -248,6 +248,7 @@ export class Server {
     // Teardown Matter servers (main bridge and external accessories)
     await this.matterManager?.teardown()
 
+    this.ipcService.stop()
     this.setServerStatus(ServerStatus.DOWN)
   }
 
