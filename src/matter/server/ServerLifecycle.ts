@@ -264,38 +264,53 @@ export class ServerLifecycle {
         }
       }
 
-      // Clear any previously set network.interface from the global environment BEFORE
-      // creating the ServerNode. Environment.default is a singleton shared across all
-      // server instances in the process. If a previous server already set network.interface,
-      // the ValueCaster in Behaviors.defaultsFor() would reject the unknown 'interface'
-      // property when initializing NetworkBehavior on this new node.
-      // VariableService.get() returns a direct reference to the internal vars object,
-      // so deleting the key here mutates the stored value without needing a private API.
+      // Determine the mDNS network interface to use.  MdnsService reads
+      // 'mdns.networkInterface' at construction time (inside createServerNodeWithRecovery),
+      // so this value MUST be set before calling createServerNodeWithRecovery().
+      //
+      // 'network.interface' (Matter UDP transport) is intentionally set AFTER ServerNode
+      // creation because Behaviors.defaultsFor('network') reads the full 'network' env
+      // subtree during construction and the ValueCaster rejects the unknown 'interface' key.
+      // ServerNetworkRuntime reads it lazily at run() time, so setting it post-creation is fine.
+
+      // Clear any previously set values from a prior server instance. Environment.default is
+      // a singleton shared across all server instances in the process.
+      // VariableService.get() returns a direct reference to the internal vars object, so
+      // deleting the key here mutates the stored value without needing a private API.
       const networkVars = Environment.default.vars.get<VariableService.Map>('network')
       if (typeof networkVars === 'object' && networkVars !== null && 'interface' in networkVars) {
         delete networkVars.interface
         log.debug('Cleared network.interface from environment before ServerNode creation')
       }
+      const mdnsVars = Environment.default.vars.get<VariableService.Map>('mdns')
+      if (typeof mdnsVars === 'object' && mdnsVars !== null && 'networkInterface' in mdnsVars) {
+        delete mdnsVars.networkInterface
+        log.debug('Cleared mdns.networkInterface from environment before ServerNode creation')
+      }
+
+      // Set mdns.networkInterface BEFORE creating the ServerNode.
+      if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
+        // Use the interface from bridge.bind — same interface Homebridge's HAP stack uses.
+        // matter.js only accepts a single string for mdns.networkInterface.
+        Environment.default.vars.set('mdns.networkInterface', deps.config.networkInterfaces[0])
+        log.info(`Configured Matter server to use network interfaces: ${deps.config.networkInterfaces.join(', ')}`)
+      } else {
+        // No bridge.bind configured — Matter mDNS will listen on all interfaces, consistent
+        // with Homebridge's own HAP/ciao mDNS behaviour when bind is unset.
+        log.warn('bridge.bind is not set. Matter mDNS will listen on all network interfaces, which increases CPU usage. Set bridge.bind in your Homebridge config to restrict it to a single interface.')
+      }
 
       const serverNode = await this.createServerNodeWithRecovery(nodeOptions, sanitizedId)
       deps.setServerNode(serverNode)
 
-      // Configure network interfaces if specified.
-      // This must happen after ServerNode creation because during creation,
-      // Behaviors.defaultsFor('network') picks up the entire 'network' env var
-      // subtree via EndpointVariableService.forBehaviorType() and the ValueCaster
-      // rejects the unknown 'interface' property. ServerNetworkRuntime reads
-      // 'network.interface' lazily (via a getter) so it only needs it at run() time.
+      // Configure network.interface for the Matter UDP transport after ServerNode creation.
+      // (See comment above for why this must be post-creation.)
       if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
-        const environment = Environment.default
         const interfaceConfig: Record<string, { type: number }> = {}
         for (const interfaceName of deps.config.networkInterfaces) {
           interfaceConfig[interfaceName] = { type: 2 }
         }
-        environment.vars.set('network.interface', interfaceConfig)
-        log.info(`Configured Matter server to use network interfaces: ${deps.config.networkInterfaces.join(', ')}`)
-      } else {
-        log.debug('No network interfaces specified, using all available interfaces')
+        Environment.default.vars.set('network.interface', interfaceConfig)
       }
 
       // Set up commissioning event listeners
