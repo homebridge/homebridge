@@ -230,6 +230,13 @@ export class ChildBridgeService {
   // Callback for external Matter bridge registration
   public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
 
+  // Stored shutdown listener so it can be removed in teardown(),
+  // matching the pattern used by MatterBridgeManager (#3915).
+  private readonly _onApiShutdown = (): void => {
+    this.shuttingDown = true
+    this.teardown()
+  }
+
   constructor(
     public type: PluginType,
     public identifier: string,
@@ -242,10 +249,7 @@ export class ChildBridgeService {
     private externalPortService: ExternalPortService,
   ) {
     this.log = Logger.withPrefix(this.plugin.getPluginIdentifier())
-    this.api.on('shutdown', () => {
-      this.shuttingDown = true
-      this.teardown()
-    })
+    this.api.on('shutdown', this._onApiShutdown)
 
     // make sure we don't hit the max listeners limit
     this.api.setMaxListeners(this.api.getMaxListeners() + 1)
@@ -617,12 +621,28 @@ export class ChildBridgeService {
   }
 
   /**
-   * Send sigterm to the child bridge
+   * Send sigterm to the child bridge, escalating to sigkill if the child
+   * does not exit within 10 seconds.
    */
   private teardown(): void {
+    // Remove the api shutdown listener so this service can be GC'd.
+    this.api.removeListener('shutdown', this._onApiShutdown)
+    this.api.setMaxListeners(Math.max(0, this.api.getMaxListeners() - 1))
+
     if (this.child && this.child.connected) {
       this.bridgeStatus = ChildBridgeStatus.DOWN
-      this.child.kill('SIGTERM')
+      const child = this.child
+      child.kill('SIGTERM')
+      // If the child has not exited within 10s, escalate to SIGKILL.
+      // The 'close' handler will clear this in the normal-exit path because
+      // child.connected becomes false before close fires.
+      const sigkillTimer = setTimeout(() => {
+        if (child.connected) {
+          this.log.warn('Child bridge did not exit within 10s of SIGTERM; escalating to SIGKILL.')
+          child.kill('SIGKILL')
+        }
+      }, 10000)
+      sigkillTimer.unref()
     }
   }
 

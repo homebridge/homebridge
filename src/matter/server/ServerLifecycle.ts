@@ -292,8 +292,13 @@ export class ServerLifecycle {
       if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
         // Use the interface from bridge.bind — same interface Homebridge's HAP stack uses.
         // matter.js only accepts a single string for mdns.networkInterface.
-        Environment.default.vars.set('mdns.networkInterface', deps.config.networkInterfaces[0])
-        log.info(`Configured Matter server to use network interfaces: ${deps.config.networkInterfaces.join(', ')}`)
+        const [primary, ...rest] = deps.config.networkInterfaces
+        Environment.default.vars.set('mdns.networkInterface', primary)
+        if (rest.length === 0) {
+          log.info(`Configured Matter mDNS to bind to interface: ${primary}`)
+        } else {
+          log.info(`Configured Matter mDNS to bind to interface: ${primary} (matter.js only supports a single mDNS interface; the other interfaces in bridge.bind — ${rest.join(', ')} — are unused for mDNS).`)
+        }
       } else {
         // No bridge.bind configured — Matter mDNS will listen on all interfaces, consistent
         // with Homebridge's own HAP/ciao mDNS behaviour when bind is unset.
@@ -313,8 +318,13 @@ export class ServerLifecycle {
         Environment.default.vars.set('network.interface', interfaceConfig)
       }
 
-      // Set up commissioning event listeners
+      // Set up commissioning event listeners. Register a matching cleanup
+      // handler so the matter.js Observable observers (which capture deps and
+      // the manager) are released on stop().
       deps.commissioningManager.setupCommissioningEventListeners(deps.getCommissioningDeps())
+      deps.cleanupHandlers.push(() => {
+        deps.commissioningManager.teardownCommissioningEventListeners(deps.getServerNode())
+      })
 
       // Create aggregator endpoint for bridge pattern
       if (!deps.config.externalAccessory) {

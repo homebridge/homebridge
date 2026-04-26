@@ -193,9 +193,7 @@ describe('commissioningManager', () => {
         matterStoragePath: undefined,
         serialNumber: 'SN-001',
         fabricManager: {
-          isCommissioned: vi.fn(() => false),
-          getCommissionedFabricCount: vi.fn(() => 0),
-          getFabricInfo: vi.fn(() => []),
+          getCommissioningSnapshot: vi.fn(() => ({ commissioned: false, fabricCount: 0, fabrics: [] })),
         },
       } as any
 
@@ -213,9 +211,7 @@ describe('commissioningManager', () => {
         matterStoragePath: '/mock/storage',
         serialNumber: 'SN-001',
         fabricManager: {
-          isCommissioned: vi.fn(() => true),
-          getCommissionedFabricCount: vi.fn(() => 1),
-          getFabricInfo: vi.fn(() => [{ fabricId: 1 }]),
+          getCommissioningSnapshot: vi.fn(() => ({ commissioned: true, fabricCount: 1, fabrics: [{ fabricId: 1 }] })),
         },
       } as any
 
@@ -230,14 +226,37 @@ describe('commissioningManager', () => {
       )
     })
 
+    it('should reuse a precomputed snapshot when provided', async () => {
+      manager.commissioningInfo = { qrCode: 'MT:test', manualPairingCode: '1234-567-8901' }
+      manager.passcode = 12345678
+      manager.discriminator = 1234
+
+      const getCommissioningSnapshot = vi.fn(() => ({ commissioned: false, fabricCount: 0, fabrics: [] }))
+      const deps = {
+        matterStoragePath: '/mock/storage',
+        serialNumber: 'SN-001',
+        fabricManager: { getCommissioningSnapshot },
+      } as any
+
+      mockedWriteFile.mockResolvedValue(undefined)
+
+      const snapshot = { commissioned: true, fabricCount: 2, fabrics: [{ fabricId: 1 }, { fabricId: 2 }] } as any
+      await manager.updateCommissioningFile(deps, snapshot)
+
+      expect(getCommissioningSnapshot).not.toHaveBeenCalled()
+      expect(mockedWriteFile).toHaveBeenCalledWith(
+        '/mock/storage/commissioning.json',
+        expect.stringContaining('"fabricCount": 2'),
+        'utf-8',
+      )
+    })
+
     it('should handle write errors gracefully', async () => {
       const deps = {
         matterStoragePath: '/mock/storage',
         serialNumber: 'SN-001',
         fabricManager: {
-          isCommissioned: vi.fn(() => false),
-          getCommissionedFabricCount: vi.fn(() => 0),
-          getFabricInfo: vi.fn(() => []),
+          getCommissioningSnapshot: vi.fn(() => ({ commissioned: false, fabricCount: 0, fabrics: [] })),
         },
       } as any
 

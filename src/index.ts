@@ -176,7 +176,7 @@ export type {
 
 /**
  * Matter device types, clusters, and cluster names
- * Access via api.matter.deviceTypes, api.matter.clusters, api.matter.clusterNames
+ * Access via api.matter?.deviceTypes, api.matter?.clusters, api.matter?.clusterNames
  */
 export { clusterNames, clusters, devices, deviceTypes, MatterAccessoryEventTypes } from './matter/types.js'
 

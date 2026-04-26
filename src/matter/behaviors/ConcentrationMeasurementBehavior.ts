@@ -16,7 +16,7 @@
  * const accessory: MatterAccessory = {
  *   uuid: 'air-quality-sensor-1',
  *   displayName: 'Living Room Air Quality',
- *   deviceType: api.matter.deviceTypes.AirQualitySensor,
+ *   deviceType: api.matter!.deviceTypes.AirQualitySensor,
  *   serialNumber: 'AQ-12345',
  *   manufacturer: 'Acme',
  *   model: 'AQ-100',
@@ -55,8 +55,8 @@
  * }
  *
  * // Update concentration readings
- * await api.matter.updateClusterState(accessory.UUID, 'pm25ConcentrationMeasurement', { measuredValue: 15.3 })
- * await api.matter.updateClusterState(accessory.UUID, 'carbonMonoxideConcentrationMeasurement', { measuredValue: 2.5 })
+ * await api.matter?.updateClusterState(accessory.UUID, 'pm25ConcentrationMeasurement', { measuredValue: 15.3 })
+ * await api.matter?.updateClusterState(accessory.UUID, 'carbonMonoxideConcentrationMeasurement', { measuredValue: 2.5 })
  * ```
  */
 

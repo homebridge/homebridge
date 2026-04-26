@@ -547,20 +547,21 @@ describe('matterAccessoryCache', () => {
       await cache.load()
 
       const all = cache.getAllCached()
-      expect(all.size).toBe(2)
-      expect(all.get('uuid-1')).toEqual(mockData[0])
-      expect(all.get('uuid-2')).toEqual(mockData[1])
+      expect(all.length).toBe(2)
+      expect(all.find(a => a.uuid === 'uuid-1')).toEqual(mockData[0])
+      expect(all.find(a => a.uuid === 'uuid-2')).toEqual(mockData[1])
     })
 
-    it('should return a copy of the cache (not reference)', async () => {
+    it('should return a fresh array on each call (mutating it does not affect the cache)', async () => {
       mockedStat.mockRejectedValue(new Error('ENOENT'))
       await cache.load()
 
       const all = cache.getAllCached()
-      all.set('test-uuid', {} as any)
+      all.push({ uuid: 'test-uuid' } as any)
 
-      // Original cache should not be modified
+      // Mutating the returned array must not change cache contents
       expect(cache.hasCached('test-uuid')).toBe(false)
+      expect(cache.getAllCached().length).toBe(0)
     })
   })
 })

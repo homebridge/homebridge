@@ -225,6 +225,10 @@ export class MatterServer extends EventEmitter {
     return this.accessoryQuery.getAllCachedAccessories()
   }
 
+  getCachedAccessory(uuid: string): SerializedMatterAccessory | undefined {
+    return this.accessoryQuery.getCachedAccessory(uuid)
+  }
+
   collectAccessories(bridgeUsername: string, bridgeType: string, bridgeName: string): any[] {
     return this.accessoryQuery.collectAccessories(bridgeUsername, bridgeType, bridgeName)
   }
@@ -247,6 +251,10 @@ export class MatterServer extends EventEmitter {
 
   getCommissionedFabricCount(): number {
     return this.fabricManager.getCommissionedFabricCount()
+  }
+
+  getCommissioningSnapshot() {
+    return this.fabricManager.getCommissioningSnapshot()
   }
 
   async removeFabric(fabricIndex: number): Promise<void> {

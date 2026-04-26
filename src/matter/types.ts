@@ -278,7 +278,7 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
    *   {
    *     id: 'outlet-1',
    *     displayName: 'Outlet 1',
-   *     deviceType: api.matter.deviceTypes.OnOffOutlet,
+   *     deviceType: api.matter!.deviceTypes.OnOffOutlet,
    *     clusters: { onOff: { onOff: false } },
    *     handlers: {
    *       onOff: {
@@ -298,8 +298,8 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
   /**
    * Event emitter for accessory lifecycle events.
    *
-   * **Only available for external accessories** published via `api.matter.publishExternalAccessories()`.
-   * This property is `undefined` for accessories registered via `api.matter.registerPlatformAccessories()`.
+   * **Only available for external accessories** published via `api.matter?.publishExternalAccessories()`.
+   * This property is `undefined` for accessories registered via `api.matter?.registerPlatformAccessories()`.
    *
    * The event emitter is created automatically when the accessory is published and allows
    * plugins to listen for the 'ready' event (fired when the Matter server starts).
@@ -309,17 +309,12 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
    * @example
    * ```typescript
    * const accessory: MatterAccessory = { ... };
-   * api.matter.publishExternalAccessories('plugin', [accessory]);
+   * api.matter?.publishExternalAccessories('plugin', [accessory]);
    *
    * // Listen for when the accessory is ready on the network
    * accessory._eventEmitter?.on(MatterAccessoryEventTypes.READY, (port) => {
    *   console.log(`Accessory ready on port ${port}`);
    *   // Safe to start device integration, polling, webhooks, etc.
-   * });
-   *
-   * // Listen for commissioning events
-   * accessory._eventEmitter?.on(MatterAccessoryEventTypes.COMMISSIONED, () => {
-   *   console.log('Accessory paired with a controller');
    * });
    * ```
    *
@@ -339,16 +334,10 @@ export interface MatterConfig extends Record<string, unknown> {
   name?: string
 }
 
-/**
- * Matter Server Events
- *
- * Currently empty - all events removed as they were unused.
- * Status information is queried on-demand rather than pushed via events.
- */
-export interface MatterServerEvents {
-  // Event emitted when commissioning status changes (for UI/IPC updates)
-  'commissioning-status-changed': (commissioned: boolean, fabricCount: number) => void
-}
+// Note: the canonical MatterServerEvents declaration is at the bottom of this file.
+// A second declaration here is unnecessary; TypeScript would merge it silently and
+// the comment ("Currently empty - all events removed") was misleading because the
+// file's other declaration adds two events.
 
 /**
  * Matter Accessory Event Types
@@ -359,7 +348,7 @@ export interface MatterServerEvents {
  * ```typescript
  * Listen for when a Matter accessory is ready
  * const accessory: MatterAccessory = { ... };
- * api.matter.publishExternalAccessories('plugin-name', [accessory]);
+ * api.matter?.publishExternalAccessories('plugin-name', [accessory]);
  *
  * const internal = accessory as any;
  * internal._eventEmitter?.on(MatterAccessoryEventTypes.READY, (port: number) => {
@@ -391,7 +380,7 @@ export enum MatterAccessoryEventTypes {
  * **Usage Pattern:**
  * ```typescript
  * const accessory: MatterAccessory = { ... };
- * api.matter.publishExternalAccessories('plugin-name', [accessory]);
+ * api.matter?.publishExternalAccessories('plugin-name', [accessory]);
  *
  * Access the event emitter (note: created during registration)
  * const internal = accessory as InternalMatterAccessory;
