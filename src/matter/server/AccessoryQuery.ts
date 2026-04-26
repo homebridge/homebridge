@@ -54,9 +54,18 @@ export class AccessoryQuery {
       log.debug('getAllCachedAccessories: No cache available')
       return []
     }
-    const cached = [...cache.getAllCached().values()]
+    const cached = cache.getAllCached()
     log.debug(`getAllCachedAccessories: Returning ${cached.length} accessories`)
     return cached
+  }
+
+  /**
+   * Look up a cached accessory by UUID. O(1) Map lookup — prefer this over
+   * scanning getAllCachedAccessories() when only one accessory is needed.
+   * @internal
+   */
+  getCachedAccessory(uuid: string): SerializedMatterAccessory | undefined {
+    return this.getAccessoryCache()?.getCached(uuid)
   }
 
   /**

@@ -236,10 +236,14 @@ export class MatterAccessoryCache {
   }
 
   /**
-   * Get all cached accessories
+   * Get all cached accessories as an array.
+   *
+   * Returns a fresh array each call (callers may mutate it freely) but does
+   * not clone the per-entry SerializedMatterAccessory objects. If you only
+   * need a single accessory, use getCached(uuid) — it's O(1).
    */
-  getAllCached(): Map<string, SerializedMatterAccessory> {
-    return new Map(this.cachedAccessories)
+  getAllCached(): SerializedMatterAccessory[] {
+    return [...this.cachedAccessories.values()]
   }
 
   /**

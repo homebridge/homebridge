@@ -186,37 +186,48 @@ export class Server {
     // load the cached accessories
     await this.bridgeService.loadCachedPlatformAccessoriesFromDisk()
 
+    // Validate Matter configuration up front so we know whether to expose
+    // api.matter to plugins. Validator may strip invalid entries, so re-check
+    // after. Caching the result avoids two more hasMatterConfig calls below.
+    let matterIsConfigured = MatterConfigCollector.hasMatterConfig(this.config)
+    if (matterIsConfigured) {
+      await MatterConfigCollector.validateMatterConfig(this.config)
+      matterIsConfigured = MatterConfigCollector.hasMatterConfig(this.config)
+    }
+
+    // Eagerly load the MatterAPI facade before plugins initialize, so api.matter
+    // is defined when plugin code runs on Matter-enabled bridges. The heavy
+    // MatterBridgeManager init still happens after plugins load (below) — only
+    // the API surface needs to be ready early.
+    if (matterIsConfigured) {
+      await this.api.loadMatterAPI()
+    }
+
     // initialize plugins
     await this.pluginManager.initializeInstalledPlugins()
 
-    // Lazy-load and initialize Matter only if configured
-    // Heavy Matter.js libraries are loaded here (async), avoiding sync blocking during construction
-    if (MatterConfigCollector.hasMatterConfig(this.config)) {
-      // Validate Matter configuration (lazy-loads validator)
-      await MatterConfigCollector.validateMatterConfig(this.config)
+    // Initialize Matter manager only if configured. Heavy Matter.js libraries
+    // are loaded here (async), avoiding sync blocking during construction.
+    if (matterIsConfigured) {
+      // Dynamically import MatterBridgeManager only when needed
+      // This prevents loading heavy Matter.js libraries when Matter is not configured
+      const { MatterBridgeManager } = await import('./matter/MatterBridgeManager.js')
 
-      // Check again after validation (invalid configs may have been removed)
-      if (MatterConfigCollector.hasMatterConfig(this.config)) {
-        // Dynamically import MatterBridgeManager only when needed
-        // This prevents loading heavy Matter.js libraries when Matter is not configured
-        const { MatterBridgeManager } = await import('./matter/MatterBridgeManager.js')
+      // Create the manager
+      this.matterManager = new MatterBridgeManager(
+        this.config,
+        this.api,
+        this.externalPortService,
+        this.pluginManager,
+        this.options,
+        this, // Pass server instance for registry access
+      )
 
-        // Create the manager
-        this.matterManager = new MatterBridgeManager(
-          this.config,
-          this.api,
-          this.externalPortService,
-          this.pluginManager,
-          this.options,
-          this, // Pass server instance for registry access
-        )
+      // Set manager reference on API for getAccessoryState
+      this.api._setMatterManager(this.matterManager)
 
-        // Set manager reference on API for getAccessoryState
-        this.api._setMatterManager(this.matterManager)
-
-        // Initialize Matter server for main bridge if enabled
-        await this.matterManager.initialize()
-      }
+      // Initialize Matter server for main bridge if enabled
+      await this.matterManager.initialize()
     }
 
     if (this.config.platforms.length > 0) {
@@ -309,14 +320,16 @@ export class Server {
       }
     }
 
-    // Validate Matter port pool configuration
-    MatterConfigCollector.validateMatterPortsPool(config as HomebridgeConfig)
-
     const bridge: BridgeConfiguration = config.bridge || defaultBridge
     bridge.name = bridge.name || defaultBridge.name
     bridge.username = bridge.username || defaultBridge.username
     bridge.pin = bridge.pin || defaultBridge.pin
     config.bridge = bridge
+
+    // Validate Matter port pool configuration. Must run after bridge defaults
+    // are filled in, since the cast to HomebridgeConfig only becomes honest at
+    // that point.
+    MatterConfigCollector.validateMatterPortsPool(config as HomebridgeConfig)
 
     const username = config.bridge.username
     if (!validMacAddress(username)) {

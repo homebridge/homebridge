@@ -8,9 +8,26 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - **For Users:**
   - Before upgrading, you will want to ensure that the plugin(s) you are using are compatible with this new version of Homebridge. If you are unsure, see the link below or open an issue with the developer of your plugin(s) in question.
+  - Node.js v18 and v20 are no longer supported. Homebridge v2 requires Node.js v22 or v24.
 
 - **For Plugin Developers:**
-  - The new version of Homebridge includes a major version update to HAP-Nodejs. Some old deprecated functions have been removed. See the link below for a list of changes that you may need to make to your plugin(s).
+  - **`api.matter` is now `MatterAPI | undefined`.** The Matter API was previously typed as always-defined, but the runtime getter threw if accessed when Matter was not loaded for the bridge. The type now honestly reflects that `api.matter` is only defined on bridges where Matter is configured (matches `api.isMatterEnabled() === true`). Plugins should access it via optional chaining or guard:
+    ```typescript
+    api.matter?.registerPlatformAccessories(...)         // defensive, no-ops when disabled
+    if (api.isMatterEnabled()) {
+      api.matter!.registerPlatformAccessories(...)       // explicit guard
+    }
+    ```
+    On bridges where Matter is configured, `api.matter` is now eagerly loaded *before* plugin initializers run — both on the main bridge and on child bridges — so plugins can use `api.matter` from their initializer (the `(api) => void` default export), platform/accessory constructor, or `didFinishLaunching` handler.
+  - **HAP-NodeJS rename + major upgrade.** The dependency was renamed from `hap-nodejs` to `@homebridge/hap-nodejs` and bumped from `0.14.x` to `2.x`. Plugins importing directly from `hap-nodejs` must update both the package name and adjust to the v2 API. The recommended path is to import HAP types from `homebridge` (which re-exports them) rather than depending on `@homebridge/hap-nodejs` directly.
+  - **ESM-only.** The published package is now ESM (`"type": "module"`). Plugins authored as CommonJS that load `homebridge` via `require()` will not work; use `import` syntax. Plugins must publish ESM (or dual ESM/CJS) builds.
+  - **Output directory renamed `lib/` → `dist/`.** Plugins doing dirty-imports like `homebridge/lib/api` must switch to the public exports (`import { API } from 'homebridge'`).
+  - **`bin/homebridge` → `bin/homebridge.js`.** The bin entry now includes the `.js` extension (ESM requires it). The npm-managed `homebridge` shim is unaffected; only hardcoded paths to the script need updating.
+  - **Legacy deprecation cleanup (#3648).** The following were removed in v2:
+    - Module-level `withPrefix`, `setDebugEnabled`, `setTimestampEnabled`, `forceColor` exports from `homebridge`. Use `Logger.withPrefix(...)`, `Logger.setDebugEnabled(...)`, etc. on the `Logger` class.
+    - `PlatformAccessory.reachable`, `PlatformAccessory.updateReachability`, `PlatformAccessory.getServiceByUUIDAndSubType`, `PlatformAccessory.configureCameraSource`. Use `getServiceById` and standard HAP camera registration patterns.
+    - `API.publishCameraAccessories`. Use `API.publishExternalAccessories` (this is what the deprecated method delegated to internally).
+    - `HomebridgeConfig.mdns` field is no longer forwarded to child bridges and is ignored. Use `bridge.advertiser` instead.
 
 - Please visit the following link to learn more about the changes and how to prepare:
   - [Updating-To-Homebridge-v2.0](https://github.com/homebridge/homebridge/wiki/Updating-To-Homebridge-v2.0)
@@ -33,6 +50,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: remove duplicate API event listeners from Server (#3917) (@gtalusan)
   - fix: remove process message listener on IpcService teardown (#3918) (@gtalusan)
   - fix: bind MdnsService to bridge.bind interface (#3920) (@gtalusan)
+  - fix: matter fix [15] - various enhancements
 
 ### Changed
 

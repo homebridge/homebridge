@@ -117,6 +117,15 @@ export class ChildBridgeFork {
     this.pluginManager = new PluginManager(this.api)
     this.externalPortService = new ChildBridgeExternalPortService(this)
 
+    // Eagerly load the MatterAPI facade BEFORE plugin init when Matter is
+    // configured for this child bridge, so api.matter is defined when the
+    // plugin's initializer runs. The heavy ChildBridgeMatterManager init
+    // still happens later in startBridge(). Matter is unsupported on
+    // accessory-style child bridges, so skip there.
+    if (this.bridgeConfig.matter && this.type !== PluginType.ACCESSORY) {
+      await this.api.loadMatterAPI()
+    }
+
     // load plugin
     this.plugin = this.pluginManager.loadPlugin(data.pluginPath)
     await this.plugin.load()
@@ -140,9 +149,8 @@ export class ChildBridgeFork {
     if (this.bridgeConfig.matter && this.type !== PluginType.ACCESSORY) {
       matterLogger.info('Loading Matter support for child bridge...')
 
-      // Pre-load Matter API for plugin access
-      // This must happen before plugins are loaded so they can access api.matter synchronously
-      await this.api.loadMatterAPI()
+      // Note: api.loadMatterAPI() was already called at the start of loadPlugin()
+      // so api.matter is already defined by the time the plugin's initializer ran.
 
       // Dynamically import Matter manager only when needed
       const { ChildBridgeMatterManager } = await import('./matter/index.js')
@@ -429,11 +437,17 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
 
   switch (message.id) {
     case ChildProcessMessageEventType.LOAD: {
-      childPluginFork.loadPlugin(message.data as ChildProcessLoadEventData)
+      childPluginFork.loadPlugin(message.data as ChildProcessLoadEventData).catch((error: unknown) => {
+        Logger.internal.error('Child bridge failed to load plugin:', error)
+        process.exit(1)
+      })
       break
     }
     case ChildProcessMessageEventType.START: {
-      childPluginFork.startBridge()
+      childPluginFork.startBridge().catch((error: unknown) => {
+        Logger.internal.error('Child bridge failed to start:', error)
+        process.exit(1)
+      })
       break
     }
     case ChildProcessMessageEventType.PORT_ALLOCATED: {
@@ -486,11 +500,11 @@ function signalHandler(signal: NodeJS.Signals, signalNum: number): void {
 
   try {
     childPluginFork.shutdown()
-  } catch (error: any) {
-    // do nothing
+  } catch (error: unknown) {
+    Logger.internal.error('Error during child bridge shutdown:', error)
   }
 
-  setTimeout(() => process.exit(128 + signalNum), 5000)
+  setTimeout(() => process.exit(128 + signalNum), 5000).unref()
 }
 
 process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))

@@ -23,6 +23,12 @@ export interface FabricInfo {
   label?: string
 }
 
+export interface CommissioningSnapshot {
+  commissioned: boolean
+  fabricCount: number
+  fabrics: FabricInfo[]
+}
+
 export class FabricManager {
   constructor(
     private readonly getServerNode: () => ServerNode | null,
@@ -143,6 +149,36 @@ export class FabricManager {
    */
   getCommissionedFabricCount(): number {
     return this.getFabricInfo().length
+  }
+
+  /**
+   * Get commissioned/fabricCount/fabrics in a single pass.
+   *
+   * Coalesces what would otherwise be three separate getFabricInfo() calls
+   * (one each from isCommissioned, getCommissionedFabricCount, getFabricInfo).
+   * In the cold path that means one sync filesystem scan instead of three.
+   * Preserves the serverNode.state fast-path that isCommissioned() uses.
+   */
+  getCommissioningSnapshot(): CommissioningSnapshot {
+    const fabrics = this.getFabricInfo()
+    const fabricCount = fabrics.length
+    if (fabricCount > 0) {
+      return { commissioned: true, fabricCount, fabrics }
+    }
+
+    // Fabric list is empty — fall back to the serverNode commissioning flag in
+    // case the state is reachable but fabric enumeration didn't return rows.
+    let commissioned = false
+    try {
+      const serverNode = this.getServerNode()
+      if (serverNode) {
+        const serverState = serverNode as any
+        commissioned = serverState?.state?.commissioning?.commissioned === true
+      }
+    } catch {
+      // Treat any access failure as not-commissioned.
+    }
+    return { commissioned, fabricCount, fabrics }
   }
 
   /**

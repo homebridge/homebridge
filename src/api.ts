@@ -188,25 +188,46 @@ export const enum InternalAPIEvent {
 }
 
 /**
- * Matter API Interface
- * Provides access to Matter protocol functionality for creating Matter-compatible accessories.
- * Similar to `api.hap` for HomeKit Accessory Protocol.
+ * Matter API Interface.
+ *
+ * Provides access to Matter protocol functionality for creating
+ * Matter-compatible accessories. Similar to `api.hap` for HomeKit
+ * Accessory Protocol.
+ *
+ * `api.matter` is `MatterAPI | undefined` — it's defined on bridges
+ * where Matter is configured (matches `api.isMatterEnabled()`),
+ * undefined otherwise. Plugins must use optional chaining or guard
+ * with `isMatterEnabled()`.
  *
  * @example
  * ```typescript
- * Register a Matter accessory
- * api.matter.registerAccessory({
- *   uuid: api.matter.uuid.generate('my-light-unique-id'),
+ * // Defensive pattern (recommended for plugins that work with or without Matter):
+ * api.matter?.registerPlatformAccessories('homebridge-example', 'Example', [{
+ *   UUID: api.hap.uuid.generate('my-light'),
  *   displayName: 'Living Room Light',
- *   deviceType: api.matter.deviceTypes.OnOffLight,
- *   // ...
- * })
+ *   deviceType: api.matter!.deviceTypes.OnOffLight,
+ *   manufacturer: 'Example',
+ *   model: 'Example Light',
+ *   serialNumber: 'EX-001',
+ *   clusters: { onOff: { onOff: false } },
+ * }])
  *
- * Update state when device changes externally
- * api.matter.updateAccessoryState(uuid, api.matter.clusterNames.OnOff, { onOff: true })
+ * // Update state when device changes externally
+ * await api.matter?.updateAccessoryState(uuid, 'onOff', { onOff: true })
  *
- * Read current state
- * const state = api.matter.getAccessoryState(uuid, api.matter.clusterNames.OnOff)
+ * // Read current state
+ * const state = await api.matter?.getAccessoryState(uuid, 'onOff')
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // Guard pattern (recommended for plugins that always require Matter):
+ * if (!api.isMatterEnabled()) {
+ *   log.error('Matter is not enabled for this bridge; the plugin requires Matter.')
+ *   return
+ * }
+ * const matter = api.matter!
+ * await matter.registerPlatformAccessories(pluginId, platformName, accessories)
  * ```
  */
 export interface MatterAPI {
@@ -216,8 +237,8 @@ export interface MatterAPI {
    *
    * @example
    * ```typescript
-   * const uuid = api.matter.uuid.generate('my-light-unique-id')
-   * api.matter.registerAccessory({
+   * const uuid = api.matter?.uuid.generate('my-light-unique-id')
+   * api.matter?.registerAccessory({
    *   uuid,
    *   displayName: 'Living Room Light',
    *   // ...
@@ -244,8 +265,8 @@ export interface MatterAPI {
    *
    * @example
    * ```typescript
-   * api.matter.updateAccessoryState(uuid, api.matter.clusterNames.OnOff, { onOff: true })
-   * api.matter.getAccessoryState(uuid, api.matter.clusterNames.LevelControl)
+   * api.matter?.updateAccessoryState(uuid, api.matter?.clusterNames.OnOff, { onOff: true })
+   * api.matter?.getAccessoryState(uuid, api.matter?.clusterNames.LevelControl)
    * ```
    */
   readonly clusterNames: typeof clusterNames
@@ -257,10 +278,10 @@ export interface MatterAPI {
    * @example
    * ```typescript
    * Fan mode enum
-   * api.matter.updateAccessoryState(
+   * api.matter?.updateAccessoryState(
    *   uuid,
-   *   api.matter.clusterNames.FanControl,
-   *   { fanMode: api.matter.types.FanControl.FanMode.High }
+   *   api.matter?.clusterNames.FanControl,
+   *   { fanMode: api.matter?.types.FanControl.FanMode.High }
    * )
    * ```
    */
@@ -297,7 +318,7 @@ export interface MatterAPI {
    * const accessory = cachedAccessories.find(a => a.uuid === uuid)
    * if (accessory) {
    *   accessory.displayName = 'New Name from API'
-   *   await api.matter.updatePlatformAccessories([accessory])
+   *   await api.matter?.updatePlatformAccessories([accessory])
    * }
    * ```
    */
@@ -324,30 +345,30 @@ export interface MatterAPI {
    * Similar to HAP's characteristic.updateValue()
    *
    * @param uuid - The UUID of the accessory
-   * @param cluster - The cluster name (use api.matter.clusterNames for autocomplete)
+   * @param cluster - The cluster name (use api.matter?.clusterNames for autocomplete)
    * @param attributes - The attributes to update
    * @param partId - Optional: ID of the part to update (for composed devices with multiple endpoints)
    *
    * @example
    * ```typescript
    * Device turned on via native app:
-   * await api.matter.updateAccessoryState(
+   * await api.matter?.updateAccessoryState(
    *   uuid,
-   *   api.matter.clusterNames.OnOff,
+   *   api.matter?.clusterNames.OnOff,
    *   { onOff: true }
    * )
    *
    * Device brightness changed via physical button:
-   * await api.matter.updateAccessoryState(
+   * await api.matter?.updateAccessoryState(
    *   uuid,
-   *   api.matter.clusterNames.LevelControl,
+   *   api.matter?.clusterNames.LevelControl,
    *   { currentLevel: 200 }
    * )
    *
    * Update a specific outlet in a power strip (composed device):
-   * await api.matter.updateAccessoryState(
+   * await api.matter?.updateAccessoryState(
    *   uuid,
-   *   api.matter.clusterNames.OnOff,
+   *   api.matter?.clusterNames.OnOff,
    *   { onOff: true },
    *   'outlet-2' // Part ID
    * )
@@ -372,21 +393,21 @@ export interface MatterAPI {
    * Similar to HAP's `characteristic.value` getter.
    *
    * @param uuid - The UUID of the accessory
-   * @param cluster - The cluster name (use api.matter.clusterNames for autocomplete)
+   * @param cluster - The cluster name (use api.matter?.clusterNames for autocomplete)
    * @param partId - Optional: ID of the part to get state from (for composed devices with multiple endpoints)
    * @returns Current cluster attribute values, or undefined if not found
    *
    * @example
    * ```typescript
-   * const state = await api.matter.getAccessoryState(uuid, api.matter.clusterNames.OnOff)
+   * const state = await api.matter?.getAccessoryState(uuid, api.matter?.clusterNames.OnOff)
    * if (state?.onOff) {
    *   console.log('Light is currently on')
    * }
    *
    * Get state of a specific outlet in a power strip:
-   * const outletState = await api.matter.getAccessoryState(
+   * const outletState = await api.matter?.getAccessoryState(
    *   uuid,
-   *   api.matter.clusterNames.OnOff,
+   *   api.matter?.clusterNames.OnOff,
    *   'outlet-3' // Part ID
    * )
    * ```
@@ -418,24 +439,41 @@ export interface API {
   // ------------------------------------------------------------------------
 
   /**
-   * Matter Protocol API
-   * Provides access to Matter functionality, similar to `api.hap` for HomeKit
+   * Matter Protocol API.
+   *
+   * @remarks
+   * Defined when Matter is configured for this bridge (i.e. when
+   * `api.isMatterEnabled()` returns true), undefined otherwise. Loaded
+   * automatically before plugins run on Matter-enabled bridges, so
+   * plugins can access it from their initializer, platform/accessory
+   * constructor, or `didFinishLaunching` handler.
+   *
+   * Safe access patterns:
+   * ```typescript
+   * api.matter?.registerPlatformAccessories(...)         // defensive, no-ops when disabled
+   * if (api.isMatterEnabled()) {
+   *   api.matter!.registerPlatformAccessories(...)       // explicit guard
+   * }
+   * ```
    *
    * @example
    * ```typescript
-   * Register a Matter accessory
-   * api.matter.registerAccessory({
-   *   uuid: api.matter.uuid.generate('my-light'),
+   * // Register a Matter accessory
+   * api.matter?.registerPlatformAccessories('homebridge-example', 'Example', [{
+   *   UUID: api.hap.uuid.generate('my-light'),
    *   displayName: 'Living Room Light',
-   *   deviceType: api.matter.deviceTypes.OnOffLight,
-   *   // ...
-   * })
+   *   deviceType: api.matter!.deviceTypes.OnOffLight,
+   *   manufacturer: 'Example',
+   *   model: 'Example Light',
+   *   serialNumber: 'EX-001',
+   *   clusters: { onOff: { onOff: false } },
+   * }])
    *
-   * Update state
-   * api.matter.updateAccessoryState(uuid, api.matter.clusterNames.OnOff, { onOff: true })
+   * // Update state
+   * await api.matter?.updateAccessoryState(uuid, 'onOff', { onOff: true })
    * ```
    */
-  readonly matter: MatterAPI
+  readonly matter?: MatterAPI
 
   /**
    * Returns true if the current running homebridge version is greater or equal to the
@@ -529,24 +567,24 @@ export class HomebridgeAPI extends EventEmitter implements API {
   private _matterAPI?: MatterAPI
 
   /**
-   * Matter Protocol API (lazy-loaded)
-   * Only instantiated when first accessed
+   * Matter Protocol API (lazy-loaded).
+   *
+   * Returns the loaded MatterAPI instance, or `undefined` when Matter is not
+   * configured for this bridge. Server / ChildBridgeFork call
+   * {@link loadMatterAPI} before plugins run on Matter-enabled bridges, so
+   * plugins observe a defined value here whenever {@link isMatterEnabled}
+   * returns true.
    */
-  get matter(): MatterAPI {
-    if (!this._matterAPI) {
-      // Dynamic import to load MatterAPIImpl module only when needed
-      // This prevents loading Matter.js for child bridges that don't use it
-      throw new Error(
-        'Matter API must be pre-loaded before access. '
-        + 'Call await api.loadMatterAPI() in your plugin constructor or access api.matter in didFinishLaunching().',
-      )
-    }
+  get matter(): MatterAPI | undefined {
     return this._matterAPI
   }
 
   /**
-   * Load Matter API implementation
-   * Must be called before accessing `api.matter`
+   * Load Matter API implementation. Idempotent.
+   *
+   * Called by Server / ChildBridgeFork during startup when Matter is
+   * configured for the bridge, before plugin initialization. Plugins should
+   * not call this directly — use {@link matter} instead.
    *
    * @internal
    */
@@ -643,10 +681,6 @@ export class HomebridgeAPI extends EventEmitter implements API {
     } else {
       this.emit(InternalAPIEvent.REGISTER_PLATFORM, platformName, constructor!, pluginIdentifier)
     }
-  }
-
-  publishCameraAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {
-    this.publishExternalAccessories(pluginIdentifier, accessories)
   }
 
   publishExternalAccessories(pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]): void {

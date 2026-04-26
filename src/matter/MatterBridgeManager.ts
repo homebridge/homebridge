@@ -15,6 +15,7 @@ import type { HomebridgeOptions } from '../server.js'
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { MatterEvent, MatterStatusInfo } from './ipc-types.js'
 import type { AccessoryInfo } from './managerTypes.js'
+import type { CommissioningSnapshot } from './server/FabricManager.js'
 import type { InternalMatterAccessory, MatterAccessory } from './types.js'
 
 import { InternalAPIEvent } from '../api.js'
@@ -399,6 +400,11 @@ export class MatterBridgeManager extends BaseMatterManager {
     const cached = server.getAllCachedAccessories()
     const accessories: AccessoryInfo[] = []
 
+    // Fabric/commissioning state is server-wide — read it once, then share
+    // the snapshot across every accessory transform instead of re-reading it
+    // (3 fabric calls deep) per cached accessory.
+    const snapshot = server.getCommissioningSnapshot()
+
     for (const acc of cached) {
       const accessory = this.transformAccessoryData(
         acc,
@@ -406,6 +412,7 @@ export class MatterBridgeManager extends BaseMatterManager {
         bridgeUsername,
         bridgeType,
         bridgeName,
+        snapshot,
       )
       accessories.push(accessory)
     }
@@ -429,6 +436,7 @@ export class MatterBridgeManager extends BaseMatterManager {
     bridgeUsername: string,
     bridgeType: 'main' | 'child' | 'external',
     bridgeName: string,
+    snapshot: CommissioningSnapshot,
   ): AccessoryInfo {
     // Get current state
     const currentState = this.getCurrentStateFromServer(server, acc.uuid)
@@ -473,12 +481,13 @@ export class MatterBridgeManager extends BaseMatterManager {
       // Context (plugin-specific data)
       context: acc.context,
 
-      // Commissioning info (if available)
-      commissioned: server.isCommissioned(),
-      fabricCount: server.getCommissionedFabricCount(),
+      // Commissioning info (if available) — sourced from a single snapshot
+      // built once per server in the caller, not per-accessory.
+      commissioned: snapshot.commissioned,
+      fabricCount: snapshot.fabricCount,
 
       // Map fabric info from Matter.js format to our interface
-      fabrics: server.getFabricInfo().map(fabric => ({
+      fabrics: snapshot.fabrics.map(fabric => ({
         fabricIndex: fabric.fabricIndex,
         fabricId: BigInt(fabric.fabricId),
         nodeId: BigInt(fabric.nodeId),
@@ -508,7 +517,7 @@ export class MatterBridgeManager extends BaseMatterManager {
       return undefined
     }
 
-    const cached = server.getAllCachedAccessories().find((a: SerializedMatterAccessory) => a.uuid === uuid)
+    const cached = server.getCachedAccessory(uuid)
     if (!cached) {
       return undefined
     }
@@ -519,6 +528,7 @@ export class MatterBridgeManager extends BaseMatterManager {
       bridgeUsername,
       bridgeType,
       server.bridgeName || 'Matter Bridge',
+      server.getCommissioningSnapshot(),
     )
   }
 

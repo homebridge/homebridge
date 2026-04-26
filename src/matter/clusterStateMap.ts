@@ -3,8 +3,8 @@
  *
  * Maps Matter cluster names to their typed state interfaces.
  * Provides IDE autocomplete and type safety for plugin developers when
- * working with cluster attributes via api.matter.updateAccessoryState()
- * and api.matter.getAccessoryState().
+ * working with cluster attributes via api.matter?.updateAccessoryState()
+ * and api.matter?.getAccessoryState().
  *
  * State interfaces are defined in clusterTypes.ts and derived from
  * @matter/main/clusters where possible.
@@ -35,10 +35,10 @@ import type {
  * @example
  * ```typescript
  * // With typed overload on api.matter:
- * await api.matter.updateAccessoryState(uuid, 'onOff', { onOff: true })
+ * await api.matter?.updateAccessoryState(uuid, 'onOff', { onOff: true })
  * //                                                      ^-- autocomplete!
  *
- * const state = await api.matter.getAccessoryState(uuid, 'levelControl')
+ * const state = await api.matter?.getAccessoryState(uuid, 'levelControl')
  * // state is Partial<LevelControlState> | undefined
  * ```
  */
