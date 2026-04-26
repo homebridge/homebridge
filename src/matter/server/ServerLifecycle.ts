@@ -310,8 +310,13 @@ export class ServerLifecycle {
         Environment.default.vars.set('network.interface', interfaceConfig)
       }
 
-      // Set up commissioning event listeners
+      // Set up commissioning event listeners. Register a matching cleanup
+      // handler so the matter.js Observable observers (which capture deps and
+      // the manager) are released on stop().
       deps.commissioningManager.setupCommissioningEventListeners(deps.getCommissioningDeps())
+      deps.cleanupHandlers.push(() => {
+        deps.commissioningManager.teardownCommissioningEventListeners(deps.getServerNode())
+      })
 
       // Create aggregator endpoint for bridge pattern
       if (!deps.config.externalAccessory) {

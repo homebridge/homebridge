@@ -51,13 +51,20 @@ export abstract class BaseMatterManager {
     // Map attributes to command using centralized mapper
     const commandMapping = mapAttributesToCommand(cluster, attributes)
 
-    // Debug logging
+    // Debug logging — pass objects as %j format args so JSON.stringify only
+    // runs when debug is enabled (Logger.log short-circuits on level first).
     log.debug(`handleTriggerCommand: uuid=${uuid}, cluster=${cluster}, partId=${partId}`)
-    log.debug(`Attributes: ${JSON.stringify(attributes)}`)
-    log.debug(`Command mapping: ${commandMapping ? JSON.stringify(commandMapping) : 'null (state-only update)'}`)
+    log.debug('Attributes: %j', attributes)
+    if (commandMapping) {
+      log.debug('Command mapping: %j', commandMapping)
+    } else {
+      log.debug('Command mapping: null (state-only update)')
+    }
     log.debug(`External servers count: ${this.externalMatterServers.size}`)
     if (this.externalMatterServers.size > 0) {
-      log.debug(`External server UUIDs: ${[...this.externalMatterServers.keys()].join(', ')}`)
+      // Pass the keys iterator as a %j arg so the spread+join only runs once
+      // util.format is reached (i.e. when debug is enabled).
+      log.debug('External server UUIDs: %j', [...this.externalMatterServers.keys()])
     }
 
     // Check if this is an external accessory first
