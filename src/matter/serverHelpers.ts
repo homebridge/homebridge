@@ -63,7 +63,7 @@ export function validateAccessoryRequiredFields(accessory: MatterAccessory): voi
   if (!accessory.deviceType) {
     throw new MatterDeviceError(
       `Matter accessory "${accessory.displayName || 'unknown'}" is missing required field 'deviceType'. `
-      + 'Example: deviceType: api.matter.deviceTypes.OnOffLight\n'
+      + 'Example: deviceType: api.matter!.deviceTypes.OnOffLight\n'
       + 'Available device types: OnOffLight, DimmableLight, TemperatureSensor, etc.\n'
       + 'See the Matter types documentation for the full list.',
     )
@@ -73,7 +73,7 @@ export function validateAccessoryRequiredFields(accessory: MatterAccessory): voi
     throw new MatterDeviceError(
       'Matter accessory is missing required field \'UUID\'.\n'
       + 'Generate a unique UUID for your accessory:\n'
-      + '  const UUID = api.matter.uuid.generate(\'my-unique-id\')',
+      + '  const UUID = api.hap.uuid.generate(\'my-unique-id\')',
     )
   }
 

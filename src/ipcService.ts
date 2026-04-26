@@ -32,7 +32,7 @@ export declare interface IpcService {
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export class IpcService extends EventEmitter {
-  private readonly messageHandler = (message: { id: string, data: never }) => {
+  private readonly messageHandler = (message: { id: string, data: unknown }) => {
     if (!message || typeof message !== 'object' || !message.id) {
       return
     }
@@ -56,6 +56,10 @@ export class IpcService extends EventEmitter {
    */
   public stop(): void {
     process.removeListener('message', this.messageHandler)
+    // Also drop any EventEmitter listeners registered via ipcService.on(...)
+    // by Server. Without this, those listeners outlive the service and retain
+    // the Server through closures across hypothetical reload scenarios.
+    this.removeAllListeners()
   }
 
   /**
