@@ -69,6 +69,7 @@ export interface BridgeConfiguration {
   firmwareRevision?: string
   serialNumber?: string
   debugModeEnabled?: boolean
+  hap?: boolean // Optional: allow disabling HAP if false
   matter?: MatterConfig
   env?: {
     DEBUG?: string

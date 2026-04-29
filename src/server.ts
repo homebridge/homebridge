@@ -318,6 +318,18 @@ export class Server {
     bridge.pin = bridge.pin || defaultBridge.pin
     config.bridge = bridge
 
+    // --- Protocol enablement validation ---
+    // HAP is enabled if not explicitly disabled (default: enabled)
+    // Matter is enabled if config.bridge.matter exists and has enabled: true (or is present)
+    const hapEnabled = config.bridge.hap !== false // default true if not set
+    const matterEnabled = !!config.bridge.matter && (config.bridge.matter.enabled !== false)
+
+    if (!hapEnabled && !matterEnabled) {
+      throw new Error('At least one protocol (HAP or Matter) must be enabled. Both can be enabled, but not both disabled.')
+    }
+
+    // Optionally, remove any logic that forces HAP to always be enabled (none found here)
+
     const username = config.bridge.username
     if (!validMacAddress(username)) {
       throw new Error(`Not a valid username: ${username}. Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`)
