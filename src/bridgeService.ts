@@ -70,6 +70,15 @@ export interface BridgeConfiguration {
   firmwareRevision?: string
   serialNumber?: string
   debugModeEnabled?: boolean
+  /**
+   * When `false`, this bridge will not publish HAP. Useful for Matter-only
+   * bridges where the user does not want to expose a HomeKit bridge accessory.
+   * Default: `true` (HAP is published).
+   *
+   * Note: at least one of `hap` or `matter` must be enabled per bridge —
+   * setting `hap: false` without a `matter` configuration is rejected.
+   */
+  hap?: boolean
   matter?: MatterConfig
   env?: {
     DEBUG?: string

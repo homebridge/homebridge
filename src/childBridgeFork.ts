@@ -259,7 +259,14 @@ export class ChildBridgeFork {
       this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
     }
 
-    this.bridgeService.publishBridge()
+    // Publish HAP only when not opted out via _bridge.hap=false. The
+    // protocol-enablement check in Server.validateChildBridgeConfig has
+    // already guaranteed at least one of HAP or Matter is on for this bridge.
+    if (this.bridgeConfig.hap !== false) {
+      this.bridgeService.publishBridge()
+    } else {
+      Logger.internal.info('HAP is disabled for this child bridge (_bridge.hap=false); skipping HAP publish.')
+    }
     this.api.signalFinished()
 
     // Send initial status update with HAP and Matter info BEFORE telling parent we're online

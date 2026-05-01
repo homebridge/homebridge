@@ -50,7 +50,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: remove duplicate API event listeners from Server (#3917) (@gtalusan)
   - fix: remove process message listener on IpcService teardown (#3918) (@gtalusan)
   - fix: bind MdnsService to bridge.bind interface (#3920) (@gtalusan)
-  - fix: matter fix [15] - various enhancements
+  - fix: matter fix [15] - various enhancements (@donavanbecker)
 
 ### Changed
 
@@ -60,6 +60,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - use lint rules from `@antfu/eslint-config`
   - migrate from `jest` to `vitest` for testing
   - ⚠️ drop support for node `v18` and `20`
+- fix(server): wire bridge.hap=false through
 
 ### Removed
 
