@@ -163,10 +163,16 @@ export class Server {
   private setServerStatus(status: ServerStatus) {
     this.serverStatus = status
 
+    // setupURI() asserts the accessory is published. _accessoryInfo is only
+    // set post-publish, so use it as the guard — covers both the HAP-disabled
+    // case and the teardown path, where the bridge has been torn down.
+    const bridge = this.bridgeService?.bridge
+    const isPublished = !!bridge?._accessoryInfo
+
     const statusUpdate: ServerStatusUpdate = {
       status: this.serverStatus,
-      paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
-      setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
+      paired: isPublished ? (bridge?._accessoryInfo?.paired() ?? null) : null,
+      setupUri: isPublished ? (bridge?.setupURI() ?? null) : null,
       name: this.config.bridge.name,
       username: this.config.bridge.username,
       pin: this.config.bridge.pin,
@@ -250,7 +256,15 @@ export class Server {
 
     // wait for all platforms to publish their accessories before we publish the bridge
     await Promise.all(promises)
-    this.publishBridge()
+
+    if (Server.isHapEnabled(this.config.bridge)) {
+      this.publishBridge()
+    } else {
+      // HAP is opted out. The bridge ADVERTISED listener won't fire, so move
+      // server status to OK explicitly — Matter is the only protocol up here.
+      log.info('HAP is disabled for the main bridge (bridge.hap=false); skipping HAP publish.')
+      this.setServerStatus(ServerStatus.OK)
+    }
   }
 
   public async teardown(): Promise<void> {
@@ -277,6 +291,22 @@ export class Server {
       throw new Error('Matter manager not initialized')
     }
     await this.matterManager.handleTriggerCommand(uuid, cluster, attributes, partId)
+  }
+
+  /**
+   * Whether HAP should be published for the given bridge configuration.
+   * HAP is on by default; users opt out via `bridge.hap: false`.
+   */
+  public static isHapEnabled(bridgeConfig: BridgeConfiguration): boolean {
+    return bridgeConfig.hap !== false
+  }
+
+  /**
+   * Whether Matter is configured for the given bridge.
+   * Matter is opt-in: a `bridge.matter` block must be present.
+   */
+  public static isMatterEnabledForBridge(bridgeConfig: BridgeConfiguration): boolean {
+    return !!bridgeConfig.matter
   }
 
   private static loadConfig(): HomebridgeConfig {
@@ -325,6 +355,16 @@ export class Server {
     bridge.username = bridge.username || defaultBridge.username
     bridge.pin = bridge.pin || defaultBridge.pin
     config.bridge = bridge
+
+    // Protocol-enablement validation: at least one of HAP or Matter must be on.
+    // HAP is enabled by default; users opt out via `bridge.hap: false`.
+    // Matter is enabled when `bridge.matter` is configured.
+    if (!Server.isHapEnabled(config.bridge) && !Server.isMatterEnabledForBridge(config.bridge)) {
+      throw new Error(
+        'At least one protocol (HAP or Matter) must be enabled. '
+        + 'Set `bridge.hap` to true or add a `bridge.matter` configuration.',
+      )
+    }
 
     // Validate Matter port pool configuration. Must run after bridge defaults
     // are filled in, since the cast to HomebridgeConfig only becomes honest at
@@ -575,6 +615,19 @@ export class Server {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - `
         + 'Missing required field "_bridge.username".',
+      )
+    }
+
+    // At least one of HAP or Matter must be enabled per child bridge.
+    // Note: Matter is unsupported on accessory-style child bridges (warned about
+    // in childBridgeFork.ts), so for ACCESSORY child bridges only HAP counts.
+    const hapOk = Server.isHapEnabled(bridgeConfig)
+    const matterOk = type === PluginType.PLATFORM && Server.isMatterEnabledForBridge(bridgeConfig)
+    if (!hapOk && !matterOk) {
+      throw new Error(
+        `Error loading the ${type} "${identifier}" requested in your config.json - `
+        + 'at least one protocol must be enabled on this child bridge. '
+        + 'Set `_bridge.hap` to true or add a `_bridge.matter` configuration.',
       )
     }
 

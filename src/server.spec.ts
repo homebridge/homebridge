@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import { HAPStorage } from '@homebridge/hap-nodejs'
 import fs from 'fs-extra'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Server } from './server.js'
 import { User } from './user.js'
@@ -67,5 +67,103 @@ describe('server', () => {
     await server.start()
 
     expect(server).toBeInstanceOf(Server)
+  })
+
+  describe('protocol-enablement helpers', () => {
+    describe('isHapEnabled', () => {
+      it('returns true when bridge.hap is unset (default)', () => {
+        expect(Server.isHapEnabled({ ...mockConfig.bridge } as any)).toBe(true)
+      })
+
+      it('returns true when bridge.hap is explicitly true', () => {
+        expect(Server.isHapEnabled({ ...mockConfig.bridge, hap: true } as any)).toBe(true)
+      })
+
+      it('returns false when bridge.hap is explicitly false', () => {
+        expect(Server.isHapEnabled({ ...mockConfig.bridge, hap: false } as any)).toBe(false)
+      })
+    })
+
+    describe('isMatterEnabledForBridge', () => {
+      it('returns false when bridge.matter is unset', () => {
+        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge } as any)).toBe(false)
+      })
+
+      it('returns true when bridge.matter is configured (even with no fields)', () => {
+        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: {} } as any)).toBe(true)
+      })
+
+      it('returns true when bridge.matter has fields configured', () => {
+        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: { port: 5540, name: 'Test' } } as any)).toBe(true)
+      })
+    })
+  })
+
+  describe('main bridge protocol validation (loadConfig)', () => {
+    // Each test writes a tailored config.json, constructs Server, then restores
+    // the canonical mockConfig so subsequent tests are not contaminated.
+    afterEach(async () => {
+      await fs.writeJson(configPath, mockConfig)
+    })
+
+    it('rejects a config where both HAP is disabled AND no matter is configured', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, hap: false },
+      })
+
+      expect(() => new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })).toThrow(/at least one protocol/i)
+    })
+
+    it('accepts hap:false when matter is configured', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, hap: false, matter: { port: 5540 } },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      expect(server).toBeInstanceOf(Server)
+    })
+
+    it('accepts hap:true with no matter (the historical default)', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, hap: true },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      expect(server).toBeInstanceOf(Server)
+    })
+
+    it('accepts a config with both hap and matter enabled', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, hap: true, matter: { port: 5540 } },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      expect(server).toBeInstanceOf(Server)
+    })
+
+    it('accepts the default config (no hap, no matter) — HAP is on by default', async () => {
+      // mockConfig has no hap field and no matter block.
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      expect(server).toBeInstanceOf(Server)
+    })
   })
 })
