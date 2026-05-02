@@ -467,13 +467,30 @@ export class MatterAPIImpl implements MatterAPI {
       return
     }
 
-    const position = action === 'press' ? (options?.position ?? 1) : 0
+    if (action !== 'press' && action !== 'release') {
+      log.error(`emitSwitchEvent: invalid action "${action as string}" — must be "press" or "release"`)
+      return
+    }
+
+    let position: number
+    if (action === 'press') {
+      const rawPosition = options?.position ?? 1
+      if (!Number.isFinite(rawPosition) || !Number.isInteger(rawPosition) || rawPosition < 1) {
+        log.warn(`emitSwitchEvent: invalid position ${rawPosition} — must be a finite integer >= 1; defaulting to 1`)
+        position = 1
+      } else {
+        position = rawPosition
+      }
+    } else {
+      position = 0
+    }
+
     const partId = options?.partId
 
     log.debug(
       `Emitting switch ${action} for accessory ${uuid}: currentPosition=${position}${partId ? `, partId=${partId}` : ''}`,
     )
 
-    await this.updateAccessoryState(uuid, 'switch', { currentPosition: position }, partId)
+    await this.updateAccessoryState(uuid, clusterNames.Switch, { currentPosition: position }, partId)
   }
 }

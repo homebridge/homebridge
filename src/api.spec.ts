@@ -579,7 +579,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenCalledWith(
           InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
           uuid,
-          'switch',
+          matter.clusterNames.Switch,
           { currentPosition: 1 },
           undefined,
         )
@@ -592,7 +592,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenCalledWith(
           InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
           uuid,
-          'switch',
+          matter.clusterNames.Switch,
           { currentPosition: 3 },
           undefined,
         )
@@ -605,7 +605,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenCalledWith(
           InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
           uuid,
-          'switch',
+          matter.clusterNames.Switch,
           { currentPosition: 0 },
           undefined,
         )
@@ -618,7 +618,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenCalledWith(
           InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
           uuid,
-          'switch',
+          matter.clusterNames.Switch,
           { currentPosition: 0 },
           undefined,
         )
@@ -632,9 +632,29 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenCalledWith(
           InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
           uuid,
-          'switch',
+          matter.clusterNames.Switch,
           { currentPosition: 1 },
           partId,
+        )
+      })
+
+      it('should not emit and log error for invalid action', async () => {
+        const uuid = matter.uuid.generate('test-invalid-action')
+        await matter.emitSwitchEvent(uuid, 'invalid' as unknown as 'press')
+
+        expect(emitSpy).not.toHaveBeenCalled()
+      })
+
+      it('should default position to 1 and warn for invalid position on press', async () => {
+        const uuid = matter.uuid.generate('test-invalid-position')
+        await matter.emitSwitchEvent(uuid, 'press', { position: 0 })
+
+        expect(emitSpy).toHaveBeenCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          matter.clusterNames.Switch,
+          { currentPosition: 1 },
+          undefined,
         )
       })
     })
