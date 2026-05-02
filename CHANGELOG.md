@@ -50,7 +50,8 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: remove duplicate API event listeners from Server (#3917) (@gtalusan)
   - fix: remove process message listener on IpcService teardown (#3918) (@gtalusan)
   - fix: bind MdnsService to bridge.bind interface (#3920) (@gtalusan)
-  - fix: matter fix [15] - various enhancements (@donavanbecker)
+  - fix: matter fix [15] - various enhancements
+  - fix: Add `GenericSwitch` to `api.matter.deviceTypes` (#3923) (@donavanbecker)
 
 ### Changed
 
