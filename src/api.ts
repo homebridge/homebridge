@@ -418,6 +418,47 @@ export interface MatterAPI {
     /** Fallback for unknown/custom clusters */
     (uuid: string, cluster: string, partId?: string): Promise<Record<string, unknown> | undefined>
   }
+
+  /**
+   * Emit a switch action for a GenericSwitch accessory
+   *
+   * High-level helper for stateless switches and remotes (e.g. Pico remotes, scene controllers).
+   * Sets the Switch cluster's `currentPosition` attribute, which causes the Matter.js `SwitchServer`
+   * to automatically fire the appropriate cluster events:
+   *
+   * | Action    | When to use                                | Events fired by Matter.js              |
+   * |-----------|-------------------------------------------|----------------------------------------|
+   * | `press`   | Physical button pressed / contact closed  | `initialPress`                         |
+   * | `release` | Physical button released / contact opened | `shortRelease` or `longRelease`*       |
+   *
+   * `shortRelease` vs `longRelease` is determined automatically by the SwitchServer based on
+   * how long the button was held (configurable via `longPressDelay`, default 2 s).
+   * Multi-press sequences (`multiPressComplete`) are generated automatically when `press`/`release`
+   * cycles occur within the `multiPressDelay` window (default 300 ms).
+   *
+   * @param uuid - UUID of the GenericSwitch accessory
+   * @param action - `'press'` to press the button, `'release'` to release it
+   * @param options - Optional configuration
+   * @param options.position - Button position index (1-based). Defaults to `1`. Use when the
+   * GenericSwitch has multiple positions (e.g. a multi-button remote).
+   * @param options.partId - Part ID for composed devices with GenericSwitch parts.
+   *
+   * @example
+   * ```typescript
+   * // Simple single-button press and release
+   * await api.matter?.emitSwitchEvent(uuid, 'press')
+   * await api.matter?.emitSwitchEvent(uuid, 'release')
+   *
+   * // Multi-button remote: button 2 press and release
+   * await api.matter?.emitSwitchEvent(uuid, 'press', { position: 2 })
+   * await api.matter?.emitSwitchEvent(uuid, 'release', { position: 2 })
+   *
+   * // GenericSwitch as a part in a composed device
+   * await api.matter?.emitSwitchEvent(uuid, 'press', { partId: 'button-top' })
+   * await api.matter?.emitSwitchEvent(uuid, 'release', { partId: 'button-top' })
+   * ```
+   */
+  emitSwitchEvent: (uuid: string, action: 'press' | 'release', options?: { position?: number, partId?: string }) => Promise<void>
 }
 
 export interface API {

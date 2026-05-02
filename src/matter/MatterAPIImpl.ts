@@ -449,4 +449,31 @@ export class MatterAPIImpl implements MatterAPI {
 
     return matterServer.getAccessoryState(uuid, cluster, partId)
   }
+
+  /**
+   * Emit a switch action for a GenericSwitch accessory
+   *
+   * Sets `switch.currentPosition` to `options?.position ?? 1` on press or `0` on release.
+   * The Matter.js SwitchServer reacts to this attribute change and emits the appropriate
+   * Switch cluster events (initialPress, shortRelease, longRelease, multiPressComplete).
+   */
+  async emitSwitchEvent(
+    uuid: string,
+    action: 'press' | 'release',
+    options?: { position?: number, partId?: string },
+  ): Promise<void> {
+    if (!uuid) {
+      log.error('emitSwitchEvent: uuid parameter is required')
+      return
+    }
+
+    const position = action === 'press' ? (options?.position ?? 1) : 0
+    const partId = options?.partId
+
+    log.debug(
+      `Emitting switch ${action} for accessory ${uuid}: currentPosition=${position}${partId ? `, partId=${partId}` : ''}`,
+    )
+
+    await this.updateAccessoryState(uuid, 'switch', { currentPosition: position }, partId)
+  }
 }

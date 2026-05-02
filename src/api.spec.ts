@@ -567,6 +567,78 @@ describe('homebridgeAPI', () => {
       })
     })
 
+    describe('matter.emitSwitchEvent', () => {
+      beforeEach(() => {
+        emitSpy.mockClear()
+      })
+
+      it('should emit press as currentPosition=1 by default', async () => {
+        const uuid = matter.uuid.generate('test-pico-remote')
+        await matter.emitSwitchEvent(uuid, 'press')
+
+        expect(emitSpy).toHaveBeenCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          'switch',
+          { currentPosition: 1 },
+          undefined,
+        )
+      })
+
+      it('should emit press with custom position', async () => {
+        const uuid = matter.uuid.generate('test-multi-button-remote')
+        await matter.emitSwitchEvent(uuid, 'press', { position: 3 })
+
+        expect(emitSpy).toHaveBeenCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          'switch',
+          { currentPosition: 3 },
+          undefined,
+        )
+      })
+
+      it('should emit release as currentPosition=0', async () => {
+        const uuid = matter.uuid.generate('test-pico-remote-release')
+        await matter.emitSwitchEvent(uuid, 'release')
+
+        expect(emitSpy).toHaveBeenCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          'switch',
+          { currentPosition: 0 },
+          undefined,
+        )
+      })
+
+      it('should emit release ignoring position (always neutral/0)', async () => {
+        const uuid = matter.uuid.generate('test-remote-release-pos')
+        await matter.emitSwitchEvent(uuid, 'release', { position: 2 })
+
+        expect(emitSpy).toHaveBeenCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          'switch',
+          { currentPosition: 0 },
+          undefined,
+        )
+      })
+
+      it('should pass partId for composed devices', async () => {
+        const uuid = matter.uuid.generate('test-composed-switch')
+        const partId = 'button-top'
+        await matter.emitSwitchEvent(uuid, 'press', { partId })
+
+        expect(emitSpy).toHaveBeenCalledWith(
+          InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE,
+          uuid,
+          'switch',
+          { currentPosition: 1 },
+          partId,
+        )
+      })
+    })
+
     describe('matter cluster names', () => {
       it('should include common cluster names', () => {
         expect(matter.clusterNames.OnOff).toBe('onOff')
@@ -583,6 +655,10 @@ describe('homebridgeAPI', () => {
         expect(matter.clusterNames.RvcCleanMode).toBe('rvcCleanMode')
         expect(matter.clusterNames.RvcOperationalState).toBe('rvcOperationalState')
         expect(matter.clusterNames.ServiceArea).toBe('serviceArea')
+      })
+
+      it('should include Switch cluster name', () => {
+        expect(matter.clusterNames.Switch).toBe('switch')
       })
     })
 

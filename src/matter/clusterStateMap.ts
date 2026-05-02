@@ -79,6 +79,9 @@ export interface ClusterStateMap {
   pm10ConcentrationMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, measurementMedium: number, measurementUnit?: number }
   pm25ConcentrationMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, measurementMedium: number, measurementUnit?: number }
 
+  // Switch (GenericSwitch - stateless remotes and buttons)
+  switch: { currentPosition: number, numberOfPositions?: number }
+
   // Identification
   identify: { identifyTime: number, identifyType: number }
 }
