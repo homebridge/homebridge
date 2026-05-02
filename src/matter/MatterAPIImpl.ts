@@ -475,7 +475,7 @@ export class MatterAPIImpl implements MatterAPI {
     let position: number
     if (action === 'press') {
       const rawPosition = options?.position ?? 1
-      if (!Number.isFinite(rawPosition) || !Number.isInteger(rawPosition) || rawPosition < 1) {
+      if (!Number.isInteger(rawPosition) || rawPosition < 1) {
         log.warn(`emitSwitchEvent: invalid position ${rawPosition} — must be a finite integer >= 1; defaulting to 1`)
         position = 1
       } else {
