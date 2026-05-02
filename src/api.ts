@@ -248,8 +248,8 @@ export interface MatterAPI {
   readonly uuid: HAP['uuid']
 
   /**
-   * Matter device types for creating accessories
-   * Maps friendly names to Matter.js device types
+   * Matter device types for creating accessories.
+   * Maps friendly names to Matter.js device types, including stateless controller types like `GenericSwitch`.
    */
   readonly deviceTypes: typeof deviceTypes
 

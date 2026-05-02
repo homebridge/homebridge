@@ -129,6 +129,35 @@ describe('homebridgeAPI', () => {
         )
       })
 
+      it('should register stateless switch accessories using GenericSwitch device type', () => {
+        const matterAccessories: MatterAccessory[] = [
+          {
+            UUID: matter.uuid.generate('test-remote-1'),
+            displayName: 'Test Remote 1',
+            deviceType: matter.deviceTypes.GenericSwitch,
+            serialNumber: 'SN-REMOTE-001',
+            manufacturer: 'Test Manufacturer',
+            model: 'Test Remote',
+            clusters: {
+              switch: {
+                currentPosition: 0,
+                numberOfPositions: 3,
+              },
+            },
+            context: {},
+          },
+        ]
+
+        matter.registerPlatformAccessories(matterPluginName, matterPlatformName, matterAccessories)
+
+        expect(emitSpy).toHaveBeenLastCalledWith(
+          InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES,
+          matterPluginName,
+          matterPlatformName,
+          matterAccessories,
+        )
+      })
+
       it('should register multiple Matter platform accessories', () => {
         const matterAccessories: MatterAccessory[] = [
           {
@@ -565,10 +594,17 @@ describe('homebridgeAPI', () => {
         expect(matter.deviceTypes.ExtendedColorLight).toBeDefined()
         expect(matter.deviceTypes.OnOffOutlet).toBeDefined()
         expect(matter.deviceTypes.OnOffSwitch).toBeDefined()
+        expect(matter.deviceTypes.GenericSwitch).toBeDefined()
         expect(matter.deviceTypes.DoorLock).toBeDefined()
         expect(matter.deviceTypes.Thermostat).toBeDefined()
         expect(matter.deviceTypes.WindowCovering).toBeDefined()
         expect(matter.deviceTypes.Fan).toBeDefined()
+      })
+
+      it('should expose GenericSwitch as a Matter EndpointType object', () => {
+        expect(typeof matter.deviceTypes.GenericSwitch).toBe('object')
+        expect(Array.isArray(matter.deviceTypes.GenericSwitch)).toBe(false)
+        expect(typeof matter.deviceTypes.GenericSwitch.deviceType).toBe('number')
       })
 
       it('should include specialized device types', () => {

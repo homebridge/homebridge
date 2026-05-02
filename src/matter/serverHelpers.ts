@@ -64,7 +64,7 @@ export function validateAccessoryRequiredFields(accessory: MatterAccessory): voi
     throw new MatterDeviceError(
       `Matter accessory "${accessory.displayName || 'unknown'}" is missing required field 'deviceType'. `
       + 'Example: deviceType: api.matter!.deviceTypes.OnOffLight\n'
-      + 'Available device types: OnOffLight, DimmableLight, TemperatureSensor, etc.\n'
+      + 'Available device types: OnOffLight, DimmableLight, GenericSwitch, TemperatureSensor, etc.\n'
       + 'See the Matter types documentation for the full list.',
     )
   }
