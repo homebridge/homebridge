@@ -679,6 +679,9 @@ export const clusterNames = {
   // Identification
   Identify: 'identify',
 
+  // Switch (GenericSwitch - stateless remotes and buttons)
+  Switch: 'switch',
+
   // Device Information (read-only, set during registration)
   BasicInformation: 'basicInformation',
   BridgedDeviceBasicInformation: 'bridgedDeviceBasicInformation',

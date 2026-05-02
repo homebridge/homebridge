@@ -52,6 +52,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - fix: bind MdnsService to bridge.bind interface (#3920) (@gtalusan)
   - fix: matter fix [15] - various enhancements
   - fix: Add `GenericSwitch` to `api.matter.deviceTypes` (#3923) (@donavanbecker)
+  - refactor(matter): namespace switch helper as api.matter.switch.emit
 
 ### Changed
 

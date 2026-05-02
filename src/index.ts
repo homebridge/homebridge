@@ -158,6 +158,11 @@ export type {
 export { ChildMatterMessageType, MatterBridgeStatus } from './matter/sharedTypes.js'
 
 /**
+ * Matter device-type helper APIs (nested under `api.matter?.<helper>`)
+ */
+export type { SwitchAPI } from './matter/SwitchAPI.js'
+
+/**
  * Matter accessory and configuration types
  */
 export type {

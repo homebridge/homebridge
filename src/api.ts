@@ -12,6 +12,7 @@ import type {
   MatterServer,
   MatterTypes,
 } from './matter/index.js'
+import type { SwitchAPI } from './matter/SwitchAPI.js'
 
 import { EventEmitter } from 'node:events'
 
@@ -418,6 +419,23 @@ export interface MatterAPI {
     /** Fallback for unknown/custom clusters */
     (uuid: string, cluster: string, partId?: string): Promise<Record<string, unknown> | undefined>
   }
+
+  /**
+   * Helpers for `GenericSwitch` accessories (stateless remotes and buttons).
+   *
+   * Device-type-specific helpers live under nested namespaces (e.g. `api.matter?.switch`)
+   * to keep the top-level `MatterAPI` surface focused on the generic, UUID-addressed primitives.
+   *
+   * @see {@link SwitchAPI}
+   *
+   * @example
+   * ```typescript
+   * // Simple single-button press and release
+   * await api.matter?.switch.emit(uuid, 'press')
+   * await api.matter?.switch.emit(uuid, 'release')
+   * ```
+   */
+  readonly switch: SwitchAPI
 }
 
 export interface API {

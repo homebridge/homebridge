@@ -24,6 +24,7 @@ import type { MatterBridgeManager } from './MatterBridgeManager.js'
 import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
 import { clusterNames, clusters, deviceTypes, MatterTypes } from './index.js'
+import { SwitchAPIImpl } from './SwitchAPI.js'
 
 /**
  * Type helper to access internal properties on HomebridgeAPI
@@ -87,7 +88,11 @@ class MatterAccessoryValidationError extends Error {
  * - Delegates to HomebridgeAPI for event emission and server access
  */
 export class MatterAPIImpl implements MatterAPI {
-  constructor(private readonly api: HomebridgeAPI) {}
+  readonly switch: SwitchAPIImpl
+
+  constructor(private readonly api: HomebridgeAPI) {
+    this.switch = new SwitchAPIImpl(this)
+  }
 
   /**
    * Validate a Matter accessory has required fields

@@ -584,6 +584,10 @@ describe('homebridgeAPI', () => {
         expect(matter.clusterNames.RvcOperationalState).toBe('rvcOperationalState')
         expect(matter.clusterNames.ServiceArea).toBe('serviceArea')
       })
+
+      it('should include Switch cluster name', () => {
+        expect(matter.clusterNames.Switch).toBe('switch')
+      })
     })
 
     describe('matter device types', () => {
