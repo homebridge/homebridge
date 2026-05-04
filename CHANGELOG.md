@@ -7,6 +7,11 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Changes
 
 - docs: add `CLAUDE.md` to repo
+- feat: expose `hap` flag on child bridge metadata
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.1.4`
 
 ## v2.0.0 (2026-05-04)
 

@@ -187,6 +187,7 @@ export interface ChildMetadata {
   identifier: string
   manuallyStopped: boolean
   pid?: number
+  hap?: boolean
   matterConfig?: MatterConfig
   matterIdentifier?: string
   matterSetupUri?: string
@@ -747,6 +748,7 @@ export class ChildBridgeService {
       identifier: this.identifier,
       pid: this.child?.pid,
       manuallyStopped: this.manuallyStopped,
+      hap: this.bridgeConfig.hap,
       matterConfig: this.bridgeConfig.matter,
       matterIdentifier: this.bridgeConfig.matter ? this.bridgeConfig.username : undefined,
       matterSetupUri: this.matterCommissioningInfo?.qrCode,
