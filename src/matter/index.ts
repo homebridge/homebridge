@@ -145,19 +145,9 @@ export namespace MatterRequests {
   export type SetUser = DoorLock.SetUserRequest
   export type GetUser = DoorLock.GetUserRequest
   export type ClearUser = DoorLock.ClearUserRequest
-  export type SetUserStatus = DoorLock.SetUserStatusRequest
-  export type GetUserStatus = DoorLock.GetUserStatusRequest
-  export type SetUserType = DoorLock.SetUserTypeRequest
-  export type GetUserType = DoorLock.GetUserTypeRequest
   export type SetCredential = DoorLock.SetCredentialRequest
   export type GetCredentialStatus = DoorLock.GetCredentialStatusRequest
   export type ClearCredential = DoorLock.ClearCredentialRequest
-  export type SetPinCode = DoorLock.SetPinCodeRequest
-  export type GetPinCode = DoorLock.GetPinCodeRequest
-  export type ClearPinCode = DoorLock.ClearPinCodeRequest
-  export type SetRfidCode = DoorLock.SetRfidCodeRequest
-  export type GetRfidCode = DoorLock.GetRfidCodeRequest
-  export type ClearRfidCode = DoorLock.ClearRfidCodeRequest
   export type SetWeekDaySchedule = DoorLock.SetWeekDayScheduleRequest
   export type GetWeekDaySchedule = DoorLock.GetWeekDayScheduleRequest
   export type ClearWeekDaySchedule = DoorLock.ClearWeekDayScheduleRequest
@@ -174,8 +164,6 @@ export namespace MatterRequests {
   // ============================================================================
   export type GoToLiftPercentage = WindowCovering.GoToLiftPercentageRequest
   export type GoToTiltPercentage = WindowCovering.GoToTiltPercentageRequest
-  export type GoToLiftValue = WindowCovering.GoToLiftValueRequest
-  export type GoToTiltValue = WindowCovering.GoToTiltValueRequest
 
   // ============================================================================
   // Thermostat Cluster (§9.1)
@@ -183,8 +171,6 @@ export namespace MatterRequests {
   export type SetpointRaiseLower = Thermostat.SetpointRaiseLowerRequest
   export type SetActivePreset = Thermostat.SetActivePresetRequest
   export type SetActiveSchedule = Thermostat.SetActiveScheduleRequest
-  export type GetWeeklySchedule = Thermostat.GetWeeklyScheduleRequest
-  export type SetWeeklySchedule = Thermostat.SetWeeklyScheduleRequest
 
   // ============================================================================
   // Fan Control Cluster (§4.4)
