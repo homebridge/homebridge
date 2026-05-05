@@ -596,6 +596,12 @@ export class BridgeService {
   }
 
   teardown(): void {
+    // Notify plugins first, while UPDATE_PLATFORM_ACCESSORIES is still wired
+    // up. Plugins commonly mutate accessory.context in their `shutdown`
+    // listener and call api.updatePlatformAccessories() to persist; that call
+    // becomes a no-op if listeners are removed before signalShutdown fires.
+    this.api.signalShutdown()
+
     // Remove API event listeners to prevent retention of this service after teardown.
     this.api.removeListener(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this._onRegisterPlatformAccessories)
     this.api.removeListener(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, this._onUpdatePlatformAccessories)
@@ -608,8 +614,6 @@ export class BridgeService {
     }
 
     this.saveCachedPlatformAccessoriesOnDisk()
-
-    this.api.signalShutdown()
   }
 
   private static strippingPinCode(publishInfo: PublishInfo): PublishInfo {

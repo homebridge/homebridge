@@ -10,6 +10,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat: expose `hap` flag on child bridge metadata
 - chore: dependency updates
 - fix: disable hap publishing on child bridges
+- fix: signal shutdown before detaching accessory listeners
 
 ## v2.0.0 (2026-05-04)
 
