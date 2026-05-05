@@ -245,6 +245,26 @@ describe('bridgeService', () => {
       // Re-publish the same accessory — same UUID → same advertise-address → collision
       await expect(service.handlePublishExternalAccessories([a])).rejects.toThrow(/address collision/)
     })
+
+    it('skips publishing external accessories when HAP is disabled', async () => {
+      const service = new BridgeService(
+        api,
+        pluginManager,
+        externalPortService,
+        makeBridgeOptions(),
+        makeBridgeConfig({ hap: false }),
+      )
+
+      const a = makePlatformAccessory('External-A')
+      const publishSpy = vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      await service.handlePublishExternalAccessories([a])
+
+      // Should not attempt to publish when hap is false
+      expect(publishSpy).not.toHaveBeenCalled()
+      // Should not request a port either
+      expect(externalPortService.requestPort).not.toHaveBeenCalled()
+    })
   })
 
   describe('createHAPAccessory', () => {

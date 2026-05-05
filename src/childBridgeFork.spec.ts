@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PluginType } from './api.js'
 import { ChildBridgeFork } from './childBridgeFork.js'
+import { ChildProcessMessageEventType } from './childBridgeService.js'
 
 describe('childBridgeFork - Matter Accessory Guard', () => {
   it('should not have matterManager when type is ACCESSORY even with matter config', () => {
@@ -67,6 +68,7 @@ describe('childBridgeFork - Matter Handlers', () => {
       collectAllAccessories: vi.fn(),
       getAccessoryInfo: vi.fn(),
       handleTriggerCommand: vi.fn(),
+      getMatterStatusInfo: vi.fn(() => undefined),
     }
 
     // Set the matter manager on the instance
@@ -163,6 +165,85 @@ describe('childBridgeFork - Matter Handlers', () => {
       ;(childBridgeFork as any).matterMessageHandler = undefined
 
       expect(() => childBridgeFork.handleMatterAccessoryControl(mockControlData)).not.toThrow()
+    })
+  })
+
+  describe('sendPairedStatusEvent', () => {
+    it('does not call setupURI when bridge is not published', () => {
+      const sendMessageSpy = vi.fn()
+      const setupURISpy = vi.fn(() => {
+        throw new Error('should not be called')
+      })
+
+      ;(childBridgeFork as any).sendMessage = sendMessageSpy
+      ;(childBridgeFork as any).bridgeService = {
+        bridge: {
+          setupURI: setupURISpy,
+          _accessoryInfo: undefined,
+        },
+      }
+
+      childBridgeFork.sendPairedStatusEvent()
+
+      expect(setupURISpy).not.toHaveBeenCalled()
+      expect(sendMessageSpy).toHaveBeenCalledWith(ChildProcessMessageEventType.STATUS_UPDATE, {
+        paired: null,
+        setupUri: null,
+      })
+    })
+
+    it('includes paired and setupUri when bridge is published', () => {
+      const sendMessageSpy = vi.fn()
+
+      ;(childBridgeFork as any).sendMessage = sendMessageSpy
+      ;(childBridgeFork as any).bridgeService = {
+        bridge: {
+          setupURI: vi.fn(() => 'X-HM://abc'),
+          _accessoryInfo: {
+            paired: vi.fn(() => true),
+          },
+        },
+      }
+
+      childBridgeFork.sendPairedStatusEvent()
+
+      expect(sendMessageSpy).toHaveBeenCalledWith(ChildProcessMessageEventType.STATUS_UPDATE, {
+        paired: true,
+        setupUri: 'X-HM://abc',
+      })
+    })
+
+    it('includes matter status even when HAP is unpublished', () => {
+      const sendMessageSpy = vi.fn()
+
+      ;(childBridgeFork as any).sendMessage = sendMessageSpy
+      ;(childBridgeFork as any).bridgeService = {
+        bridge: {
+          setupURI: vi.fn(() => 'X-HM://abc'),
+          _accessoryInfo: undefined,
+        },
+      }
+      ;(childBridgeFork as any).matterManager = {
+        getMatterStatusInfo: vi.fn(() => ({
+          qrCode: 'MT:ABCD',
+          manualPairingCode: '12345-67890',
+          serialNumber: 'SN-1',
+          commissioned: false,
+        })),
+      }
+
+      childBridgeFork.sendPairedStatusEvent()
+
+      expect(sendMessageSpy).toHaveBeenCalledWith(ChildProcessMessageEventType.STATUS_UPDATE, {
+        paired: null,
+        setupUri: null,
+        matter: {
+          qrCode: 'MT:ABCD',
+          manualPairingCode: '12345-67890',
+          serialNumber: 'SN-1',
+          commissioned: false,
+        },
+      })
     })
   })
 })
