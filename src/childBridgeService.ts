@@ -561,6 +561,7 @@ export class ChildBridgeService {
       model: this.bridgeConfig.model || this.homebridgeConfig.bridge.model,
       firmwareRevision: this.bridgeConfig.firmwareRevision || this.homebridgeConfig.bridge.firmwareRevision,
       serialNumber: this.bridgeConfig.serialNumber || this.bridgeConfig.username,
+      hap: this.bridgeConfig.hap,
       matter: this.bridgeConfig.matter,
     }
 

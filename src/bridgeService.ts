@@ -461,6 +461,12 @@ export class BridgeService {
   }
 
   async handlePublishExternalAccessories(accessories: PlatformAccessory[]): Promise<void> {
+    // HAP must be enabled to publish external accessories
+    if (this.bridgeConfig.hap === false) {
+      log.debug('Skipping external accessory HAP publish: HAP is disabled for this bridge (bridgeConfig.hap=false).')
+      return
+    }
+
     const accessoryPin = this.bridgeConfig.pin
 
     for (const accessory of accessories) {

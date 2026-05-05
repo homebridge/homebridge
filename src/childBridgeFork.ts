@@ -259,13 +259,13 @@ export class ChildBridgeFork {
       this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
     }
 
-    // Publish HAP only when not opted out via _bridge.hap=false. The
+    // Publish HAP only when not opted out via bridgeConfig.hap=false. The
     // protocol-enablement check in Server.validateChildBridgeConfig has
     // already guaranteed at least one of HAP or Matter is on for this bridge.
     if (this.bridgeConfig.hap !== false) {
       this.bridgeService.publishBridge()
     } else {
-      Logger.internal.info('HAP is disabled for this child bridge (_bridge.hap=false); skipping HAP publish.')
+      Logger.internal.info('HAP is disabled for this child bridge (bridgeConfig.hap=false); skipping HAP publish.')
     }
     this.api.signalFinished()
 
@@ -350,10 +350,11 @@ export class ChildBridgeFork {
   public sendPairedStatusEvent() {
     // Get Matter commissioning info if Matter is enabled
     const matterInfo = this.matterManager?.getMatterStatusInfo()
+    const isPublished = !!this.bridgeService?.bridge?._accessoryInfo
 
     this.sendMessage<ChildBridgePairedStatusEventData>(ChildProcessMessageEventType.STATUS_UPDATE, {
-      paired: this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null,
-      setupUri: this.bridgeService?.bridge?.setupURI() ?? null,
+      paired: isPublished ? (this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null) : null,
+      setupUri: isPublished ? (this.bridgeService?.bridge?.setupURI() ?? null) : null,
       // Include Matter commissioning info in unified message
       ...(matterInfo && { matter: matterInfo }),
     })
