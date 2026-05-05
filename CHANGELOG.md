@@ -10,10 +10,11 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat: expose `hap` flag on child bridge metadata
 - chore: dependency updates
 - fix: disable hap publishing on child bridges
+- fix: drop legacy request type aliases removed in matter v0.17.x
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.1.4`
+- `@homebridge/hap-nodejs` @ `v2.1.5`
 
 ## v2.0.0 (2026-05-04)
 
