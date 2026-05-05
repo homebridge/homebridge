@@ -533,12 +533,12 @@ export interface API {
    */
   isMatterEnabled: () => boolean
 
-  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
+  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void | Promise<void>) => this)
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface HomebridgeAPI {
-  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, listener: (accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM, listener: (platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, listener: (accessories: MatterAccessory[], registrationId: string) => void) => this) & ((event: InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, listener: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, listener: (accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, listener: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, listener: (accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, listener: (uuid: string, cluster: string, attributes: Record<string, any>, partId?: string) => void) => this)
+  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void | Promise<void>) => this) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, listener: (accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM, listener: (platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, listener: (accessories: MatterAccessory[], registrationId: string) => void) => this) & ((event: InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, listener: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, listener: (accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, listener: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, listener: (accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, listener: (uuid: string, cluster: string, attributes: Record<string, any>, partId?: string) => void) => this)
 
   emit: ((event: 'didFinishLaunching') => boolean) & ((event: 'shutdown') => boolean) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM, platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, accessories: MatterAccessory[], registrationId: string) => boolean) & ((event: InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[]) => boolean) & ((event: InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, accessories: MatterAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, accessories: MatterAccessory[]) => boolean) & ((event: InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, uuid: string, cluster: string, attributes: Record<string, any>, partId?: string) => boolean)
 }
@@ -673,8 +673,31 @@ export class HomebridgeAPI extends EventEmitter implements API {
     this.emit(APIEvent.DID_FINISH_LAUNCHING)
   }
 
-  signalShutdown(): void {
-    this.emit(APIEvent.SHUTDOWN)
+  async signalShutdown(): Promise<void> {
+    // Invoke shutdown listeners directly so we can collect and await any
+    // Promises returned by async handlers. This allows plugins to finish
+    // asynchronous cleanup (e.g. cancelling device subscriptions) before
+    // Homebridge removes event listeners and persists the accessory cache.
+    const listeners = this.rawListeners(APIEvent.SHUTDOWN) as (() => void | Promise<void>)[]
+    const promises: Promise<unknown>[] = []
+    for (const listener of listeners) {
+      try {
+        const result = listener()
+        if (result instanceof Promise) {
+          promises.push(result)
+        }
+      } catch (error) {
+        log.error('Plugin shutdown handler threw synchronously:', error)
+      }
+    }
+    if (promises.length > 0) {
+      const results = await Promise.allSettled(promises)
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          log.error('Plugin async shutdown handler rejected:', result.reason)
+        }
+      }
+    }
   }
 
   registerAccessory(accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void

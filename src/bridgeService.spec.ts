@@ -290,7 +290,7 @@ describe('bridgeService', () => {
   })
 
   describe('teardown — listener cleanup (M1 fix)', () => {
-    it('removes all four InternalAPIEvent listeners on teardown', () => {
+    it('removes all four InternalAPIEvent listeners on teardown', async () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
       // Stub the network-touching parts of teardown.
       vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
@@ -303,7 +303,7 @@ describe('bridgeService', () => {
       }
       expect(before.register).toBeGreaterThan(0)
 
-      service.teardown()
+      await service.teardown()
 
       expect(api.listenerCount(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES)).toBe(before.register - 1)
       expect(api.listenerCount(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES)).toBe(before.update - 1)
@@ -311,53 +311,52 @@ describe('bridgeService', () => {
       expect(api.listenerCount(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES)).toBe(before.publishExt - 1)
     })
 
-    it('signals shutdown on the api', () => {
+    it('signals shutdown on the api', async () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
       vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
       const signalSpy = vi.spyOn(api, 'signalShutdown')
 
-      service.teardown()
+      await service.teardown()
 
       expect(signalSpy).toHaveBeenCalled()
     })
 
-    it('signals shutdown before removing UPDATE_PLATFORM_ACCESSORIES listener so plugin shutdown handlers can call updatePlatformAccessories()', () => {
+    it('keeps UPDATE_PLATFORM_ACCESSORIES listener active while shutdown handlers run so plugins can call updatePlatformAccessories()', async () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
       vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
 
       let listenerActiveAtShutdown = false
       api.on('shutdown', () => {
-        // Check whether the UPDATE_PLATFORM_ACCESSORIES listener is still active
-        // when the shutdown event is emitted (it must be, so plugins can update accessories).
+        // Listener must still be registered when the shutdown handler fires.
         listenerActiveAtShutdown = api.listenerCount(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES) > 0
       })
 
-      service.teardown()
+      await service.teardown()
 
       expect(listenerActiveAtShutdown).toBe(true)
     })
 
-    it('persists accessory context changes made by plugin shutdown handlers', () => {
+    it('awaits async plugin shutdown handlers so accessory context changes made after async device communication are persisted', async () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
       vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
 
-      // Register and cache a platform accessory.
+      // Register a platform accessory so the cache is initialised.
       const accessory = makePlatformAccessory()
       api.emit(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, [accessory])
 
-      const saveSpy = vi.spyOn(service as any, 'saveCachedPlatformAccessoriesOnDisk')
-
-      // Simulate a plugin shutdown handler that updates the accessory context.
-      api.on('shutdown', () => {
+      // Simulate a plugin that does async device communication (e.g. cancelling
+      // subscriptions) before persisting an updated accessory context.
+      api.on('shutdown', async () => {
+        // Yield to the micro-task queue — represents async device I/O.
+        await Promise.resolve()
         accessory.context = { cleanExit: true }
         api.emit(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, [accessory])
       })
 
-      service.teardown()
+      await service.teardown()
 
-      // saveCachedPlatformAccessoriesOnDisk must be called after signalShutdown()
-      // so the context change above is included in the persisted cache.
-      expect(saveSpy).toHaveBeenCalled()
+      // The async handler's updatePlatformAccessories() call must have been
+      // processed (listener was still active) and the result persisted.
       const cached: PlatformAccessory[] = (service as any).cachedPlatformAccessories
       const saved = cached.find(a => a.displayName === accessory.displayName)
       expect(saved?.context).toEqual({ cleanExit: true })

@@ -418,12 +418,12 @@ export class ChildBridgeFork {
     this.matterMessageHandler?.handleMatterAccessoryControl(data)
   }
 
-  shutdown(): void {
-    this.bridgeService.teardown()
+  async shutdown(): Promise<void> {
+    await this.bridgeService.teardown()
 
     // Teardown Matter servers (main bridge and external accessories)
     if (this.matterManager) {
-      this.matterManager.teardown().catch((error: unknown) => {
+      await this.matterManager.teardown().catch((error: unknown) => {
         matterLogger.error('Error tearing down Matter manager:', error)
       })
     }
@@ -506,13 +506,22 @@ function signalHandler(signal: NodeJS.Signals, signalNum: number): void {
 
   Logger.internal.info('Got %s, shutting down child bridge process...', signal)
 
-  try {
-    childPluginFork.shutdown()
-  } catch (error: unknown) {
-    Logger.internal.error('Error during child bridge shutdown:', error)
-  }
+  // Hard-kill timer (unreffed so it doesn't prevent natural exit):
+  // force-exit after 5 seconds if teardown hangs.
+  const killTimer = setTimeout(() => process.exit(128 + signalNum), 5000).unref()
 
-  setTimeout(() => process.exit(128 + signalNum), 5000).unref()
+  // shutdown() now awaits all async plugin shutdown handlers; chain on the
+  // Promise so we exit cleanly once every plugin has finished its cleanup.
+  childPluginFork.shutdown()
+    .then(() => {
+      clearTimeout(killTimer)
+      process.exit(128 + signalNum)
+    })
+    .catch((error: unknown) => {
+      Logger.internal.error('Error during child bridge shutdown:', error)
+      clearTimeout(killTimer)
+      process.exit(128 + signalNum)
+    })
 }
 
 process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))

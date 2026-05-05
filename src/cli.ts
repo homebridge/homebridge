@@ -93,9 +93,22 @@ export default function cli(): void {
     shuttingDown = true
 
     log.info('Got %s, shutting down Homebridge...', signal)
-    setTimeout(() => process.exit(128 + signalNum), 5000)
 
-    void server.teardown()
+    // Hard-kill timer: if teardown hangs (e.g. a plugin's async shutdown handler
+    // never resolves), force-exit after 5 seconds so the process doesn't get stuck.
+    const killTimer = setTimeout(() => process.exit(128 + signalNum), 5000)
+
+    // Teardown now awaits all async plugin shutdown handlers, so we chain on the
+    // returned Promise to exit cleanly once every plugin has finished its cleanup.
+    server.teardown()
+      .then(() => {
+        clearTimeout(killTimer)
+        process.exit(128 + signalNum)
+      })
+      .catch(() => {
+        clearTimeout(killTimer)
+        process.exit(128 + signalNum)
+      })
   }
   process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))
   process.on('SIGTERM', signalHandler.bind(undefined, 'SIGTERM', 15))

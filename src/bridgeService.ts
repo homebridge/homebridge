@@ -595,12 +595,13 @@ export class BridgeService {
     })
   }
 
-  teardown(): void {
-    // Notify plugins first, while UPDATE_PLATFORM_ACCESSORIES is still wired
-    // up. Plugins commonly mutate accessory.context in their `shutdown`
-    // listener and call api.updatePlatformAccessories() to persist; that call
-    // becomes a no-op if listeners are removed before signalShutdown fires.
-    this.api.signalShutdown()
+  async teardown(): Promise<void> {
+    // Await all plugin shutdown handlers (including async ones) before removing
+    // listeners. This ensures plugins that do async device communication (e.g.
+    // cancelling subscriptions) can still call updatePlatformAccessories() after
+    // their awaits, because the UPDATE_PLATFORM_ACCESSORIES listener is still
+    // registered until signalShutdown() resolves.
+    await this.api.signalShutdown()
 
     // Remove API event listeners to prevent retention of this service after teardown.
     this.api.removeListener(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this._onRegisterPlatformAccessories)
@@ -613,8 +614,8 @@ export class BridgeService {
       void accessory._associatedHAPAccessory.unpublish()
     }
 
-    // Save after signalShutdown() so any accessory updates made by plugin shutdown
-    // handlers are included in the persisted cache.
+    // Save after all shutdown handlers have completed so every accessory-context
+    // update made during async plugin cleanup is included in the persisted cache.
     this.saveCachedPlatformAccessoriesOnDisk()
   }
 

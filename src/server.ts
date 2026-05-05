@@ -268,7 +268,7 @@ export class Server {
   }
 
   public async teardown(): Promise<void> {
-    this.bridgeService.teardown()
+    await this.bridgeService.teardown()
 
     // Teardown Matter servers (main bridge and external accessories)
     await this.matterManager?.teardown()
