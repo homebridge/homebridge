@@ -461,6 +461,12 @@ export class BridgeService {
   }
 
   async handlePublishExternalAccessories(accessories: PlatformAccessory[]): Promise<void> {
+    // HAP must be enabled to publish external accessories
+    if (this.bridgeConfig.hap === false) {
+      log.debug('Skipping external accessory HAP publish: HAP is disabled for this bridge (_bridge.hap=false).')
+      return
+    }
+
     const accessoryPin = this.bridgeConfig.pin
 
     for (const accessory of accessories) {
@@ -590,9 +596,10 @@ export class BridgeService {
   }
 
   teardown(): void {
-    // Signal shutdown first so that plugin shutdown handlers can still call
-    // updatePlatformAccessories() and have those updates processed while the
-    // UPDATE_PLATFORM_ACCESSORIES listener is still active.
+    // Notify plugins first, while UPDATE_PLATFORM_ACCESSORIES is still wired
+    // up. Plugins commonly mutate accessory.context in their `shutdown`
+    // listener and call api.updatePlatformAccessories() to persist; that call
+    // becomes a no-op if listeners are removed before signalShutdown fires.
     this.api.signalShutdown()
 
     // Remove API event listeners to prevent retention of this service after teardown.

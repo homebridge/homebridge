@@ -674,5 +674,72 @@ describe('childBridgeService', () => {
       expect(metadata.matterConfig).toBeUndefined()
       expect(metadata.matterIdentifier).toBeUndefined()
     })
+
+    it('reflects hap:false in metadata when HAP is disabled', () => {
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+      })
+      const metadata = service.getMetadata()
+      expect(metadata.hap).toBe(false)
+    })
+
+    it('reflects hap:true in metadata when HAP is explicitly enabled', () => {
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({ hap: true }),
+      })
+      const metadata = service.getMetadata()
+      expect(metadata.hap).toBe(true)
+    })
+
+    it('reflects hap as undefined in metadata when not set (defaults enabled)', () => {
+      const { service } = buildService()
+      const metadata = service.getMetadata()
+      expect(metadata.hap).toBeUndefined()
+    })
+  })
+
+  describe('loadPlugin — hap property forwarded in LOAD message', () => {
+    it('includes hap:false in LOAD bridgeConfig when HAP is disabled', () => {
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+      })
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      child.emit('message', { id: ChildProcessMessageEventType.READY })
+
+      const loadMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.LOAD)
+      expect(loadMessage).toBeDefined()
+      expect(loadMessage.data.bridgeConfig.hap).toBe(false)
+    })
+
+    it('includes hap:false alongside matter config in LOAD bridgeConfig', () => {
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+      })
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      child.emit('message', { id: ChildProcessMessageEventType.READY })
+
+      const loadMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.LOAD)
+      expect(loadMessage.data.bridgeConfig.hap).toBe(false)
+      expect(loadMessage.data.bridgeConfig.matter).toEqual({ port: 5540 })
+    })
+
+    it('does not set hap in LOAD bridgeConfig when not configured (default enabled)', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      child.emit('message', { id: ChildProcessMessageEventType.READY })
+
+      const loadMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.LOAD)
+      expect(loadMessage).toBeDefined()
+      expect(loadMessage.data.bridgeConfig.hap).toBeUndefined()
+    })
   })
 })

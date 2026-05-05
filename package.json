@@ -48,8 +48,8 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.1.4",
-    "@matter/main": "0.17.0-alpha.0-20260504-3d4995178",
+    "@homebridge/hap-nodejs": "2.1.5-beta.0",
+    "@matter/main": "0.17.0-alpha.0-20260505-f95da55d0",
     "chalk": "5.6.2",
     "commander": "14.0.3",
     "fs-extra": "11.3.4",

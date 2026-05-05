@@ -7,6 +7,11 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Changes
 
 - docs: add `CLAUDE.md` to repo
+- feat: expose `hap` flag on child bridge metadata
+- chore: dependency updates
+- fix: disable hap publishing on child bridges
+- fix: signal shutdown before detaching accessory listeners
+- fix: drop legacy request type aliases removed in matter v0.17.x
 
 ## v2.0.0 (2026-05-04)
 
