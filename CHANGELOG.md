@@ -8,6 +8,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - docs: add `CLAUDE.md` to repo
 - feat: expose `hap` flag on child bridge metadata
+- chore: dependency updates
 
 ### Homebridge Dependencies
 
