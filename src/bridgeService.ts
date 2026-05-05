@@ -144,21 +144,6 @@ export class BridgeService {
   private cachedAccessoriesFileLoaded = false
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map()
 
-  // Stored listener references so they can be removed in teardown(),
-  // matching the pattern used by MatterBridgeManager (#3915).
-  private readonly _onRegisterPlatformAccessories = (accessories: PlatformAccessory[]): void =>
-    this.handleRegisterPlatformAccessories(accessories)
-
-  private readonly _onUpdatePlatformAccessories = (accessories: PlatformAccessory[]): void =>
-    this.handleUpdatePlatformAccessories(accessories)
-
-  private readonly _onUnregisterPlatformAccessories = (accessories: PlatformAccessory[]): void =>
-    this.handleUnregisterPlatformAccessories(accessories)
-
-  private readonly _onPublishExternalAccessories = (accessories: PlatformAccessory[]): void => {
-    void this.handlePublishExternalAccessories(accessories)
-  }
-
   constructor(
     private api: HomebridgeAPI,
     private pluginManager: PluginManager,
@@ -176,10 +161,10 @@ export class BridgeService {
     // bridged accessories, like changing characteristics (i.e. flipping your lights on and off).
     this.allowInsecureAccess = this.bridgeOptions.insecureAccess || false
 
-    this.api.on(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this._onRegisterPlatformAccessories)
-    this.api.on(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, this._onUpdatePlatformAccessories)
-    this.api.on(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, this._onUnregisterPlatformAccessories)
-    this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, this._onPublishExternalAccessories)
+    this.api.on(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this.handleRegisterPlatformAccessories.bind(this))
+    this.api.on(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, this.handleUpdatePlatformAccessories.bind(this))
+    this.api.on(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, this.handleUnregisterPlatformAccessories.bind(this))
+    this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, this.handlePublishExternalAccessories.bind(this))
 
     this.bridge = new Bridge(bridgeConfig.name, uuid.generate('HomeBridge'))
     this.bridge.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, () => {
@@ -596,12 +581,6 @@ export class BridgeService {
   }
 
   teardown(): void {
-    // Remove API event listeners to prevent retention of this service after teardown.
-    this.api.removeListener(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this._onRegisterPlatformAccessories)
-    this.api.removeListener(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, this._onUpdatePlatformAccessories)
-    this.api.removeListener(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, this._onUnregisterPlatformAccessories)
-    this.api.removeListener(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, this._onPublishExternalAccessories)
-
     void this.bridge.unpublish()
     for (const accessory of this.publishedExternalAccessories.values()) {
       void accessory._associatedHAPAccessory.unpublish()
@@ -609,6 +588,11 @@ export class BridgeService {
 
     this.saveCachedPlatformAccessoriesOnDisk()
 
+    // signalShutdown fires last so plugin shutdown listeners run with the
+    // UPDATE_PLATFORM_ACCESSORIES handler still attached. Plugins may do
+    // async cleanup (e.g. cancelling subscriptions on exposed devices) and
+    // call api.updatePlatformAccessories() afterwards; that call needs the
+    // handler in place to persist any context updates to disk.
     this.api.signalShutdown()
   }
 

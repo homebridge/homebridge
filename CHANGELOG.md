@@ -11,6 +11,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - chore: dependency updates
 - fix: disable hap publishing on child bridges
 - fix: drop legacy request type aliases removed in matter v0.17.x
+- fix: keep accessory listeners attached during teardown
 
 ### Homebridge Dependencies
 

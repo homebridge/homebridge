@@ -289,8 +289,8 @@ describe('bridgeService', () => {
     })
   })
 
-  describe('teardown — listener cleanup (M1 fix)', () => {
-    it('removes all four InternalAPIEvent listeners on teardown', () => {
+  describe('teardown', () => {
+    it('keeps the four InternalAPIEvent listeners attached so plugin shutdown handlers can still persist updates', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
       // Stub the network-touching parts of teardown.
       vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
@@ -305,10 +305,15 @@ describe('bridgeService', () => {
 
       service.teardown()
 
-      expect(api.listenerCount(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES)).toBe(before.register - 1)
-      expect(api.listenerCount(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES)).toBe(before.update - 1)
-      expect(api.listenerCount(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES)).toBe(before.unregister - 1)
-      expect(api.listenerCount(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES)).toBe(before.publishExt - 1)
+      // Listeners must remain attached: plugins commonly call
+      // api.updatePlatformAccessories() from inside their `shutdown`
+      // listener (often after async cleanup), and that call relies on
+      // handleUpdatePlatformAccessories firing to write context updates
+      // to disk.
+      expect(api.listenerCount(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES)).toBe(before.register)
+      expect(api.listenerCount(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES)).toBe(before.update)
+      expect(api.listenerCount(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES)).toBe(before.unregister)
+      expect(api.listenerCount(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES)).toBe(before.publishExt)
     })
 
     it('signals shutdown on the api', () => {
@@ -319,6 +324,24 @@ describe('bridgeService', () => {
       service.teardown()
 
       expect(signalSpy).toHaveBeenCalled()
+    })
+
+    it('signals shutdown after persisting cached accessories so plugin updatePlatformAccessories calls during shutdown can still write to disk', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
+
+      const order: string[] = []
+      vi.spyOn(service, 'saveCachedPlatformAccessoriesOnDisk').mockImplementation(() => {
+        order.push('save')
+      })
+      vi.spyOn(api, 'signalShutdown').mockImplementation(() => {
+        order.push('signal')
+        return undefined as never
+      })
+
+      service.teardown()
+
+      expect(order).toEqual(['save', 'signal'])
     })
   })
 
