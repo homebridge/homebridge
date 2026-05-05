@@ -590,6 +590,11 @@ export class BridgeService {
   }
 
   teardown(): void {
+    // Signal shutdown first so that plugin shutdown handlers can still call
+    // updatePlatformAccessories() and have those updates processed while the
+    // UPDATE_PLATFORM_ACCESSORIES listener is still active.
+    this.api.signalShutdown()
+
     // Remove API event listeners to prevent retention of this service after teardown.
     this.api.removeListener(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, this._onRegisterPlatformAccessories)
     this.api.removeListener(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, this._onUpdatePlatformAccessories)
@@ -601,9 +606,9 @@ export class BridgeService {
       void accessory._associatedHAPAccessory.unpublish()
     }
 
+    // Save after signalShutdown() so any accessory updates made by plugin shutdown
+    // handlers are included in the persisted cache.
     this.saveCachedPlatformAccessoriesOnDisk()
-
-    this.api.signalShutdown()
   }
 
   private static strippingPinCode(publishInfo: PublishInfo): PublishInfo {

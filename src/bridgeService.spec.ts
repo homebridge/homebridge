@@ -300,6 +300,48 @@ describe('bridgeService', () => {
 
       expect(signalSpy).toHaveBeenCalled()
     })
+
+    it('signals shutdown before removing UPDATE_PLATFORM_ACCESSORIES listener so plugin shutdown handlers can call updatePlatformAccessories()', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
+
+      let listenerActiveAtShutdown = false
+      api.on('shutdown', () => {
+        // Check whether the UPDATE_PLATFORM_ACCESSORIES listener is still active
+        // when the shutdown event is emitted (it must be, so plugins can update accessories).
+        listenerActiveAtShutdown = api.listenerCount(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES) > 0
+      })
+
+      service.teardown()
+
+      expect(listenerActiveAtShutdown).toBe(true)
+    })
+
+    it('persists accessory context changes made by plugin shutdown handlers', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
+
+      // Register and cache a platform accessory.
+      const accessory = makePlatformAccessory()
+      api.emit(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, [accessory])
+
+      const saveSpy = vi.spyOn(service as any, 'saveCachedPlatformAccessoriesOnDisk')
+
+      // Simulate a plugin shutdown handler that updates the accessory context.
+      api.on('shutdown', () => {
+        accessory.context = { cleanExit: true }
+        api.emit(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, [accessory])
+      })
+
+      service.teardown()
+
+      // saveCachedPlatformAccessoriesOnDisk must be called after signalShutdown()
+      // so the context change above is included in the persisted cache.
+      expect(saveSpy).toHaveBeenCalled()
+      const cached: PlatformAccessory[] = (service as any).cachedPlatformAccessories
+      const saved = cached.find(a => a.displayName === accessory.displayName)
+      expect(saved?.context).toEqual({ cleanExit: true })
+    })
   })
 
   describe('printCharacteristicWriteWarning', () => {
