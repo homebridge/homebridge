@@ -131,3 +131,12 @@ export function stripVendorFromLabel(label: string | undefined, vendor: string |
     .replace(/\s+/g, ' ')
     .replace(/^[\s\-_:,]+|[\s\-_:,]+$/g, '')
 }
+
+/**
+ * Get the version of @matter/main from package.json dependencies.
+ *
+ * @returns The version string of @matter/main, or '0.0.0' if not found.
+ */
+export async function getMatterJsVersion(): Promise<string> {
+  return '0.17.0-alpha.0-20260508-96d5c3a88'
+}

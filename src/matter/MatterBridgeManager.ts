@@ -28,7 +28,7 @@ import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterServer } from './server.js'
-import { getErrorCode, normalizeBindConfig } from './utils.js'
+import { getErrorCode, getMatterJsVersion, normalizeBindConfig } from './utils.js'
 
 const log = Logger.withPrefix('Matter/MainManager')
 const COLON_RE = /:/g
@@ -161,6 +161,9 @@ export class MatterBridgeManager extends BaseMatterManager {
       // Start the Matter server
       await this.matterServer.start()
 
+      // Log Homebridge and Matter.js version info, matching child bridge log style
+      const matterJsVersion = await getMatterJsVersion()
+      log.success('Homebridge v%s (Matter.js v%s) (%s) is running on port %s.', getVersion(), matterJsVersion, this.config.bridge.name, matterPort)
       log.info('Matter server initialized for main bridge')
 
       // Inform the API that Matter is enabled

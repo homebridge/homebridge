@@ -22,7 +22,7 @@ import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterServer } from './server.js'
-import { appendUsernameSuffix, normalizeBindConfig } from './utils.js'
+import { appendUsernameSuffix, getMatterJsVersion, normalizeBindConfig } from './utils.js'
 
 const log = Logger.withPrefix('Matter/ChildManager')
 const COLON_RE = /:/g
@@ -163,7 +163,10 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * Start Matter server for child bridge
    */
   private async startMatterServer(matterConfig: MatterConfig): Promise<void> {
-    log.info(`Starting Matter server for child bridge ${this.bridgeConfig.username}`)
+    // Log Matter.js version and startup info
+    const matterJsVersion = await getMatterJsVersion()
+    log.success('Homebridge v%s (Matter.js v%s) (%s) is running on port %s.', getVersion(), matterJsVersion, this.bridgeConfig.name, matterConfig.port)
+    log.debug(`Starting Matter server for child bridge ${this.bridgeConfig.username}`)
 
     // Create Matter server with the provided configuration
     const serialNumber = this.bridgeConfig.username.replace(COLON_RE, '')

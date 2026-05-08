@@ -33,7 +33,7 @@
     "node": "^22 || ^24"
   },
   "scripts": {
-    "build": "npm run clean && tsc",
+    "build": "npm run sync-matter-version && npm run clean && tsc",
     "check": "npm install && npm outdated",
     "clean": "rimraf dist && rimraf coverage",
     "dev": "DEBUG=* ./bin/homebridge.js -D -P example-plugins/ || true",
@@ -41,7 +41,8 @@
     "lint": "eslint .",
     "lint:fix": "npm run lint -- --fix",
     "lint-docs": "typedoc --emit none --treatWarningsAsErrors",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "npm run sync-matter-version && npm run build",
+    "sync-matter-version": "node ./scripts/sync-matter-version.js",
     "postpublish": "npm run clean",
     "test": "vitest run",
     "test-coverage": "npm run test -- --coverage",
