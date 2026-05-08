@@ -438,34 +438,89 @@ export class ServerLifecycle {
   }
 
   /**
-   * Stop the Matter server
+   * Stop the Matter server.
+   *
+   * External-accessory mode runs `start()` (which registers SIGINT/SIGTERM
+   * handlers and creates the ServerNode) but defers `runServer()` until
+   * after accessory registration — between those two steps `isRunning` is
+   * still false. A check of just `isRunning` would skip cleanup and leave
+   * the process handlers + half-initialised server node leaked when a
+   * publish failure called `stop()` in its catch block. Tear down any
+   * resources we actually allocated, regardless of `isRunning`.
    */
   async stop(deps: ServerLifecycleDeps, accessories: Map<string, any>): Promise<void> {
-    if (!deps.getIsRunning()) {
-      log.debug('Matter server is not running')
+    const isRunning = deps.getIsRunning()
+    const serverNode = deps.getServerNode()
+    const hasShutdownHandler = deps.shutdownHandler != null
+
+    if (!isRunning && !serverNode && !hasShutdownHandler) {
+      log.debug('Matter server is not running and has no resources to clean up')
       return
     }
 
     deps.setIsRunning(false)
 
+    // Capture (don't immediately throw) a close() failure so we can still
+    // run cleanupHandlers, then surface it to the caller. Callers (e.g.
+    // publishExternalMatterAccessory) gate port release on stop() resolving
+    // cleanly — if close() failed, the matter.js server may still be bound to
+    // the port and the caller must see the rejection so it keeps the port
+    // reserved. The SIGINT/SIGTERM handler is deliberately left registered in
+    // that case (see cleanup) so the still-bound node keeps a shutdown hook.
+    let closeError: unknown
+
     try {
-      // Save accessory cache before shutting down
-      const cache = deps.getAccessoryCache()
-      if (cache && accessories.size > 0) {
-        await cache.save(accessories)
-        log.debug('Saved accessory cache before shutdown')
+      // Persist the accessory cache only if we actually reached the running
+      // state — an init-but-never-ran external server has no meaningful
+      // state to save.
+      if (isRunning) {
+        const cache = deps.getAccessoryCache()
+        if (cache && accessories.size > 0) {
+          await cache.save(accessories)
+          log.debug('Saved accessory cache before shutdown')
+        }
       }
 
-      const serverNode = deps.getServerNode()
       if (serverNode) {
-        await serverNode.close()
-        log.debug('ServerNode closed (all endpoints cleaned up)')
+        try {
+          await serverNode.close()
+          log.debug('ServerNode closed (all endpoints cleaned up)')
+        } catch (err) {
+          closeError = err
+          log.debug('Failed to close ServerNode (port may still be bound):', err)
+        }
       }
 
-      accessories.clear()
+      // Only drop the in-memory accessory state once the node has actually
+      // closed. When close() fails we preserve the serverNode (below) so the
+      // caller can retry stop(); clearing the map now would strand that retry
+      // with no accessory state behind the still-alive node.
+      if (!closeError) {
+        // A debounced cache save may still be armed from accessory
+        // registration (requestSave). It captured this same map by reference,
+        // so if it fired after the clear() below it would persist an empty map
+        // and wipe the external accessory's cache. Cancel it first — this must
+        // happen regardless of isRunning, because an init-but-never-ran
+        // external server still armed saves during registration yet skipped
+        // the isRunning-gated save above.
+        deps.getAccessoryCache()?.cancelPendingSave()
+        accessories.clear()
+      }
 
-      await this.cleanup(deps)
-      log.info('Matter server stopped')
+      // Always run cleanup so the cleanupHandlers fire even when close()
+      // failed. When close() failed we hold onto the serverNode reference (and
+      // keep the SIGINT/SIGTERM handler registered) so the still-bound node
+      // keeps a graceful-shutdown hook and a caller could retry stop() —
+      // otherwise cleanup would null it out and a retry would see no node and
+      // silently no-op, stranding a potentially still-bound matter.js server
+      // with no handle to close it.
+      await this.cleanup(deps, { preserveNodeReference: closeError !== undefined })
+      if (closeError) {
+        // Surface the close failure now that cleanup has run. The caller's
+        // catch sees the rejection and decides what to do about the port.
+        throw closeError
+      }
+      log.info(isRunning ? 'Matter server stopped' : 'Matter server cleaned up (initialised but never ran)')
     } catch (error) {
       log.error('Error stopping Matter server:', error)
       await errorHandler.handleError(error as Error, 'server-stop')
@@ -476,10 +531,25 @@ export class ServerLifecycle {
   }
 
   /**
-   * Cleanup resources
+   * Cleanup resources.
+   *
+   * `preserveNodeReference` is set by stop() when `serverNode.close()` failed —
+   * matter.js may still be holding the port, and dropping the reference would
+   * leave no way to retry the close. In that case the SIGINT/SIGTERM shutdown
+   * handler is also kept registered: the sole caller
+   * (ExternalMatterAccessoryPublisher) never retries stop(), so removing the
+   * handler would leave the still-bound node with no graceful-shutdown hook
+   * for the rest of the process lifetime. The cleanupHandlers are always run
+   * because they are independent of the node reference.
    */
-  async cleanup(deps: ServerLifecycleDeps): Promise<void> {
-    if (deps.shutdownHandler) {
+  async cleanup(
+    deps: ServerLifecycleDeps,
+    options: { preserveNodeReference?: boolean } = {},
+  ): Promise<void> {
+    // Keep the shutdown handler registered when we are preserving a node whose
+    // close() failed, so that orphaned (still port-bound) node is still torn
+    // down on process exit. Otherwise remove it as normal.
+    if (deps.shutdownHandler && !options.preserveNodeReference) {
       process.off('SIGINT', deps.shutdownHandler)
       process.off('SIGTERM', deps.shutdownHandler)
       deps.setShutdownHandler(null)
@@ -494,8 +564,10 @@ export class ServerLifecycle {
     }
     deps.cleanupHandlers.length = 0
 
-    deps.setServerNode(null)
-    deps.setAggregator(null)
+    if (!options.preserveNodeReference) {
+      deps.setServerNode(null)
+      deps.setAggregator(null)
+    }
     deps.setIsRunning(false)
   }
 }

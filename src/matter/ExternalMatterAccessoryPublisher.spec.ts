@@ -302,6 +302,37 @@ describe('externalMatterAccessoryPublisher', () => {
         expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledOnce()
         expect(mockMatterServer.runServer).toHaveBeenCalledOnce()
       })
+
+      it('stops the half-started server when registerPlatformAccessories rejects', async () => {
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.registerPlatformAccessories.mockRejectedValueOnce(new Error('register failed'))
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('register failed')
+
+        // Started → must be stopped to release SIGINT/SIGTERM handlers and the
+        // mDNS responder. runServer was never reached.
+        expect(mockMatterServer.start).toHaveBeenCalledOnce()
+        expect(mockMatterServer.stop).toHaveBeenCalledOnce()
+        expect(mockMatterServer.runServer).not.toHaveBeenCalled()
+      })
+
+      it('stops the half-started server when runServer rejects', async () => {
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.runServer.mockRejectedValueOnce(new Error('run failed'))
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
+
+        expect(mockMatterServer.stop).toHaveBeenCalledOnce()
+      })
+
+      it('does not call stop when start itself fails (nothing to tear down)', async () => {
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.start.mockRejectedValueOnce(new Error('start failed'))
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('start failed')
+
+        expect(mockMatterServer.stop).not.toHaveBeenCalled()
+      })
     })
 
     describe('success path', () => {

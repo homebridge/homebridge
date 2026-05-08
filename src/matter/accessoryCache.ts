@@ -155,6 +155,26 @@ export class MatterAccessoryCache {
   }
 
   /**
+   * Cancel any pending debounced save without writing.
+   *
+   * A debounced save captures the live accessories map by reference. If a
+   * timer is still armed when the owning server tears down and clears that
+   * map, the timer would later fire and persist an empty map — wiping the
+   * cache. Callers that are about to clear the map (e.g. ServerLifecycle.stop)
+   * must cancel first.
+   *
+   * @returns true if a pending save was cancelled, false if none was armed
+   */
+  cancelPendingSave(): boolean {
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer)
+      this.saveDebounceTimer = null
+      return true
+    }
+    return false
+  }
+
+  /**
    * Save accessories to cache immediately (serialized to prevent concurrent write conflicts)
    * Uses a queue pattern to ensure saves are truly serialized even when called concurrently
    * Use this for shutdown/critical operations that need immediate persistence

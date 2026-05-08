@@ -8,6 +8,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - chore: add past release deprecation workflow (#3940)
 - fix: normalise main bridge username to uppercase before MAC validation
+- fix(matter): clean up half-started external Matter server on publish failure
 
 ### Homebridge Dependencies
 

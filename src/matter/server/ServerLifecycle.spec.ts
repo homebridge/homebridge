@@ -192,7 +192,7 @@ function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLif
     } as unknown as ServerLifecycleDeps['commissioningManager'],
     fabricManager: {} as ServerLifecycleDeps['fabricManager'],
     getCommissioningDeps: vi.fn(() => ({}) as ReturnType<ServerLifecycleDeps['getCommissioningDeps']>),
-    getAccessoryCache: vi.fn(() => ({ load: vi.fn(async () => new Map()) }) as unknown as ReturnType<ServerLifecycleDeps['getAccessoryCache']>),
+    getAccessoryCache: vi.fn(() => ({ load: vi.fn(async () => new Map()), cancelPendingSave: vi.fn() }) as unknown as ReturnType<ServerLifecycleDeps['getAccessoryCache']>),
     setAccessoryCache: vi.fn(),
     setServerNode: vi.fn((n) => {
       serverNode = n
@@ -425,5 +425,227 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
       const networkVars = sharedVarsState.store.network as Record<string, unknown> | undefined
       expect(networkVars?.interface).toBeUndefined()
     })
+  })
+})
+
+describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+
+  beforeEach(() => {
+    lifecycle = new ServerLifecycle()
+  })
+
+  it('still runs full cleanup when serverNode + shutdownHandler are set but isRunning is false', async () => {
+    // Models the external-accessory window between start() and runServer():
+    // matter.js handlers are registered and the ServerNode is created, but
+    // isRunning is still false. A naive stop() that returns on !isRunning
+    // would leak the handlers — these assertions pin the new behaviour.
+    const close = vi.fn(async () => {})
+    const setServerNode = vi.fn()
+    const setShutdownHandler = vi.fn()
+    const cleanupHandler = vi.fn(async () => {})
+    const shutdownHandler = vi.fn(async () => {})
+
+    let serverNode: unknown = { close }
+    let running = false
+
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => serverNode as never),
+      setServerNode: vi.fn((n) => {
+        serverNode = n
+      }).mockImplementation(setServerNode),
+      getIsRunning: vi.fn(() => running),
+      setIsRunning: vi.fn((v) => {
+        running = v
+      }),
+      shutdownHandler,
+      setShutdownHandler,
+      cleanupHandlers: [cleanupHandler],
+    })
+
+    await lifecycle.stop(deps, new Map())
+
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(cleanupHandler).toHaveBeenCalledTimes(1)
+    expect(setShutdownHandler).toHaveBeenCalledWith(null)
+    // cleanup() nulls out the serverNode reference so the next stop() is a no-op.
+    expect(setServerNode).toHaveBeenCalledWith(null)
+  })
+
+  it('runs cleanup handlers then rethrows when serverNode.close() throws', async () => {
+    // A never-ran ServerNode may throw on close(). Three requirements:
+    //   1. cleanupHandlers must still run so process-level state is released.
+    //      The SIGINT/SIGTERM handler is deliberately KEPT (see the dedicated
+    //      test below) so the still-bound node retains a shutdown hook.
+    //   2. stop() must reject so the caller knows the port may still be
+    //      bound — `publishExternalMatterAccessory` gates port release on
+    //      stop() resolving cleanly, and a swallowed close error would
+    //      silently free a port the matter.js server is still holding.
+    //   3. The serverNode reference must be preserved so a caller that
+    //      retries stop() has a handle to close again. Nulling it here
+    //      would make the retry skip the close branch entirely and leave
+    //      the matter.js server stranded with no way to address it.
+    const close = vi.fn(async () => {
+      throw new Error('close failed')
+    })
+    const cleanupHandler = vi.fn(async () => {})
+    const setShutdownHandler = vi.fn()
+    const setServerNode = vi.fn()
+    const setAggregator = vi.fn()
+    const shutdownHandler = vi.fn(async () => {})
+
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => ({ close }) as never),
+      setServerNode,
+      setAggregator,
+      getIsRunning: vi.fn(() => false),
+      shutdownHandler,
+      setShutdownHandler,
+      cleanupHandlers: [cleanupHandler],
+    })
+
+    await expect(lifecycle.stop(deps, new Map())).rejects.toThrow('close failed')
+
+    expect(cleanupHandler).toHaveBeenCalledTimes(1)
+    // The shutdown handler is preserved (not nulled) so the orphaned node
+    // still tears down on process exit.
+    expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
+    // Reference preservation: we did NOT null out serverNode or aggregator.
+    expect(setServerNode).not.toHaveBeenCalledWith(null)
+    expect(setAggregator).not.toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the SIGINT/SIGTERM shutdown handler registered when close() fails (#3944)', async () => {
+    // When close() fails the node may still be bound to its port. The sole
+    // caller (ExternalMatterAccessoryPublisher) never retries stop(), so if
+    // cleanup removed the process shutdown handler the orphaned node would be
+    // left with no graceful-shutdown hook. cleanup() must therefore leave the
+    // SIGINT/SIGTERM handler in place while close() failed.
+    const offSpy = vi.spyOn(process, 'off')
+    try {
+      const close = vi.fn(async () => {
+        throw new Error('close failed')
+      })
+      const setShutdownHandler = vi.fn()
+      const shutdownHandler = vi.fn(async () => {})
+
+      const deps = createMockDeps({
+        getServerNode: vi.fn(() => ({ close }) as never),
+        getIsRunning: vi.fn(() => false),
+        shutdownHandler,
+        setShutdownHandler,
+        cleanupHandlers: [],
+      })
+
+      await expect(lifecycle.stop(deps, new Map())).rejects.toThrow('close failed')
+
+      // The handler was neither detached from the process nor cleared.
+      expect(offSpy).not.toHaveBeenCalledWith('SIGINT', shutdownHandler)
+      expect(offSpy).not.toHaveBeenCalledWith('SIGTERM', shutdownHandler)
+      expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
+    } finally {
+      offSpy.mockRestore()
+    }
+  })
+
+  it('cancels a pending debounced cache save before clearing the map (#3944)', async () => {
+    // A debounced save armed during registration captures the live accessory
+    // map by reference. If stop() clears the map without cancelling it first,
+    // the timer fires later and persists an empty map — wiping the external
+    // accessory's cache. stop() must cancel it regardless of isRunning.
+    const close = vi.fn(async () => {})
+    const cancelPendingSave = vi.fn(() => true)
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => ({ close }) as never),
+      getIsRunning: vi.fn(() => false), // init-but-never-ran external server
+      getAccessoryCache: vi.fn(() => ({ cancelPendingSave }) as never),
+    })
+    const accessories = new Map<string, any>([['uuid-1', { UUID: 'uuid-1' }]])
+
+    await lifecycle.stop(deps, accessories as never)
+
+    expect(cancelPendingSave).toHaveBeenCalledTimes(1)
+    expect(accessories.size).toBe(0)
+  })
+
+  it('preserves the accessory map when close() fails so a retry has its state', async () => {
+    // The serverNode is preserved for a retry (above); the accessory state
+    // behind it must be preserved too, otherwise the retry's node has nothing.
+    const close = vi.fn(async () => {
+      throw new Error('close failed')
+    })
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => ({ close }) as never),
+      getIsRunning: vi.fn(() => false),
+    })
+    const accessories = new Map<string, any>([['uuid-1', { UUID: 'uuid-1' }]])
+
+    await expect(lifecycle.stop(deps, accessories as never)).rejects.toThrow('close failed')
+
+    expect(accessories.size).toBe(1) // not cleared while the node may still be alive
+  })
+
+  it('clears the accessory map once close() succeeds', async () => {
+    const close = vi.fn(async () => {})
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => ({ close }) as never),
+      getIsRunning: vi.fn(() => false),
+    })
+    const accessories = new Map<string, any>([['uuid-1', { UUID: 'uuid-1' }]])
+
+    await lifecycle.stop(deps, accessories as never)
+
+    expect(accessories.size).toBe(0) // cleared after a clean close
+  })
+
+  it('lets a retry of stop() try close() again after the first close failed', async () => {
+    // End-to-end of the preservation contract: the first stop() rejects
+    // and leaves the serverNode reference in place; a follow-up stop()
+    // must see that reference and have a second attempt at close().
+    let attempt = 0
+    const close = vi.fn(async () => {
+      attempt += 1
+      if (attempt === 1) {
+        throw new Error('close failed')
+      }
+      // second attempt resolves cleanly
+    })
+    let serverNode: unknown = { close }
+    let running = false
+
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => serverNode as never),
+      setServerNode: vi.fn((n) => {
+        serverNode = n
+      }),
+      getIsRunning: vi.fn(() => running),
+      setIsRunning: vi.fn((v) => {
+        running = v
+      }),
+      shutdownHandler: vi.fn(async () => {}) as never,
+      cleanupHandlers: [],
+    })
+
+    await expect(lifecycle.stop(deps, new Map())).rejects.toThrow('close failed')
+    expect(close).toHaveBeenCalledTimes(1)
+    // Reference survived the first stop() — retry can still find it.
+    expect(serverNode).not.toBeNull()
+
+    // Second stop() — close succeeds, reference is nulled the normal way.
+    await expect(lifecycle.stop(deps, new Map())).resolves.toBeUndefined()
+    expect(close).toHaveBeenCalledTimes(2)
+    expect(serverNode).toBeNull()
+  })
+
+  it('still returns early when neither running nor any resources are set up', async () => {
+    // Multiple stop() calls must remain idempotent — once cleanup has run
+    // and nulled everything out, a subsequent stop() should be a no-op.
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => null),
+      getIsRunning: vi.fn(() => false),
+      shutdownHandler: null,
+    })
+
+    await expect(lifecycle.stop(deps, new Map())).resolves.toBeUndefined()
   })
 })

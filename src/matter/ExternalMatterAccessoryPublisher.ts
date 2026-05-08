@@ -103,17 +103,34 @@ export async function publishExternalMatterAccessory(
     networkInterfaces: context.networkInterfaces,
   })
 
-  // Start the Matter server (but don't run it yet due to externalAccessory mode)
-  await matterServer.start()
+  let started = false
+  try {
+    // Start the Matter server (but don't run it yet due to externalAccessory mode)
+    await matterServer.start()
+    started = true
 
-  // Get plugin identifier from accessory
-  const pluginIdentifier = accessory._associatedPlugin || 'unknown'
+    // Get plugin identifier from accessory
+    const pluginIdentifier = accessory._associatedPlugin || 'unknown'
 
-  // Register the accessory to this dedicated server
-  await matterServer.registerPlatformAccessories(pluginIdentifier, 'ExternalMatter', [accessory])
+    // Register the accessory to this dedicated server
+    await matterServer.registerPlatformAccessories(pluginIdentifier, 'ExternalMatter', [accessory])
 
-  // Now run the server with the device already attached (required for external accessories)
-  await matterServer.runServer()
+    // Now run the server with the device already attached (required for external accessories)
+    await matterServer.runServer()
+  } catch (error) {
+    // Tear down the half-started server so we don't leak SIGINT/SIGTERM
+    // handlers, an open mDNS responder, and the matter.js event loop. The
+    // port allocation stays cached on the allocator (no release API), but at
+    // least the heavyweight resources are reclaimed.
+    if (started) {
+      try {
+        await matterServer.stop()
+      } catch (stopError) {
+        log.debug(`Failed to stop partially-started Matter server for ${accessory.displayName}:`, stopError)
+      }
+    }
+    throw error
+  }
 
   log.info(`✓ External Matter accessory published: ${accessory.displayName} on port ${port} (bridge ${advertiseAddress})`)
 
