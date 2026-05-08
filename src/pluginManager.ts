@@ -96,12 +96,38 @@ export class PluginManager {
 
       this.strictPluginResolution = options.strictPluginResolution || false
 
-      this.activePlugins = options.activePlugins
-      this.disabledPlugins = Array.isArray(options.disabledPlugins) ? options.disabledPlugins : undefined
+      // Both lists must be arrays — a stray string here turns later
+      // `includes(...)` calls into substring matches against the user's
+      // typo, producing surprising allow/block results. Warn on a non-array
+      // value (e.g. `"plugins": "homebridge-foo"`) so the user notices the
+      // typo rather than silently getting the "load every plugin" fallback.
+      this.activePlugins = PluginManager.coerceIdentifierList(options.activePlugins, 'plugins')
+      this.disabledPlugins = PluginManager.coerceIdentifierList(options.disabledPlugins, 'disabledPlugins')
     }
 
     this.api.on(InternalAPIEvent.REGISTER_ACCESSORY, this.handleRegisterAccessory.bind(this))
     this.api.on(InternalAPIEvent.REGISTER_PLATFORM, this.handleRegisterPlatform.bind(this))
+  }
+
+  /**
+   * Coerce an options value to a `PluginIdentifier[]` or undefined.
+   * Used for `activePlugins` and `disabledPlugins`: a stray string would
+   * otherwise pass through and turn later `.includes(pluginIdentifier)`
+   * calls into substring matches. Emits a warning so the typo isn't
+   * silently swallowed into the "load everything" fallback.
+   *
+   * Exposed so tests can exercise the warning path without standing up a
+   * full PluginManager.
+   */
+  public static coerceIdentifierList(value: unknown, fieldName: string): PluginIdentifier[] | undefined {
+    if (value === undefined || value === null) {
+      return undefined
+    }
+    if (Array.isArray(value)) {
+      return value as PluginIdentifier[]
+    }
+    log.warn(`config.${fieldName} must be an array of plugin identifiers; got ${typeof value} — ignoring this setting.`)
+    return undefined
   }
 
   public static isQualifiedPluginIdentifier(identifier: string): boolean {

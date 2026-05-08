@@ -10,6 +10,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: normalise main bridge username to uppercase before MAC validation
 - fix(matter): clean up half-started external Matter server on publish failure
 - fix: tolerate missing platforms/accessories arrays in refreshConfig
+- fix: defensively validate activePlugins is an array
 
 ### Homebridge Dependencies
 
