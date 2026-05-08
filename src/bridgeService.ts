@@ -533,16 +533,36 @@ export class BridgeService {
     }
 
     const hapAccessories = accessories.map((accessory) => {
-      // Check for UUID collision with existing bridged accessories
-      const existingAccessory = this.cachedPlatformAccessories.find(
-        cached => cached._associatedHAPAccessory.UUID === accessory._associatedHAPAccessory.UUID,
+      const newUUID = accessory._associatedHAPAccessory.UUID
+
+      // Check for UUID collision against already-cached platform accessories.
+      const cachedCollision = this.cachedPlatformAccessories.find(
+        cached => cached._associatedHAPAccessory.UUID === newUUID,
       )
-      if (existingAccessory) {
+      if (cachedCollision) {
         log.warn(
           'Accessory \'%s\' has the same UUID as existing accessory \'%s\' (UUID: %s). Skipping duplicate.',
           accessory.displayName,
-          existingAccessory.displayName,
-          accessory._associatedHAPAccessory.UUID,
+          cachedCollision.displayName,
+          newUUID,
+        )
+        return undefined
+      }
+
+      // Also check against accessories that came in via the legacy
+      // (static / accessories[]) load path — they live directly on the
+      // bridge, not in cachedPlatformAccessories. Without this check the
+      // collision would only surface as a hard throw deep inside HAP-NodeJS
+      // at addBridgedAccessories time.
+      const bridgedCollision = this.bridge.bridgedAccessories.find(
+        bridged => bridged.UUID === newUUID,
+      )
+      if (bridgedCollision) {
+        log.warn(
+          'Accessory \'%s\' has the same UUID as existing bridged accessory \'%s\' (UUID: %s). Skipping duplicate.',
+          accessory.displayName,
+          bridgedCollision.displayName,
+          newUUID,
         )
         return undefined
       }

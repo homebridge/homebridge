@@ -169,6 +169,34 @@ describe('bridgeService', () => {
       )
       expect(warned).toBe(true)
     })
+
+    it('also rejects collisions with accessories already on the bridge from the legacy load path', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const addBridgedAccessoriesSpy = vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+      // Simulate an accessory already on the bridge — the legacy
+      // \`config.accessories[]\` flow adds via \`addBridgedAccessory\` directly,
+      // so it lives on \`bridge.bridgedAccessories\` but not in the cache map.
+      const staticAccessory = makePlatformAccessory('Static')
+      ;(service.bridge as any).bridgedAccessories = [staticAccessory._associatedHAPAccessory]
+
+      const dynamic = makePlatformAccessory('Dynamic')
+      ;(dynamic as any)._associatedHAPAccessory.UUID = staticAccessory._associatedHAPAccessory.UUID
+      ;(dynamic as any).UUID = staticAccessory._associatedHAPAccessory.UUID
+
+      service.handleRegisterPlatformAccessories([dynamic])
+
+      // Filtered out before reaching addBridgedAccessories (which is what
+      // threw deep in HAP-NodeJS before the fix).
+      expect(addBridgedAccessoriesSpy).toHaveBeenCalledTimes(1)
+      const passed = addBridgedAccessoriesSpy.mock.calls[0][0] as Accessory[]
+      expect(passed).toHaveLength(0)
+      const warned = warnSpy.mock.calls.some(call =>
+        typeof call[0] === 'string' && call[0].includes('existing bridged accessory'),
+      )
+      expect(warned).toBe(true)
+    })
   })
 
   describe('handleUpdatePlatformAccessories', () => {
