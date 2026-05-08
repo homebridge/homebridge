@@ -51,7 +51,7 @@ describe('cli', () => {
     })
 
     fakeTimer = { unref: vi.fn() }
-    setTimeoutSpy = vi.spyOn(global, 'setTimeout').mockImplementation(() => fakeTimer as any)
+    setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => fakeTimer as any)
   })
 
   afterEach(() => {

@@ -32,6 +32,11 @@ import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
 
+// HAP specifies QR error-correction level M or higher for ECC. Set once at
+// module load — qrcode-terminal stores this on the (process-global) module,
+// so re-setting it on every printSetupInfo call was redundant.
+qrcode.setErrorLevel('M')
+
 const log = Logger.internal
 const matterLogger = Logger.withPrefix('Matter/MainManager')
 
@@ -1231,7 +1236,6 @@ export class Server {
 
     if (!this.options.hideQRCode) {
       console.log('Scan this code with your HomeKit app on your iOS device to pair with Homebridge:')
-      qrcode.setErrorLevel('M') // HAP specifies level M or higher for ECC
       qrcode.generate(this.bridgeService.bridge.setupURI())
       console.log('Or enter this code with your HomeKit app on your iOS device to pair with Homebridge:')
     } else {

@@ -105,6 +105,7 @@ describe('pluginManager', () => {
     it('passes process.env first then overrides the silencing keys', async () => {
       // Smoke through a fresh module import so we can intercept execSync.
       vi.resetModules()
+      const { Buffer } = await import('node:buffer')
       const execMock = vi.fn(() => Buffer.from('/usr/local/lib/node_modules', 'utf8'))
       // The bare vi.fn() infers a zero-arg call signature, so mock.calls is
       // typed as empty tuples. Cast to the (command, options) shape we actually

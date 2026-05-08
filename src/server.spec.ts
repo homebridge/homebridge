@@ -695,4 +695,36 @@ describe('server', () => {
       expect((ack![1] as any).data).toMatchObject({ success: true, alreadyStopped: true })
     })
   })
+
+  describe('printSetupInfo (QR error level hoisted to module load)', () => {
+    it('does not call qrcode.setErrorLevel from printSetupInfo (already set at module load)', async () => {
+      const qrcodeModule = await import('qrcode-terminal')
+      const qrcode = (qrcodeModule as any).default ?? qrcodeModule
+      const setErrorLevelSpy = vi.spyOn(qrcode, 'setErrorLevel')
+      const generateSpy = vi.spyOn(qrcode, 'generate').mockImplementation(() => {})
+
+      try {
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: false, // exercise the QR-code branch
+        })
+        // The bridge isn't published in this unit test, so stub setupURI to
+        // bypass the "not published" guard inside HAP-NodeJS.
+        const bridge = (server as any).bridgeService.bridge
+        vi.spyOn(bridge, 'setupURI').mockReturnValue('X-HM://0023ABCD-fake-setup-uri')
+
+        // Reach into the private printSetupInfo via cast.
+        ;(server as any).printSetupInfo('123-45-678')
+
+        // setErrorLevel should not have been called by printSetupInfo —
+        // the hoisted module-load call is what set it.
+        expect(setErrorLevelSpy).not.toHaveBeenCalled()
+        // But generate should have been invoked once.
+        expect(generateSpy).toHaveBeenCalledTimes(1)
+      } finally {
+        setErrorLevelSpy.mockRestore()
+        generateSpy.mockRestore()
+      }
+    })
+  })
 })

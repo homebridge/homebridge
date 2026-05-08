@@ -12,6 +12,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(cli): unref shutdown fallback timer so process exits promptly
 - fix: clear currentInitializingPlugin once each initializer settles
 - fix: keep npm-prefix lookup quiet when user has noisy npm env vars
+- fix: hoist QR-code error level out of printSetupInfo
 
 ### Homebridge Dependencies
 
