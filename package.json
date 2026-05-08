@@ -49,11 +49,11 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.1.5",
-    "@matter/main": "0.17.0-alpha.0-20260505-f95da55d0",
+    "@homebridge/hap-nodejs": "2.1.6",
+    "@matter/main": "0.17.0-alpha.0-20260508-96d5c3a88",
     "chalk": "5.6.2",
     "commander": "14.0.3",
-    "fs-extra": "11.3.4",
+    "fs-extra": "11.3.5",
     "qrcode-terminal": "0.12.0",
     "semver": "7.7.4",
     "source-map-support": "0.5.21"
@@ -63,7 +63,7 @@
     "@prettier/plugin-xml": "^3.4.2",
     "@types/debug": "^4.1.13",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.6.2",
     "@types/semver": "^7.7.1",
     "@types/source-map-support": "^0.5.10",
     "@vitest/coverage-v8": "^4.1.5",
