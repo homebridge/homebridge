@@ -612,6 +612,23 @@ describe('bridgeService', () => {
       const publishInfo = publishSpy.mock.calls[0][0] as any
       expect(publishInfo.setupID).toBeUndefined()
     })
+
+    it('logs an error when bridge.publish() rejects (e.g. mDNS bring-up failure)', async () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      vi.spyOn(service.bridge, 'publish').mockRejectedValue(new Error('mDNS port already in use'))
+
+      service.publishBridge()
+      // Let the rejected promise reach its catch handler.
+      await new Promise(resolve => setImmediate(resolve))
+
+      const loggedTheFailure = errorSpy.mock.calls.some(call =>
+        typeof call[0] === 'string'
+        && call[0].includes('Failed to publish bridge')
+        && call.some(arg => typeof arg === 'string' && arg.includes('mDNS port already in use')),
+      )
+      expect(loggedTheFailure).toBe(true)
+    })
   })
 
   describe('isHapConfigEnabled', () => {

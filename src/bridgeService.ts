@@ -363,7 +363,14 @@ export class BridgeService {
     }
 
     log.debug('Publishing bridge accessory (name: %s, publishInfo: %o).', this.bridge.displayName, BridgeService.strippingPinCode(publishInfo))
-    void this.bridge.publish(publishInfo, this.allowInsecureAccess)
+    // bridge.publish() returns a promise that can reject (e.g. mDNS
+    // bring-up failure). Surface those rejections — fire-and-forget swallowed
+    // them silently, so a failed publish only manifested as the bridge never
+    // appearing in HomeKit with no log explanation.
+    this.bridge.publish(publishInfo, this.allowInsecureAccess).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('Failed to publish bridge accessory \'%s\': %s', this.bridge.displayName, message)
+    })
   }
 
   /**
@@ -677,7 +684,10 @@ export class BridgeService {
       }
 
       log.debug('Publishing external accessory (name: %s, publishInfo: %o).', hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo))
-      void hapAccessory.publish(publishInfo, this.allowInsecureAccess)
+      hapAccessory.publish(publishInfo, this.allowInsecureAccess).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        log.error('Failed to publish external accessory \'%s\': %s', hapAccessory.displayName, message)
+      })
     }
 
     this.saveExternalAccessoriesMetadataOnDisk()
