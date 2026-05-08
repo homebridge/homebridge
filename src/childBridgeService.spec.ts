@@ -530,6 +530,33 @@ describe('childBridgeService', () => {
     })
   })
 
+  describe('teardown — restart vs. stop semantics', () => {
+    it('keeps the api shutdown listener attached when teardown is part of a restart', () => {
+      const { service, api } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+
+      const before = api.listenerCount('shutdown')
+      // restartChildBridge -> teardown(), but neither shuttingDown nor
+      // manuallyStopped are set. The listener must survive so a later
+      // api shutdown still tears the new child down.
+      service.restartChildBridge()
+
+      expect(api.listenerCount('shutdown')).toBe(before)
+    })
+
+    it('removes the api shutdown listener when the service is manually stopped', () => {
+      const { service, api } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+
+      const before = api.listenerCount('shutdown')
+      service.stopChildBridge()
+
+      expect(api.listenerCount('shutdown')).toBe(before - 1)
+    })
+  })
+
   describe('stopChildBridge', () => {
     it('clears any scheduled restart and marks manuallyStopped', () => {
       vi.useFakeTimers()

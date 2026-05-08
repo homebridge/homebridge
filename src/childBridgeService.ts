@@ -688,9 +688,14 @@ export class ChildBridgeService {
    * does not exit within 10 seconds.
    */
   private teardown(): void {
-    // Remove the api shutdown listener so this service can be GC'd.
-    this.api.removeListener('shutdown', this._onApiShutdown)
-    this.api.setMaxListeners(Math.max(0, this.api.getMaxListeners() - 1))
+    // Only release the api shutdown listener when the service itself is going
+    // away (manual stop or parent shutdown). `restartChildBridge` also calls
+    // teardown(), but the service stays alive across a restart — dropping the
+    // listener there orphans the new child from the parent's shutdown signal.
+    if (this.shuttingDown || this.manuallyStopped) {
+      this.api.removeListener('shutdown', this._onApiShutdown)
+      this.api.setMaxListeners(Math.max(0, this.api.getMaxListeners() - 1))
+    }
 
     if (this.child && this.child.connected) {
       this.bridgeStatus = ChildBridgeStatus.DOWN
