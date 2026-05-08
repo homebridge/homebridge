@@ -1,9 +1,47 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import process from 'node:process'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PluginType } from './api.js'
 import { ChildBridgeFork } from './childBridgeFork.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { Logger } from './logger.js'
+
+describe('childBridgeFork — parent disconnect handling', () => {
+  let onSpy: any
+  let setIntervalSpy: any
+  let registered: Record<string, any[]>
+
+  beforeEach(() => {
+    registered = {}
+    onSpy = vi.spyOn(process, 'on').mockImplementation((event: any, handler: any) => {
+      registered[event] = registered[event] || []
+      registered[event].push(handler)
+      return process
+    })
+    setIntervalSpy = vi.spyOn(globalThis, 'setInterval').mockImplementation((() => 0 as any))
+  })
+
+  afterEach(() => {
+    onSpy.mockRestore()
+    setIntervalSpy.mockRestore()
+    vi.resetModules()
+  })
+
+  it('registers a process.on("disconnect") listener (instead of polling setInterval)', async () => {
+    vi.resetModules()
+    // Fresh import so the module-level setup re-runs against our spies.
+    await import('./childBridgeFork.js')
+
+    expect(registered.disconnect).toBeDefined()
+    expect(registered.disconnect.length).toBeGreaterThan(0)
+
+    // The previous implementation polled \`process.connected\` every 5 seconds.
+    // No 5000ms-interval poll should be scheduled now.
+    const fiveSecondPolls = setIntervalSpy.mock.calls.filter(([, ms]: any[]) => ms === 5000)
+    expect(fiveSecondPolls).toHaveLength(0)
+  })
+})
 
 describe('childBridgeFork - Matter Accessory Guard', () => {
   it('should not have matterManager when type is ACCESSORY even with matter config', () => {

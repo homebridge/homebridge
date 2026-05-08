@@ -559,11 +559,13 @@ process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))
 process.on('SIGTERM', signalHandler.bind(undefined, 'SIGTERM', 15))
 
 /**
- * Ensure orphaned processes are cleaned up
+ * Ensure orphaned processes are cleaned up. The parent IPC channel emits
+ * `disconnect` immediately when it closes — listen for that instead of
+ * polling `process.connected` every 5 seconds, so a child whose parent
+ * crashed exits without a multi-second delay (and we burn no idle ticks
+ * in the steady state).
  */
-setInterval(() => {
-  if (!process.connected) {
-    Logger.internal.info('Parent process not connected, terminating process...')
-    process.exit(1)
-  }
-}, 5000)
+process.on('disconnect', () => {
+  Logger.internal.info('Parent process disconnected, terminating process...')
+  process.exit(1)
+})
