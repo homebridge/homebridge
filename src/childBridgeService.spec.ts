@@ -620,6 +620,36 @@ describe('childBridgeService', () => {
 
       expect(mockLog.error).toHaveBeenCalled()
     })
+
+    it('tolerates a config file with no platforms key (PLATFORM type)', async () => {
+      const { service } = buildService({ identifier: 'TestPlatform' })
+      service.addConfig({ platform: 'TestPlatform', name: 'Original' } as any)
+      const mockLog = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn(), log: vi.fn() }
+      ;(service as any).log = Object.assign(vi.fn(), mockLog)
+      // Minimal config with no platforms or accessories at all — used to throw
+      // "Cannot read properties of undefined (reading 'length')" via the
+      // optional-chained filter.
+      ;(fs.readJson as any).mockResolvedValueOnce({ bridge: { username: '00:00:00:00:00:00' } })
+
+      await service.refreshConfig()
+
+      // Falls back to existing config + warns, not the unhelpful TypeError.
+      expect(mockLog.warn).toHaveBeenCalled()
+      expect(mockLog.error).not.toHaveBeenCalled()
+    })
+
+    it('tolerates a config file with no accessories key (ACCESSORY type)', async () => {
+      const { service } = buildService({ type: PluginType.ACCESSORY, identifier: 'TestAccessory' })
+      service.addConfig({ accessory: 'TestAccessory', name: 'Original' } as any)
+      const mockLog = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn(), log: vi.fn() }
+      ;(service as any).log = Object.assign(vi.fn(), mockLog)
+      ;(fs.readJson as any).mockResolvedValueOnce({ bridge: { username: '00:00:00:00:00:00' } })
+
+      await service.refreshConfig()
+
+      expect(mockLog.warn).toHaveBeenCalled()
+      expect(mockLog.error).not.toHaveBeenCalled()
+    })
   })
 
   describe('requestMatterAccessories', () => {

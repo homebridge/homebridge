@@ -712,7 +712,10 @@ export class ChildBridgeService {
       const homebridgeConfig: HomebridgeConfig = await fs.readJson(User.configPath())
 
       if (this.type === PluginType.PLATFORM) {
-        const config = homebridgeConfig.platforms?.filter(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username)
+        // The on-disk config may be missing `platforms`/`accessories` entirely
+        // (we're reading via fs.readJson, not loadConfig, so the defaults
+        // don't apply). Coalesce to [] before filtering.
+        const config = (homebridgeConfig.platforms ?? []).filter(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username)
         if (config.length) {
           this.pluginConfig = config
           this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig
@@ -720,7 +723,7 @@ export class ChildBridgeService {
           this.log.warn('Platform config could not be found, using existing config.')
         }
       } else if (this.type === PluginType.ACCESSORY) {
-        const config = homebridgeConfig.accessories?.filter(x => x.accessory === this.identifier && x._bridge?.username === this.bridgeConfig.username)
+        const config = (homebridgeConfig.accessories ?? []).filter(x => x.accessory === this.identifier && x._bridge?.username === this.bridgeConfig.username)
         if (config.length) {
           this.pluginConfig = config
           this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig
