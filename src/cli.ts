@@ -93,7 +93,10 @@ export default function cli(): void {
     shuttingDown = true
 
     log.info('Got %s, shutting down Homebridge...', signal)
-    setTimeout(() => process.exit(128 + signalNum), 5000)
+    // Force-exit fallback if teardown stalls. unref() so the timer doesn't
+    // hold the event loop open when teardown finishes promptly — otherwise
+    // every shutdown waits the full 5s even after cleanup completes.
+    setTimeout(() => process.exit(128 + signalNum), 5000).unref()
 
     void server.teardown()
   }
