@@ -172,6 +172,7 @@ describe('matterConfigCollector', () => {
       expect(MatterConfigValidator.validateAllChildMatterConfigs).toHaveBeenCalledWith(
         mockConfig.platforms,
         mockConfig.accessories,
+        expect.any(Set),
       )
     })
 
@@ -191,7 +192,48 @@ describe('matterConfigCollector', () => {
       await MatterConfigCollector.validateMatterConfig(mockConfig)
 
       expect(logErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Some child bridge Matter configurations are invalid'),
+        expect.stringContaining('Some child bridge Matter configurations were invalid'),
+      )
+    })
+
+    it('should log each specific child bridge Matter error, not just the generic summary', async () => {
+      mockConfig.platforms = [
+        {
+          platform: 'TestPlatform',
+          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } },
+        } as any,
+      ]
+      vi.mocked(MatterConfigValidator.validateAllChildMatterConfigs).mockReturnValue({
+        isValid: false,
+        errors: ['Duplicate Matter port 5541 detected on platform "TestPlatform". Removing this Matter configuration so the rest of the bridge can start.'],
+        warnings: [],
+      })
+
+      await MatterConfigCollector.validateMatterConfig(mockConfig)
+
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate Matter port 5541 detected on platform "TestPlatform"'),
+      )
+    })
+
+    it('should log child bridge Matter warnings even when the configs are valid', async () => {
+      const logWarnSpy = vi.mocked(Logger).internal.warn
+      mockConfig.platforms = [
+        {
+          platform: 'TestPlatform',
+          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } },
+        } as any,
+      ]
+      vi.mocked(MatterConfigValidator.validateAllChildMatterConfigs).mockReturnValue({
+        isValid: true,
+        errors: [],
+        warnings: ['Matter port 5541 on platform "TestPlatform" is close to the HAP port.'],
+      })
+
+      await MatterConfigCollector.validateMatterConfig(mockConfig)
+
+      expect(logWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('close to the HAP port'),
       )
     })
   })

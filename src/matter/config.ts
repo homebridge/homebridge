@@ -95,14 +95,35 @@ export class MatterConfigCollector {
       }
     }
 
+    // Reserve the main bridge's Matter port so the child validator catches
+    // child↔main port collisions in the same pass.
+    const reserved = new Set<number>()
+    if (config.bridge.matter?.port) {
+      reserved.add(config.bridge.matter.port)
+    }
+
     // Validate all child bridge Matter configs and check for port conflicts
     const childMatterValidation = MatterConfigValidator.validateAllChildMatterConfigs(
       config.platforms,
       config.accessories,
+      reserved,
     )
 
     if (!childMatterValidation.isValid) {
-      log.error('Some child bridge Matter configurations are invalid. Check the errors above.')
+      log.error('Some child bridge Matter configurations were invalid and have been disabled. The remaining configuration will start as normal.')
+      // Surface the specific per-child errors (which platform/accessory and
+      // which port) so the user knows what to fix. Previously these details
+      // were collected into the result but never logged, leaving only the
+      // generic line above — the user couldn't tell what had been disabled.
+      for (const error of childMatterValidation.errors) {
+        log.error(error)
+      }
+    }
+
+    // Surface any non-fatal child Matter warnings too — also collected by the
+    // validator but not previously logged by this caller.
+    for (const warning of childMatterValidation.warnings) {
+      log.warn(warning)
     }
 
     // Check for conflicts between main bridge Matter port and child bridge ports

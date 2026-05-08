@@ -442,5 +442,41 @@ describe('configValidator', () => {
       const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
       expect(result.isValid).toBe(true)
     })
+
+    it('strips Matter config from a duplicate-port platform so the rest of the bridge can start', () => {
+      const platforms: PlatformConfig[] = [
+        { platform: 'Platform1', _bridge: { matter: { port: 5540 } } as any },
+        { platform: 'Platform2', _bridge: { matter: { port: 5540 } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(result.isValid).toBe(false)
+      expect(platforms[0]._bridge?.matter).toBeDefined()
+      expect(platforms[1]._bridge?.matter).toBeUndefined()
+    })
+
+    it('strips Matter config from an out-of-range port platform', () => {
+      const platforms: PlatformConfig[] = [
+        { platform: 'BadPlatform', _bridge: { matter: { port: 99999 } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(result.isValid).toBe(false)
+      expect(platforms[0]._bridge?.matter).toBeUndefined()
+    })
+
+    it('honours reservedPorts so main↔child collisions are caught in the same pass', () => {
+      const platforms: PlatformConfig[] = [
+        { platform: 'Platform1', _bridge: { matter: { port: 5540 } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(
+        platforms,
+        [],
+        new Set([5540]),
+      )
+
+      expect(result.isValid).toBe(false)
+      expect(platforms[0]._bridge?.matter).toBeUndefined()
+    })
   })
 })

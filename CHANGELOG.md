@@ -17,6 +17,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: stop concurrent requestMatterAccessories callers stranding each other
 - fix(matter): drop BehaviorRegistry handlers when accessories unregister
 - fix: ack stopMatterMonitoring when there are no active clients
+- fix(matter): strip invalid child bridge Matter configs instead of just logging
 
 ### Homebridge Dependencies
 
