@@ -211,4 +211,24 @@ describe('server', () => {
       })).toThrow(/not a valid username/i)
     })
   })
+
+  describe('handleStopMatterMonitoring (no-clients ack)', () => {
+    it('acknowledges with monitoringStopped + alreadyStopped when no clients are active', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      // No prior start — counter is 0. Previously this returned silently and
+      // the UI sat waiting for a confirmation event forever.
+      ;(server as any).handleStopMatterMonitoring()
+
+      const ack = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'monitoringStopped',
+      )
+      expect(ack).toBeDefined()
+      expect((ack![1] as any).data).toMatchObject({ success: true, alreadyStopped: true })
+    })
+  })
 })

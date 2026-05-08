@@ -774,6 +774,13 @@ export class Server {
    */
   private handleStopMatterMonitoring(): void {
     if (this.matterMonitoringClients <= 0) {
+      // Nothing to do, but still acknowledge so the UI doesn't sit waiting
+      // for a confirmation event that never comes.
+      const event: MatterEvent = {
+        type: 'monitoringStopped',
+        data: { success: true, alreadyStopped: true },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
       return
     }
 
