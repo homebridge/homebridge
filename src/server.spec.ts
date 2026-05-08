@@ -212,6 +212,87 @@ describe('server', () => {
     })
   })
 
+  describe('handleGetMatterAccessoryInfo (fallback when nothing has the UUID)', () => {
+    it('immediately sends an error event when no matter-enabled child bridges exist', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      // No childBridges have matter, no main matterManager. Previously this
+      // path simply returned and the UI hung waiting forever.
+      ;(server as any).handleGetMatterAccessoryInfo('unknown-uuid')
+
+      const errorEvent = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'accessoryInfoData' && (payload as any)?.data?.error,
+      )
+      expect(errorEvent).toBeDefined()
+    })
+
+    it('responds with an error when uuid is missing', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      ;(server as any).handleGetMatterAccessoryInfo(undefined)
+
+      const errorEvent = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.data?.error === 'UUID is required',
+      )
+      expect(errorEvent).toBeDefined()
+    })
+
+    it('cancels the pending fallback timer when a child responds for the same uuid', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const uuid = 'abc-uuid-12345'
+
+      // Pretend a matter-enabled child bridge exists; forwarding to it
+      // schedules the parent-side fallback timer.
+      const stubChild = {
+        getMetadata: () => ({ matterConfig: {} }),
+        getMatterAccessoryInfo: vi.fn(),
+      }
+      ;(server as any).childBridges.set('CC:00:00:00:00:01', stubChild)
+
+      ;(server as any).handleGetMatterAccessoryInfo(uuid)
+      expect((server as any).pendingMatterAccessoryInfoLookups.has(uuid)).toBe(true)
+
+      // Simulate the child's accessoryInfoData arriving — the Server's
+      // ChildBridgeService callback should clear the pending timer.
+      ;(server as any).cancelPendingMatterAccessoryInfoLookup(uuid)
+      expect((server as any).pendingMatterAccessoryInfoLookups.has(uuid)).toBe(false)
+    })
+
+    it('clears any pending fallback timers during teardown', async () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      // Schedule a fallback timer the same way handleGetMatterAccessoryInfo
+      // would. We don't go through that handler here because we just want
+      // a registered timer in the map for teardown to clean up.
+      const uuid = 'teardown-uuid-1'
+      ;(server as any).pendingMatterAccessoryInfoLookups.set(uuid, setTimeout(() => {}, 60_000))
+
+      // Stub out the collaborators teardown() reaches into — we're only
+      // testing the timer cleanup line, not the wider shutdown flow.
+      // sendMessage is reached via setServerStatus(ServerStatus.DOWN).
+      ;(server as any).bridgeService = { teardown: () => {} }
+      ;(server as any).ipcService = { stop: () => {}, sendMessage: () => {} }
+
+      await server.teardown()
+
+      expect((server as any).pendingMatterAccessoryInfoLookups.size).toBe(0)
+    })
+  })
+
   describe('handleStopMatterMonitoring (no-clients ack)', () => {
     it('acknowledges with monitoringStopped + alreadyStopped when no clients are active', () => {
       const server = new Server({

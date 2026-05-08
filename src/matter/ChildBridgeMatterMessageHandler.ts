@@ -120,10 +120,13 @@ export class ChildBridgeMatterMessageHandler {
       // If not found, don't send a response - let parent handle timeout
     } catch (error) {
       log.error('Failed to get Matter accessory info:', error)
+      // Include uuid in the error payload so the parent server can correlate
+      // the response and cancel its pending fallback timer for this lookup.
       const event: MatterEvent = {
         type: 'accessoryInfoData',
         correlationId,
         data: {
+          uuid: data?.uuid,
           error: error instanceof Error ? error.message : 'Unknown error',
         },
       }

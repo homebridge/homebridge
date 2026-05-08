@@ -18,6 +18,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): drop BehaviorRegistry handlers when accessories unregister
 - fix: ack stopMatterMonitoring when there are no active clients
 - fix(matter): strip invalid child bridge Matter configs instead of just logging
+- fix: send fallback error when no Matter bridge has the requested accessory
 
 ### Homebridge Dependencies
 

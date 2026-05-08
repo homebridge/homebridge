@@ -205,9 +205,12 @@ describe('childBridgeMatterMessageHandler', () => {
 
       handler.handleGetMatterAccessoryInfo({ uuid: 'test-uuid' })
 
+      // uuid is included so the parent server can correlate the failure
+      // response and cancel its pending fallback timer for this lookup.
       const expectedEvent: MatterEvent = {
         type: 'accessoryInfoData',
         data: {
+          uuid: 'test-uuid',
           error: 'Failed to get info',
         },
       }

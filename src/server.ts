@@ -91,6 +91,11 @@ export class Server {
   private matterMonitoringActive = false
   private matterMonitoringClients = 0
 
+  // Fallback timers for child-bridge Matter accessory lookups. Keyed by uuid
+  // so that a child's accessoryInfoData (success or error) can cancel the
+  // timer before it fires a spurious "Timed out" event at the UI.
+  private readonly pendingMatterAccessoryInfoLookups: Map<string, ReturnType<typeof setTimeout>> = new Map()
+
   // current server status
   private serverStatus: ServerStatus = ServerStatus.PENDING
 
@@ -272,6 +277,15 @@ export class Server {
 
     // Teardown Matter servers (main bridge and external accessories)
     await this.matterManager?.teardown()
+
+    // Cancel any in-flight Matter accessory info fallback timers so they
+    // don't fire `accessoryInfoData` events at the IPC channel after the
+    // service has stopped. The timers are already unref()'d so they don't
+    // hold the loop open — this is for tidiness, not a real leak.
+    for (const timer of this.pendingMatterAccessoryInfoLookups.values()) {
+      clearTimeout(timer)
+    }
+    this.pendingMatterAccessoryInfoLookups.clear()
 
     this.ipcService.stop()
     this.setServerStatus(ServerStatus.DOWN)
@@ -492,6 +506,8 @@ export class Server {
 
           // Set callback for external Matter bridge registration
           childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+          // Cancel the parent-side fallback timer when this child answers a lookup
+          childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
 
           this.childBridges.set(accessoryConfig._bridge.username, childBridge)
         }
@@ -591,6 +607,8 @@ export class Server {
 
         // Set callback for external Matter bridge registration
         childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+        // Cancel the parent-side fallback timer when this child answers a lookup
+        childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
 
         this.childBridges.set(platformConfig._bridge.username, childBridge)
 
@@ -827,6 +845,19 @@ export class Server {
   }
 
   /**
+   * Cancel the pending fallback timer for a forwarded Matter accessory lookup.
+   * Called by ChildBridgeService when a child responds with accessoryInfoData
+   * so the 2s "Timed out" event isn't sent after a successful response.
+   */
+  private cancelPendingMatterAccessoryInfoLookup(uuid: string): void {
+    const timer = this.pendingMatterAccessoryInfoLookups.get(uuid)
+    if (timer) {
+      clearTimeout(timer)
+      this.pendingMatterAccessoryInfoLookups.delete(uuid)
+    }
+  }
+
+  /**
    * Get Matter accessories for a specific bridge or all bridges
    * @param bridgeUsername - Optional: specific bridge username (MAC format)
    */
@@ -924,17 +955,50 @@ export class Server {
         return
       }
 
-      // If not found in main bridge, forward to child bridges with Matter enabled.
-      // Child bridges will respond directly if they have the accessory
+      // If not found on main bridge, forward to child bridges with Matter enabled.
+      // The matching child responds directly to the UI via the existing
+      // MATTER_EVENT forwarding path; schedule a fallback error so the UI
+      // doesn't hang if no child knows the UUID either.
+      let forwardedToChildren = false
       for (const childBridge of this.childBridges.values()) {
-        // Only forward to bridges with Matter enabled
         if (childBridge.getMetadata().matterConfig) {
           childBridge.getMatterAccessoryInfo(uuid)
+          forwardedToChildren = true
         }
       }
 
-      // If no child bridge responds, we'll send error after a timeout
-      // For now, assume child bridges will handle it
+      if (!forwardedToChildren) {
+        this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+          type: 'accessoryInfoData',
+          data: { error: `Accessory ${uuid} not found`, uuid },
+        })
+        return
+      }
+
+      // 2s is comfortably longer than a healthy child response and short
+      // enough that the UI doesn't feel stuck. Use unref() so a late
+      // shutdown doesn't wait on this timer. The timer is registered in
+      // pendingMatterAccessoryInfoLookups so a child's accessoryInfoData
+      // response (routed via ChildBridgeService.onAccessoryInfoResponse) can
+      // cancel it before it fires a spurious timed-out event. A second
+      // concurrent request for the same uuid replaces the existing timer.
+      const existing = this.pendingMatterAccessoryInfoLookups.get(uuid)
+      if (existing) {
+        clearTimeout(existing)
+      }
+      const fallback = setTimeout(() => {
+        this.pendingMatterAccessoryInfoLookups.delete(uuid)
+        this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+          type: 'accessoryInfoData',
+          data: {
+            error: `Timed out looking up Matter accessory ${uuid}; it may not be registered.`,
+            uuid,
+            timedOut: true,
+          },
+        })
+      }, 2000)
+      fallback.unref()
+      this.pendingMatterAccessoryInfoLookups.set(uuid, fallback)
     } catch (error) {
       matterLogger.error('Failed to get Matter accessory info:', error)
       const event: MatterEvent = {

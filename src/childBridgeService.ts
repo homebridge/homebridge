@@ -248,6 +248,11 @@ export class ChildBridgeService {
   // Callback for external Matter bridge registration
   public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
 
+  // Callback fired when the child sends an accessoryInfoData response, so the
+  // parent server can cancel its pending fallback timer for that uuid before
+  // it fires a spurious "Timed out" event at the UI.
+  public onAccessoryInfoResponse?: (uuid: string) => void
+
   // Stored shutdown listener so it can be removed in teardown(),
   // matching the pattern used by MatterBridgeManager (#3915).
   private readonly _onApiShutdown = (): void => {
@@ -480,6 +485,15 @@ export class ChildBridgeService {
               this.onExternalBridgeRegistered(data.externalBridgeUsername, this.bridgeConfig.username)
             }
           } else {
+            // accessoryInfoData responses must cancel the parent's fallback
+            // timer for that uuid before being forwarded — otherwise the UI
+            // gets a stale "Timed out" event 2s after a successful response.
+            if (matterEvent.type === 'accessoryInfoData' && this.onAccessoryInfoResponse) {
+              const uuid = (matterEvent.data as { uuid?: string } | undefined)?.uuid
+              if (uuid) {
+                this.onAccessoryInfoResponse(uuid)
+              }
+            }
             // Forward all other Matter events to main process IPC
             this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, matterEvent)
           }
