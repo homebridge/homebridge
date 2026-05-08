@@ -459,6 +459,31 @@ describe('childBridgeService', () => {
 
       expect(forkMock).toHaveBeenCalledTimes(2)
     })
+
+    it('caps signal-based exits at maxRestarts (no unbounded SIGSEGV loop)', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      service.start()
+
+      // Repeatedly emit signal-based exits. Previously each iteration reset
+      // restartCount = 0 and immediately re-forked, so a reproducibly-crashing
+      // plugin produced an infinite loop.
+      for (let i = 0; i < 4; i++) {
+        const child = childProcesses.list[childProcesses.list.length - 1]
+        child.emit('close', null, 'SIGSEGV')
+      }
+
+      const lastChild = childProcesses.list[childProcesses.list.length - 1]
+      lastChild.emit('close', null, 'SIGSEGV')
+
+      // 5th close trips the cap and parks the bridge as manually-stopped,
+      // matching the existing plugin-crash branch.
+      expect((service as any).manuallyStopped).toBe(true)
+      expect((service as any).lastBridgeStatus).toBe(ChildBridgeStatus.DOWN)
+    })
   })
 
   describe('teardown — listener cleanup (M3) and SIGKILL fallback (M4)', () => {

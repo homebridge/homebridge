@@ -516,29 +516,39 @@ export class ChildBridgeService {
       + ' \'Report An Issue\' option in the plugin menu dropdown from the Homebridge UI. If there are related logs shown above, please include them in your report.'
       : ''}`)
 
-    if (isLikelyPluginCrash) {
-      if (this.restartCount < this.maxRestarts) {
-        this.bridgeStatus = ChildBridgeStatus.PENDING
-        this.restartCount += 1
-        const delay = this.restartCount * 10 // first attempt after 10 seconds, second after 20 seconds, etc.
-        this.log(`Child bridge will automatically restart in ${delay} seconds (restart attempt ${this.restartCount} of ${this.maxRestarts}).`)
-        this.scheduledRestartTimeout = setTimeout(() => {
-          this.scheduledRestartTimeout = undefined
-          if (!this.shuttingDown && !this.manuallyStopped) {
-            this.startChildProcess()
-          }
-        }, delay * 1000)
-      } else {
-        this.bridgeStatus = ChildBridgeStatus.DOWN
-        this.manuallyStopped = true
-        this.log.error(`Child bridge will no longer restart after failing ${this.maxRestarts + 1} times, you will need to manually start this child bridge from the Homebridge UI.`)
-      }
+    if (this.shuttingDown) {
       return
     }
 
-    if (!this.shuttingDown) {
+    // Apply the restart cap to *every* unexpected exit, not just code=1.
+    // Previously the "non-plugin-crash" path reset restartCount to 0 and
+    // restarted immediately, so a process repeatedly killed by SIGSEGV /
+    // SIGABRT would produce an unbounded restart loop, defeating the cap.
+    if (this.restartCount >= this.maxRestarts) {
       this.bridgeStatus = ChildBridgeStatus.DOWN
-      this.restartCount = 0
+      this.manuallyStopped = true
+      this.log.error(`Child bridge will no longer restart after failing ${this.maxRestarts + 1} times, you will need to manually start this child bridge from the Homebridge UI.`)
+      return
+    }
+
+    this.restartCount += 1
+
+    if (isLikelyPluginCrash) {
+      // Plugin crashes are usually caused by mistakes that won't fix themselves;
+      // back off so we don't burn CPU thrashing.
+      this.bridgeStatus = ChildBridgeStatus.PENDING
+      const delay = this.restartCount * 10 // first attempt after 10 seconds, second after 20 seconds, etc.
+      this.log(`Child bridge will automatically restart in ${delay} seconds (restart attempt ${this.restartCount} of ${this.maxRestarts}).`)
+      this.scheduledRestartTimeout = setTimeout(() => {
+        this.scheduledRestartTimeout = undefined
+        if (!this.shuttingDown && !this.manuallyStopped) {
+          this.startChildProcess()
+        }
+      }, delay * 1000)
+    } else {
+      // Signal-based or non-1 exit codes: restart immediately, but the cap
+      // above still applies, so we won't loop forever on a hard crash.
+      this.bridgeStatus = ChildBridgeStatus.DOWN
       this.startChildProcess()
     }
   }
