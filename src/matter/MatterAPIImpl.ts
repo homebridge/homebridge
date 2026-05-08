@@ -234,6 +234,21 @@ export class MatterAPIImpl implements MatterAPI {
       return
     }
 
+    // The Matter manager that handles these registration events is only
+    // attached once Homebridge has finished launching. `api.isMatterEnabled()`
+    // can return true during plugin *initialisation* — before the manager
+    // exists — so guard here: registering this early would emit bridged-accessory
+    // events with no listener (silently dropped) or, for external accessories,
+    // await a publish-completion promise that nothing can ever resolve (the
+    // call would hang forever). Fail fast with an actionable message instead.
+    // Plugins must register Matter accessories from the platform's
+    // 'didFinishLaunching' event, by which point the manager is ready.
+    if (!(this.api as unknown as HomebridgeAPIInternals)._matterManager) {
+      throw new Error(
+        `${pluginIdentifier}: Cannot register Matter accessories before Homebridge has finished launching. Register them from your platform's 'didFinishLaunching' event, not during plugin initialisation.`,
+      )
+    }
+
     // Validate all accessories before registration
     const validAccessories = this.validateAccessories(
       accessories,
@@ -321,6 +336,16 @@ export class MatterAPIImpl implements MatterAPI {
       return
     }
 
+    // Same guard as registerPlatformAccessories: the Matter manager (which
+    // handles this event) is only attached once Homebridge has finished
+    // launching. Updating before then emits with no listener and is silently
+    // dropped — fail fast with an actionable message instead.
+    if (!(this.api as unknown as HomebridgeAPIInternals)._matterManager) {
+      throw new Error(
+        'Cannot update Matter accessories before Homebridge has finished launching. Call this from your platform\'s \'didFinishLaunching\' event, not during plugin initialisation.',
+      )
+    }
+
     log.debug(`Updating ${accessories.length} Matter platform accessor${accessories.length === 1 ? 'y' : 'ies'} in cache`)
 
     // Emit event for Server/ChildBridgeFork to handle
@@ -398,6 +423,15 @@ export class MatterAPIImpl implements MatterAPI {
 
     // Validate cluster name (warning only, don't block)
     this.validateClusterName(cluster, `updateAccessoryState (${uuid})`)
+
+    // Same guard as registerPlatformAccessories: the Matter manager is only
+    // attached once Homebridge has finished launching; updating before then is
+    // silently dropped. Fail fast with an actionable message instead.
+    if (!(this.api as unknown as HomebridgeAPIInternals)._matterManager) {
+      throw new Error(
+        `Cannot update Matter accessory ${uuid} before Homebridge has finished launching. Call this from your platform's 'didFinishLaunching' event, not during plugin initialisation.`,
+      )
+    }
 
     log.debug(
       `Updating Matter accessory state: uuid=${uuid}, cluster=${cluster}, attributes=${Object.keys(attributes).join(', ')}${partId ? `, partId=${partId}` : ''}`,

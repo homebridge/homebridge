@@ -11,6 +11,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): clean up half-started external Matter server on publish failure
 - fix: tolerate missing platforms/accessories arrays in refreshConfig
 - fix: defensively validate activePlugins is an array
+- fix(api): make isMatterEnabled() truthful during plugin initialisation
 
 ### Homebridge Dependencies
 

@@ -66,6 +66,49 @@ describe('homebridgeAPI', () => {
     beforeEach(async () => {
       await api.loadMatterAPI()
       matter = api.matter!
+      // registerPlatformAccessories now guards on the Matter manager being
+      // attached (it only is once Homebridge has finished launching). The unit
+      // tests below exercise the API directly, so stand in a manager stub to
+      // satisfy that precondition. getExternalServer is included because
+      // getAccessoryState consults it.
+      ;(api as any)._matterManager = { getExternalServer: () => undefined }
+    })
+
+    describe('loadMatterAPI lifecycle', () => {
+      it('flips isMatterEnabled() to true once the api is loaded', async () => {
+        // Fresh API instance — beforeEach already loaded one, so build a new
+        // one to observe the pre-load state.
+        const fresh = new HomebridgeAPI()
+        expect(fresh.isMatterEnabled()).toBe(false)
+        expect(fresh.matter).toBeUndefined()
+
+        await fresh.loadMatterAPI()
+
+        // Plugins reading either form during init must observe consistent
+        // values — `api.matter` defined ⇔ `api.isMatterEnabled()` true.
+        expect(fresh.matter).toBeDefined()
+        expect(fresh.isMatterEnabled()).toBe(true)
+      })
+
+      it('coalesces concurrent loads into a single MatterAPIImpl instance', async () => {
+        const fresh = new HomebridgeAPI()
+
+        // Two callers race the lazy import. Both must observe the same
+        // _matterAPI reference; otherwise pending external-registration
+        // resolvers wired into the first instance would be lost on the
+        // second instance and the corresponding promises would hang.
+        await Promise.all([
+          fresh.loadMatterAPI(),
+          fresh.loadMatterAPI(),
+          fresh.loadMatterAPI(),
+        ])
+
+        const ref = fresh.matter
+        expect(ref).toBeDefined()
+        // A subsequent call must be a no-op against the same instance.
+        await fresh.loadMatterAPI()
+        expect(fresh.matter).toBe(ref)
+      })
     })
 
     describe('api.matter property access', () => {
