@@ -19,7 +19,7 @@ describe('childBridgeFork — parent disconnect handling', () => {
       registered[event].push(handler)
       return process
     })
-    setIntervalSpy = vi.spyOn(globalThis, 'setInterval').mockImplementation((() => 0 as any))
+    setIntervalSpy = vi.spyOn(globalThis, 'setInterval').mockImplementation(() => 0 as any)
   })
 
   afterEach(() => {

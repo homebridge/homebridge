@@ -215,14 +215,28 @@ major incompatibility issues and thus is considered bad practice. Please inform 
     // try to import it and grab the exported initialization hook
     // pathToFileURL(specifier).href to turn a path into a "file url"
     // see https://github.com/nodejs/node/issues/31710
-    const pluginModules = (await import(pathToFileURL(mainPath).href)).default
+    const pluginModule = await import(pathToFileURL(mainPath).href)
+    const pluginModules = pluginModule.default
 
     if (typeof pluginModules === 'function') {
       this.pluginInitializer = pluginModules
     } else if (pluginModules && typeof pluginModules.default === 'function') {
       this.pluginInitializer = pluginModules.default
     } else {
-      throw new Error(`Plugin ${this.pluginPath} does not export a initializer function from main.`)
+      // Be specific about what we found instead of just "doesn't export an
+      // initializer". Helps plugin authors and users diagnose ESM/CJS
+      // shape mismatches at a glance.
+      const exportedKeys = pluginModule && typeof pluginModule === 'object'
+        ? Object.keys(pluginModule).filter(k => k !== 'default').slice(0, 10)
+        : []
+      const defaultKeys = pluginModules && typeof pluginModules === 'object'
+        ? Object.keys(pluginModules).slice(0, 10)
+        : []
+      const defaultKeysStr = defaultKeys.length > 0 ? ` with keys [${defaultKeys.join(', ')}]` : ''
+      const exportedKeysStr = exportedKeys.length > 0 ? `; named exports: [${exportedKeys.join(', ')}]` : ''
+      throw new Error(
+        `Plugin ${this.pluginPath} does not export an initializer function from ${this.main}. Found default export of type '${typeof pluginModules}'${defaultKeysStr}${exportedKeysStr}. The plugin must default-export a function that takes the homebridge api object.`,
+      )
     }
   }
 

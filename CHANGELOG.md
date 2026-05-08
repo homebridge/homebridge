@@ -17,6 +17,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: use disconnect event instead of polling for parent connection
 - fix: also check bridged accessories for UUID collisions in registerPlatform
 - fix: surface publish errors from bridge.publish and external accessory publish
+- fix(plugin): include exported keys in initializer-not-found error
 
 ### Homebridge Dependencies
 
