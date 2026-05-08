@@ -232,8 +232,18 @@ export class ChildBridgeService {
   private readonly maxRestarts = 4
   private scheduledRestartTimeout?: ReturnType<typeof setTimeout>
 
-  // Matter accessories pending response callback
+  // Matter accessories pending response callback. Concurrent callers of
+  // requestMatterAccessories share the same in-flight promise (see
+  // matterAccessoriesPromise) so this resolver only needs to settle once.
   private matterAccessoriesResolve?: (data: { accessories: any[], bridgeUsername: string } | undefined) => void
+
+  // In-flight requestMatterAccessories promise. Cached so that a second
+  // caller arriving while the first is pending shares the same response
+  // rather than racing for the single resolver slot — without this, the
+  // first caller's `accessoriesData` would be lost to a `undefined`
+  // short-circuit and its `handleGetMatterAccessories` would emit an
+  // accessoriesData event missing this child's accessories.
+  private matterAccessoriesPromise?: Promise<{ accessories: any[], bridgeUsername: string } | undefined>
 
   // Callback for external Matter bridge registration
   public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
@@ -308,22 +318,43 @@ export class ChildBridgeService {
   /**
    * Request Matter accessories from this child bridge.
    * Returns a promise that resolves when the child responds, or undefined on timeout.
+   *
+   * Concurrent callers share the same in-flight promise. Previously each
+   * call registered its own resolver in `matterAccessoriesResolve`, and the
+   * second caller would clobber the first — when the child's
+   * `accessoriesData` arrived only the second caller would see it and the
+   * first caller would either hang until its timer fired or (after the
+   * stranding fix) short-circuit with `undefined`. Either way the first
+   * caller's `handleGetMatterAccessories` would emit an `accessoriesData`
+   * event missing this child's accessories. Coalescing lets both callers
+   * resolve with the same data on a single response.
    */
   public requestMatterAccessories(timeoutMs = 500): Promise<{ accessories: any[], bridgeUsername: string } | undefined> {
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        this.matterAccessoriesResolve = undefined
-        resolve(undefined)
-      }, timeoutMs)
+    if (this.matterAccessoriesPromise) {
+      return this.matterAccessoriesPromise
+    }
 
-      this.matterAccessoriesResolve = (data) => {
-        clearTimeout(timeout)
-        this.matterAccessoriesResolve = undefined
+    this.matterAccessoriesPromise = new Promise((resolve) => {
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      const settle = (data: { accessories: any[], bridgeUsername: string } | undefined) => {
+        if (timeout) {
+          clearTimeout(timeout)
+        }
+        // Only clear the slots if they still point at this in-flight call —
+        // defensive against a future change introducing overlapping calls
+        // before the previous one has settled.
+        if (this.matterAccessoriesResolve === settle) {
+          this.matterAccessoriesResolve = undefined
+        }
+        this.matterAccessoriesPromise = undefined
         resolve(data)
       }
+      timeout = setTimeout(settle, timeoutMs, undefined)
+      this.matterAccessoriesResolve = settle
 
       this.sendMessage(ChildProcessMessageEventType.GET_MATTER_ACCESSORIES)
     })
+    return this.matterAccessoriesPromise
   }
 
   /**

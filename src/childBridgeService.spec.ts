@@ -686,6 +686,102 @@ describe('childBridgeService', () => {
 
       await expect(promise).resolves.toBeUndefined()
     })
+
+    it('coalesces concurrent callers onto a single in-flight request', async () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      const sendSpy = vi.spyOn((service as any), 'sendMessage')
+
+      // Two callers race. Each used to register its own resolver in the
+      // single `matterAccessoriesResolve` slot — the second clobbered the
+      // first, the child responded once, and only the second caller saw
+      // the data. The first either hung until its timer or short-circuited
+      // to `undefined`, and its handleGetMatterAccessories emitted an
+      // accessoriesData event missing this child's accessories.
+      //
+      // After coalescing both callers share one promise: a single IPC
+      // request is sent, and the single response fans out to both.
+      const first = service.requestMatterAccessories(500)
+      const second = service.requestMatterAccessories(500)
+
+      // Only one IPC message should have been sent for the two callers.
+      const matterAccessoryRequests = sendSpy.mock.calls.filter(
+        ([id]) => id === ChildProcessMessageEventType.GET_MATTER_ACCESSORIES,
+      )
+      expect(matterAccessoryRequests).toHaveLength(1)
+
+      // Drive a single response for the shared in-flight request.
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoriesData',
+          data: { accessories: [{ uuid: 'abc' }], bridgeUsername: 'X' },
+        },
+      })
+
+      const [firstResult, secondResult] = await Promise.all([first, second])
+      // Both callers now get the same data on a single response.
+      expect(firstResult).toMatchObject({ accessories: [{ uuid: 'abc' }] })
+      expect(secondResult).toMatchObject({ accessories: [{ uuid: 'abc' }] })
+      // Identity-equal — they really are sharing the same promise resolution.
+      expect(firstResult).toBe(secondResult)
+    })
+
+    it('returns identical undefined to concurrent callers on timeout', async () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+
+      // Both callers must time out together — neither should be stranded
+      // and neither should resolve while the other is still pending.
+      const first = service.requestMatterAccessories(500)
+      const second = service.requestMatterAccessories(500)
+
+      vi.advanceTimersByTime(600)
+
+      const [firstResult, secondResult] = await Promise.all([first, second])
+      expect(firstResult).toBeUndefined()
+      expect(secondResult).toBeUndefined()
+    })
+
+    it('clears the in-flight slot so a fresh call after settlement re-issues the IPC', async () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      const sendSpy = vi.spyOn((service as any), 'sendMessage')
+
+      // First call → IPC #1.
+      const first = service.requestMatterAccessories(500)
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoriesData',
+          data: { accessories: [{ uuid: 'one' }], bridgeUsername: 'X' },
+        },
+      })
+      await expect(first).resolves.toMatchObject({ accessories: [{ uuid: 'one' }] })
+
+      // Second call, AFTER the first settled, must send a fresh IPC and
+      // be able to receive a different response. Coalescing must not stick.
+      const second = service.requestMatterAccessories(500)
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoriesData',
+          data: { accessories: [{ uuid: 'two' }], bridgeUsername: 'X' },
+        },
+      })
+      await expect(second).resolves.toMatchObject({ accessories: [{ uuid: 'two' }] })
+
+      const matterAccessoryRequests = sendSpy.mock.calls.filter(
+        ([id]) => id === ChildProcessMessageEventType.GET_MATTER_ACCESSORIES,
+      )
+      expect(matterAccessoryRequests).toHaveLength(2)
+    })
   })
 
   describe('getMetadata', () => {
