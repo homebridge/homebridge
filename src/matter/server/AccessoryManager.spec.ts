@@ -136,9 +136,11 @@ function createMockDeps(overrides: Partial<AccessoryManagerDeps> = {}): Accessor
     behaviorRegistry: {
       registerHandler: vi.fn(),
       registerPartEndpoint: vi.fn(),
+      removeEndpoint: vi.fn((endpointId: string) => [endpointId]),
     } as any,
     registryManager: {
       registerEndpoint: vi.fn(),
+      unregisterEndpoint: vi.fn(),
     } as any,
     accessoryCache: null,
     getServerNode: () => mockServerNode as any,

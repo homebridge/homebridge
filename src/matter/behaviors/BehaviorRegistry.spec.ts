@@ -346,6 +346,71 @@ describe('behaviorRegistry', () => {
     })
   })
 
+  describe('removeEndpoint', () => {
+    it('drops handlers for the unregistered endpoint only', () => {
+      registry.registerHandler('endpoint-A', 'onOff', 'on', vi.fn())
+      registry.registerHandler('endpoint-A', 'levelControl', 'moveToLevel', vi.fn())
+      registry.registerHandler('endpoint-B', 'onOff', 'on', vi.fn())
+
+      registry.removeEndpoint('endpoint-A')
+
+      expect(registry.getHandler('endpoint-A', 'onOff', 'on')).toBeUndefined()
+      expect(registry.getHandler('endpoint-A', 'levelControl', 'moveToLevel')).toBeUndefined()
+      expect(registry.getHandler('endpoint-B', 'onOff', 'on')).toBeDefined()
+    })
+
+    it('also drops handlers and mappings for child parts of the endpoint', () => {
+      registry.registerHandler('parent-uuid', 'onOff', 'on', vi.fn())
+      registry.registerPartEndpoint('parent-uuid-part-1', 'parent-uuid', 'outlet-1')
+      registry.registerHandler('parent-uuid-part-1', 'onOff', 'on', vi.fn())
+      registry.registerPartEndpoint('parent-uuid-part-2', 'parent-uuid', 'outlet-2')
+
+      registry.removeEndpoint('parent-uuid')
+
+      expect(registry.getHandler('parent-uuid', 'onOff', 'on')).toBeUndefined()
+      expect(registry.getHandler('parent-uuid-part-1', 'onOff', 'on')).toBeUndefined()
+      expect(registry.getPartEndpointInfo('parent-uuid-part-1')).toBeUndefined()
+      expect(registry.getPartEndpointInfo('parent-uuid-part-2')).toBeUndefined()
+    })
+
+    it('leaves parts of unrelated parents alone', () => {
+      registry.registerPartEndpoint('a-part-1', 'parent-A', 'p1')
+      registry.registerPartEndpoint('b-part-1', 'parent-B', 'p1')
+      registry.registerHandler('b-part-1', 'onOff', 'on', vi.fn())
+
+      registry.removeEndpoint('parent-A')
+
+      expect(registry.getPartEndpointInfo('a-part-1')).toBeUndefined()
+      expect(registry.getPartEndpointInfo('b-part-1')).toBeDefined()
+      expect(registry.getHandler('b-part-1', 'onOff', 'on')).toBeDefined()
+    })
+
+    it('is a no-op when the endpoint was never registered', () => {
+      registry.registerHandler('alive', 'onOff', 'on', vi.fn())
+      expect(() => registry.removeEndpoint('never-registered')).not.toThrow()
+      expect(registry.getHandler('alive', 'onOff', 'on')).toBeDefined()
+    })
+
+    it('returns the endpoint id plus every swept part id (so callers can mirror cleanup)', () => {
+      registry.registerHandler('parent-uuid', 'onOff', 'on', vi.fn())
+      registry.registerPartEndpoint('parent-uuid-part-1', 'parent-uuid', 'outlet-1')
+      registry.registerPartEndpoint('parent-uuid-part-2', 'parent-uuid', 'outlet-2')
+
+      const removed = registry.removeEndpoint('parent-uuid')
+
+      expect(removed).toContain('parent-uuid')
+      expect(removed).toContain('parent-uuid-part-1')
+      expect(removed).toContain('parent-uuid-part-2')
+      // No duplicate of the endpoint id itself.
+      expect(removed.filter(id => id === 'parent-uuid')).toHaveLength(1)
+    })
+
+    it('returns just the endpoint id when it has no parts', () => {
+      registry.registerHandler('solo', 'onOff', 'on', vi.fn())
+      expect(registry.removeEndpoint('solo')).toEqual(['solo'])
+    })
+  })
+
   describe('clear', () => {
     it('should clear all handlers and part endpoints', () => {
       registry.registerHandler('endpoint1', 'onOff', 'toggle', vi.fn())

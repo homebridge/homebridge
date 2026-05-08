@@ -95,7 +95,8 @@ export class BehaviorRegistry {
    * @param commandName - Command name
    * @param args - Optional arguments to pass to the handler
    * @param context - Optional context information
-   * @returns True if handler was found and executed, false otherwise
+   * @returns True once the handler has run successfully
+   * @throws Error if no handler is registered for the endpoint/cluster/command
    */
   async executeHandler(
     endpointId: string,
@@ -195,6 +196,33 @@ export class BehaviorRegistry {
         this.server.notifyStateChange(endpointId, clusterName, attributes)
       }
     }
+  }
+
+  /**
+   * Drop every handler for the given endpoint (and any of its registered
+   * parts) when the accessory unregisters. Without this the registry
+   * accumulates entries for dead UUIDs across register/unregister cycles
+   * — handlers retain plugin closures and prevent the accessory's resources
+   * from being collected.
+   */
+  removeEndpoint(endpointId: string): string[] {
+    // Track every endpoint id we drop (the accessory itself + any of its part
+    // endpoints) so callers can mirror the same cleanup in other registries
+    // (e.g. RegistryManager, which has no parent-aware sweep of its own).
+    const removed: string[] = [endpointId]
+    this.handlers.delete(endpointId)
+    // Sweep any part endpoints whose parent matches the unregistering UUID,
+    // and drop their handler tables too.
+    for (const [partId, info] of this.partEndpoints) {
+      if (info.parentUuid === endpointId || partId === endpointId) {
+        this.partEndpoints.delete(partId)
+        this.handlers.delete(partId)
+        if (partId !== endpointId) {
+          removed.push(partId)
+        }
+      }
+    }
+    return removed
   }
 
   /**

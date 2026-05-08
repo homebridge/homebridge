@@ -15,6 +15,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): release Matter ports when external accessories unregister or fail
 - fix(matter): use a sentinel error class to detect cross-bridge routing
 - fix: stop concurrent requestMatterAccessories callers stranding each other
+- fix(matter): drop BehaviorRegistry handlers when accessories unregister
 
 ### Homebridge Dependencies
 
