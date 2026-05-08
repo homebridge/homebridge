@@ -274,17 +274,18 @@ describe('childBridgeMatterMessageHandler', () => {
       )
     })
 
-    it('should silently ignore "not found on this bridge" errors', async () => {
+    it('should silently ignore MatterAccessoryNotOnBridgeError', async () => {
+      const { MatterAccessoryNotOnBridgeError } = await import('./types.js')
       mockMatterManager.isMatterEnabled.mockReturnValue(true)
       mockMatterManager.handleTriggerCommand.mockRejectedValue(
-        new Error('Accessory not found on this bridge'),
+        new MatterAccessoryNotOnBridgeError('uuid-123'),
       )
 
       handler.handleMatterAccessoryControl(mockControlData)
 
       await new Promise(resolve => setTimeout(resolve, 10))
 
-      // Should not send error response for "not found" errors
+      // Should not send error response when this bridge doesn't own the accessory
       expect(mockSendMessage).not.toHaveBeenCalled()
     })
 

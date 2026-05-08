@@ -9,6 +9,11 @@ import type { ChildBridgeMatterManager } from './ChildBridgeMatterManager.js'
 import type { MatterEvent } from './ipc-types.js'
 
 import { Logger } from '../logger.js'
+// Import the routing sentinel from the lightweight module so this file
+// stays free of transitive runtime `@matter/*` imports (see
+// matterLazyLoading.spec.ts and CLAUDE.md). `./types.js` would load
+// `@matter/main/clusters/*` at runtime; `./MatterError.js` does not.
+import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 
 const log = Logger.withPrefix('Matter/ChildMessageHandler')
 
@@ -162,8 +167,10 @@ export class ChildBridgeMatterMessageHandler {
         this.sendMessage('matterEvent', controlResponse)
       })
       .catch((error) => {
-        // Silently ignore if this bridge doesn't have the accessory
-        if (error.message.includes('not found on this bridge')) {
+        // Silently ignore if this bridge doesn't own the accessory — the
+        // parent broadcasts to all matter children, so a "wrong bridge"
+        // here is expected, not a real failure.
+        if (error instanceof MatterAccessoryNotOnBridgeError) {
           log.debug(`Accessory ${data.uuid} not on child bridge ${this.bridgeUsername}, ignoring`)
           return
         }

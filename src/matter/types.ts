@@ -435,77 +435,21 @@ export interface InternalMatterAccessory extends MatterAccessory {
 /**
  * Matter error type enum (for error handler categorization)
  */
-export enum MatterErrorType {
-  INITIALIZATION = 'INITIALIZATION',
-  NETWORK = 'NETWORK',
-  COMMISSIONING = 'COMMISSIONING',
-  DEVICE_SYNC = 'DEVICE_SYNC',
-  SERVER = 'SERVER',
-  STORAGE = 'STORAGE',
-  CONFIGURATION = 'CONFIGURATION',
-  DEVICE_ERROR = 'DEVICE_ERROR',
-  UNKNOWN = 'UNKNOWN',
-}
-
-/**
- * Matter error details interface
- */
-export interface MatterErrorDetails {
-  type?: MatterErrorType
-  recoverable?: boolean
-  code?: string
-  context?: string
-  originalError?: Error
-}
-
-/**
- * Matter error types
- */
-export class MatterError extends Error {
-  public readonly type: MatterErrorType
-  public readonly timestamp: Date
-  public readonly recoverable: boolean
-
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly details?: MatterErrorDetails,
-  ) {
-    super(message)
-    this.name = 'MatterError'
-    this.type = details?.type ?? MatterErrorType.UNKNOWN
-    this.timestamp = new Date()
-    this.recoverable = details?.recoverable ?? true
-  }
-}
-
-export class MatterCommissioningError extends MatterError {
-  constructor(message: string, details?: MatterErrorDetails) {
-    super(message, 'COMMISSIONING_ERROR', { ...details, type: MatterErrorType.COMMISSIONING })
-    this.name = 'MatterCommissioningError'
-  }
-}
-
-export class MatterStorageError extends MatterError {
-  constructor(message: string, details?: MatterErrorDetails) {
-    super(message, 'STORAGE_ERROR', { ...details, type: MatterErrorType.STORAGE })
-    this.name = 'MatterStorageError'
-  }
-}
-
-export class MatterDeviceError extends MatterError {
-  constructor(message: string, details?: MatterErrorDetails) {
-    super(message, 'DEVICE_ERROR', { ...details, type: MatterErrorType.DEVICE_ERROR })
-    this.name = 'MatterDeviceError'
-  }
-}
-
-export class MatterNetworkError extends MatterError {
-  constructor(message: string, details?: MatterErrorDetails) {
-    super(message, 'NETWORK_ERROR', { ...details, type: MatterErrorType.NETWORK })
-    this.name = 'MatterNetworkError'
-  }
-}
+// Internal Matter error class hierarchy lives in `./MatterError.ts` so the
+// lightweight `ChildBridgeMatterMessageHandler` can `instanceof`-check the
+// routing sentinel without transitively loading this file's heavy
+// `@matter/*` runtime imports. Re-exported here so all existing consumers
+// importing from `./types.js` keep working.
+export {
+  MatterAccessoryNotOnBridgeError,
+  MatterCommissioningError,
+  MatterDeviceError,
+  MatterError,
+  type MatterErrorDetails,
+  MatterErrorType,
+  MatterNetworkError,
+  MatterStorageError,
+} from './MatterError.js'
 
 /**
  * Matter device types

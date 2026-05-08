@@ -13,6 +13,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: defensively validate activePlugins is an array
 - fix(api): make isMatterEnabled() truthful during plugin initialisation
 - fix(matter): release Matter ports when external accessories unregister or fail
+- fix(matter): use a sentinel error class to detect cross-bridge routing
 
 ### Homebridge Dependencies
 

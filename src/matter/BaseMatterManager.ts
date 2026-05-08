@@ -15,6 +15,7 @@ import { User } from '../user.js'
 import { generate } from '../util/mac.js'
 import { mapAttributesToCommand } from './ClusterCommandMapper.js'
 import { MatterServer } from './server.js'
+import { MatterAccessoryNotOnBridgeError } from './types.js'
 
 const log = Logger.withPrefix('Matter/BaseManager')
 const COLON_RE = /:/g
@@ -95,11 +96,14 @@ export abstract class BaseMatterManager {
       return
     }
 
-    // Otherwise, try the bridge Matter server
-    if (!this.matterServer) {
-      // This is expected when accessory is on a different bridge - throw error for proper handling
-      log.debug(`No matterServer and external server not found for ${uuid}`)
-      throw new Error(`Accessory ${uuid} not found on this bridge`)
+    // Otherwise, try the bridge Matter server. If this bridge doesn't own the
+    // UUID, throw the routing sentinel rather than letting the StateManager
+    // throw a plain MatterDeviceError("Accessory ... not found or not
+    // registered") — otherwise control broadcasts from the UI emit a real
+    // error from every non-owner matter-enabled child bridge.
+    if (!this.matterServer || !this.matterServer.getAccessoryInfo(uuid)) {
+      log.debug(`Bridge does not own ${uuid}; signalling routing sentinel`)
+      throw new MatterAccessoryNotOnBridgeError(uuid)
     }
 
     log.debug(`Trying matterServer for ${uuid}`)
@@ -126,10 +130,13 @@ export abstract class BaseMatterManager {
       return
     }
 
-    // Otherwise, try the bridge Matter server
-    if (!this.matterServer) {
-      // This is expected when accessory is on a different bridge - throw error for proper handling
-      throw new Error(`Accessory ${uuid} not found on this bridge`)
+    // Otherwise, try the bridge Matter server. Same ownership check as
+    // handleTriggerCommand — if this bridge doesn't own the UUID, signal
+    // the routing sentinel instead of letting the StateManager throw a
+    // plain "not found or not registered" MatterDeviceError that the
+    // dispatcher would surface as a real error.
+    if (!this.matterServer || !this.matterServer.getAccessoryInfo(uuid)) {
+      throw new MatterAccessoryNotOnBridgeError(uuid)
     }
     await this.matterServer.updateAccessoryState(uuid, cluster, attributes, partId)
   }

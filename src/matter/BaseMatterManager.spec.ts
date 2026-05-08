@@ -48,6 +48,11 @@ describe('baseMatterManager', () => {
       triggerCommand: vi.fn().mockResolvedValue(undefined),
       updateAccessoryState: vi.fn().mockResolvedValue(undefined),
       getAccessoryState: vi.fn().mockReturnValue(undefined),
+      // getAccessoryInfo is used by handleTriggerCommand /
+      // handleUpdateAccessoryState as a cheap ownership probe — return a
+      // truthy stub by default so the existing routing tests still hit the
+      // success path. Individual tests override this to model "not owned".
+      getAccessoryInfo: vi.fn().mockReturnValue({ uuid: 'mock' }),
       notifyStateChange: vi.fn(),
       enableStateMonitoring: vi.fn(),
       disableStateMonitoring: vi.fn(),
@@ -96,6 +101,54 @@ describe('baseMatterManager', () => {
       await expect(manager.handleTriggerCommand('unknown-uuid', 'onOff', { onOff: true }))
         .rejects
         .toThrow('Accessory unknown-uuid not found on this bridge')
+    })
+
+    it('throws MatterAccessoryNotOnBridgeError so callers can identify the routing miss by class', async () => {
+      const { MatterAccessoryNotOnBridgeError, MatterDeviceError } = await import('./types.js')
+      const trigger = manager.handleTriggerCommand('unknown-uuid', 'onOff', { onOff: true })
+      // The dispatcher in ChildBridgeMatterMessageHandler relies on `instanceof`
+      // to swallow this kind of "not my accessory" error silently — bind that
+      // contract in a test so future rewording of the message doesn't quietly
+      // break it.
+      await expect(trigger).rejects.toBeInstanceOf(MatterAccessoryNotOnBridgeError)
+      // Should also remain a MatterDeviceError for any consumer that still
+      // checks the broader category.
+      const second = manager.handleTriggerCommand('unknown-uuid', 'onOff', { onOff: true })
+      await expect(second).rejects.toBeInstanceOf(MatterDeviceError)
+    })
+
+    it('handleUpdateAccessoryState also throws the typed sentinel', async () => {
+      const { MatterAccessoryNotOnBridgeError } = await import('./types.js')
+      const update = manager.handleUpdateAccessoryState('unknown-uuid', 'onOff', { onOff: true })
+      await expect(update).rejects.toBeInstanceOf(MatterAccessoryNotOnBridgeError)
+    })
+
+    it('throws the routing sentinel when matterServer exists but does not own the UUID', async () => {
+      // Models the "non-owner matter-enabled child bridge" case: the bridge
+      // has a Matter server, but the UUID belongs to a different bridge.
+      // Without an ownership probe we'd delegate to triggerCommand and let
+      // StateManager throw a plain MatterDeviceError("not found or not
+      // registered") that the dispatcher surfaces as a real error from
+      // every non-owner child.
+      const { MatterAccessoryNotOnBridgeError } = await import('./types.js')
+      manager.setMatterServer(mockMatterServer)
+      ;(mockMatterServer.getAccessoryInfo as any).mockReturnValue(undefined)
+
+      await expect(manager.handleTriggerCommand('foreign-uuid', 'onOff', { onOff: true }))
+        .rejects
+        .toBeInstanceOf(MatterAccessoryNotOnBridgeError)
+      expect(mockMatterServer.triggerCommand).not.toHaveBeenCalled()
+    })
+
+    it('handleUpdateAccessoryState throws sentinel when matterServer does not own the UUID', async () => {
+      const { MatterAccessoryNotOnBridgeError } = await import('./types.js')
+      manager.setMatterServer(mockMatterServer)
+      ;(mockMatterServer.getAccessoryInfo as any).mockReturnValue(undefined)
+
+      await expect(manager.handleUpdateAccessoryState('foreign-uuid', 'onOff', { onOff: true }))
+        .rejects
+        .toBeInstanceOf(MatterAccessoryNotOnBridgeError)
+      expect(mockMatterServer.updateAccessoryState).not.toHaveBeenCalled()
     })
 
     it('should support partId parameter', async () => {
