@@ -11,6 +11,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: keep api shutdown listener attached across child bridge restart
 - fix(cli): unref shutdown fallback timer so process exits promptly
 - fix: clear currentInitializingPlugin once each initializer settles
+- fix: keep npm-prefix lookup quiet when user has noisy npm env vars
 
 ### Homebridge Dependencies
 

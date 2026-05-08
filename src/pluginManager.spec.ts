@@ -101,6 +101,61 @@ describe('pluginManager', () => {
     })
   })
 
+  describe('addNpmPrefixToSearchPaths env composition (POSIX)', () => {
+    it('passes process.env first then overrides the silencing keys', async () => {
+      // Smoke through a fresh module import so we can intercept execSync.
+      vi.resetModules()
+      const execMock = vi.fn(() => Buffer.from('/usr/local/lib/node_modules', 'utf8'))
+      // The bare vi.fn() infers a zero-arg call signature, so mock.calls is
+      // typed as empty tuples. Cast to the (command, options) shape we actually
+      // invoke execSync with so the assertions below can read calls[0][1].env.
+      type ExecSyncCall = [command: string, options: { env: Record<string, string | undefined> }]
+      vi.doMock('node:child_process', () => ({ execSync: execMock }))
+
+      try {
+        const { PluginManager: FreshPM } = await import('./pluginManager.js')
+        const { HomebridgeAPI: FreshAPI } = await import('./api.js')
+
+        const api = new FreshAPI()
+        const manager = new FreshPM(api)
+
+        // Skip on Windows — addNpmPrefixToSearchPaths uses APPDATA there
+        // and never shells out.
+        if (process.platform === 'win32') {
+          return
+        }
+        ;(manager as any).addNpmPrefixToSearchPaths()
+
+        expect(execMock).toHaveBeenCalled()
+        const env = (execMock.mock.calls as unknown as ExecSyncCall[])[0][1].env
+
+        // process.env values must come through, but the silencing keys must
+        // win even when the user exported a noisy value.
+        expect(env.npm_config_loglevel).toBe('silent')
+        expect(env.npm_update_notifier).toBe('false')
+
+        // Independently verify the override order by simulating a noisy
+        // user-exported PATH-style key passing through and a noisy npm one
+        // being trumped. We re-call with a process-env-like object containing
+        // a conflicting npm_config_loglevel and assert the silencing wins.
+        const originalEnv = process.env
+        try {
+          process.env = { ...originalEnv, npm_config_loglevel: 'info', PATH: '/custom/path' } as any
+          execMock.mockClear()
+          ;(manager as any).addNpmPrefixToSearchPaths()
+          const env2 = (execMock.mock.calls as unknown as ExecSyncCall[])[0][1].env
+          expect(env2.PATH).toBe('/custom/path') // user value preserved
+          expect(env2.npm_config_loglevel).toBe('silent') // user value overridden
+        } finally {
+          process.env = originalEnv
+        }
+      } finally {
+        vi.doUnmock('node:child_process')
+        vi.resetModules()
+      }
+    })
+  })
+
   describe('initializePlugin currentInitializingPlugin reset', () => {
     function buildPluginStub(initialize: (api: any) => void | Promise<void>) {
       return {

@@ -515,11 +515,14 @@ export class PluginManager {
     if (process.platform === 'win32') {
       this.searchPaths.add(join(process.env.APPDATA!, 'npm/node_modules'))
     } else {
+      // Spread process.env first so our explicit silencing keys actually
+      // override anything the user has exported (e.g. npm_config_loglevel=info)
+      // — otherwise startup gets noisy npm output we tried to suppress.
       this.searchPaths.add(execSync('/bin/echo -n "$(npm -g prefix)/lib/node_modules"', {
         env: {
+          ...process.env,
           npm_config_loglevel: 'silent',
           npm_update_notifier: 'false',
-          ...process.env,
         },
       }).toString('utf8'))
     }
