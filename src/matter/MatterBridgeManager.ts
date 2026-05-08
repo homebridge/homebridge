@@ -52,6 +52,10 @@ export class MatterBridgeManager extends BaseMatterManager {
     this.setupEventListeners()
   }
 
+  protected override releaseExternalMatterPort(uniqueId: string): void {
+    this.externalPortService.releaseMatterPort(uniqueId)
+  }
+
   // Stored listener references so they can be removed in teardown()
   private readonly _onPublishExternalMatterAccessories = (accessories: MatterAccessory[], registrationId: string): void => {
     this.handlePublishExternalAccessories(accessories as InternalMatterAccessory[], registrationId).catch((error) => {

@@ -33,6 +33,18 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Release a Matter port previously claimed for an external accessory.
+   * Subclasses override to route to the right port service (the local
+   * allocator on the main bridge, or an IPC call on a child bridge).
+   * Default no-op so subclasses that don't (yet) plumb release through
+   * stay safe.
+   */
+  // eslint-disable-next-line unused-imports/no-unused-vars
+  protected releaseExternalMatterPort(uniqueId: string): void {
+    // overridden by subclasses
+  }
+
+  /**
    * Get an external Matter server by accessory UUID
    *
    * @param uuid - Accessory UUID
@@ -289,6 +301,10 @@ export abstract class BaseMatterManager {
         // Generate the same uniqueId that was used when creating the server
         const advertiseAddress = generate(accessory.UUID)
         const uniqueId = advertiseAddress.replace(COLON_RE, '')
+        // Hand the Matter port back to the allocator so the slot can be
+        // reused — without this, the allocator's pool monotonically
+        // shrinks across the install's lifetime.
+        this.releaseExternalMatterPort(uniqueId)
         const storagePath = path.join(User.matterPath(), uniqueId)
 
         try {

@@ -12,6 +12,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: tolerate missing platforms/accessories arrays in refreshConfig
 - fix: defensively validate activePlugins is an array
 - fix(api): make isMatterEnabled() truthful during plugin initialisation
+- fix(matter): release Matter ports when external accessories unregister or fail
 
 ### Homebridge Dependencies
 

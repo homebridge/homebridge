@@ -22,6 +22,7 @@ export interface ExternalAccessoryPublishContext {
   /** Port service for allocating Matter ports */
   portService: {
     requestMatterPort: (uniqueId: string) => Promise<number | null | undefined>
+    releaseMatterPort?: (uniqueId: string) => boolean
   }
   /** Network interfaces to bind to (from bridge config) */
   networkInterfaces?: string[]
@@ -119,15 +120,29 @@ export async function publishExternalMatterAccessory(
     await matterServer.runServer()
   } catch (error) {
     // Tear down the half-started server so we don't leak SIGINT/SIGTERM
-    // handlers, an open mDNS responder, and the matter.js event loop. The
-    // port allocation stays cached on the allocator (no release API), but at
-    // least the heavyweight resources are reclaimed.
+    // handlers, an open mDNS responder, and the matter.js event loop.
+    // Only release the port back to the allocator when we *know* the
+    // server isn't holding it any more — otherwise the allocator can
+    // hand the same port to a subsequent publish attempt and we hit
+    // EADDRINUSE. Two safe cases:
+    //   - start() never completed (port wasn't bound)
+    //   - start() completed AND stop() then completed cleanly
+    let portReleasable = !started
     if (started) {
       try {
         await matterServer.stop()
+        portReleasable = true
       } catch (stopError) {
         log.debug(`Failed to stop partially-started Matter server for ${accessory.displayName}:`, stopError)
       }
+    }
+    // Hand the port back to the allocator so it can be reused on the next
+    // publish attempt — without this, a single publish failure would
+    // permanently consume one slot in the Matter port range.
+    if (portReleasable) {
+      context.portService.releaseMatterPort?.(uniqueId)
+    } else {
+      log.debug(`Leaving port ${port} reserved for ${accessory.displayName} — stop() failed so the matter.js server may still be bound`)
     }
     throw error
   }

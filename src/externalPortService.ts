@@ -57,6 +57,16 @@ export class ExternalPortService {
     return await this.matterPortAllocator.requestPort(uuid)
   }
 
+  /**
+   * Release a Matter port previously obtained via {@link requestMatterPort}.
+   * Call when an external Matter accessory is unregistered or fails to
+   * publish — otherwise the pool accumulates dead allocations and
+   * eventually exhausts on long-running installs.
+   */
+  public releaseMatterPort(uuid: string): boolean {
+    return this.matterPortAllocator.releasePort(uuid)
+  }
+
   private getNextFreePort(): number | undefined {
     if (!this.externalPorts) {
       return undefined
@@ -97,5 +107,13 @@ export class ChildBridgeExternalPortService extends ExternalPortService {
   public async requestMatterPort(uniqueId: string): Promise<number | undefined> {
     // For child bridges, request Matter port from parent via IPC
     return await this.childBridge.requestMatterPort(uniqueId)
+  }
+
+  public override releaseMatterPort(uniqueId: string): boolean {
+    // Child-side ports live in the parent process's allocator. Forward
+    // the release over IPC so the parent reclaims the slot — releasing
+    // locally would touch the (unused) child-side allocator instead.
+    this.childBridge.releaseMatterPort(uniqueId)
+    return true
   }
 }

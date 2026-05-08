@@ -43,7 +43,13 @@ export class MatterPortAllocator {
 
     // Get the next unused Matter port
     const port = this.getNextFreePort()
-    this.allocatedPorts.set(uuid, port)
+    // Only record an allocation when we actually obtained a port. When the
+    // range is exhausted getNextFreePort() returns undefined — storing a
+    // uuid->undefined entry would leave a dead key that never releases and
+    // inflates getStats().allocatedCount with a port that was never claimed.
+    if (port !== undefined) {
+      this.allocatedPorts.set(uuid, port)
+    }
     return port
   }
 
@@ -82,6 +88,19 @@ export class MatterPortAllocator {
 
     log.error('No available ports remaining for Matter allocation.')
     return undefined
+  }
+
+  /**
+   * Release a previously allocated port back into the pool. Called when an
+   * external Matter accessory is unregistered or its publish fails — without
+   * this, allocations accumulate forever and the pool eventually exhausts on
+   * a long-running install that adds and removes accessories.
+   *
+   * @param uuid - Same key originally passed to requestPort
+   * @returns true if a port was released, false if no allocation existed
+   */
+  public releasePort(uuid: string): boolean {
+    return this.allocatedPorts.delete(uuid)
   }
 
   /**

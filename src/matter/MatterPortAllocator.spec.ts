@@ -149,6 +149,19 @@ describe('matterPortAllocator', () => {
       expect(port).toBeUndefined()
     })
 
+    it('does not record a dead allocation when the range is exhausted', async () => {
+      // Inverted range means getNextFreePort() always returns undefined.
+      const allocator = new MatterPortAllocator({ start: 6005, end: 6000 })
+
+      const port = await allocator.requestPort('uuid-1')
+      expect(port).toBeUndefined()
+
+      // No uuid->undefined entry should linger and skew the stats.
+      expect(allocator.getStats().allocatedCount).toBe(0)
+      // And there is nothing to release, since nothing was stored.
+      expect(allocator.releasePort('uuid-1')).toBe(false)
+    })
+
     it('should recognise an existing allocation and not re-allocate', async () => {
       // Regression: ensure requestPort returns the cached port for the same UUID
       const allocator = new MatterPortAllocator({ start: 7000, end: 7000 })
@@ -177,6 +190,45 @@ describe('matterPortAllocator', () => {
 
       const port = await allocator.requestPort(longUuid)
       expect(port).toBe(5530)
+    })
+  })
+
+  describe('releasePort', () => {
+    it('returns true when an allocation exists, false otherwise', async () => {
+      const allocator = new MatterPortAllocator()
+      await allocator.requestPort('uuid-1')
+
+      expect(allocator.releasePort('uuid-1')).toBe(true)
+      // already released — second call has nothing to drop
+      expect(allocator.releasePort('uuid-1')).toBe(false)
+      // never-allocated UUID
+      expect(allocator.releasePort('never-seen')).toBe(false)
+    })
+
+    it('frees the slot so a later allocation can reuse the port', async () => {
+      const allocator = new MatterPortAllocator({ start: 7000, end: 7001 })
+      const a = await allocator.requestPort('a')
+      const b = await allocator.requestPort('b')
+      expect(a).toBe(7000)
+      expect(b).toBe(7001)
+
+      // Without release, a third allocation would fall into the extended range.
+      allocator.releasePort('a')
+
+      const c = await allocator.requestPort('c')
+      // 7000 is now free again, so the next request should pick it up before
+      // walking past the configured range.
+      expect(c).toBe(7000)
+    })
+
+    it('updates allocatedCount in stats', async () => {
+      const allocator = new MatterPortAllocator()
+      await allocator.requestPort('uuid-1')
+      await allocator.requestPort('uuid-2')
+      expect(allocator.getStats().allocatedCount).toBe(2)
+
+      allocator.releasePort('uuid-1')
+      expect(allocator.getStats().allocatedCount).toBe(1)
     })
   })
 

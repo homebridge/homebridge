@@ -100,6 +100,13 @@ export const enum ChildProcessMessageEventType {
   MATTER_ACCESSORY_CONTROL = 'matterAccessoryControl',
 
   /**
+   * Sent from the child when it wants to release a previously allocated
+   * Matter port back to the parent's allocator pool. Fire-and-forget; no
+   * acknowledgement is sent.
+   */
+  RELEASE_MATTER_PORT = 'releaseMatterPort',
+
+  /**
    * Unified Matter event from child process
    * Includes: accessoriesData, accessoryInfoData, accessoryControlResponse,
    * accessoryUpdate, accessoryAdded, accessoryRemoved
@@ -395,6 +402,13 @@ export class ChildBridgeService {
         }
         case ChildProcessMessageEventType.PORT_REQUEST: {
           void this.handlePortRequest(message.data as ChildProcessPortRequestEventData)
+          break
+        }
+        case ChildProcessMessageEventType.RELEASE_MATTER_PORT: {
+          const data = message.data as { uniqueId?: string } | undefined
+          if (data?.uniqueId) {
+            this.externalPortService.releaseMatterPort(data.uniqueId)
+          }
           break
         }
         case ChildProcessMessageEventType.STATUS_UPDATE: {

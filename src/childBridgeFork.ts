@@ -345,6 +345,14 @@ export class ChildBridgeFork {
   }
 
   /**
+   * Tell the parent process to release a previously allocated Matter port.
+   * Fire-and-forget; the parent's allocator will reclaim the slot.
+   */
+  public releaseMatterPort(uniqueId: string): void {
+    this.sendMessage<{ uniqueId: string }>(ChildProcessMessageEventType.RELEASE_MATTER_PORT, { uniqueId })
+  }
+
+  /**
    * Sends the current pairing status of the child bridge to the parent process
    */
   public sendPairedStatusEvent() {

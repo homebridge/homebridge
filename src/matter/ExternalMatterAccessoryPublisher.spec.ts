@@ -333,6 +333,51 @@ describe('externalMatterAccessoryPublisher', () => {
 
         expect(mockMatterServer.stop).not.toHaveBeenCalled()
       })
+
+      it('releases the allocated Matter port back to the allocator on failure', async () => {
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.runServer.mockRejectedValueOnce(new Error('run failed'))
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
+
+        // Same uniqueId as the publisher computed: MAC without colons.
+        expect(mockPortService.releaseMatterPort).toHaveBeenCalledWith('AABBCCDDEEFF')
+      })
+
+      it('still throws cleanly when releaseMatterPort is not available on the port service', async () => {
+        // Older / minimal port-service shapes may not implement release.
+        // The optional chaining must keep the throw clean.
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.runServer.mockRejectedValueOnce(new Error('run failed'))
+        mockPortService.releaseMatterPort = undefined
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
+      })
+
+      it('releases the port when start fails before any binding could occur', async () => {
+        // start() never completed → matter.js never bound the port, so the
+        // allocator can safely hand it out again.
+        mockMatterServer.start.mockRejectedValueOnce(new Error('start failed'))
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('start failed')
+
+        expect(mockPortService.releaseMatterPort).toHaveBeenCalledWith('AABBCCDDEEFF')
+      })
+
+      it('keeps the port reserved when stop() fails after a successful start', async () => {
+        // A failed stop may leave the matter.js server still bound to the
+        // port. Handing it back to the allocator would let a later publish
+        // attempt take the same port and hit EADDRINUSE — keep it reserved.
+        mockMatterServer.runServer.mockRejectedValueOnce(new Error('run failed'))
+        mockMatterServer.stop = vi.fn().mockRejectedValue(new Error('stop failed'))
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
+
+        expect(mockPortService.releaseMatterPort).not.toHaveBeenCalled()
+      })
     })
 
     describe('success path', () => {
