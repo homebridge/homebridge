@@ -371,6 +371,14 @@ export class Server {
     // that point.
     MatterConfigCollector.validateMatterPortsPool(config as HomebridgeConfig)
 
+    // Normalise the main bridge username to uppercase so downstream comparisons
+    // (validMacAddress, registry lookups, child-bridge dedup) stay case-consistent.
+    // Guarded so a malformed (non-string) value falls through to `validMacAddress`
+    // below and produces the proper "Not a valid username" error rather than a
+    // raw TypeError from calling toUpperCase on a number/boolean.
+    if (typeof config.bridge.username === 'string') {
+      config.bridge.username = config.bridge.username.toUpperCase()
+    }
     const username = config.bridge.username
     if (!validMacAddress(username)) {
       throw new Error(`Not a valid username: ${username}. Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`)

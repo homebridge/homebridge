@@ -2,7 +2,20 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v2.0.2 (2026-05-09)
+## v2.0.3 (Pending Release)
+
+### Changes
+
+- chore: add past release deprecation workflow (#3940)
+- fix: normalise main bridge username to uppercase before MAC validation
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.1.6`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.17.0-alpha.0-20260508-96d5c3a88`
 
 ### Changes
 

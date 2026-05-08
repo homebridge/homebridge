@@ -165,5 +165,50 @@ describe('server', () => {
       })
       expect(server).toBeInstanceOf(Server)
     })
+
+    it('accepts a lowercase main bridge MAC and normalises it to uppercase', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, username: 'cc:22:3d:e3:ce:30' },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      // The constructor should not have thrown. The stored bridge config
+      // should have an uppercase username so child-bridge dedup, registry
+      // lookups, and `validMacAddress` (which is case-sensitive) all agree.
+      expect(server).toBeInstanceOf(Server)
+      expect((server as any).config.bridge.username).toBe('CC:22:3D:E3:CE:30')
+    })
+
+    it('accepts a mixed-case main bridge MAC and normalises it to uppercase', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, username: 'Cc:22:3D:e3:CE:30' },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      expect((server as any).config.bridge.username).toBe('CC:22:3D:E3:CE:30')
+    })
+
+    it('rejects a non-string main bridge username with the validMacAddress error, not a TypeError', async () => {
+      // Truthy non-string values (e.g. a number from a hand-edited JSON config)
+      // must hit the existing MAC validation error, not crash on `.toUpperCase`.
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, username: 123456 as unknown as string },
+      })
+
+      expect(() => new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })).toThrow(/not a valid username/i)
+    })
   })
 })
