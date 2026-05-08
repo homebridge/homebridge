@@ -217,6 +217,12 @@ export class PluginManager {
       log.error('====================')
 
       this.plugins.delete(identifier)
+    } finally {
+      // Clear the in-progress reference so any late async registration that
+      // fires after this initializer settles is rejected by the registration
+      // handlers' guard rather than getting attributed to a stale (and now
+      // possibly deleted) plugin.
+      this.currentInitializingPlugin = undefined
     }
   }
 

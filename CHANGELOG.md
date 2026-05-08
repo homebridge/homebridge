@@ -10,6 +10,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - chore: dependency updates
 - fix: keep api shutdown listener attached across child bridge restart
 - fix(cli): unref shutdown fallback timer so process exits promptly
+- fix: clear currentInitializingPlugin once each initializer settles
 
 ### Homebridge Dependencies
 

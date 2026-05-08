@@ -101,6 +101,43 @@ describe('pluginManager', () => {
     })
   })
 
+  describe('initializePlugin currentInitializingPlugin reset', () => {
+    function buildPluginStub(initialize: (api: any) => void | Promise<void>) {
+      return {
+        getPluginIdentifier: () => 'homebridge-stub',
+        initialize: vi.fn(initialize),
+      } as any
+    }
+
+    it('clears currentInitializingPlugin after a successful initializer', async () => {
+      const api = new HomebridgeAPI()
+      const manager = new PluginManager(api)
+
+      const plugin = buildPluginStub(() => {})
+      await manager.initializePlugin(plugin, 'homebridge-stub')
+
+      expect((manager as any).currentInitializingPlugin).toBeUndefined()
+    })
+
+    it('clears currentInitializingPlugin even when the initializer throws', async () => {
+      const api = new HomebridgeAPI()
+      const manager = new PluginManager(api)
+      // Silence the manager's "ERROR INITIALIZING PLUGIN" log line.
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const plugin = buildPluginStub(() => {
+        throw new Error('boom')
+      })
+
+      await manager.initializePlugin(plugin, 'homebridge-stub')
+
+      // Without the finally{} reset, a stale reference here would let any
+      // late async registration get attributed to a now-deleted plugin.
+      expect((manager as any).currentInitializingPlugin).toBeUndefined()
+    })
+  })
+
   describe('...Name', () => {
     it('should extract accessory name correctly', () => {
       const accessoryId = 'homebridge-example-accessory.example'
