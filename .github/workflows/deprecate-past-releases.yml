@@ -1,0 +1,125 @@
+name: Deprecate Past Pre-Releases
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deprecate-previous-pre-release-data:
+    if: ${{ github.ref == 'refs/heads/latest' && github.repository == 'homebridge/homebridge' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          registry-url: https://registry.npmjs.org/
+
+      - name: Update npm to latest version
+        run: npm install -g npm@latest
+
+      - name: Deprecate previous pre-release npm versions
+        run: |
+          HAS_ERROR=0
+          # Read local package version
+          LATEST_VERSION=$(jq -r .version package.json)
+          echo "Latest version found in package.json: $LATEST_VERSION"
+          echo ""
+          DEPRECATED_VERSIONS=()
+          echo "Fetching pre-release versions of homebridge from npm..."
+          # Fetch all non-deprecated pre-release versions from the registry
+          RESPONSE=$(curl -s -H "accept: application/vnd.npm.install-v1+json" "https://registry.npmjs.org/homebridge")
+          BETA_VERSIONS=$(echo "$RESPONSE" | jq -c '[.versions[] | select(.deprecated == null and (.version | test("-"))) | .version]')
+          echo "Found $(echo "$BETA_VERSIONS" | jq 'length') pre-release versions:"
+          for VERSION in $(echo "$BETA_VERSIONS" | jq -r '.[]'); do
+            echo "* Processing version: $VERSION..."
+            BASE_VERSION="${VERSION%%-*}"  # Strip pre-release part
+            # Deprecate if base version is less than or equal to latest version
+            if [ "$(printf "%s\n%s" "$BASE_VERSION" "$LATEST_VERSION" | sort -V | tail -n1)" == "$LATEST_VERSION" ]; then
+              if ! OUTPUT=$(npm deprecate homebridge@"$VERSION" "This beta version is deprecated in favor of the latest release." 2>&1); then
+                echo "$OUTPUT" >&2
+                if echo "$OUTPUT" | grep -q "E429"; then
+                  echo "* Error: Rate limit exceeded (429). Stopping the step." >&2
+                  HAS_ERROR=2
+                  break
+                else
+                  echo "* Error: failed to deprecate version $VERSION" >&2
+                  HAS_ERROR=1
+                fi
+              else
+                echo "* Deprecated version: $VERSION"
+                DEPRECATED_VERSIONS+=("$VERSION")
+              fi
+            else
+              echo "* Skipped version: $VERSION"
+            fi
+          done
+          echo ""
+          echo ""
+          echo "Step Summary"
+          if [ ${#DEPRECATED_VERSIONS[@]} -eq 0 ]; then
+            echo "* No versions were deprecated."
+          else
+            echo "* Deprecated ${#DEPRECATED_VERSIONS[@]} pre-release versions:"
+            for VERSION in "${DEPRECATED_VERSIONS[@]}"; do
+              echo "  * $VERSION"
+            done
+          fi
+          if [ $HAS_ERROR -eq 0 ]; then
+            echo "* No versions reported an error while being deprecated."
+          elif [ $HAS_ERROR -eq 1 ]; then
+            echo "* Some versions reported an error while being deprecated - check the logs above."
+          elif [ $HAS_ERROR -eq 2 ]; then
+            echo "* The step needed to stop early due to detecting a 429 rate limit - retry the action later."
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
+
+      - name: Delete previous pre-release GitHub releases
+        run: |
+          LATEST_VERSION=$(jq -r .version package.json)
+          echo "Latest version found in package.json: $LATEST_VERSION"
+          echo "Finding GitHub releases with a hyphen in the tag name..."
+
+          gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | test("-"; "i")) | .tagName' | while read -r TAG; do
+            BASE_VERSION="${TAG%%-*}"
+            # Remove 'v' prefix if present for version comparison
+            BASE_VERSION_NO_V="${BASE_VERSION#v}"
+
+            if [ "$(printf "%s\n%s" "$BASE_VERSION_NO_V" "$LATEST_VERSION" | sort -V | tail -n1)" == "$LATEST_VERSION" ]; then
+              echo "Deleting GitHub release: $TAG (base version: $BASE_VERSION_NO_V)"
+              gh release delete "$TAG" --yes
+            else
+              echo "Skipping GitHub release: $TAG (base version: $BASE_VERSION_NO_V is newer than $LATEST_VERSION)"
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete previous pre-release Git tags
+        run: |
+          LATEST_VERSION=$(jq -r .version package.json)
+          echo "Latest version found in package.json: $LATEST_VERSION"
+          echo "Fetching tags from origin..."
+          git fetch --tags
+
+          echo "Finding pre-release tags with a hyphen in the name..."
+          git tag -l "*-*" | while read -r TAG; do
+            BASE_VERSION="${TAG%%-*}"
+            # Remove 'v' prefix if present for version comparison
+            BASE_VERSION_NO_V="${BASE_VERSION#v}"
+
+            if [ "$(printf "%s\n%s" "$BASE_VERSION_NO_V" "$LATEST_VERSION" | sort -V | tail -n1)" == "$LATEST_VERSION" ]; then
+              echo "Deleting tag: $TAG (base version: $BASE_VERSION_NO_V)"
+              git push origin ":refs/tags/$TAG"
+            else
+              echo "Skipping tag: $TAG (base version: $BASE_VERSION_NO_V is newer than $LATEST_VERSION)"
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
