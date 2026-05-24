@@ -8,6 +8,7 @@ import {
   appendUsernameSuffix,
   createMatterUsername,
   getErrorCode,
+  getMatterJsVersion,
   isNodeError,
   normalizeBindConfig,
   stripVendorFromLabel,
@@ -201,6 +202,17 @@ describe('matter utilities', () => {
     it('collapses repeated whitespace introduced by the strip', () => {
       expect(stripVendorFromLabel('Eufy   Front Door', 'Eufy')).toBe('Front Door')
       expect(stripVendorFromLabel('My Eufy Front Door', 'Eufy')).toBe('My Front Door')
+    })
+  })
+
+  describe('getMatterJsVersion', () => {
+    it('returns the raw semver string with no leading "v" so callers can format with v%s', () => {
+      // Callers log it as `Matter.js v%s` — a leading `v` here would
+      // produce `Matter.js vv0.17.0`. Lock the contract so a future
+      // tweak doesn't reintroduce the double prefix.
+      const version = getMatterJsVersion()
+      expect(version).toMatch(/^\d+\.\d+\.\d+/)
+      expect(version.startsWith('v')).toBe(false)
     })
   })
 })

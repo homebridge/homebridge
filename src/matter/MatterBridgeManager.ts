@@ -265,7 +265,7 @@ export class MatterBridgeManager extends BaseMatterManager {
       await this.matterServer.start()
 
       // Log Homebridge and Matter.js version info, matching child bridge log style
-      const matterJsVersion = await getMatterJsVersion()
+      const matterJsVersion = getMatterJsVersion()
       log.success('Homebridge v%s (Matter.js v%s) (%s) is running on port %s.', getVersion(), matterJsVersion, this.config.bridge.name, matterPort)
       log.info('Matter server initialized for main bridge')
 

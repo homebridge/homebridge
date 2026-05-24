@@ -7,6 +7,7 @@ Always reference these instructions first and fallback to search or bash command
 ## Prerequisites for Assignment
 
 **CRITICAL**: Before any issue can be assigned to Copilot, it must have one of these labels applied:
+
 - **`patch`**: For bug fixes and small improvements (patch version bump: x.y.z → x.y.z+1)
 - **`minor`**: For new features and enhancements (minor version bump: x.y.z → x.y+1.0)
 - **`major`**: For breaking changes and major refactors (major version bump: x.y.z → x+1.0.0)
@@ -18,11 +19,13 @@ Without these labels, Copilot cannot determine the appropriate branch targeting 
 When creating pull requests or working with branches, always follow this strategy based on the issue label:
 
 ### Label-Based Targeting:
+
 - **`patch` label** (bug fixes): Target for patch version increment (e.g., 1.11.0 → 1.11.1)
 - **`minor` label** (new features): Target for minor version increment (e.g., 1.11.0 → 1.12.0)
 - **`major` label** (breaking changes): Target for major version increment (e.g., 1.11.0 → 2.0.0)
 
 ### Branch Targeting Priority:
+
 1. **Target the lowest available beta branch** that matches or exceeds the required version bump (e.g., beta-2.0.0, beta-3.0.0)
 2. **If no suitable beta branch exists**, create a new beta branch following this naming convention:
    - For patch: `beta-{current.major}.{current.minor}.{current.patch+1}` (e.g., beta-1.11.1)
@@ -43,6 +46,7 @@ When no suitable beta branch exists for the required version bump:
 5. **Target your PR** to the newly created beta branch
 
 Example branch creation scenarios (assuming current version 1.11.0):
+
 - Patch fix → Create `beta-1.11.1` if it doesn't exist
 - Minor feature → Create `beta-1.12.0` if it doesn't exist
 - Major change → Create `beta-2.0.0` if it doesn't exist
@@ -60,7 +64,7 @@ Example branch creation scenarios (assuming current version 1.11.0):
   - `./bin/homebridge -D -U /path/to/config` -- uses custom config directory
   - `./bin/homebridge --help` -- shows all CLI options
 - Development mode:
-  - `npm run dev` -- runs with DEBUG=* environment and example plugins
+  - `npm run dev` -- runs with DEBUG=\* environment and example plugins
   - `npm run watch` -- uses nodemon to auto-rebuild and restart on changes
 
 ## Validation
@@ -86,6 +90,7 @@ The most common development scenario is creating or testing Homebridge plugins:
 The following are outputs from frequently run commands. Reference them instead of viewing, searching, or running bash commands to save time.
 
 ### Repository structure
+
 ```
 /home/runner/work/homebridge/homebridge/
 ├── README.md              # Main documentation
@@ -109,6 +114,7 @@ The following are outputs from frequently run commands. Reference them instead o
 ```
 
 ### Key npm scripts
+
 ```json
 {
   "build": "npm run clean && tsc",
@@ -124,6 +130,7 @@ The following are outputs from frequently run commands. Reference them instead o
 ```
 
 ### CLI options (homebridge --help)
+
 ```
 Options:
   -V, --version                   output the version number
@@ -139,6 +146,7 @@ Options:
 ```
 
 ### Sample minimal config.json
+
 ```json
 {
   "bridge": {
@@ -155,6 +163,7 @@ Options:
 ```
 
 ### Node.js requirements
+
 - Supported versions: Node.js ^18.15.0 || ^20.7.0 || ^22
 - Current environment: Node.js v20.19.4 (compatible)
 

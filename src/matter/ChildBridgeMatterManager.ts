@@ -217,7 +217,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    */
   private async startMatterServer(matterConfig: MatterConfig): Promise<void> {
     // Log Matter.js version and startup info
-    const matterJsVersion = await getMatterJsVersion()
+    const matterJsVersion = getMatterJsVersion()
     log.success('Homebridge v%s (Matter.js v%s) (%s) is running on port %s.', getVersion(), matterJsVersion, this.bridgeConfig.name, matterConfig.port)
     log.debug(`Starting Matter server for child bridge ${this.bridgeConfig.username}`)
 

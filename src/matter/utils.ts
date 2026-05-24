@@ -6,6 +6,8 @@
 
 import type { MacAddress } from '@homebridge/hap-nodejs'
 
+import { version as matterJsVersion } from '@matter/main'
+
 /**
  * Type guard for Node.js error objects with code property
  */
@@ -133,10 +135,12 @@ export function stripVendorFromLabel(label: string | undefined, vendor: string |
 }
 
 /**
- * Get the version of @matter/main from package.json dependencies.
+ * Get the version of @matter/main reported by the installed package.
+ * Returns the raw semver string (no `v` prefix) — callers format it with
+ * `v%s` when logging.
  *
- * @returns The version string of @matter/main, or '0.0.0' if not found.
+ * @returns The version string of @matter/main.
  */
-export async function getMatterJsVersion(): Promise<string> {
-  return '0.17.0-alpha.0-20260508-96d5c3a88'
+export function getMatterJsVersion(): string {
+  return matterJsVersion
 }
