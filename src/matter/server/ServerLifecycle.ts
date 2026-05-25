@@ -360,6 +360,32 @@ export class ServerLifecycle {
       log.info('Plugins can now register Matter accessories via the API')
     } catch (error) {
       log.error('Failed to start Matter server:', error)
+      // If we created a ServerNode before failing (e.g. commissioning setup
+      // or aggregator creation threw), close it so its internal storage
+      // adapters and observables are torn down rather than left for GC.
+      // Previously `cleanup()` only nulled the reference, which left those
+      // matter.js-internal resources hanging until the process exited.
+      // close() can itself throw on a half-built node — swallow that and
+      // let cleanup() run regardless, since we're already in the error
+      // path and want to fall through to the caller's catch with the
+      // original error.
+      const partialNode = deps.getServerNode()
+      if (partialNode) {
+        try {
+          await partialNode.close()
+        } catch (closeError) {
+          log.debug('Failed to close half-built ServerNode during start error path:', closeError)
+          // Signal to callers (e.g. the external accessory publisher) that the
+          // half-built node may still hold its port bound. Without this flag a
+          // caller treats any start() failure as "port never bound, safe to
+          // release", and the allocator could hand the same port to a later
+          // accessory and hit EADDRINUSE. Annotating the rethrown error keeps
+          // the original error type/stack intact while carrying the signal.
+          if (error !== null && typeof error === 'object') {
+            (error as { portMayStillBeBound?: boolean }).portMayStillBeBound = true
+          }
+        }
+      }
       await this.cleanup(deps)
       throw error
     }

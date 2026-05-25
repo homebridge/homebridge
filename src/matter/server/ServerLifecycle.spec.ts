@@ -649,3 +649,203 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     await expect(lifecycle.stop(deps, new Map())).resolves.toBeUndefined()
   })
 })
+
+describe('serverLifecycle.start — close half-built ServerNode on failure', () => {
+  // When start() throws after ServerNode.create but before completing,
+  // cleanup() alone would only null the reference, leaving the matter.js
+  // server's storage adapters and observables hanging until process exit.
+  // The catch path should close() the partial node first so its resources
+  // are torn down.
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    sharedVarsState.calls = []
+    serverNodeCreateCalls.length = 0
+    serverNodeCreateInvocationIndex = 0
+
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+
+    lifecycle = new ServerLifecycle()
+
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return { load: vi.fn(async () => new Map()) } as never
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('closes the partial ServerNode when a post-create step in start() throws', async () => {
+    // Drive ServerNode.create to return a node we can observe. start()
+    // will then fail at the next step (generateCommissioningInfo) and the
+    // catch path should call close() on this node before cleanup runs.
+    const close = vi.fn(async () => {})
+    const { ServerNode } = await import('@matter/main')
+    vi.mocked(ServerNode.create).mockResolvedValueOnce({
+      run: vi.fn(() => Promise.resolve()),
+      add: vi.fn(),
+      close,
+    } as never)
+
+    const deps = createMockDeps({
+      commissioningManager: {
+        passcode: 20202021,
+        discriminator: 3840,
+        vendorId: 0xFFF1,
+        productId: 0x8001,
+        loadOrGenerateCredentials: vi.fn(async () => {}),
+        setupCommissioningEventListeners: vi.fn(),
+        // Fail after the ServerNode has been created and registered — this
+        // is exactly the window the bot flagged: post-create, pre-completion.
+        generateCommissioningInfo: vi.fn(async () => {
+          throw new Error('boom in commissioning info')
+        }),
+        updateCommissioningFile: vi.fn(async () => {}),
+      } as unknown as ServerLifecycleDeps['commissioningManager'],
+    })
+
+    await expect(lifecycle.start(deps)).rejects.toThrow('boom in commissioning info')
+
+    // The half-built node was closed before the error propagated.
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('swallows a close() failure on the half-built node and still rethrows the original error', async () => {
+    // The half-built node may itself refuse to close cleanly. The original
+    // start error is what the caller cares about — the close failure goes
+    // to debug logs and the catch path falls through to cleanup() either way.
+    const close = vi.fn(async () => {
+      throw new Error('close also failed')
+    })
+    const { ServerNode } = await import('@matter/main')
+    vi.mocked(ServerNode.create).mockResolvedValueOnce({
+      run: vi.fn(() => Promise.resolve()),
+      add: vi.fn(),
+      close,
+    } as never)
+
+    const deps = createMockDeps({
+      commissioningManager: {
+        passcode: 20202021,
+        discriminator: 3840,
+        vendorId: 0xFFF1,
+        productId: 0x8001,
+        loadOrGenerateCredentials: vi.fn(async () => {}),
+        setupCommissioningEventListeners: vi.fn(),
+        generateCommissioningInfo: vi.fn(async () => {
+          throw new Error('boom in commissioning info')
+        }),
+        updateCommissioningFile: vi.fn(async () => {}),
+      } as unknown as ServerLifecycleDeps['commissioningManager'],
+    })
+
+    await expect(lifecycle.start(deps)).rejects.toThrow('boom in commissioning info')
+
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call close() when start() fails before a ServerNode is created', async () => {
+    // Early failures (storage setup, credential loading) happen before
+    // ServerNode.create. There is no node to close — the catch path must
+    // not invent a close call against a null reference.
+    const close = vi.fn(async () => {})
+    const { ServerNode } = await import('@matter/main')
+    // Make sure no node is created — but if it were, close would be observable.
+    vi.mocked(ServerNode.create).mockResolvedValueOnce({
+      run: vi.fn(() => Promise.resolve()),
+      add: vi.fn(),
+      close,
+    } as never)
+
+    const deps = createMockDeps({
+      commissioningManager: {
+        passcode: 20202021,
+        discriminator: 3840,
+        vendorId: 0xFFF1,
+        productId: 0x8001,
+        // Fail before ServerNode.create runs.
+        loadOrGenerateCredentials: vi.fn(async () => {
+          throw new Error('credential load failed')
+        }),
+        setupCommissioningEventListeners: vi.fn(),
+        generateCommissioningInfo: vi.fn(async () => {}),
+        updateCommissioningFile: vi.fn(async () => {}),
+      } as unknown as ServerLifecycleDeps['commissioningManager'],
+    })
+
+    await expect(lifecycle.start(deps)).rejects.toThrow('credential load failed')
+
+    expect(close).not.toHaveBeenCalled()
+  })
+})
+
+describe('serverLifecycle.start — port-binding signal when the half-built node fails to close (#3944)', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+
+    lifecycle = new ServerLifecycle()
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return { load: vi.fn(async () => new Map()) } as never
+    })
+    const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
+    vi.spyOn(proto, 'startServerNode').mockImplementation(async () => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // Build deps whose start() fails after the ServerNode exists, with the
+  // half-built node (returned by getServerNode in the catch path) closing as
+  // given. Overriding getServerNode keeps the close behaviour fully controlled
+  // and avoids leaking a once-mock on the shared ServerNode.create.
+  function depsThatFailAfterNodeCreation(close: () => Promise<void>): ServerLifecycleDeps {
+    const partialNode = { run: vi.fn(() => Promise.resolve()), add: vi.fn(), close: vi.fn(close) }
+    return createMockDeps({
+      getServerNode: vi.fn(() => partialNode as never),
+      commissioningManager: {
+        passcode: 20202021,
+        discriminator: 3840,
+        vendorId: 0xFFF1,
+        productId: 0x8001,
+        loadOrGenerateCredentials: vi.fn(async () => {}),
+        setupCommissioningEventListeners: vi.fn(),
+        // Throws after the ServerNode is created, so the catch path reaches
+        // partialNode.close().
+        generateCommissioningInfo: vi.fn(async () => {
+          throw new Error('commissioning failed')
+        }),
+        updateCommissioningFile: vi.fn(async () => {}),
+      } as unknown as ServerLifecycleDeps['commissioningManager'],
+    })
+  }
+
+  it('flags the rethrown error portMayStillBeBound when close() rejects', async () => {
+    const deps = depsThatFailAfterNodeCreation(() => Promise.reject(new Error('close failed')))
+
+    let thrown: any
+    await lifecycle.start(deps).catch(e => (thrown = e))
+
+    expect(thrown.message).toBe('commissioning failed')
+    expect(thrown.portMayStillBeBound).toBe(true)
+  })
+
+  it('does not flag the error when the half-built node closes cleanly', async () => {
+    const deps = depsThatFailAfterNodeCreation(() => Promise.resolve())
+
+    let thrown: any
+    await lifecycle.start(deps).catch(e => (thrown = e))
+
+    expect(thrown.message).toBe('commissioning failed')
+    expect(thrown.portMayStillBeBound).toBeUndefined()
+  })
+})

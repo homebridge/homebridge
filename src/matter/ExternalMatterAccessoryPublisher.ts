@@ -135,6 +135,11 @@ export async function publishExternalMatterAccessory(
       } catch (stopError) {
         log.debug(`Failed to stop partially-started Matter server for ${accessory.displayName}:`, stopError)
       }
+    } else if ((error as { portMayStillBeBound?: boolean } | undefined)?.portMayStillBeBound) {
+      // start() failed, but its internal cleanup could not close the
+      // half-built server node (ServerLifecycle flagged it), so the port may
+      // still be bound. Keep it reserved rather than risk EADDRINUSE on reuse.
+      portReleasable = false
     }
     // Hand the port back to the allocator so it can be reused on the next
     // publish attempt — without this, a single publish failure would
@@ -142,7 +147,12 @@ export async function publishExternalMatterAccessory(
     if (portReleasable) {
       context.portService.releaseMatterPort?.(uniqueId)
     } else {
-      log.debug(`Leaving port ${port} reserved for ${accessory.displayName} — stop() failed so the matter.js server may still be bound`)
+      // The matter.js server may still be bound to the port (stop() failed, or
+      // start()'s internal cleanup couldn't close the half-built node), so we
+      // can't safely hand it back. The slot stays consumed until the process
+      // restarts — warn so operators can see a port was lost rather than
+      // silently shrinking the pool.
+      log.warn(`Leaving Matter port ${port} reserved for ${accessory.displayName} — the matter.js server may still be bound. This port stays unavailable until Homebridge restarts.`)
     }
     throw error
   }

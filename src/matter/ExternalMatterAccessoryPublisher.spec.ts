@@ -366,6 +366,23 @@ describe('externalMatterAccessoryPublisher', () => {
         expect(mockPortService.releaseMatterPort).toHaveBeenCalledWith('AABBCCDDEEFF')
       })
 
+      it('keeps the port reserved when start fails but flags that the node may still be bound', async () => {
+        // ServerLifecycle annotates the error with portMayStillBeBound when its
+        // internal close() of the half-built node failed — so the port may still
+        // be bound even though start() rejected. The publisher must NOT release it.
+        const err = new Error('start failed') as Error & { portMayStillBeBound?: boolean }
+        err.portMayStillBeBound = true
+        mockMatterServer.start.mockRejectedValueOnce(err)
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('start failed')
+
+        expect(mockPortService.releaseMatterPort).not.toHaveBeenCalled()
+        // The lost slot must be surfaced at warn (not debug) so operators can
+        // see the pool shrank until restart (#3944).
+        expect(vi.mocked(Logger).internal.warn).toHaveBeenCalledWith(expect.stringMatching(/reserved.*may still be bound/i))
+      })
+
       it('keeps the port reserved when stop() fails after a successful start', async () => {
         // A failed stop may leave the matter.js server still bound to the
         // port. Handing it back to the allocator would let a later publish
@@ -377,6 +394,7 @@ describe('externalMatterAccessoryPublisher', () => {
         await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
 
         expect(mockPortService.releaseMatterPort).not.toHaveBeenCalled()
+        expect(vi.mocked(Logger).internal.warn).toHaveBeenCalledWith(expect.stringMatching(/reserved.*may still be bound/i))
       })
     })
 
