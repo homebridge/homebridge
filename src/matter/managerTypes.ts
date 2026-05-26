@@ -11,10 +11,10 @@
 export interface FabricInfo {
   /** Fabric index */
   fabricIndex: number
-  /** Fabric ID */
-  fabricId: bigint
-  /** Node ID on this fabric */
-  nodeId: bigint
+  /** Fabric ID — string because Matter fabric IDs are 64-bit and must survive IPC/JSON */
+  fabricId: string
+  /** Node ID on this fabric — string for the same reason as fabricId */
+  nodeId: string
   /** Vendor ID */
   vendorId: number
   /** Label for this fabric */

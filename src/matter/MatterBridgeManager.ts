@@ -493,11 +493,13 @@ export class MatterBridgeManager extends BaseMatterManager {
       commissioned: snapshot.commissioned,
       fabricCount: snapshot.fabricCount,
 
-      // Map fabric info from Matter.js format to our interface
+      // Map fabric info from Matter.js format to our interface.
+      // Keep fabricId/nodeId as strings — they are 64-bit Matter identifiers
+      // and would lose precision as Number, and JSON/IPC cannot serialize BigInt.
       fabrics: snapshot.fabrics.map(fabric => ({
         fabricIndex: fabric.fabricIndex,
-        fabricId: BigInt(fabric.fabricId),
-        nodeId: BigInt(fabric.nodeId),
+        fabricId: fabric.fabricId,
+        nodeId: fabric.nodeId,
         vendorId: fabric.rootVendorId, // Matter.js uses rootVendorId
         label: fabric.label,
       })),
