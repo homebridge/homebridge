@@ -741,7 +741,7 @@ export class Server {
     })
 
     this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORIES, (data) => {
-      void this.handleGetMatterAccessories(data?.bridgeUsername)
+      void this.handleGetMatterAccessories(data)
     })
 
     this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORY_INFO, (data) => {
@@ -859,15 +859,22 @@ export class Server {
   }
 
   /**
-   * Get Matter accessories for a specific bridge or all bridges
-   * @param bridgeUsername - Optional: specific bridge username (MAC format)
+   * Get Matter accessories for a specific bridge or all bridges.
+   *
+   * The UI parks each request under a `correlationId` and routes responses
+   * back to the matching waiter; events without the original correlationId
+   * are dropped, so every emitted `accessoriesData` event must echo it.
    */
-  private async handleGetMatterAccessories(bridgeUsername?: string): Promise<void> {
+  private async handleGetMatterAccessories(data?: { bridgeUsername?: string, correlationId?: string }): Promise<void> {
+    const bridgeUsername = data?.bridgeUsername
+    const correlationId = data?.correlationId
+
     // Check if monitoring is active
     if (!this.matterMonitoringActive) {
       matterLogger.warn('Matter monitoring not active - cannot get accessories')
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername,
           error: 'Matter monitoring not active',
@@ -881,6 +888,7 @@ export class Server {
     if (!this.api.isMatterEnabled() && this.childBridges.size === 0) {
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername,
           accessories: [],
@@ -909,6 +917,7 @@ export class Server {
 
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername: bridgeUsername || 'all',
           accessories: allAccessories,
@@ -919,6 +928,7 @@ export class Server {
       matterLogger.error('Failed to get Matter accessories:', error)
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername,
           error: error instanceof Error ? error.message : 'Unknown error',
