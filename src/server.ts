@@ -129,6 +129,7 @@ export class Server {
     const bridgeConfig: BridgeOptions = {
       cachedAccessoriesDir: User.cachedAccessoryPath(),
       cachedAccessoriesItemName: 'cachedAccessories',
+      externalAccessoriesItemName: 'externalAccessories',
     }
 
     // shallow copy the homebridge options to the bridge options object

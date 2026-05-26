@@ -20,6 +20,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): strip invalid child bridge Matter configs instead of just logging
 - fix: send fallback error when no Matter bridge has the requested accessory
 - fix(matter): close half-built ServerNode when start() fails after creation
+- feat: persist plugin attribution for external accessories so the UI can show their QR codes
 
 ### Homebridge Dependencies
 

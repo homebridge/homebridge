@@ -130,6 +130,15 @@ export interface HomebridgeConfig {
 export interface BridgeOptions extends HomebridgeOptions {
   cachedAccessoriesDir: string
   cachedAccessoriesItemName: string
+  externalAccessoriesItemName: string
+}
+
+export interface ExternalAccessoryMetadata {
+  username: MacAddress
+  plugin: PluginIdentifier
+  displayName: string
+  category: number
+  port?: number
 }
 
 export interface CharacteristicWarningOpts {
@@ -143,6 +152,7 @@ export class BridgeService {
   private cachedPlatformAccessories: PlatformAccessory[] = []
   private cachedAccessoriesFileLoaded = false
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map()
+  private readonly publishedExternalAccessoriesMetadata: Map<MacAddress, ExternalAccessoryMetadata> = new Map()
 
   constructor(
     private api: HomebridgeAPI,
@@ -153,6 +163,14 @@ export class BridgeService {
   ) {
     this.storageService = new StorageService(this.bridgeOptions.cachedAccessoriesDir)
     this.storageService.initSync()
+
+    // Externals are republished from scratch on every startup, so any persisted metadata
+    // from a previous run is stale until the owning plugin re-registers its accessories.
+    try {
+      this.storageService.removeItemSync(this.bridgeOptions.externalAccessoriesItemName)
+    } catch (error: any) {
+      log.warn('Failed to clear stale external accessories metadata file:', error.message)
+    }
 
     // Server is "secure by default", meaning it creates a top-level Bridge accessory that
     // will not allow unauthenticated requests. This matches the behavior of actual HomeKit
@@ -375,6 +393,24 @@ export class BridgeService {
     }
   }
 
+  /**
+   * Save metadata for currently published external accessories so external tools (e.g. the
+   * Homebridge UI) can attribute each accessory to the plugin that published it. The
+   * underlying HAP `AccessoryInfo` files do not store plugin attribution.
+   */
+  public saveExternalAccessoriesMetadataOnDisk(): void {
+    try {
+      const entries = Array.from(this.publishedExternalAccessoriesMetadata.values())
+      if (entries.length === 0) {
+        this.storageService.removeItemSync(this.bridgeOptions.externalAccessoriesItemName)
+        return
+      }
+      this.storageService.setItemSync(this.bridgeOptions.externalAccessoriesItemName, entries)
+    } catch (error: any) {
+      log.error('Failed to save external accessories metadata to disk:', error.message)
+    }
+  }
+
   handleRegisterPlatformAccessories(accessories: PlatformAccessory[]): void {
     const hapAccessories = accessories.map((accessory) => {
       // Check for UUID collision with existing bridged accessories
@@ -465,6 +501,13 @@ export class BridgeService {
         throw new Error(`Accessory ${hapAccessory.displayName} experienced an address collision.`)
       } else {
         this.publishedExternalAccessories.set(advertiseAddress, accessory)
+        this.publishedExternalAccessoriesMetadata.set(advertiseAddress, {
+          username: advertiseAddress,
+          plugin: accessory._associatedPlugin!,
+          displayName: hapAccessory.displayName,
+          category: accessory.category,
+          port: accessoryPort,
+        })
       }
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
@@ -493,6 +536,8 @@ export class BridgeService {
       log.debug('Publishing external accessory (name: %s, publishInfo: %o).', hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo))
       void hapAccessory.publish(publishInfo, this.allowInsecureAccess)
     }
+
+    this.saveExternalAccessoriesMetadataOnDisk()
   }
 
   public createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory | undefined {

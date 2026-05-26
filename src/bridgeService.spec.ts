@@ -18,6 +18,7 @@ vi.mock('./storageService.js', () => {
       public getItem = vi.fn().mockResolvedValue(null)
       public copyItem = vi.fn().mockResolvedValue(undefined)
       public setItemSync = vi.fn()
+      public removeItemSync = vi.fn()
       // eslint-disable-next-line unused-imports/no-unused-vars
       constructor(_baseDir?: string) {
         storageInstances.list.push(this)
@@ -39,6 +40,7 @@ function makeBridgeOptions(overrides: any = {}): any {
   return {
     cachedAccessoriesDir: '/tmp/test-cache-dir',
     cachedAccessoriesItemName: 'cachedAccessories',
+    externalAccessoriesItemName: 'externalAccessories',
     keepOrphanedCachedAccessories: false,
     ...overrides,
   }
@@ -264,6 +266,56 @@ describe('bridgeService', () => {
       expect(publishSpy).not.toHaveBeenCalled()
       // Should not request a port either
       expect(externalPortService.requestPort).not.toHaveBeenCalled()
+    })
+
+    it('clears any stale external accessories metadata file on construction', () => {
+      // eslint-disable-next-line no-new
+      new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const storage = storageInstances.list.at(-1)
+      expect(storage.removeItemSync).toHaveBeenCalledWith('externalAccessories')
+    })
+
+    it('writes plugin-attribution metadata for each published external accessory', async () => {
+      externalPortService.requestPort.mockResolvedValue(50000)
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const storage = storageInstances.list.at(-1)
+
+      const a = makePlatformAccessory('External-A', 'homebridge-foo')
+      vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      await service.handlePublishExternalAccessories([a])
+
+      const writes = storage.setItemSync.mock.calls.filter((call: any[]) => call[0] === 'externalAccessories')
+      expect(writes).toHaveLength(1)
+      const [, entries] = writes[0]
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
+        plugin: 'homebridge-foo',
+        displayName: 'External-A',
+        port: 50000,
+      })
+      expect(entries[0].username).toMatch(/^[\dA-F]{2}(:[\dA-F]{2}){5}$/)
+    })
+
+    it('rewrites the metadata file with the full set on subsequent publish calls', async () => {
+      externalPortService.requestPort.mockResolvedValueOnce(50000).mockResolvedValueOnce(50001)
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const storage = storageInstances.list.at(-1)
+
+      const a = makePlatformAccessory('External-A', 'homebridge-foo')
+      const b = makePlatformAccessory('External-B', 'homebridge-bar')
+      vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+      vi.spyOn(b._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      await service.handlePublishExternalAccessories([a])
+      await service.handlePublishExternalAccessories([b])
+
+      const writes = storage.setItemSync.mock.calls.filter((call: any[]) => call[0] === 'externalAccessories')
+      expect(writes).toHaveLength(2)
+      // Second write must contain both accessories so the file reflects the current full set.
+      const [, secondEntries] = writes[1]
+      expect(secondEntries.map((e: any) => e.displayName).sort()).toEqual(['External-A', 'External-B'])
+      expect(secondEntries.map((e: any) => e.plugin).sort()).toEqual(['homebridge-bar', 'homebridge-foo'])
     })
   })
 
