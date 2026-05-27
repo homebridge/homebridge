@@ -25,6 +25,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): serialize fabric/node IDs as strings, not BigInt
 - feat: allow disabling both hap and matter on a bridge
 - feat(matter): support disabling matter in place without tear down
+- fix(matter): set door lock state directly
 
 ### Homebridge Dependencies
 

@@ -36,8 +36,12 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
       // Execute user handler
       await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request)
 
-      // Only reached if handler succeeded - update Matter state via super
-      await super.lockDoor(request)
+      // Only reached if handler succeeded - update the Matter attribute.
+      // We extend the featureless DoorLockBehavior (not DoorLockServer) to avoid
+      // advertising credential features, which means there is no working
+      // super.lockDoor() to delegate to — calling it throws. Set the lockState
+      // attribute directly, mirroring DoorLockServer.lockDoor().
+      this.state.lockState = DoorLock.LockState.Locked
 
       // Sync lock state to cache
       registry.syncStateToCache(endpointId, 'doorLock', { lockState: DoorLock.LockState.Locked })
@@ -63,8 +67,10 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
       // Execute user handler
       await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request)
 
-      // Only reached if handler succeeded - update Matter state via super
-      await super.unlockDoor(request)
+      // Only reached if handler succeeded - update the Matter attribute.
+      // See lockDoor() above: the featureless base has no working super.unlockDoor(),
+      // so set the lockState attribute directly, mirroring DoorLockServer.unlockDoor().
+      this.state.lockState = DoorLock.LockState.Unlocked
 
       // Sync lock state to cache
       registry.syncStateToCache(endpointId, 'doorLock', { lockState: DoorLock.LockState.Unlocked })
