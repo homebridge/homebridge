@@ -332,6 +332,14 @@ export interface MatterConfig extends Record<string, unknown> {
 
   /** Name for the Matter bridge (optional) */
   name?: string
+
+  /**
+   * When `false`, Matter is configured but not advertised — the config block
+   * and the on-disk commissioning storage are preserved, so it can be
+   * re-enabled without re-commissioning. Missing/`true` means enabled. This
+   * mirrors how `bridge.hap: false` disables HAP without losing pairing data.
+   */
+  enabled?: boolean
 }
 
 // Note: the canonical MatterServerEvents declaration is at the bottom of this file.

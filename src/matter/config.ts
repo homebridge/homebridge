@@ -7,10 +7,22 @@
  */
 
 import type { AccessoryConfig, HomebridgeConfig, PlatformConfig } from '../bridgeService.js'
+import type { MatterConfig } from './types.js'
 
 import { Logger } from '../logger.js'
 
 const log = Logger.withPrefix('Matter/Config')
+
+/**
+ * Whether a Matter config block represents an *enabled* Matter setup.
+ * The block being present means Matter is configured; `enabled: false` means
+ * it is configured but intentionally turned off (storage + port preserved so
+ * it can be re-enabled without re-commissioning). Missing `enabled` = enabled,
+ * which keeps every pre-existing config working unchanged.
+ */
+export function isMatterConfigEnabled(matter: MatterConfig | undefined): boolean {
+  return !!matter && matter.enabled !== false
+}
 
 /**
  * Lightweight config collector that doesn't require Matter.js imports
@@ -20,10 +32,10 @@ export class MatterConfigCollector {
    * Check if any Matter configuration exists in the config
    */
   static hasMatterConfig(config: HomebridgeConfig): boolean {
-    return !!(
-      config.bridge.matter
-      || config.platforms.some((p: PlatformConfig) => p._bridge?.matter)
-      || config.accessories.some((a: AccessoryConfig) => a._bridge?.matter)
+    return (
+      isMatterConfigEnabled(config.bridge.matter)
+      || config.platforms.some((p: PlatformConfig) => isMatterConfigEnabled(p._bridge?.matter))
+      || config.accessories.some((a: AccessoryConfig) => isMatterConfigEnabled(a._bridge?.matter))
     )
   }
 

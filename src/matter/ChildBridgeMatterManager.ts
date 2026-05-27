@@ -121,8 +121,10 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * @param onCommissioningChanged Optional callback when commissioning status changes
    */
   async initialize(onCommissioningChanged?: () => void): Promise<void> {
-    // Check if Matter is configured
-    if (!this.matterConfig) {
+    // Skip when Matter is not enabled for this child bridge (absent, or present
+    // but explicitly disabled via _bridge.matter.enabled: false). Checked inline
+    // so the rest of the method narrows `matterConfig` to defined.
+    if (!this.matterConfig || this.matterConfig.enabled === false) {
       return
     }
 

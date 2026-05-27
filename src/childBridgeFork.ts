@@ -31,6 +31,7 @@ import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { ChildBridgeExternalPortService } from './externalPortService.js'
 import { Logger } from './logger.js'
 import { ChildBridgeMatterMessageHandler } from './matter/ChildBridgeMatterMessageHandler.js'
+import { isMatterConfigEnabled } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 
@@ -122,7 +123,7 @@ export class ChildBridgeFork {
     // plugin's initializer runs. The heavy ChildBridgeMatterManager init
     // still happens later in startBridge(). Matter is unsupported on
     // accessory-style child bridges, so skip there.
-    if (this.bridgeConfig.matter && this.type !== PluginType.ACCESSORY) {
+    if (isMatterConfigEnabled(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
       await this.api.loadMatterAPI()
     }
 
@@ -142,11 +143,11 @@ export class ChildBridgeFork {
   async startBridge(): Promise<void> {
     // Conditionally load Matter support only if this child bridge has Matter configured
     // This prevents loading heavy Matter.js libraries for child bridges that don't use it
-    if (this.bridgeConfig.matter && this.type === PluginType.ACCESSORY) {
+    if (isMatterConfigEnabled(this.bridgeConfig.matter) && this.type === PluginType.ACCESSORY) {
       matterLogger.warn('Matter is not supported on accessory child bridges. Ignoring matter configuration.')
     }
 
-    if (this.bridgeConfig.matter && this.type !== PluginType.ACCESSORY) {
+    if (isMatterConfigEnabled(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
       matterLogger.info('Loading Matter support for child bridge...')
 
       // Note: api.loadMatterAPI() was already called at the start of loadPlugin()

@@ -120,8 +120,10 @@ export class MatterBridgeManager extends BaseMatterManager {
    * Initialize Matter server for main bridge if enabled
    */
   async initialize(): Promise<void> {
-    // Check if main bridge has matter configuration
-    if (!this.config.bridge.matter) {
+    // Skip when Matter is not enabled for the main bridge (absent, or present
+    // but explicitly disabled via bridge.matter.enabled: false). Checked inline
+    // so the rest of the method narrows `bridge.matter` to defined.
+    if (!this.config.bridge.matter || this.config.bridge.matter.enabled === false) {
       return
     }
 

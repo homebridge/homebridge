@@ -27,7 +27,7 @@ import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
-import { MatterConfigCollector } from './matter/config.js'
+import { isMatterConfigEnabled, MatterConfigCollector } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
@@ -318,11 +318,12 @@ export class Server {
   }
 
   /**
-   * Whether Matter is configured for the given bridge.
-   * Matter is opt-in: a `bridge.matter` block must be present.
+   * Whether Matter is enabled for the given bridge.
+   * Matter is opt-in: a `bridge.matter` block must be present and not
+   * explicitly disabled via `bridge.matter.enabled: false`.
    */
   public static isMatterEnabledForBridge(bridgeConfig: BridgeConfiguration): boolean {
-    return !!bridgeConfig.matter
+    return isMatterConfigEnabled(bridgeConfig.matter)
   }
 
   private static loadConfig(): HomebridgeConfig {

@@ -97,6 +97,14 @@ describe('server', () => {
       it('returns true when bridge.matter has fields configured', () => {
         expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: { port: 5540, name: 'Test' } } as any)).toBe(true)
       })
+
+      it('returns false when bridge.matter is configured but explicitly disabled', () => {
+        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: { port: 5540, enabled: false } } as any)).toBe(false)
+      })
+
+      it('returns true when bridge.matter.enabled is explicitly true', () => {
+        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: { port: 5540, enabled: true } } as any)).toBe(true)
+      })
     })
   })
 

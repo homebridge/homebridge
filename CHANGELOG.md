@@ -24,6 +24,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): echo correlationId on accessoriesData responses
 - fix(matter): serialize fabric/node IDs as strings, not BigInt
 - feat: allow disabling both hap and matter on a bridge
+- feat(matter): support disabling matter in place without tear down
 
 ### Homebridge Dependencies
 

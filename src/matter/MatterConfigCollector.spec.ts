@@ -51,6 +51,31 @@ describe('matterConfigCollector', () => {
     } as HomebridgeConfig
   })
 
+  describe('hasMatterConfig', () => {
+    it('returns false when no bridge has Matter configured', () => {
+      expect(MatterConfigCollector.hasMatterConfig(mockConfig)).toBe(false)
+    })
+
+    it('returns true when the main bridge has Matter configured', () => {
+      const config = { ...mockConfig, bridge: { ...mockConfig.bridge, matter: { port: 5540 } } } as HomebridgeConfig
+      expect(MatterConfigCollector.hasMatterConfig(config)).toBe(true)
+    })
+
+    it('returns false when the only Matter config is explicitly disabled', () => {
+      const config = { ...mockConfig, bridge: { ...mockConfig.bridge, matter: { port: 5540, enabled: false } } } as HomebridgeConfig
+      expect(MatterConfigCollector.hasMatterConfig(config)).toBe(false)
+    })
+
+    it('returns true when a child bridge has Matter enabled even if the main bridge disabled it', () => {
+      const config = {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, matter: { port: 5540, enabled: false } },
+        platforms: [{ platform: 'X', _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } } }],
+      } as unknown as HomebridgeConfig
+      expect(MatterConfigCollector.hasMatterConfig(config)).toBe(true)
+    })
+  })
+
   describe('validateMatterPortsPool', () => {
     it('should accept valid matterPorts configuration', () => {
       mockConfig.matterPorts = { start: 5530, end: 5541 }
