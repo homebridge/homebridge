@@ -259,9 +259,9 @@ export class ChildBridgeFork {
       this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
     }
 
-    // Publish HAP only when not opted out via bridgeConfig.hap=false. The
-    // protocol-enablement check in Server.validateChildBridgeConfig has
-    // already guaranteed at least one of HAP or Matter is on for this bridge.
+    // Publish HAP only when not opted out via bridgeConfig.hap=false. Both
+    // protocols may be disabled, in which case this child bridge advertises
+    // nothing (Matter setup above is likewise skipped when not configured).
     if (this.bridgeConfig.hap !== false) {
       this.bridgeService.publishBridge()
     } else {

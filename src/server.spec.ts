@@ -7,6 +7,7 @@ import { HAPStorage } from '@homebridge/hap-nodejs'
 import fs from 'fs-extra'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PluginType } from './api.js'
 import { Server } from './server.js'
 import { User } from './user.js'
 
@@ -106,16 +107,18 @@ describe('server', () => {
       await fs.writeJson(configPath, mockConfig)
     })
 
-    it('rejects a config where both HAP is disabled AND no matter is configured', async () => {
+    it('accepts a config where both HAP is disabled AND no matter is configured', async () => {
+      // Both protocols off is allowed — the bridge loads and simply advertises nothing.
       await fs.writeJson(configPath, {
         ...mockConfig,
         bridge: { ...mockConfig.bridge, hap: false },
       })
 
-      expect(() => new Server({
+      const server = new Server({
         customStoragePath: homebridgeStorageFolder,
         hideQRCode: true,
-      })).toThrow(/at least one protocol/i)
+      })
+      expect(server).toBeInstanceOf(Server)
     })
 
     it('accepts hap:false when matter is configured', async () => {
@@ -208,6 +211,48 @@ describe('server', () => {
       expect(() => new Server({
         customStoragePath: homebridgeStorageFolder,
         hideQRCode: true,
+      })).toThrow(/not a valid username/i)
+    })
+  })
+
+  describe('child bridge protocol validation (validateChildBridgeConfig)', () => {
+    // validateChildBridgeConfig is private; call it directly to exercise the
+    // protocol rules in isolation (mirrors the `(server as any)` pattern used
+    // elsewhere in this file). A fresh server has no registered child bridges,
+    // so the duplicate-username branch is not hit.
+    const childUsername = '0E:11:22:33:44:55'
+
+    function makeServer(): Server {
+      return new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+    }
+
+    it('accepts a platform child bridge with both HAP and Matter disabled', () => {
+      // No `matter` block and `hap: false` means neither protocol is enabled —
+      // this is now allowed; the child bridge simply advertises nothing.
+      const server = makeServer()
+      expect(() => (server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', {
+        username: childUsername,
+        hap: false,
+      })).not.toThrow()
+    })
+
+    it('accepts an accessory child bridge with HAP disabled (no Matter alternative)', () => {
+      const server = makeServer()
+      expect(() => (server as any).validateChildBridgeConfig(PluginType.ACCESSORY, 'homebridge-example', {
+        username: childUsername,
+        hap: false,
+      })).not.toThrow()
+    })
+
+    it('still rejects a child bridge with an invalid username', () => {
+      // Surrounding validation must remain intact after dropping the protocol check.
+      const server = makeServer()
+      expect(() => (server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', {
+        username: 'not-a-mac',
+        hap: false,
       })).toThrow(/not a valid username/i)
     })
   })

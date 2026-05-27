@@ -23,6 +23,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat: persist plugin attribution for external accessories so the UI can show their QR codes
 - fix(matter): echo correlationId on accessoriesData responses
 - fix(matter): serialize fabric/node IDs as strings, not BigInt
+- feat: allow disabling both hap and matter on a bridge
 
 ### Homebridge Dependencies
 

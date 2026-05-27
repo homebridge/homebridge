@@ -75,8 +75,8 @@ export interface BridgeConfiguration {
    * bridges where the user does not want to expose a HomeKit bridge accessory.
    * Default: `true` (HAP is published).
    *
-   * Note: at least one of `hap` or `matter` must be enabled per bridge —
-   * setting `hap: false` without a `matter` configuration is rejected.
+   * Both `hap` and `matter` may be disabled on the same bridge; the bridge
+   * then advertises nothing (it still loads, it just exposes no accessories).
    */
   hap?: boolean
   matter?: MatterConfig
