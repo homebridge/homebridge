@@ -47,11 +47,16 @@ echo ""
 DEPRECATED_VERSIONS=()
 echo "Fetching pre-release (alpha/beta) versions of homebridge from npm..."
 # Fetch all non-deprecated pre-release versions from the registry, pipe directly to jq
-PRE_RELEASE_VERSIONS=$(curl -s --compressed -H "accept: application/vnd.npm.install-v1+json" "https://registry.npmjs.org/$PACKAGE" | jq -c '[.versions[] | select(.deprecated == null and (.version | test("-alpha\\.|-beta\\."))) | .version] | sort_by(split("-") | last | split(".") | last | tonumber) | reverse')
-echo "Found $(echo "$PRE_RELEASE_VERSIONS" | jq 'length') pre-release versions (keeping 5 most recent):"
-# Skip the 5 most recent pre-release versions
-PRE_RELEASE_VERSIONS=$(echo "$PRE_RELEASE_VERSIONS" | jq -c '.[5:]')
-for VERSION in $(echo "$PRE_RELEASE_VERSIONS" | jq -r '.[]'); do
+# Extract versions as plain list, then sort with sort -V for full semver ordering
+PRE_RELEASE_VERSIONS=$(curl -s --compressed -H "accept: application/vnd.npm.install-v1+json" "https://registry.npmjs.org/$PACKAGE" \
+  | jq -r '[.versions[] | select(.deprecated == null and (.version | test("-alpha\\.|-beta\\."))) | .version] | .[]' \
+  | sort -V \
+  | tail -r)
+PRE_RELEASE_COUNT=$(echo "$PRE_RELEASE_VERSIONS" | grep -c .)
+echo "Found $PRE_RELEASE_COUNT pre-release versions (keeping 5 most recent):"
+# Skip the 5 most recent pre-release versions, deprecate the rest
+PRE_RELEASE_VERSIONS=$(echo "$PRE_RELEASE_VERSIONS" | tail -n +6)
+for VERSION in $PRE_RELEASE_VERSIONS; do
   echo "* Processing version: $VERSION..."
   if [ "$EXECUTE" = "0" ]; then
     echo "* [DRY RUN] Would run: npm deprecate $PACKAGE@\"$VERSION\" \"This pre-release version is deprecated in favor of the latest release.\""
@@ -101,4 +106,9 @@ elif [ $HAS_ERROR -eq 1 ]; then
   summary "* ⚠️ Some versions reported an error while being deprecated - check the logs above."
 elif [ $HAS_ERROR -eq 2 ]; then
   summary "* ⚠️ The step stopped early due to a 429 rate limit - retry the action later."
+fi
+
+# Exit non-zero in execute mode if any deprecations failed or were rate-limited
+if [ "$EXECUTE" = "1" ] && [ $HAS_ERROR -ne 0 ]; then
+  exit $HAS_ERROR
 fi

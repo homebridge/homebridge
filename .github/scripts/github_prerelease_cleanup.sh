@@ -75,10 +75,10 @@ git tag -l "*-*" | while read -r TAG; do
   BASE_VERSION_NO_V="${BASE_VERSION#v}"
   if [ "$(printf "%s\n%s" "$BASE_VERSION_NO_V" "$LATEST_VERSION" | sort -V | tail -n1)" == "$LATEST_VERSION" ]; then
     if [ "$EXECUTE" = "0" ]; then
-      echo "* [DRY RUN] Would run: git push origin \":refs/tags/$TAG\""
+      echo "* [DRY RUN] Would run: git push origin --delete refs/tags/$TAG"
     else
       echo "* Deleting tag: $TAG"
-      git push origin ":refs/tags/$TAG"
+      git push origin --delete "refs/tags/$TAG"
     fi
   else
     echo "* Skipping tag: $TAG (base version $BASE_VERSION_NO_V is newer than $LATEST_VERSION)"
