@@ -27,6 +27,7 @@ while [ $# -gt 0 ]; do
 done
 
 HAS_ERROR=0
+KEEP_MOST_RECENT=5
 # Read package name and version from package.json
 PACKAGE=$(jq -r .name package.json)
 LATEST_VERSION=$(jq -r .version package.json)
@@ -45,18 +46,23 @@ if [ "$EXECUTE" = "0" ]; then
 fi
 echo ""
 DEPRECATED_VERSIONS=()
+KEPT_VERSIONS=()
 echo "Fetching pre-release (alpha/beta) versions of homebridge from npm..."
 # Fetch all non-deprecated pre-release versions from the registry, pipe directly to jq
 # Extract versions as plain list, then sort with sort -V for full semver ordering
-PRE_RELEASE_VERSIONS=$(curl -s --compressed -H "accept: application/vnd.npm.install-v1+json" "https://registry.npmjs.org/$PACKAGE" \
+mapfile -t PRE_RELEASE_VERSIONS < <(curl -s --compressed -H "accept: application/vnd.npm.install-v1+json" "https://registry.npmjs.org/$PACKAGE" \
   | jq -r '[.versions[] | select(.deprecated == null and (.version | test("-alpha\\.|-beta\\."))) | .version] | .[]' \
-  | sort -V \
-  | tail -r)
-PRE_RELEASE_COUNT=$(echo "$PRE_RELEASE_VERSIONS" | grep -c .)
-echo "Found $PRE_RELEASE_COUNT pre-release versions (keeping 5 most recent):"
-# Skip the 5 most recent pre-release versions, deprecate the rest
-PRE_RELEASE_VERSIONS=$(echo "$PRE_RELEASE_VERSIONS" | tail -n +6)
-for VERSION in $PRE_RELEASE_VERSIONS; do
+  | sort -V -r)
+PRE_RELEASE_COUNT=${#PRE_RELEASE_VERSIONS[@]}
+KEPT_VERSIONS=("${PRE_RELEASE_VERSIONS[@]:0:$KEEP_MOST_RECENT}")
+echo "Found $PRE_RELEASE_COUNT pre-release versions (keeping ${#KEPT_VERSIONS[@]} most recent):"
+for VERSION in "${KEPT_VERSIONS[@]}"; do
+  echo "* Keeping version: $VERSION"
+done
+if [ ${#KEPT_VERSIONS[@]} -gt 0 ]; then
+  echo ""
+fi
+for VERSION in "${PRE_RELEASE_VERSIONS[@]:$KEEP_MOST_RECENT}"; do
   echo "* Processing version: $VERSION..."
   if [ "$EXECUTE" = "0" ]; then
     echo "* [DRY RUN] Would run: npm deprecate $PACKAGE@\"$VERSION\" \"This pre-release version is deprecated in favor of the latest release.\""
@@ -93,10 +99,26 @@ if [ "$EXECUTE" = "0" ]; then
   summary "> **DRY RUN MODE** - no versions were actually deprecated."
 fi
 if [ ${#DEPRECATED_VERSIONS[@]} -eq 0 ]; then
-  summary "* No versions were deprecated."
+  if [ "$EXECUTE" = "0" ]; then
+    summary "* No versions would be deprecated."
+  else
+    summary "* No versions were deprecated."
+  fi
 else
-  summary "* Deprecated ${#DEPRECATED_VERSIONS[@]} pre-release versions:"
+  if [ "$EXECUTE" = "0" ]; then
+    summary "* Would deprecate ${#DEPRECATED_VERSIONS[@]} pre-release versions:"
+  else
+    summary "* Deprecated ${#DEPRECATED_VERSIONS[@]} pre-release versions:"
+  fi
   for VERSION in "${DEPRECATED_VERSIONS[@]}"; do
+    summary "  * \`$VERSION\`"
+  done
+fi
+if [ ${#KEPT_VERSIONS[@]} -eq 0 ]; then
+  summary "* No recent pre-release versions were kept."
+else
+  summary "* Kept ${#KEPT_VERSIONS[@]} most recent pre-release versions:"
+  for VERSION in "${KEPT_VERSIONS[@]}"; do
     summary "  * \`$VERSION\`"
   done
 fi
