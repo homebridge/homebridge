@@ -26,6 +26,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat: allow disabling both hap and matter on a bridge
 - feat(matter): support disabling matter in place without tear down
 - fix(matter): set door lock state directly
+- fix(matter): echo correlationId on monitoringStarted/Stopped acks
 
 ### Homebridge Dependencies
 

@@ -365,4 +365,107 @@ describe('server', () => {
       expect((ack![1] as any).data).toMatchObject({ success: true, alreadyStopped: true })
     })
   })
+
+  describe('matter monitoring lifecycle correlationId echo', () => {
+    // The UI parks each start/stopMatterMonitoring request under a
+    // correlationId, and its shared matterEvent dispatcher drops any event
+    // without one — so the ack has to echo whatever the UI sent.
+
+    it('echoes correlationId on the first-client monitoringStarted ack', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      ;(server as any).handleStartMatterMonitoring({ correlationId: 'start-1' })
+
+      const ack = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'monitoringStarted',
+      )
+      expect(ack).toBeDefined()
+      expect((ack![1] as any).correlationId).toBe('start-1')
+      expect((ack![1] as any).data).toMatchObject({ success: true })
+    })
+
+    it('echoes correlationId on the alreadyActive monitoringStarted ack', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      // First start (no correlationId) bumps the counter to 1.
+      ;(server as any).handleStartMatterMonitoring()
+      sendSpy.mockClear()
+
+      // Second start hits the "already monitoring" branch.
+      ;(server as any).handleStartMatterMonitoring({ correlationId: 'start-2' })
+
+      const ack = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'monitoringStarted',
+      )
+      expect(ack).toBeDefined()
+      expect((ack![1] as any).correlationId).toBe('start-2')
+      expect((ack![1] as any).data).toMatchObject({ success: true, alreadyActive: true })
+    })
+
+    it('echoes correlationId on the last-client monitoringStopped ack', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      ;(server as any).handleStartMatterMonitoring()
+      sendSpy.mockClear()
+
+      ;(server as any).handleStopMatterMonitoring({ correlationId: 'stop-1' })
+
+      const ack = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'monitoringStopped',
+      )
+      expect(ack).toBeDefined()
+      expect((ack![1] as any).correlationId).toBe('stop-1')
+      expect((ack![1] as any).data).toMatchObject({ success: true })
+    })
+
+    it('echoes correlationId on the othersActive monitoringStopped ack', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      ;(server as any).handleStartMatterMonitoring()
+      ;(server as any).handleStartMatterMonitoring()
+      sendSpy.mockClear()
+
+      ;(server as any).handleStopMatterMonitoring({ correlationId: 'stop-2' })
+
+      const ack = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'monitoringStopped',
+      )
+      expect(ack).toBeDefined()
+      expect((ack![1] as any).correlationId).toBe('stop-2')
+      expect((ack![1] as any).data).toMatchObject({ success: true, othersActive: true })
+    })
+
+    it('echoes correlationId on the alreadyStopped monitoringStopped ack', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      ;(server as any).handleStopMatterMonitoring({ correlationId: 'stop-3' })
+
+      const ack = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'monitoringStopped',
+      )
+      expect(ack).toBeDefined()
+      expect((ack![1] as any).correlationId).toBe('stop-3')
+      expect((ack![1] as any).data).toMatchObject({ success: true, alreadyStopped: true })
+    })
+  })
 })

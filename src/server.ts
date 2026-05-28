@@ -711,12 +711,12 @@ export class Server {
     })
 
     // Matter monitoring lifecycle handlers
-    this.ipcService.on(IpcIncomingEvent.START_MATTER_MONITORING, () => {
-      this.handleStartMatterMonitoring()
+    this.ipcService.on(IpcIncomingEvent.START_MATTER_MONITORING, (data) => {
+      this.handleStartMatterMonitoring(data)
     })
 
-    this.ipcService.on(IpcIncomingEvent.STOP_MATTER_MONITORING, () => {
-      this.handleStopMatterMonitoring()
+    this.ipcService.on(IpcIncomingEvent.STOP_MATTER_MONITORING, (data) => {
+      this.handleStopMatterMonitoring(data)
     })
 
     this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORIES, (data) => {
@@ -734,9 +734,15 @@ export class Server {
 
   /**
    * Handle start Matter monitoring request from UI
-   * Only starts monitoring if this is the first client
+   * Only starts monitoring if this is the first client.
+   *
+   * The UI parks each `startMatterMonitoring` request under a `correlationId`
+   * so it can route the ack back to the matching waiter and gate its first
+   * `getMatterAccessories` on it; echo it on the reply so the UI's dispatcher
+   * (which drops events without a correlationId) can deliver it.
    */
-  private handleStartMatterMonitoring(): void {
+  private handleStartMatterMonitoring(data?: { correlationId?: string }): void {
+    const correlationId = data?.correlationId
     this.matterMonitoringClients++
 
     // Only setup monitoring if this is the first client
@@ -753,6 +759,7 @@ export class Server {
 
       const event: MatterEvent = {
         type: 'monitoringStarted',
+        correlationId,
         data: { success: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -760,6 +767,7 @@ export class Server {
       // Already monitoring, just acknowledge
       const event: MatterEvent = {
         type: 'monitoringStarted',
+        correlationId,
         data: { success: true, alreadyActive: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -768,14 +776,20 @@ export class Server {
 
   /**
    * Handle stop Matter monitoring request from UI
-   * Only stops monitoring when no more clients
+   * Only stops monitoring when no more clients.
+   *
+   * Echo the request's `correlationId` for the same reason as
+   * `handleStartMatterMonitoring`.
    */
-  private handleStopMatterMonitoring(): void {
+  private handleStopMatterMonitoring(data?: { correlationId?: string }): void {
+    const correlationId = data?.correlationId
+
     if (this.matterMonitoringClients <= 0) {
       // Nothing to do, but still acknowledge so the UI doesn't sit waiting
       // for a confirmation event that never comes.
       const event: MatterEvent = {
         type: 'monitoringStopped',
+        correlationId,
         data: { success: true, alreadyStopped: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -798,6 +812,7 @@ export class Server {
 
       const event: MatterEvent = {
         type: 'monitoringStopped',
+        correlationId,
         data: { success: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -805,6 +820,7 @@ export class Server {
       // Other clients still monitoring
       const event: MatterEvent = {
         type: 'monitoringStopped',
+        correlationId,
         data: { success: true, othersActive: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
