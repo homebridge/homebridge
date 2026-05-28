@@ -1,4 +1,5 @@
-#! /bin/sh
+#!/usr/bin/env bash
+
 
 # Defaults to dry run unless --execute flag or EXECUTE=1 env var is set
 EXECUTE=${EXECUTE:-0}
