@@ -54,8 +54,9 @@ mapfile -t PRE_RELEASE_VERSIONS < <(curl -s --compressed -H "accept: application
   | jq -r '[.versions[] | select(.deprecated == null and (.version | test("-alpha\\.|-beta\\."))) | .version] | .[]' \
   | sort -V -r)
 PRE_RELEASE_COUNT=${#PRE_RELEASE_VERSIONS[@]}
-KEPT_VERSIONS=("${PRE_RELEASE_VERSIONS[@]:0:$KEEP_MOST_RECENT}")
-echo "Found $PRE_RELEASE_COUNT pre-release versions (keeping ${#KEPT_VERSIONS[@]} most recent):"
+KEEP_COUNT=$((PRE_RELEASE_COUNT < KEEP_MOST_RECENT ? PRE_RELEASE_COUNT : KEEP_MOST_RECENT))
+KEPT_VERSIONS=("${PRE_RELEASE_VERSIONS[@]:0:$KEEP_COUNT}")
+echo "Found $PRE_RELEASE_COUNT pre-release versions (keeping up to $KEEP_MOST_RECENT most recent):"
 for VERSION in "${KEPT_VERSIONS[@]}"; do
   echo "* Keeping version: $VERSION"
 done

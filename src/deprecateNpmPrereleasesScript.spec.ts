@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -76,7 +76,7 @@ describe('deprecate_npm_prereleases.sh', () => {
 
     expect(result.status).toBe(0)
     expect(result.stderr).not.toContain('tail: invalid option')
-    expect(result.stdout).toContain('Found 6 pre-release versions (keeping 5 most recent):')
+    expect(result.stdout).toContain('Found 6 pre-release versions (keeping up to 5 most recent):')
     expect(result.stdout).toContain('* Keeping version: 2.0.2-beta.3')
     expect(result.stdout).toContain('* [DRY RUN] Would run: npm deprecate homebridge@"1.9.9-beta.1" "This pre-release version is deprecated in favor of the latest release."')
     expect(result.stdout).toContain('* Would deprecate 1 pre-release versions:')
@@ -93,5 +93,6 @@ describe('deprecate_npm_prereleases.sh', () => {
     expect(result.stdout).not.toContain('DRY RUN MODE')
     expect(result.stdout).toContain('  * `1.9.9-beta.1`')
     expect(result.stdout).toContain('* Kept 5 most recent pre-release versions:')
+    expect(readFileSync(result.npmCallsPath, 'utf8')).toBe('deprecate homebridge@1.9.9-beta.1 This pre-release version is deprecated in favor of the latest release.\n')
   })
 })
