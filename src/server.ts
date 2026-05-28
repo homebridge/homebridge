@@ -22,12 +22,12 @@ import chalk from 'chalk'
 import qrcode from 'qrcode-terminal'
 
 import { HomebridgeAPI, PluginType } from './api.js'
-import { BridgeService } from './bridgeService.js'
+import { BridgeService, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
 import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
-import { isMatterConfigEnabled, MatterConfigCollector } from './matter/config.js'
+import { isMatterActive, isMatterConfigEnabled, MatterConfigCollector } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
@@ -266,10 +266,15 @@ export class Server {
     if (Server.isHapEnabled(this.config.bridge)) {
       this.publishBridge()
     } else {
-      // HAP is opted out. The bridge ADVERTISED listener won't fire, so move
-      // server status to OK explicitly. Matter may or may not be up — if both
-      // protocols are disabled the bridge simply advertises nothing.
-      log.info('HAP is disabled for the main bridge (bridge.hap=false); skipping HAP publish.')
+      // HAP is opted out (or externalsOnly mode is set). The bridge ADVERTISED
+      // listener won't fire for the bridge itself, so move server status to OK
+      // explicitly. Matter may or may not be up — if both protocols are
+      // suppressed the bridge simply advertises nothing of its own.
+      if (isHapExternalsOnly(this.config.bridge.hap)) {
+        log.info('HAP externalsOnly mode for the main bridge; bridge accessory will not publish but external accessories will.')
+      } else {
+        log.info('HAP is disabled for the main bridge (bridge.hap.enabled=false); skipping HAP publish.')
+      }
       this.setServerStatus(ServerStatus.OK)
     }
   }
@@ -311,10 +316,13 @@ export class Server {
 
   /**
    * Whether HAP should be published for the given bridge configuration.
-   * HAP is on by default; users opt out via `bridge.hap: false`.
+   * HAP is on by default; users opt out via `bridge.hap.enabled: false`.
+   * In externalsOnly mode the bridge accessory itself is not published, so
+   * this returns false there too — externals are handled separately by
+   * BridgeService.
    */
   public static isHapEnabled(bridgeConfig: BridgeConfiguration): boolean {
-    return bridgeConfig.hap !== false
+    return isHapConfigEnabled(bridgeConfig.hap) && !isHapExternalsOnly(bridgeConfig.hap)
   }
 
   /**
@@ -390,6 +398,9 @@ export class Server {
     if (!validMacAddress(username)) {
       throw new Error(`Not a valid username: ${username}. Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`)
     }
+
+    // Validate the main bridge HAP config (shape + externalsOnly/enabled coherence).
+    validateHapConfig(config.bridge, { bridgeLabel: 'main bridge' })
 
     config.accessories = config.accessories || []
     config.platforms = config.platforms || []
@@ -637,6 +648,15 @@ export class Server {
       )
     }
 
+    // Normalise the child username to uppercase, mirroring the main bridge
+    // (loadConfig). validMacAddress only accepts A-F, so without this a lowercase
+    // MAC in _bridge.username would be rejected here even though the identical
+    // value is accepted on the main bridge. Guarded so a non-string value still
+    // falls through to the proper "not a valid username" error below.
+    if (typeof bridgeConfig.username === 'string') {
+      bridgeConfig.username = bridgeConfig.username.toUpperCase()
+    }
+
     if (!validMacAddress(bridgeConfig.username)) {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - `
@@ -661,12 +681,22 @@ export class Server {
       }
     }
 
-    if (bridgeConfig.username === this.config.bridge.username.toUpperCase()) {
+    // Both usernames are normalised to uppercase (main in loadConfig, child
+    // above), so a direct comparison is case-consistent.
+    if (bridgeConfig.username === this.config.bridge.username) {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - `
         + `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have it's own unique username.`,
       )
     }
+
+    // Validate the child bridge HAP config (shape + externalsOnly/enabled coherence).
+    // For accessory child bridges, `hap.externalsOnly` is stripped with a warning
+    // since externals are not supported via the accessory plugin API.
+    validateHapConfig(bridgeConfig, {
+      bridgeLabel: `${type} "${identifier}" child bridge`,
+      isAccessoryPlugin: type === PluginType.ACCESSORY,
+    })
   }
 
   /**
@@ -961,13 +991,19 @@ export class Server {
         return
       }
 
-      // If not found on main bridge, forward to child bridges with Matter enabled.
+      // If not found on main bridge, forward to child bridges whose Matter is
+      // actually active. A child with `matter: { enabled: false }` still carries
+      // a matterConfig block but never starts a Matter message handler, so it
+      // would never answer — forwarding to it would only make the UI wait out
+      // the 2s fallback instead of getting an immediate "not found". Gate on
+      // isMatterActive (enabled or externalsOnly), which mirrors the condition
+      // under which the child actually creates its Matter handler.
       // The matching child responds directly to the UI via the existing
       // MATTER_EVENT forwarding path; schedule a fallback error so the UI
       // doesn't hang if no child knows the UUID either.
       let forwardedToChildren = false
       for (const childBridge of this.childBridges.values()) {
-        if (childBridge.getMetadata().matterConfig) {
+        if (isMatterActive(childBridge.getMetadata().matterConfig)) {
           childBridge.getMatterAccessoryInfo(uuid)
           forwardedToChildren = true
         }
@@ -1159,9 +1195,14 @@ export class Server {
         },
       })
     } catch (error) {
-      // Main bridge doesn't have accessory - forward to child bridges with Matter enabled
+      // Main bridge doesn't have accessory - forward to child bridges whose
+      // Matter is actually active. A child with `matter: { enabled: false }`
+      // still carries a matterConfig block but never starts a Matter handler,
+      // so forwarding a control request to it would just be dropped. Gate on
+      // isMatterActive (enabled or externalsOnly) — the same condition under
+      // which the child creates its Matter handler.
       const matterChildBridges = [...this.childBridges.values()].filter(
-        bridge => bridge.getMetadata().matterConfig,
+        bridge => isMatterActive(bridge.getMetadata().matterConfig),
       )
 
       if (matterChildBridges.length > 0) {

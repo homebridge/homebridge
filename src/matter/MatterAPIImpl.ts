@@ -18,8 +18,8 @@
 import type { EndpointType } from '@matter/main'
 
 import type { HomebridgeAPI, MatterAPI, PlatformName, PluginIdentifier } from '../api.js'
+import type { BaseMatterManager } from './BaseMatterManager.js'
 import type { InternalMatterAccessory, MatterAccessory, MatterServer } from './index.js'
-import type { MatterBridgeManager } from './MatterBridgeManager.js'
 
 import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
@@ -32,7 +32,7 @@ import { SwitchAPIImpl } from './SwitchAPI.js'
  */
 interface HomebridgeAPIInternals {
   _pendingExternalRegistrations?: Map<string, (value: void) => void>
-  _matterManager?: MatterBridgeManager
+  _matterManager?: BaseMatterManager
   _matterServer?: MatterServer | null
 }
 
@@ -224,6 +224,36 @@ export class MatterAPIImpl implements MatterAPI {
    * Validates accessories before registration
    * Returns a promise that resolves when all accessories are fully registered
    */
+  /**
+   * Guard the register/update/publish entry points. Two conditions must hold
+   * before these methods may emit, or the emitted event has no listener:
+   * bridged registrations are silently dropped, and external ones await a
+   * resolver that never fires (hanging forever).
+   *
+   * 1. The Matter manager must be attached — it is constructed only once
+   *    Homebridge has finished launching, so calls during plugin
+   *    initialisation are too early.
+   * 2. The manager must have active Matter on THIS bridge. `api.matter` can be
+   *    exposed on the main bridge merely because a *child* bridge uses Matter;
+   *    in that case the main manager attached no listeners, so a main-process
+   *    call would drop/hang. `hasActiveMatter()` distinguishes this.
+   *
+   * @param cannotAction - leading clause, e.g. `${plugin}: Cannot register Matter accessories`
+   */
+  private assertMatterReady(cannotAction: string): void {
+    const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
+    if (!matterManager) {
+      throw new Error(
+        `${cannotAction} before Homebridge has finished launching. Do this from your platform's 'didFinishLaunching' event, not during plugin initialisation.`,
+      )
+    }
+    if (!matterManager.hasActiveMatter()) {
+      throw new Error(
+        `${cannotAction}: Matter is not enabled for this bridge. api.matter is available because another bridge uses Matter, but this bridge has no active 'matter' configuration to register against.`,
+      )
+    }
+  }
+
   async registerPlatformAccessories(
     pluginIdentifier: PluginIdentifier,
     platformName: PlatformName,
@@ -234,20 +264,7 @@ export class MatterAPIImpl implements MatterAPI {
       return
     }
 
-    // The Matter manager that handles these registration events is only
-    // attached once Homebridge has finished launching. `api.isMatterEnabled()`
-    // can return true during plugin *initialisation* — before the manager
-    // exists — so guard here: registering this early would emit bridged-accessory
-    // events with no listener (silently dropped) or, for external accessories,
-    // await a publish-completion promise that nothing can ever resolve (the
-    // call would hang forever). Fail fast with an actionable message instead.
-    // Plugins must register Matter accessories from the platform's
-    // 'didFinishLaunching' event, by which point the manager is ready.
-    if (!(this.api as unknown as HomebridgeAPIInternals)._matterManager) {
-      throw new Error(
-        `${pluginIdentifier}: Cannot register Matter accessories before Homebridge has finished launching. Register them from your platform's 'didFinishLaunching' event, not during plugin initialisation.`,
-      )
-    }
+    this.assertMatterReady(`${pluginIdentifier}: Cannot register Matter accessories`)
 
     // Validate all accessories before registration
     const validAccessories = this.validateAccessories(
@@ -336,15 +353,7 @@ export class MatterAPIImpl implements MatterAPI {
       return
     }
 
-    // Same guard as registerPlatformAccessories: the Matter manager (which
-    // handles this event) is only attached once Homebridge has finished
-    // launching. Updating before then emits with no listener and is silently
-    // dropped — fail fast with an actionable message instead.
-    if (!(this.api as unknown as HomebridgeAPIInternals)._matterManager) {
-      throw new Error(
-        'Cannot update Matter accessories before Homebridge has finished launching. Call this from your platform\'s \'didFinishLaunching\' event, not during plugin initialisation.',
-      )
-    }
+    this.assertMatterReady('Cannot update Matter accessories')
 
     log.debug(`Updating ${accessories.length} Matter platform accessor${accessories.length === 1 ? 'y' : 'ies'} in cache`)
 
@@ -365,6 +374,8 @@ export class MatterAPIImpl implements MatterAPI {
       log.warn(`${pluginIdentifier}: Attempted to unregister 0 Matter accessories`)
       return
     }
+
+    this.assertMatterReady(`${pluginIdentifier}: Cannot unregister Matter accessories`)
 
     // Split accessories into normal (bridge) and external (standalone) based on device type
     const normalAccessories: MatterAccessory[] = []
@@ -424,14 +435,7 @@ export class MatterAPIImpl implements MatterAPI {
     // Validate cluster name (warning only, don't block)
     this.validateClusterName(cluster, `updateAccessoryState (${uuid})`)
 
-    // Same guard as registerPlatformAccessories: the Matter manager is only
-    // attached once Homebridge has finished launching; updating before then is
-    // silently dropped. Fail fast with an actionable message instead.
-    if (!(this.api as unknown as HomebridgeAPIInternals)._matterManager) {
-      throw new Error(
-        `Cannot update Matter accessory ${uuid} before Homebridge has finished launching. Call this from your platform's 'didFinishLaunching' event, not during plugin initialisation.`,
-      )
-    }
+    this.assertMatterReady(`Cannot update Matter accessory ${uuid}`)
 
     log.debug(
       `Updating Matter accessory state: uuid=${uuid}, cluster=${cluster}, attributes=${Object.keys(attributes).join(', ')}${partId ? `, partId=${partId}` : ''}`,

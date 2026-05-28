@@ -5,8 +5,11 @@ import type { MatterConfig } from './types.js'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { InternalAPIEvent } from '../api.js'
+import { Logger } from '../logger.js'
 import { PluginManager } from '../pluginManager.js'
 import { ChildBridgeMatterManager } from './ChildBridgeMatterManager.js'
+import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 
 describe('childBridgeMatterManager', () => {
   let manager: ChildBridgeMatterManager
@@ -330,6 +333,198 @@ describe('childBridgeMatterManager', () => {
       const info = manager.getAccessoryInfo('test-uuid')
       expect(info).toEqual(mockAccessoryInfo)
       expect(mockMatterServer.getAccessoryInfo).toHaveBeenCalledWith('test-uuid')
+    })
+  })
+
+  describe('initialize — three-state (disabled, externalsOnly, normal)', () => {
+    function createManager(matter: MatterConfig | undefined) {
+      const cfg = { ...mockBridgeConfig, matter } as BridgeConfiguration
+      return new ChildBridgeMatterManager(
+        cfg,
+        mockBridgeOptions,
+        mockApi,
+        mockExternalPortService,
+        mockPluginManager,
+      )
+    }
+
+    it('returns early without attaching listeners when matter is not configured', async () => {
+      const m = createManager(undefined)
+      await m.initialize()
+      expect(mockApi.on).not.toHaveBeenCalled()
+      expect((m as any).matterServer).toBeUndefined()
+    })
+
+    it('returns early without attaching listeners when matter is fully disabled (enabled: false, no externalsOnly)', async () => {
+      const m = createManager({ enabled: false } as MatterConfig)
+      await m.initialize()
+      expect(mockApi.on).not.toHaveBeenCalled()
+      expect((m as any).matterServer).toBeUndefined()
+    })
+
+    it('externalsOnly mode: attaches external listeners + bridged drop stubs, does NOT start the bridge server', async () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      await m.initialize()
+
+      // No bridge server started.
+      expect((m as any).matterServer).toBeUndefined()
+      expect(mockExternalPortService.requestPort).not.toHaveBeenCalled()
+
+      // External listeners attached.
+      const attached = vi.mocked(mockApi.on).mock.calls.map(c => c[0])
+      expect(attached).toContain(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES)
+      expect(attached).toContain(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES)
+
+      // Bridged drop stubs attached.
+      expect(attached).toContain(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES)
+      expect(attached).toContain(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES)
+      expect(attached).toContain(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES)
+      expect(attached).toContain(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE)
+
+      // externalsOnlyMode flag set.
+      expect((m as any).externalsOnlyMode).toBe(true)
+    })
+
+    it('externalsOnly mode: bridged drop stub logs at debug level (does not call base handler)', () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      const handleRegisterSpy = vi.spyOn(m as any, 'handleRegisterPlatformAccessories')
+
+      // Directly invoke the drop stub (would normally be wired up by setupBridgedDropStubs).
+      ;(m as any)._onRegisterMatterPlatformAccessoriesDropped('homebridge-test', 'TestPlatform', [{ displayName: 'x' }])
+
+      // The base handler must NOT be called — drop stub logs only.
+      expect(handleRegisterSpy).not.toHaveBeenCalled()
+    })
+
+    it('externalsOnly mode: external publish listener is fully wired (not a drop stub)', () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      const handlePublishSpy = vi.spyOn(m as any, 'handlePublishExternalAccessories').mockResolvedValue(undefined)
+
+      // Invoke the external publish handler directly.
+      ;(m as any)._onPublishExternalMatterAccessories([{ displayName: 'x' }], 'reg-1')
+
+      expect(handlePublishSpy).toHaveBeenCalledWith([{ displayName: 'x' }], 'reg-1')
+    })
+
+    it('externalsOnly mode: routes accessory state updates to external servers (not dropped)', async () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      await m.initialize()
+
+      // A published external accessory in externalsOnly mode.
+      const extServer = { updateAccessoryState: vi.fn().mockResolvedValue(undefined) }
+      ;(m as any).externalMatterServers.set('ext-uuid', extServer)
+
+      // The UPDATE_MATTER_ACCESSORY_STATE listener must be the real handler, not a
+      // drop stub — so the external accessory's state actually gets updated.
+      ;(m as any)._onUpdateMatterAccessoryState('ext-uuid', 'OnOff', { on: true })
+      await Promise.resolve()
+
+      expect(extServer.updateAccessoryState).toHaveBeenCalledWith('ext-uuid', 'OnOff', { on: true }, undefined)
+    })
+
+    it('externalsOnly mode: routes platform-accessory updates to external servers (not dropped)', async () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      await m.initialize()
+
+      const extServer = { updatePlatformAccessories: vi.fn().mockResolvedValue(undefined) }
+      ;(m as any).externalMatterServers.set('ext-uuid', extServer)
+
+      ;(m as any)._onUpdateMatterPlatformAccessories([{ UUID: 'ext-uuid', displayName: 'Vac' }])
+      await Promise.resolve()
+
+      expect(extServer.updatePlatformAccessories).toHaveBeenCalledWith([{ UUID: 'ext-uuid', displayName: 'Vac' }])
+    })
+
+    it('hasActiveMatter() is true in externalsOnly mode even though the bridge server never starts', async () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      await m.initialize()
+
+      expect(m.isMatterEnabled()).toBe(false) // no bridge server
+      expect(m.hasActiveMatter()).toBe(true) // but external accessories can still be served
+    })
+
+    it('hasActiveMatter() is false when matter is fully disabled', () => {
+      const m = createManager({ enabled: false } as MatterConfig)
+      expect(m.hasActiveMatter()).toBe(false)
+    })
+  })
+
+  describe('_onUpdateMatterAccessoryState — sentinel routing error is debug, not error (#3944)', () => {
+    function createManager(matter: MatterConfig | undefined) {
+      const cfg = { ...mockBridgeConfig, matter } as BridgeConfiguration
+      return new ChildBridgeMatterManager(cfg, mockBridgeOptions, mockApi, mockExternalPortService, mockPluginManager)
+    }
+
+    it('logs at debug (not error) when the accessory is not on this child bridge', async () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      await m.initialize()
+
+      const logging = Logger.withPrefix('Matter/ChildManager')
+      const debugSpy = vi.spyOn(logging, 'debug')
+      const errorSpy = vi.spyOn(logging, 'error')
+
+      ;(m as any)._onUpdateMatterAccessoryState('not-on-this-bridge', 'OnOff', { on: true })
+      await new Promise(resolve => setTimeout(resolve, 0))
+
+      const sawSentinelDebug = debugSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('not on this bridge'))
+      expect(sawSentinelDebug).toBe(true)
+      const sawError = errorSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('Failed to update Matter accessory state'))
+      expect(sawError).toBe(false)
+
+      debugSpy.mockRestore()
+      errorSpy.mockRestore()
+    })
+
+    it('still logs at error for an unexpected (non-sentinel) failure', async () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      await m.initialize()
+      vi.spyOn(m as any, 'handleUpdateAccessoryState').mockRejectedValue(new Error('boom'))
+
+      const logging = Logger.withPrefix('Matter/ChildManager')
+      const errorSpy = vi.spyOn(logging, 'error')
+
+      ;(m as any)._onUpdateMatterAccessoryState('uuid-x', 'OnOff', { on: true })
+      await new Promise(resolve => setTimeout(resolve, 0))
+
+      const sawError = errorSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('Failed to update Matter accessory state'))
+      expect(sawError).toBe(true)
+
+      errorSpy.mockRestore()
+    })
+
+    it('handleUpdateAccessoryState throws the sentinel when the bridge does not own the uuid', async () => {
+      const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
+      await m.initialize()
+      await expect((m as any).handleUpdateAccessoryState('nope', 'OnOff', { on: true }))
+        .rejects
+        .toBeInstanceOf(MatterAccessoryNotOnBridgeError)
+    })
+  })
+
+  describe('teardown — listener removal', () => {
+    it('removes both external + bridged + drop-stub listeners safely (no-op when never attached)', async () => {
+      mockApi.removeListener = vi.fn() as any
+      const m = new ChildBridgeMatterManager(
+        mockBridgeConfig,
+        mockBridgeOptions,
+        mockApi,
+        mockExternalPortService,
+        mockPluginManager,
+      )
+
+      await m.teardown()
+
+      const removed = vi.mocked(mockApi.removeListener as any).mock.calls.map((c: any) => c[0])
+      // Both normal listeners and drop stubs are removed defensively.
+      expect(removed).toContain(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES)
+      expect(removed).toContain(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES)
+      expect(removed).toContain(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES)
+      expect(removed).toContain(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES)
+      expect(removed).toContain(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES)
+      expect(removed).toContain(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE)
+      // REGISTER and UPDATE etc. appear at least twice — once for the normal listener, once for the drop stub.
+      const registerRemovals = removed.filter((e: any) => e === InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES)
+      expect(registerRemovals.length).toBe(2)
     })
   })
 })

@@ -67,11 +67,12 @@ describe('homebridgeAPI', () => {
       await api.loadMatterAPI()
       matter = api.matter!
       // registerPlatformAccessories now guards on the Matter manager being
-      // attached (it only is once Homebridge has finished launching). The unit
-      // tests below exercise the API directly, so stand in a manager stub to
-      // satisfy that precondition. getExternalServer is included because
-      // getAccessoryState consults it.
-      ;(api as any)._matterManager = { getExternalServer: () => undefined }
+      // attached AND having active Matter on this bridge (it only is once
+      // Homebridge has finished launching). The unit tests below exercise the
+      // API directly, so stand in a manager stub to satisfy that precondition.
+      // getExternalServer is included because getAccessoryState consults it;
+      // hasActiveMatter returns true so the register/update guards pass.
+      ;(api as any)._matterManager = { getExternalServer: () => undefined, hasActiveMatter: () => true }
     })
 
     describe('loadMatterAPI lifecycle', () => {

@@ -337,9 +337,23 @@ export interface MatterConfig extends Record<string, unknown> {
    * When `false`, Matter is configured but not advertised — the config block
    * and the on-disk commissioning storage are preserved, so it can be
    * re-enabled without re-commissioning. Missing/`true` means enabled. This
-   * mirrors how `bridge.hap: false` disables HAP without losing pairing data.
+   * mirrors how `bridge.hap.enabled: false` disables HAP without losing pairing data.
    */
   enabled?: boolean
+
+  /**
+   * When `true`, the Matter bridge node itself is NOT advertised, but plugins
+   * MAY still publish external Matter accessories (each gets its own pairing
+   * via `api.matter.publishExternalAccessories`). The Matter API surface
+   * (`api.matter`) is still made available to plugins; only the bridge
+   * aggregator is suppressed.
+   *
+   * Intended to be paired with `enabled: false`; if `externalsOnly: true` is
+   * set on its own, validation warns and normalises `enabled` to `false`
+   * rather than rejecting the config. Mirrors the behaviour of
+   * `bridge.hap.externalsOnly`.
+   */
+  externalsOnly?: boolean
 }
 
 // Note: the canonical MatterServerEvents declaration is at the bottom of this file.

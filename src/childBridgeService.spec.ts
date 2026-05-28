@@ -801,20 +801,20 @@ describe('childBridgeService', () => {
       expect(metadata.matterIdentifier).toBeUndefined()
     })
 
-    it('reflects hap:false in metadata when HAP is disabled', () => {
+    it('reflects hap.enabled:false in metadata when HAP is disabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
       })
       const metadata = service.getMetadata()
-      expect(metadata.hap).toBe(false)
+      expect(metadata.hap).toEqual({ enabled: false })
     })
 
-    it('reflects hap:true in metadata when HAP is explicitly enabled', () => {
+    it('reflects hap.enabled:true in metadata when HAP is explicitly enabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: true }),
+        bridgeConfig: makeBridgeConfig({ hap: { enabled: true } }),
       })
       const metadata = service.getMetadata()
-      expect(metadata.hap).toBe(true)
+      expect(metadata.hap).toEqual({ enabled: true })
     })
 
     it('reflects hap as undefined in metadata when not set (defaults enabled)', () => {
@@ -822,12 +822,23 @@ describe('childBridgeService', () => {
       const metadata = service.getMetadata()
       expect(metadata.hap).toBeUndefined()
     })
+
+    it('coerces a legacy boolean hap to the object form in metadata', () => {
+      // A child whose config still carries the deprecated boolean shorthand
+      // must surface the normalized object form to consumers (the config UI),
+      // so ChildMetadata.hap stays object-shaped.
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({ hap: false }),
+      })
+      const metadata = service.getMetadata()
+      expect(metadata.hap).toEqual({ enabled: false })
+    })
   })
 
   describe('loadPlugin — hap property forwarded in LOAD message', () => {
-    it('includes hap:false in LOAD bridgeConfig when HAP is disabled', () => {
+    it('includes hap.enabled:false in LOAD bridgeConfig when HAP is disabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
       })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
@@ -837,12 +848,12 @@ describe('childBridgeService', () => {
 
       const loadMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.LOAD)
       expect(loadMessage).toBeDefined()
-      expect(loadMessage.data.bridgeConfig.hap).toBe(false)
+      expect(loadMessage.data.bridgeConfig.hap).toEqual({ enabled: false })
     })
 
-    it('includes hap:false alongside matter config in LOAD bridgeConfig', () => {
+    it('includes hap.enabled:false alongside matter config in LOAD bridgeConfig', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
       })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
@@ -851,7 +862,7 @@ describe('childBridgeService', () => {
       child.emit('message', { id: ChildProcessMessageEventType.READY })
 
       const loadMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.LOAD)
-      expect(loadMessage.data.bridgeConfig.hap).toBe(false)
+      expect(loadMessage.data.bridgeConfig.hap).toEqual({ enabled: false })
       expect(loadMessage.data.bridgeConfig.matter).toEqual({ port: 5540 })
     })
 

@@ -5,6 +5,7 @@ import type { HomebridgeAPI } from './api.js'
 import type {
   AccessoryConfig,
   BridgeConfiguration,
+  BridgeHapConfig,
   BridgeOptions,
   HomebridgeConfig,
   PlatformConfig,
@@ -194,7 +195,7 @@ export interface ChildMetadata {
   identifier: string
   manuallyStopped: boolean
   pid?: number
-  hap?: boolean
+  hap?: BridgeHapConfig
   matterConfig?: MatterConfig
   matterIdentifier?: string
   matterSetupUri?: string
@@ -812,7 +813,12 @@ export class ChildBridgeService {
       identifier: this.identifier,
       pid: this.child?.pid,
       manuallyStopped: this.manuallyStopped,
-      hap: this.bridgeConfig.hap,
+      // hap is normalized to the object form by validateHapConfig before a
+      // child bridge runs; coerce any legacy boolean defensively so
+      // ChildMetadata stays object-shaped for consumers (e.g. the config UI).
+      hap: typeof this.bridgeConfig.hap === 'boolean'
+        ? { enabled: this.bridgeConfig.hap }
+        : this.bridgeConfig.hap,
       matterConfig: this.bridgeConfig.matter,
       matterIdentifier: this.bridgeConfig.matter ? this.bridgeConfig.username : undefined,
       matterSetupUri: this.matterCommissioningInfo?.qrCode,

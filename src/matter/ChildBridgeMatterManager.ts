@@ -21,6 +21,7 @@ import { User } from '../user.js'
 import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
+import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 import { MatterServer } from './server.js'
 import { appendUsernameSuffix, getMatterJsVersion, normalizeBindConfig } from './utils.js'
 
@@ -97,6 +98,14 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
   private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): void => {
     this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
+      // In externalsOnly mode the real handler is attached but the bridge node
+      // never started, so a state update for a non-external accessory is an
+      // expected "wrong target", not a failure. Mirror the message-handler path
+      // and log it at debug instead of surfacing a red error line.
+      if (error instanceof MatterAccessoryNotOnBridgeError) {
+        log.debug(`Ignoring Matter state update for ${uuid}: accessory is not on this bridge`)
+        return
+      }
       log.error(`Failed to update Matter accessory state for ${uuid}:`, error)
     })
   }
@@ -116,18 +125,56 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
   private _onCommissioningStatusChanged?: (commissioned: boolean, fabricCount: number) => void
 
+  // Drop-stub handlers for bridged Matter events when in externalsOnly mode.
+  // Attached only in externalsOnly mode so plugin authors get a debug-level
+  // log when registering bridged accessories that the bridge node would
+  // otherwise have hosted.
+  private readonly _onRegisterMatterPlatformAccessoriesDropped = (pluginIdentifier: string, _platformName: string, accessories: MatterAccessory[]): void => {
+    log.debug(`Child bridge ${this.bridgeConfig.username} externalsOnly mode: dropping ${accessories.length} bridged Matter accessor${accessories.length === 1 ? 'y' : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
+  }
+
+  private readonly _onUnregisterMatterPlatformAccessoriesDropped = (pluginIdentifier: string, _platformName: string, accessories: MatterAccessory[]): void => {
+    log.debug(`Child bridge ${this.bridgeConfig.username} externalsOnly mode: dropping unregistration for ${accessories.length} bridged Matter accessor${accessories.length === 1 ? 'y' : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
+  }
+
+  // True when this manager was initialised in externalsOnly mode. Determines
+  // which listeners were attached, so teardown removes the correct ones.
+  private externalsOnlyMode = false
+
   /**
-   * Initialize Matter server for child bridge if enabled
+   * Initialize Matter server for child bridge. Three states:
+   *
+   * 1. Disabled (matter absent, or `enabled: false` without `externalsOnly`) → return early.
+   * 2. externalsOnly mode (`enabled: false` + `externalsOnly: true`) → attach
+   *    listeners for external publishing AND debug-log drop stubs for bridged
+   *    matter events, but do NOT start the bridge MatterServer.
+   * 3. Normal (`enabled !== false`) → full setup including server startup.
+   *
    * @param onCommissioningChanged Optional callback when commissioning status changes
    */
   async initialize(onCommissioningChanged?: () => void): Promise<void> {
-    // Skip when Matter is not enabled for this child bridge (absent, or present
-    // but explicitly disabled via _bridge.matter.enabled: false). Checked inline
-    // so the rest of the method narrows `matterConfig` to defined.
-    if (!this.matterConfig || this.matterConfig.enabled === false) {
+    // 1. Disabled or absent → nothing to do.
+    if (!this.matterConfig) {
+      return
+    }
+    if (this.matterConfig.enabled === false && !this.matterConfig.externalsOnly) {
       return
     }
 
+    // 2. externalsOnly mode → attach external + drop-stub listeners, skip the
+    //    bridge server. api.matter was loaded earlier so plugins can call
+    //    publishExternalAccessories. Each external creates its own dedicated
+    //    MatterServer (see ExternalMatterAccessoryPublisher), independent of
+    //    the bridge node.
+    if (this.matterConfig.externalsOnly === true) {
+      log.info(`Child bridge ${this.bridgeConfig.username}: Matter externalsOnly mode — bridge node will not start, but external Matter accessories can still publish.`)
+      this.externalsOnlyMode = true
+      this.setupExternalEventListeners()
+      this.setupBridgedDropStubs()
+      return
+    }
+
+    // 3. Normal mode → existing full setup follows.
     log.debug(`Child bridge ${this.bridgeConfig.username} has Matter config (Combined HAP+Matter), starting Matter server`)
 
     // If Matter doesn't have a port configured, allocate one
@@ -212,14 +259,51 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   }
 
   /**
-   * Set up Matter API event listeners
+   * Set up all Matter API event listeners (external + bridged). Used in
+   * normal mode where the bridge MatterServer is running.
    */
   private setupEventListeners(): void {
+    this.setupExternalEventListeners()
+    this.setupBridgedEventListeners()
+  }
+
+  /**
+   * Set up only the external-accessory listeners. These do not need a running
+   * bridge MatterServer — each external creates its own dedicated server.
+   * Used in normal mode (via setupEventListeners) and in externalsOnly mode.
+   */
+  private setupExternalEventListeners(): void {
     this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, this._onPublishExternalMatterAccessories)
+    this.api.on(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, this._onUnregisterExternalMatterAccessories)
+  }
+
+  /**
+   * Set up bridged-accessory listeners that require the bridge MatterServer.
+   * Used in normal mode only.
+   */
+  private setupBridgedEventListeners(): void {
     this.api.on(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this._onRegisterMatterPlatformAccessories)
     this.api.on(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, this._onUpdateMatterPlatformAccessories)
     this.api.on(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this._onUnregisterMatterPlatformAccessories)
-    this.api.on(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, this._onUnregisterExternalMatterAccessories)
+    this.api.on(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, this._onUpdateMatterAccessoryState)
+  }
+
+  /**
+   * Attach drop-stub listeners for bridged Matter events in externalsOnly
+   * mode. Each stub logs at debug level and returns without doing anything,
+   * so plugin authors who misconfigure a bridge get a breadcrumb without
+   * noisy warn-level output.
+   */
+  private setupBridgedDropStubs(): void {
+    // Bridged register/unregister cannot be served without a running bridge node
+    // (externals use the dedicated PUBLISH/UNREGISTER_EXTERNAL events), so drop
+    // them with a debug breadcrumb.
+    this.api.on(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this._onRegisterMatterPlatformAccessoriesDropped)
+    this.api.on(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this._onUnregisterMatterPlatformAccessoriesDropped)
+    // UPDATE events must still reach EXTERNAL accessories, which DO publish in
+    // externalsOnly mode. The real handlers route to external servers first and
+    // safely log (never crash) the bridge path when no bridge node is running.
+    this.api.on(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, this._onUpdateMatterPlatformAccessories)
     this.api.on(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, this._onUpdateMatterAccessoryState)
   }
 
@@ -320,6 +404,19 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   }
 
   /**
+   * Whether this child bridge has Matter active in any form that can serve UI
+   * requests (control / list / accessory-info / state monitoring). This is true
+   * when the bridge Matter server is running OR when in externalsOnly mode,
+   * where external accessories publish via their own per-accessory servers even
+   * though the bridge node never starts. The message handler must gate on this
+   * (not `isMatterEnabled()`, which is false in externalsOnly) so external
+   * accessories on an externalsOnly child remain controllable and listable.
+   */
+  override hasActiveMatter(): boolean {
+    return this.isMatterEnabled() || this.externalsOnlyMode
+  }
+
+  /**
    * Enable state monitoring on all Matter servers
    * Override to add bridge-specific logging
    */
@@ -395,13 +492,19 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * Teardown Matter servers
    */
   async teardown(): Promise<void> {
-    // Remove API event listeners to prevent retention of this manager after teardown
+    // Remove API event listeners to prevent retention of this manager after teardown.
+    // EventEmitter.removeListener is a no-op when the listener was never attached,
+    // so it's safe to call all removals regardless of which mode initialised this manager.
     this.api.removeListener(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, this._onPublishExternalMatterAccessories)
+    this.api.removeListener(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, this._onUnregisterExternalMatterAccessories)
     this.api.removeListener(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this._onRegisterMatterPlatformAccessories)
     this.api.removeListener(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, this._onUpdateMatterPlatformAccessories)
     this.api.removeListener(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this._onUnregisterMatterPlatformAccessories)
-    this.api.removeListener(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, this._onUnregisterExternalMatterAccessories)
     this.api.removeListener(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, this._onUpdateMatterAccessoryState)
+    // externalsOnly mode drop stubs (UPDATE events use the real handlers above,
+    // already removed, so externals keep receiving updates in externalsOnly mode)
+    this.api.removeListener(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this._onRegisterMatterPlatformAccessoriesDropped)
+    this.api.removeListener(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this._onUnregisterMatterPlatformAccessoriesDropped)
 
     // Stop main Matter server if it was initialized
     if (this.matterServer) {

@@ -26,12 +26,12 @@ import process from 'node:process'
 import { AccessoryEventTypes, HAPStorage } from '@homebridge/hap-nodejs'
 
 import { HomebridgeAPI, PluginType } from './api.js'
-import { BridgeService } from './bridgeService.js'
+import { BridgeService, isHapConfigEnabled, isHapExternalsOnly } from './bridgeService.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { ChildBridgeExternalPortService } from './externalPortService.js'
 import { Logger } from './logger.js'
 import { ChildBridgeMatterMessageHandler } from './matter/ChildBridgeMatterMessageHandler.js'
-import { isMatterConfigEnabled } from './matter/config.js'
+import { isMatterActive } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 
@@ -119,11 +119,15 @@ export class ChildBridgeFork {
     this.externalPortService = new ChildBridgeExternalPortService(this)
 
     // Eagerly load the MatterAPI facade BEFORE plugin init when Matter is
-    // configured for this child bridge, so api.matter is defined when the
+    // active for this child bridge, so api.matter is defined when the
     // plugin's initializer runs. The heavy ChildBridgeMatterManager init
     // still happens later in startBridge(). Matter is unsupported on
     // accessory-style child bridges, so skip there.
-    if (isMatterConfigEnabled(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
+    //
+    // `isMatterActive` includes externalsOnly mode so plugins can still call
+    // api.matter.publishExternalAccessories even when the bridge node itself
+    // is suppressed.
+    if (isMatterActive(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
       await this.api.loadMatterAPI()
     }
 
@@ -141,13 +145,14 @@ export class ChildBridgeFork {
   }
 
   async startBridge(): Promise<void> {
-    // Conditionally load Matter support only if this child bridge has Matter configured
-    // This prevents loading heavy Matter.js libraries for child bridges that don't use it
-    if (isMatterConfigEnabled(this.bridgeConfig.matter) && this.type === PluginType.ACCESSORY) {
+    // Conditionally load Matter support only if this child bridge has Matter active
+    // (configured + enabled OR externalsOnly). Prevents loading heavy Matter.js
+    // libraries for child bridges that don't use it.
+    if (isMatterActive(this.bridgeConfig.matter) && this.type === PluginType.ACCESSORY) {
       matterLogger.warn('Matter is not supported on accessory child bridges. Ignoring matter configuration.')
     }
 
-    if (isMatterConfigEnabled(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
+    if (isMatterActive(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
       matterLogger.info('Loading Matter support for child bridge...')
 
       // Note: api.loadMatterAPI() was already called at the start of loadPlugin()
@@ -260,14 +265,11 @@ export class ChildBridgeFork {
       this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
     }
 
-    // Publish HAP only when not opted out via bridgeConfig.hap=false. Both
-    // protocols may be disabled, in which case this child bridge advertises
-    // nothing (Matter setup above is likewise skipped when not configured).
-    if (this.bridgeConfig.hap !== false) {
-      this.bridgeService.publishBridge()
-    } else {
-      Logger.internal.info('HAP is disabled for this child bridge (bridgeConfig.hap=false); skipping HAP publish.')
-    }
+    // Publish HAP only when not opted out via hap.enabled=false and not in
+    // externalsOnly mode. Both protocols may be disabled or in externalsOnly
+    // mode, in which case this child bridge advertises nothing of its own
+    // (externals can still publish independently in externalsOnly mode).
+    this.publishHapIfEnabled()
     this.api.signalFinished()
 
     // Send initial status update with HAP and Matter info BEFORE telling parent we're online
@@ -276,6 +278,35 @@ export class ChildBridgeFork {
 
     // tell the parent we are online
     this.sendMessage(ChildProcessMessageEventType.ONLINE)
+  }
+
+  /**
+   * Decide whether to publish the HAP bridge based on the bridge's `hap`
+   * config block. Three branches:
+   *   - HAP enabled and not externalsOnly → publishBridge()
+   *   - externalsOnly: true → log externalsOnly notice, externals will publish via their own path
+   *   - hap.enabled: false → log disabled notice (warn if Matter is also inactive,
+   *     since the child bridge then advertises nothing at all)
+   *
+   * Public for testability (the bridgeService dependency is set up in startBridge,
+   * so direct invocation from tests is straightforward with a mocked bridgeService).
+   */
+  public publishHapIfEnabled(): void {
+    const hap = this.bridgeConfig.hap
+    if (isHapConfigEnabled(hap) && !isHapExternalsOnly(hap)) {
+      this.bridgeService.publishBridge()
+    } else if (isHapExternalsOnly(hap)) {
+      Logger.internal.info('HAP externalsOnly mode for this child bridge; bridge accessory will not publish but external accessories will.')
+    } else if (!this.matterManager) {
+      // HAP is off (plain disabled, not externalsOnly) AND Matter is inactive
+      // for this child (matterManager is only constructed when Matter is active,
+      // including externalsOnly). A child bridge exists solely to advertise its
+      // accessories, so one with neither protocol is almost certainly a
+      // misconfiguration — surface it loudly rather than as a quiet info line.
+      Logger.internal.warn('Both HAP and Matter are disabled for this child bridge; it will not advertise any accessories. Check the \'hap\' and \'matter\' config blocks for this child bridge.')
+    } else {
+      Logger.internal.info('HAP is disabled for this child bridge (hap.enabled=false); skipping HAP publish.')
+    }
   }
 
   /**

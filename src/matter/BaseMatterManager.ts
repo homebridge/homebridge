@@ -34,6 +34,22 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Whether this manager has Matter active in a form that handles plugin
+   * registration/update/publish events — i.e. its API event listeners are
+   * attached. The MatterAPIImpl guards use this so that a call made against a
+   * bridge with no active Matter fails fast instead of emitting an event that
+   * nothing handles (bridged registrations are dropped; external ones hang).
+   *
+   * The base implementation reflects the shared state — a bridge MatterServer
+   * has been created. Subclasses override to add their mode-specific cases
+   * (e.g. externalsOnly, where the bridge node never starts but external
+   * accessories still publish).
+   */
+  hasActiveMatter(): boolean {
+    return this.matterServer !== undefined
+  }
+
+  /**
    * Release a Matter port previously claimed for an external accessory.
    * Subclasses override to route to the right port service (the local
    * allocator on the main bridge, or an IPC call on a child bridge).
@@ -298,8 +314,20 @@ export abstract class BaseMatterManager {
 
         log.info(`Stopping external Matter server for ${accessory.displayName}`)
 
-        // Stop the Matter server
-        await matterServer.stop()
+        // Stop the Matter server. stop() now rejects when the underlying node
+        // fails to close (it may still be bound to its port). In that case we
+        // deliberately leave the map entry, the port reservation and the
+        // storage folder in place rather than tearing them down — mirrors the
+        // publish path's "keep the port reserved" stance. Releasing the port
+        // could hand a still-bound port to the next publish (EADDRINUSE), and
+        // dropping the map entry would discard the only handle to the live
+        // node. The slot stays reserved until Homebridge restarts.
+        try {
+          await matterServer.stop()
+        } catch (stopError) {
+          log.warn(`Failed to stop external Matter server for ${accessory.displayName}; the matter.js server may still be bound. Keeping its port reserved and storage intact until Homebridge restarts.`, stopError)
+          continue
+        }
 
         // Remove from the map
         this.externalMatterServers.delete(accessory.UUID)

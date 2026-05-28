@@ -32,7 +32,7 @@ export class ChildBridgeMatterMessageHandler {
    * Handle start Matter monitoring request from parent process
    */
   handleStartMatterMonitoring(): void {
-    if (this.matterManager?.isMatterEnabled()) {
+    if (this.matterManager?.hasActiveMatter()) {
       this.matterManager.enableStateMonitoring()
     }
   }
@@ -41,7 +41,7 @@ export class ChildBridgeMatterMessageHandler {
    * Handle stop Matter monitoring request from parent process
    */
   handleStopMatterMonitoring(): void {
-    if (this.matterManager?.isMatterEnabled()) {
+    if (this.matterManager?.hasActiveMatter()) {
       this.matterManager.disableStateMonitoring()
     }
   }
@@ -54,7 +54,7 @@ export class ChildBridgeMatterMessageHandler {
     const correlationId = data?.correlationId
     try {
       // Only collect accessories if Matter is actually enabled for this bridge
-      if (!this.matterManager?.isMatterEnabled()) {
+      if (!this.matterManager?.hasActiveMatter()) {
         log.debug('Matter not enabled, returning empty accessories list')
         // Return empty accessories list for bridges without Matter
         const event: MatterEvent = {
@@ -102,7 +102,7 @@ export class ChildBridgeMatterMessageHandler {
     const correlationId = data?.correlationId
     try {
       // Only process if Matter is enabled for this bridge
-      if (!this.matterManager?.isMatterEnabled()) {
+      if (!this.matterManager?.hasActiveMatter()) {
         // Don't send a response - let parent handle timeout or try other bridges
         return
       }
@@ -146,7 +146,7 @@ export class ChildBridgeMatterMessageHandler {
   }): void {
     const correlationId = data?.correlationId
     // Only process if Matter is enabled for this bridge
-    if (!this.matterManager?.isMatterEnabled()) {
+    if (!this.matterManager?.hasActiveMatter()) {
       // Silently ignore - this bridge doesn't have Matter enabled
       log.debug(`Ignoring Matter control for ${data.uuid} - Matter not enabled on child bridge ${this.bridgeUsername}`)
       return

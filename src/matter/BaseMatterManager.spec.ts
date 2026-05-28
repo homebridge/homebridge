@@ -78,6 +78,17 @@ describe('baseMatterManager', () => {
     manager = new TestMatterManager(mockPluginManager)
   })
 
+  describe('hasActiveMatter (base default)', () => {
+    it('is false before a bridge MatterServer is created', () => {
+      expect(manager.hasActiveMatter()).toBe(false)
+    })
+
+    it('is true once a bridge MatterServer is set', () => {
+      manager.setMatterServer(mockMatterServer)
+      expect(manager.hasActiveMatter()).toBe(true)
+    })
+  })
+
   describe('handleTriggerCommand', () => {
     it('should route commands to external server if accessory is external', async () => {
       const uuid = 'test-uuid'
@@ -346,6 +357,30 @@ describe('baseMatterManager', () => {
       await manager.handleUnregisterExternalAccessories(accessories)
 
       expect(mockExternalServer.stop).toHaveBeenCalled()
+    })
+
+    it('retains the map entry and does NOT release the port when stop() rejects (node may still be bound) (#3944)', async () => {
+      // When stop() rejects the matter.js node may still be bound to its port.
+      // Releasing the port could hand a still-bound port to the next publish
+      // (EADDRINUSE), and dropping the map entry would discard the only handle
+      // to the live node — so we deliberately retain both and move on.
+      const uuid = 'external-stuck'
+      const stuckServer = {
+        stop: vi.fn().mockRejectedValue(new Error('close failed')),
+      } as any
+      manager.addExternalServer(uuid, stuckServer)
+
+      const releaseSpy = vi.spyOn(manager as any, 'releaseExternalMatterPort')
+
+      await manager.handleUnregisterExternalAccessories([
+        { UUID: uuid, displayName: 'Stuck External' } as any,
+      ])
+
+      expect(stuckServer.stop).toHaveBeenCalled()
+      // Map entry retained (not deleted) so the node keeps a handle.
+      expect(manager.getExternalMatterServers().has(uuid)).toBe(true)
+      // Port left reserved — never released on the close-failure path.
+      expect(releaseSpy).not.toHaveBeenCalled()
     })
   })
 

@@ -27,6 +27,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): support disabling matter in place without tear down
 - fix(matter): set door lock state directly
 - fix(matter): echo correlationId on monitoringStarted/Stopped acks
+- feat: nested hap/matter bridge config with `externalsOnly` mode
 
 ### Homebridge Dependencies
 

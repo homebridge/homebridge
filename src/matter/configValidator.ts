@@ -8,6 +8,7 @@
 import type { AccessoryConfig, PlatformConfig } from '../bridgeService.js'
 
 import { Logger } from '../logger.js'
+import { shouldStartMatterServer } from './config.js'
 
 const log = Logger.withPrefix('Matter/Config')
 const COLON_RE = /:/g
@@ -282,6 +283,16 @@ export class MatterConfigValidator {
     // Validate platform _bridge.matter configs
     for (const platform of platforms) {
       if (platform._bridge?.matter) {
+        // Disabled-in-place (`enabled: false`) and externalsOnly child configs
+        // never start a bridge server or bind their configured port, so preserve
+        // them as-is: don't validate, strip, or reserve a port for them.
+        // Otherwise an unrelated active Matter config triggering validation could
+        // delete a user's intentionally-disabled config (it's meant to survive so
+        // it can be re-enabled without re-commissioning).
+        if (!shouldStartMatterServer(platform._bridge.matter)) {
+          continue
+        }
+
         const validation = this.validateChildMatterConfig(
           platform,
           'platform',
@@ -315,6 +326,12 @@ export class MatterConfigValidator {
     // Validate accessory _bridge.matter configs
     for (const accessory of accessories) {
       if (accessory._bridge?.matter) {
+        // See the platform loop above: disabled-in-place / externalsOnly configs
+        // are preserved untouched — they neither start a server nor bind a port.
+        if (!shouldStartMatterServer(accessory._bridge.matter)) {
+          continue
+        }
+
         const validation = this.validateChildMatterConfig(
           accessory,
           'accessory',

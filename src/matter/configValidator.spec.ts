@@ -478,5 +478,53 @@ describe('configValidator', () => {
       expect(result.isValid).toBe(false)
       expect(platforms[0]._bridge?.matter).toBeUndefined()
     })
+
+    it('preserves a disabled (enabled:false) platform Matter config even when its port is invalid', () => {
+      // disabled-in-place: the config must survive so it can be re-enabled later
+      // without re-commissioning. It never starts a server, so a bad port is moot.
+      const platforms: PlatformConfig[] = [
+        { platform: 'DisabledPlatform', _bridge: { matter: { port: 99999, enabled: false } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(platforms[0]._bridge?.matter).toBeDefined()
+      expect(result.isValid).toBe(true)
+    })
+
+    it('does not let a disabled child reserve its port (an active child may reuse it)', () => {
+      // The disabled child never binds 5540, so the enabled child using 5540 must
+      // not be treated as a duplicate and stripped.
+      const platforms: PlatformConfig[] = [
+        { platform: 'Disabled', _bridge: { matter: { port: 5540, enabled: false } } as any },
+        { platform: 'Active', _bridge: { matter: { port: 5540 } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(result.isValid).toBe(true)
+      expect(platforms[0]._bridge?.matter).toBeDefined() // disabled preserved
+      expect(platforms[1]._bridge?.matter).toBeDefined() // active kept its port
+    })
+
+    it('preserves a disabled accessory Matter config with a duplicate port', () => {
+      const accessories: AccessoryConfig[] = [
+        { accessory: 'Active', name: 'A', _bridge: { matter: { port: 5540 } } as any },
+        { accessory: 'Disabled', name: 'D', _bridge: { matter: { port: 5540, enabled: false } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs([], accessories)
+
+      expect(result.isValid).toBe(true)
+      expect(accessories[0]._bridge?.matter).toBeDefined()
+      expect(accessories[1]._bridge?.matter).toBeDefined()
+    })
+
+    it('preserves an externalsOnly child Matter config (it does not bind its port either)', () => {
+      const platforms: PlatformConfig[] = [
+        { platform: 'ExternalsOnly', _bridge: { matter: { port: 99999, enabled: false, externalsOnly: true } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(platforms[0]._bridge?.matter).toBeDefined()
+      expect(result.isValid).toBe(true)
+    })
   })
 })
