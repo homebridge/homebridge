@@ -31,11 +31,11 @@ jobs:
       - name: Deprecate previous pre-release npm versions
         run: bash .github/scripts/deprecate_npm_prereleases.sh
         env:
-          EXECUTE: false
+          EXECUTE: ${{ inputs.execute }}
           NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
 
       - name: Delete previous pre-release GitHub releases and Git tags
-        run: bash .github/scripts/github_prerelease_cleanup.sh 
+        run: bash .github/scripts/github_prerelease_cleanup.sh
         env:
-          EXECUTE: false
+          EXECUTE: ${{ inputs.execute }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
