@@ -2,6 +2,11 @@ name: Deprecate Past Pre-Releases
 
 on:
   workflow_dispatch:
+    inputs:
+      execute:
+        description: 'Actually perform deprecations/deletions (dry-run when false)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
