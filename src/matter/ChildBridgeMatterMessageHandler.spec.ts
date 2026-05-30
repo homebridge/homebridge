@@ -1,3 +1,5 @@
+import type { Mock } from 'vitest'
+
 import type { MatterEvent } from './ipc-types.js'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +9,7 @@ import { ChildBridgeMatterMessageHandler } from './ChildBridgeMatterMessageHandl
 describe('childBridgeMatterMessageHandler', () => {
   let handler: ChildBridgeMatterMessageHandler
   let mockMatterManager: any
-  let mockSendMessage: ReturnType<typeof vi.fn>
+  let mockSendMessage: Mock<(type: string, data: unknown) => void>
   const testBridgeUsername = '0E:DC:5D:BE:D6:75'
 
   beforeEach(() => {
@@ -20,7 +22,7 @@ describe('childBridgeMatterMessageHandler', () => {
       handleTriggerCommand: vi.fn(),
     }
 
-    mockSendMessage = vi.fn()
+    mockSendMessage = vi.fn<(type: string, data: unknown) => void>()
 
     handler = new ChildBridgeMatterMessageHandler(
       mockMatterManager,

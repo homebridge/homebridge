@@ -29,6 +29,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): echo correlationId on monitoringStarted/Stopped acks
 - feat: nested hap/matter bridge config with `externalsOnly` mode
 - fix(matter): read the Matter shutdown handler via a getter
+- test: add spec-inclusive typecheck script and fix existing spec errors
 
 ### Homebridge Dependencies
 

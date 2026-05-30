@@ -502,14 +502,14 @@ describe('childBridgeService', () => {
       vi.useFakeTimers()
       // Replace kill so it does NOT auto-disconnect (simulating a stuck child).
       const stuck = new FakeChildProcess()
-      stuck.kill = vi.fn(((signal: NodeJS.Signals) => {
+      stuck.kill = vi.fn((signal: NodeJS.Signals) => {
         stuck.killCalls.push(signal)
         // Crucially: do NOT set stuck.connected = false on SIGTERM.
         if (signal === 'SIGKILL') {
           stuck.connected = false
         }
         return true
-      }) as any)
+      }) as any
 
       const { service, api } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)

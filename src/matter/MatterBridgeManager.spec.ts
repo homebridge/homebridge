@@ -1,7 +1,8 @@
 import type { HomebridgeAPI } from '../api.js'
+import type { HomebridgeConfig } from '../bridgeService.js'
 import type { ExternalPortService } from '../externalPortService.js'
 import type { PluginManager } from '../pluginManager.js'
-import type { HomebridgeConfig, HomebridgeOptions } from '../server.js'
+import type { HomebridgeOptions } from '../server.js'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

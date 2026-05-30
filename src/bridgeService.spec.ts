@@ -1,5 +1,6 @@
+import type { MockInstance } from 'vitest'
+
 import type { BridgeConfiguration } from './bridgeService.js'
-import type { Logger as LoggerType } from './logger.js'
 
 import { Accessory, Categories, CharacteristicWarningType, uuid } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -419,9 +420,9 @@ describe('bridgeService', () => {
   })
 
   describe('printCharacteristicWriteWarning', () => {
-    let logSpy: ReturnType<typeof vi.spyOn<LoggerType, 'info'>>
-    let errorSpy: ReturnType<typeof vi.spyOn<LoggerType, 'error'>>
-    let debugSpy: ReturnType<typeof vi.spyOn<LoggerType, 'debug'>>
+    let logSpy: MockInstance
+    let errorSpy: MockInstance
+    let debugSpy: MockInstance
 
     beforeEach(() => {
       logSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})

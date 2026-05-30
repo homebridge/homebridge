@@ -102,8 +102,8 @@ describe('endpointContext', () => {
       setRegistryManager(mockEndpoint, registryManager)
 
       // The symbol-based storage should not interfere
-      expect(mockEndpoint.registryManager).toBe('this is something else')
-      expect(mockEndpoint.homebridgeRegistryManager).toBe('also not the same')
+      expect((mockEndpoint as any).registryManager).toBe('this is something else')
+      expect((mockEndpoint as any).homebridgeRegistryManager).toBe('also not the same')
       expect(getRegistryManager(mockEndpoint)).toBe(registryManager)
     })
   })
