@@ -207,7 +207,7 @@ function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLif
     }),
     getIsRunning: vi.fn(() => running),
     cleanupHandlers: [],
-    shutdownHandler: null,
+    getShutdownHandler: () => null,
     setShutdownHandler: vi.fn(),
     onStop: vi.fn(async () => {}),
     ...overrides,
@@ -458,7 +458,7 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       setIsRunning: vi.fn((v) => {
         running = v
       }),
-      shutdownHandler,
+      getShutdownHandler: () => shutdownHandler,
       setShutdownHandler,
       cleanupHandlers: [cleanupHandler],
     })
@@ -499,7 +499,7 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       setServerNode,
       setAggregator,
       getIsRunning: vi.fn(() => false),
-      shutdownHandler,
+      getShutdownHandler: () => shutdownHandler,
       setShutdownHandler,
       cleanupHandlers: [cleanupHandler],
     })
@@ -532,14 +532,18 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       const deps = createMockDeps({
         getServerNode: vi.fn(() => ({ close }) as never),
         getIsRunning: vi.fn(() => false),
-        shutdownHandler,
+        // A real handler must be visible to cleanup() via the getter, otherwise
+        // the assertions below pass vacuously (a null handler is never detached
+        // regardless of the fix).
+        getShutdownHandler: () => shutdownHandler,
         setShutdownHandler,
         cleanupHandlers: [],
       })
 
       await expect(lifecycle.stop(deps, new Map())).rejects.toThrow('close failed')
 
-      // The handler was neither detached from the process nor cleared.
+      // The (real, registered) handler was neither detached from the process
+      // nor cleared, because close() failed and the node is being preserved.
       expect(offSpy).not.toHaveBeenCalledWith('SIGINT', shutdownHandler)
       expect(offSpy).not.toHaveBeenCalledWith('SIGTERM', shutdownHandler)
       expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
@@ -622,7 +626,7 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       setIsRunning: vi.fn((v) => {
         running = v
       }),
-      shutdownHandler: vi.fn(async () => {}) as never,
+      getShutdownHandler: () => vi.fn(async () => {}) as never,
       cleanupHandlers: [],
     })
 
@@ -643,7 +647,7 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     const deps = createMockDeps({
       getServerNode: vi.fn(() => null),
       getIsRunning: vi.fn(() => false),
-      shutdownHandler: null,
+      getShutdownHandler: () => null,
     })
 
     await expect(lifecycle.stop(deps, new Map())).resolves.toBeUndefined()
@@ -780,6 +784,111 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     await expect(lifecycle.start(deps)).rejects.toThrow('credential load failed')
 
     expect(close).not.toHaveBeenCalled()
+  })
+
+  it('detaches the SIGINT/SIGTERM handler registered mid-start when a later step fails (#3944)', async () => {
+    // Regression for the deps snapshot bug: getLifecycleDeps used to copy
+    // `shutdownHandler` by value when the deps object was built (null at that
+    // point). start() registers the handler partway through via
+    // setShutdownHandler, so a cleanup() in the SAME failed start() read the
+    // stale null and never detached the process listeners. With a
+    // getShutdownHandler getter, cleanup sees the live handler and removes it.
+    const offSpy = vi.spyOn(process, 'off')
+    const close = vi.fn(async () => {})
+    const { ServerNode } = await import('@matter/main')
+    vi.mocked(ServerNode.create).mockResolvedValueOnce({
+      run: vi.fn(() => Promise.resolve()),
+      add: vi.fn(),
+      close,
+    } as never)
+
+    // Fail AFTER the shutdown handler is registered — startServerNode runs
+    // after setShutdownHandler in start(). This is the exact window flagged.
+    const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...a: unknown[]) => Promise<void> }
+    vi.spyOn(proto, 'startServerNode').mockRejectedValueOnce(new Error('boom in startServerNode'))
+
+    // Wire shutdownHandler the way the real manager does: a getter over mutable
+    // state that setShutdownHandler updates. A by-value snapshot would leave
+    // getShutdownHandler returning null and reproduce the leak.
+    let stored: (() => Promise<void>) | null = null
+    const setShutdownHandler = vi.fn((h: (() => Promise<void>) | null) => {
+      stored = h
+    })
+    const deps = createMockDeps({
+      getShutdownHandler: () => stored,
+      setShutdownHandler,
+    })
+
+    await expect(lifecycle.start(deps)).rejects.toThrow('boom in startServerNode')
+
+    // A handler was registered during start()...
+    expect(setShutdownHandler).toHaveBeenCalled()
+    // ...and cleanup() saw it via the getter and detached both listeners.
+    expect(offSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function))
+    expect(offSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function))
+    // ...then cleared the stored handler.
+    expect(setShutdownHandler).toHaveBeenLastCalledWith(null)
+  })
+
+  it('preserves the node reference and keeps the shutdown handler when the half-built node fails to close (#3944)', async () => {
+    // Complement of the test above: when start() fails after registering the
+    // handler AND closing the half-built node also fails, the node may still be
+    // bound to its port (the caller keeps the port reserved via
+    // portMayStillBeBound). cleanup() must therefore NOT null the node reference
+    // and NOT detach the SIGINT/SIGTERM handler — otherwise the orphaned,
+    // still-bound node is left with no retry handle and no graceful-shutdown
+    // hook on process exit.
+    const offSpy = vi.spyOn(process, 'off')
+    const close = vi.fn(async () => {
+      throw new Error('close failed')
+    })
+    const { ServerNode } = await import('@matter/main')
+    // Reset first: an earlier test ("fails before a ServerNode is created")
+    // leaves an unconsumed mockResolvedValueOnce in the queue, which would
+    // otherwise shift this test's create() result to a node whose close()
+    // succeeds — masking the close-failure path under test.
+    vi.mocked(ServerNode.create).mockReset()
+    vi.mocked(ServerNode.create).mockResolvedValueOnce({
+      run: vi.fn(() => Promise.resolve()),
+      add: vi.fn(),
+      close,
+    } as never)
+
+    const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...a: unknown[]) => Promise<void> }
+    vi.spyOn(proto, 'startServerNode').mockRejectedValueOnce(new Error('boom in startServerNode'))
+
+    let stored: (() => Promise<void>) | null = null
+    const setShutdownHandler = vi.fn((h: (() => Promise<void>) | null) => {
+      stored = h
+    })
+    // Keep getServerNode/setServerNode linked so start() can hand the created
+    // node back to the catch path (where close() runs), while still spying on
+    // setServerNode to assert the reference is never nulled.
+    let serverNode: unknown = null
+    const setServerNode = vi.fn((n: unknown) => {
+      serverNode = n
+    })
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => serverNode as never),
+      setServerNode,
+      getShutdownHandler: () => stored,
+      setShutdownHandler,
+    })
+
+    let thrown: any
+    await lifecycle.start(deps).catch(e => (thrown = e))
+
+    // The original error propagates, flagged so the caller reserves the port.
+    expect(thrown.message).toBe('boom in startServerNode')
+    expect(thrown.portMayStillBeBound).toBe(true)
+    expect(close).toHaveBeenCalledTimes(1)
+
+    // Node reference preserved (never nulled) — retry handle survives.
+    expect(setServerNode).not.toHaveBeenCalledWith(null)
+    // Shutdown handler kept registered — graceful-shutdown hook survives.
+    expect(offSpy).not.toHaveBeenCalledWith('SIGINT', stored)
+    expect(offSpy).not.toHaveBeenCalledWith('SIGTERM', stored)
+    expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
   })
 })
 

@@ -57,7 +57,12 @@ export interface ServerLifecycleDeps {
   setIsRunning: (running: boolean) => void
   getIsRunning: () => boolean
   cleanupHandlers: Array<() => void | Promise<void>>
-  shutdownHandler: (() => Promise<void>) | null
+  // A getter (not a snapshot value) so reads always see the current handler.
+  // start() registers the handler partway through via setShutdownHandler; if
+  // this were a value copied when the deps object was built, a cleanup() call
+  // inside the same failed start() would read the stale null and never detach
+  // the SIGINT/SIGTERM listeners. Mirrors getServerNode/getAggregator.
+  getShutdownHandler: () => (() => Promise<void>) | null
   setShutdownHandler: (handler: (() => Promise<void>) | null) => void
   onStop: () => Promise<void>
 }
@@ -370,10 +375,12 @@ export class ServerLifecycle {
       // path and want to fall through to the caller's catch with the
       // original error.
       const partialNode = deps.getServerNode()
+      let nodeMayStillBeBound = false
       if (partialNode) {
         try {
           await partialNode.close()
         } catch (closeError) {
+          nodeMayStillBeBound = true
           log.debug('Failed to close half-built ServerNode during start error path:', closeError)
           // Signal to callers (e.g. the external accessory publisher) that the
           // half-built node may still hold its port bound. Without this flag a
@@ -386,7 +393,14 @@ export class ServerLifecycle {
           }
         }
       }
-      await this.cleanup(deps)
+      // When close() failed the node may still be bound to its port (the caller
+      // keeps the port reserved via portMayStillBeBound). Preserve the ServerNode
+      // reference and — if a shutdown handler was already registered — keep it,
+      // so the orphaned node retains a retry handle and a graceful-shutdown hook
+      // on process exit. cleanup() honours preserveNodeReference for both. This
+      // mirrors stop()'s close-failure path; dropping them here would strand a
+      // still-bound node with no way to address or tear it down.
+      await this.cleanup(deps, { preserveNodeReference: nodeMayStillBeBound })
       throw error
     }
   }
@@ -477,7 +491,7 @@ export class ServerLifecycle {
   async stop(deps: ServerLifecycleDeps, accessories: Map<string, any>): Promise<void> {
     const isRunning = deps.getIsRunning()
     const serverNode = deps.getServerNode()
-    const hasShutdownHandler = deps.shutdownHandler != null
+    const hasShutdownHandler = deps.getShutdownHandler() != null
 
     if (!isRunning && !serverNode && !hasShutdownHandler) {
       log.debug('Matter server is not running and has no resources to clean up')
@@ -575,9 +589,10 @@ export class ServerLifecycle {
     // Keep the shutdown handler registered when we are preserving a node whose
     // close() failed, so that orphaned (still port-bound) node is still torn
     // down on process exit. Otherwise remove it as normal.
-    if (deps.shutdownHandler && !options.preserveNodeReference) {
-      process.off('SIGINT', deps.shutdownHandler)
-      process.off('SIGTERM', deps.shutdownHandler)
+    const shutdownHandler = deps.getShutdownHandler()
+    if (shutdownHandler && !options.preserveNodeReference) {
+      process.off('SIGINT', shutdownHandler)
+      process.off('SIGTERM', shutdownHandler)
       deps.setShutdownHandler(null)
     }
 

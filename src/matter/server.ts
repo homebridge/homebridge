@@ -381,7 +381,7 @@ export class MatterServer extends EventEmitter {
       },
       getIsRunning: () => this.isRunning,
       cleanupHandlers: this.cleanupHandlers,
-      shutdownHandler: this.shutdownHandler,
+      getShutdownHandler: () => this.shutdownHandler,
       setShutdownHandler: (handler: (() => Promise<void>) | null) => {
         this.shutdownHandler = handler
       },

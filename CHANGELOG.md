@@ -28,6 +28,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): set door lock state directly
 - fix(matter): echo correlationId on monitoringStarted/Stopped acks
 - feat: nested hap/matter bridge config with `externalsOnly` mode
+- fix(matter): read the Matter shutdown handler via a getter
 
 ### Homebridge Dependencies
 
