@@ -131,13 +131,16 @@ describe('matter lazy loading', () => {
           return false
         })
 
-        expect(matterImports, [
-          `${file} has runtime imports that would eagerly load Matter.js:`,
-          ...matterImports.map(i => `  - ${i}`),
-          '',
-          'To fix: use \`import type\` for types, import from the specific lightweight',
-          'module instead of a barrel file, or move the needed value out of src/matter/.',
-        ].join('\n')).toEqual([])
+        const message = matterImports.length === 0
+          ? ''
+          : [
+              `${file} has runtime imports that would eagerly load Matter.js:`,
+              ...matterImports.map(i => `  - ${i}`),
+              '',
+              'To fix: use \`import type\` for types, import from the specific lightweight',
+              'module instead of a barrel file, or move the needed value out of src/matter/.',
+            ].join('\n')
+        expect(message).toBe('')
       })
     }
   })
@@ -150,13 +153,16 @@ describe('matter lazy loading', () => {
 
         const heavyImports = imports.filter(imp => imp.startsWith('@matter/'))
 
-        expect(heavyImports, [
-          `${file} imports @matter/* packages, making it no longer lightweight:`,
-          ...heavyImports.map(i => `  - ${i}`),
-          '',
-          'This module is imported by core files and must stay free of @matter/* deps.',
-          'Use \`import type\` if only types are needed, or split the heavy code out.',
-        ].join('\n')).toEqual([])
+        const message = heavyImports.length === 0
+          ? ''
+          : [
+              `${file} imports @matter/* packages, making it no longer lightweight:`,
+              ...heavyImports.map(i => `  - ${i}`),
+              '',
+              'This module is imported by core files and must stay free of @matter/* deps.',
+              'Use \`import type\` if only types are needed, or split the heavy code out.',
+            ].join('\n')
+        expect(message).toBe('')
       })
     }
   })
@@ -186,14 +192,17 @@ describe('matter lazy loading', () => {
           return !lightweightSiblings.has(imp)
         })
 
-        expect(heavySiblings, [
-          `${file} runtime-imports a sibling matter module that is not in the lightweight allowlist:`,
-          ...heavySiblings.map(i => `  - ${i}`),
-          '',
-          'Loading that sibling transitively pulls in its @matter/* runtime deps,',
-          'breaking the lazy-loading invariant for any core file that imports this module.',
-          'Either move the needed value to a lightweight module or use `import type`.',
-        ].join('\n')).toEqual([])
+        const message = heavySiblings.length === 0
+          ? ''
+          : [
+              `${file} runtime-imports a sibling matter module that is not in the lightweight allowlist:`,
+              ...heavySiblings.map(i => `  - ${i}`),
+              '',
+              'Loading that sibling transitively pulls in its @matter/* runtime deps,',
+              'breaking the lazy-loading invariant for any core file that imports this module.',
+              'Either move the needed value to a lightweight module or use `import type`.',
+            ].join('\n')
+        expect(message).toBe('')
       })
     }
   })

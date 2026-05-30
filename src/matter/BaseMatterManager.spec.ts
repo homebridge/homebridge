@@ -252,8 +252,8 @@ describe('baseMatterManager', () => {
 
     it('should log warning if server not running', async () => {
       const accessories: InternalMatterAccessory[] = [{ UUID: 'test-1', displayName: 'Test 1' } as any]
-      await manager.handleRegisterPlatformAccessories('test-plugin', 'TestPlatform', accessories)
-      // Should not throw, just log warning
+      // No matterServer set: resolves without throwing (just logs a warning).
+      await expect(manager.handleRegisterPlatformAccessories('test-plugin', 'TestPlatform', accessories)).resolves.toBeUndefined()
     })
   })
 
@@ -334,8 +334,8 @@ describe('baseMatterManager', () => {
         { UUID: 'non-existent', displayName: 'Non-existent' } as any,
       ]
 
-      await manager.handleUnregisterExternalAccessories(accessories)
-      // Should not throw
+      // Unknown UUID: resolves without throwing (the accessory is simply skipped).
+      await expect(manager.handleUnregisterExternalAccessories(accessories)).resolves.toBeUndefined()
     })
 
     it('should continue unregistering if one fails', async () => {

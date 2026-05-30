@@ -30,6 +30,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat: nested hap/matter bridge config with `externalsOnly` mode
 - fix(matter): read the Matter shutdown handler via a getter
 - test: add spec-inclusive typecheck script and fix existing spec errors
+- chore: add test-file lint rules and fix existing violations
 
 ### Homebridge Dependencies
 

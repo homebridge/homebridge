@@ -174,17 +174,13 @@ describe('endpointContext', () => {
     it('should provide helpful error message', () => {
       const mockEndpoint = { id: 'important-endpoint' } as Endpoint
 
-      try {
-        getRegistryManager(mockEndpoint)
-        expect.fail('Should have thrown')
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error)
-        if (error instanceof Error) {
-          expect(error.message).toContain('No RegistryManager attached')
-          expect(error.message).toContain('important-endpoint')
-          expect(error.message).toContain('programming error')
-        }
-      }
+      // Use the toThrow matcher (instead of try/catch with conditional expects)
+      // so the message assertions are unconditional. Each call re-invokes the
+      // getter, which throws afresh.
+      expect(() => getRegistryManager(mockEndpoint)).toThrow(Error)
+      expect(() => getRegistryManager(mockEndpoint)).toThrow('No RegistryManager attached')
+      expect(() => getRegistryManager(mockEndpoint)).toThrow('important-endpoint')
+      expect(() => getRegistryManager(mockEndpoint)).toThrow('programming error')
     })
   })
 })
