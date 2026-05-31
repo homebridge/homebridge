@@ -51,21 +51,21 @@ Example branch creation scenarios (assuming current version 1.11.0):
 
 - Bootstrap, build, and test the repository:
   - `npm install` -- takes ~20 seconds. Install dependencies first.
-  - `npm run build` -- takes ~3 seconds. Compiles TypeScript to JavaScript in lib/ directory.
-  - `npm run test` -- takes ~7 seconds. Runs Jest test suite with 64 tests across 8 suites.
+  - `npm run build` -- takes ~3 seconds. Compiles TypeScript to JavaScript in the dist/ directory.
+  - `npm run test` -- takes ~7 seconds. Runs the Vitest test suite.
   - `npm run lint` -- takes ~2 seconds. ALWAYS run before committing or CI will fail.
 - Run Homebridge:
   - ALWAYS run build steps first
-  - `./bin/homebridge -D` -- starts in debug mode, requires config.json in ~/.homebridge/
-  - `./bin/homebridge -D -U /path/to/config` -- uses custom config directory
-  - `./bin/homebridge --help` -- shows all CLI options
+  - `./bin/homebridge.js -D` -- starts in debug mode, requires config.json in ~/.homebridge/
+  - `./bin/homebridge.js -D -U /path/to/config` -- uses custom config directory
+  - `./bin/homebridge.js --help` -- shows all CLI options
 - Development mode:
   - `npm run dev` -- runs with DEBUG=* environment and example plugins
   - `npm run watch` -- uses nodemon to auto-rebuild and restart on changes
 
 ## Validation
 
-- ALWAYS manually validate Homebridge startup after making changes by running `./bin/homebridge -D`
+- ALWAYS manually validate Homebridge startup after making changes by running `./bin/homebridge.js -D`
 - ALWAYS run `npm run lint` before committing or the CI (.github/workflows/build.yml) will fail
 - Run `npm run test-coverage` to generate coverage reports (takes ~10 seconds)
 - Verify that Homebridge shows QR code and bridge information when starting successfully
@@ -91,9 +91,9 @@ The following are outputs from frequently run commands. Reference them instead o
 ├── README.md              # Main documentation
 ├── package.json           # npm configuration and scripts
 ├── tsconfig.json          # TypeScript compiler configuration
-├── .eslintrc              # ESLint configuration
-├── jest.config.js         # Jest test configuration
-├── bin/homebridge         # Main executable script
+├── eslint.config.js       # ESLint configuration
+├── vitest.config.js       # Vitest test configuration
+├── bin/homebridge.js      # Main executable script
 ├── config-sample.json     # Sample configuration file
 ├── src/                   # TypeScript source code
 │   ├── cli.ts            # Command line interface entry point
@@ -104,21 +104,21 @@ The following are outputs from frequently run commands. Reference them instead o
 │   ├── logger.ts         # Logging system
 │   ├── util/             # Utility functions
 │   └── types/            # TypeScript type definitions
-├── lib/                   # Compiled JavaScript (created by build)
+├── dist/                  # Compiled JavaScript (created by build)
 └── docs/                  # Generated API documentation
 ```
 
 ### Key npm scripts
 ```json
 {
-  "build": "npm run clean && tsc",
-  "clean": "npm install rimraf && rimraf lib/",
-  "test": "jest --forceExit --detectOpenHandles",
-  "test-coverage": "jest --coverage --forceExit --detectOpenHandles",
-  "lint": "eslint 'src/**/*.{js,ts,json}'",
+  "build": "npm run sync-matter-version && npm run clean && tsc",
+  "clean": "rimraf dist && rimraf coverage",
+  "test": "vitest run",
+  "test-coverage": "npm run test -- --coverage",
+  "lint": "eslint .",
   "lint:fix": "npm run lint -- --fix",
   "docs": "typedoc",
-  "dev": "DEBUG=* ./bin/homebridge -D -P example-plugins/ || true",
+  "dev": "DEBUG=* ./bin/homebridge.js -D -P example-plugins/ || true",
   "watch": "nodemon"
 }
 ```
@@ -155,12 +155,11 @@ Options:
 ```
 
 ### Node.js requirements
-- Supported versions: Node.js ^18.15.0 || ^20.7.0 || ^22
-- Current environment: Node.js v20.19.4 (compatible)
+- Supported versions: Node.js ^22 || ^24
 
 ## Project Architecture
 
-- **Entry Point**: `bin/homebridge` executable calls `lib/cli.js` (compiled from `src/cli.ts`)
+- **Entry Point**: `bin/homebridge.js` executable calls `dist/cli.js` (compiled from `src/cli.ts`)
 - **Core Server**: `src/server.ts` manages the main Homebridge server and plugin lifecycle
 - **Plugin System**: `src/pluginManager.ts` handles loading npm packages with "homebridge-plugin" keyword
 - **HomeKit Bridge**: `src/bridgeService.ts` manages HAP (HomeKit Accessory Protocol) communication
@@ -184,4 +183,4 @@ Options:
 - Missing plugins: Homebridge will start but show "No plugin was found for..." messages
 - Port conflicts: Change the port in bridge configuration if 51826 is in use
 - Permission issues: Homebridge may need elevated permissions for low ports (< 1024)
-- Plugin compatibility: Ensure plugins are compatible with current Homebridge version (v1.11.0)
+- Plugin compatibility: Ensure plugins are compatible with the current Homebridge major version (v2)
