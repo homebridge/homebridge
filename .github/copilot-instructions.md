@@ -163,6 +163,7 @@ Options:
 ```
 
 ### Node.js requirements
+
 - Supported versions: Node.js ^22 || ^24
 
 ## Project Architecture
