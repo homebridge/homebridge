@@ -31,6 +31,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): read the Matter shutdown handler via a getter
 - test: add spec-inclusive typecheck script and fix existing spec errors
 - chore: add test-file lint rules and fix existing violations
+- refactor(matter): delegate log rendering to matter.js
 
 ### Homebridge Dependencies
 

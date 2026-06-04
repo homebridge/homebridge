@@ -250,7 +250,9 @@ describe('logFormatter', () => {
 
       const result = formatter(diagnostic)
       expect(result).toContain('test error')
-      expect(result).toContain('stack')
+      // Matter.js renders the actual stack frames (e.g. "at /path:line") rather
+      // than a JSON blob with a literal "stack" key.
+      expect(result).toContain(' at ')
     })
 
     it('should format plain objects as JSON', () => {
