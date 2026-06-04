@@ -484,6 +484,60 @@ describe('childBridgeService', () => {
       expect((service as any).manuallyStopped).toBe(true)
       expect((service as any).lastBridgeStatus).toBe(ChildBridgeStatus.DOWN)
     })
+
+    it('resets the restart cap after a stable run (ONLINE for >= 5 minutes)', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+
+      // Three quick signal crashes (no ONLINE in between) climb the counter to 3.
+      for (let i = 0; i < 3; i++) {
+        const child = childProcesses.list[childProcesses.list.length - 1]
+        child.emit('close', null, 'SIGSEGV')
+      }
+      expect((service as any).restartCount).toBe(3)
+
+      // The next child comes up and stays online past the reset threshold.
+      const stableChild = childProcesses.list[childProcesses.list.length - 1]
+      stableChild.emit('message', { id: ChildProcessMessageEventType.ONLINE })
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1)
+      stableChild.emit('close', null, 'SIGSEGV')
+
+      // The stable run wiped the prior accumulation, so this exit is counted
+      // as the first of a fresh run (reset to 0, then incremented to 1) and the
+      // bridge restarts rather than being capped.
+      expect((service as any).restartCount).toBe(1)
+      expect((service as any).manuallyStopped).toBe(false)
+    })
+
+    it('does not reset the cap for a short-lived ONLINE run (still gives up)', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      service.start()
+
+      // Each child reaches ONLINE but only stays up a minute — below the 5 min
+      // threshold — so reaching ONLINE alone must not reset the counter.
+      for (let i = 0; i < 4; i++) {
+        const child = childProcesses.list[childProcesses.list.length - 1]
+        child.emit('message', { id: ChildProcessMessageEventType.ONLINE })
+        vi.advanceTimersByTime(60_000)
+        child.emit('close', null, 'SIGSEGV')
+      }
+
+      const lastChild = childProcesses.list[childProcesses.list.length - 1]
+      lastChild.emit('message', { id: ChildProcessMessageEventType.ONLINE })
+      vi.advanceTimersByTime(60_000)
+      lastChild.emit('close', null, 'SIGSEGV')
+
+      // 5th close still trips the cap — brief uptime does not earn a reset.
+      expect((service as any).manuallyStopped).toBe(true)
+      expect((service as any).lastBridgeStatus).toBe(ChildBridgeStatus.DOWN)
+    })
   })
 
   describe('teardown — listener cleanup (M3) and SIGKILL fallback (M4)', () => {

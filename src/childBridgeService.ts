@@ -232,6 +232,17 @@ export class ChildBridgeService {
   private restartCount = 0
   private readonly maxRestarts = 4
   private scheduledRestartTimeout?: ReturnType<typeof setTimeout>
+  // Wall-clock time (ms) the current child last reported ONLINE, or undefined
+  // if it has not come up yet. Used to tell a healthy bridge that hit a
+  // transient fault apart from a tight crash loop — see handleProcessClose.
+  private childOnlineSince?: number
+  // A child that stayed up at least this long before an unexpected exit is
+  // treated as "unlucky" rather than "broken": its restart count is reset so
+  // an occasional transient crash on a long-lived bridge never accumulates
+  // toward a permanent shutdown. 5 minutes is comfortably longer than any
+  // normal startup and shorter than real uptime, so a crash loop (which dies
+  // within seconds) never qualifies.
+  private readonly stableRunResetMs = 5 * 60 * 1000
 
   // Matter accessories pending response callback. Concurrent callers of
   // requestMatterAccessories share the same in-flight promise (see
@@ -391,6 +402,8 @@ export class ChildBridgeService {
    */
   private startChildProcess(): void {
     this.bridgeStatus = ChildBridgeStatus.PENDING
+    // A freshly (re)started process has not reported ONLINE yet.
+    this.childOnlineSince = undefined
 
     this.child = fork(resolve(__dirname, 'childBridgeFork.js'), this.args, this.processEnv)
 
@@ -435,6 +448,7 @@ export class ChildBridgeService {
         }
         case ChildProcessMessageEventType.ONLINE: {
           this.bridgeStatus = ChildBridgeStatus.OK
+          this.childOnlineSince = Date.now()
           break
         }
         case ChildProcessMessageEventType.PORT_REQUEST: {
@@ -519,6 +533,17 @@ export class ChildBridgeService {
     if (this.shuttingDown) {
       return
     }
+
+    // A child that ran stably for a while before dying is "unlucky", not
+    // "broken": reset the restart cap so an occasional transient crash on a
+    // long-lived bridge doesn't slowly accumulate toward a permanent shutdown.
+    // Only a genuinely stable run counts — the child must have reached ONLINE
+    // and stayed up past stableRunResetMs. A tight crash loop dies well before
+    // the threshold and so keeps counting toward maxRestarts.
+    if (this.childOnlineSince !== undefined && Date.now() - this.childOnlineSince >= this.stableRunResetMs) {
+      this.restartCount = 0
+    }
+    this.childOnlineSince = undefined
 
     // Apply the restart cap to *every* unexpected exit, not just code=1.
     // Previously the "non-plugin-crash" path reset restartCount to 0 and
