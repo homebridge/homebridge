@@ -39,6 +39,13 @@ export interface MatterStatusInfo {
   serialNumber?: string
   commissioned?: boolean
   deviceCount?: number
+  /**
+   * When true, the Matter bridge node itself is NOT advertised but plugins
+   * may still publish external Matter accessories. The UI uses this to show
+   * a distinct status colour (the bridge is configured but the node is
+   * intentionally suppressed). Mirrors `bridge.hap.externalsOnly`.
+   */
+  externalsOnly?: boolean
 }
 
 /**

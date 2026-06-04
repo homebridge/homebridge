@@ -46,10 +46,6 @@ describe('homebridgeDoorLockServer', () => {
       },
       configurable: true,
     })
-
-    // Mock super methods to prevent actual execution
-    vi.spyOn(Object.getPrototypeOf(HomebridgeDoorLockServer.prototype), 'lockDoor').mockReturnValue(undefined)
-    vi.spyOn(Object.getPrototypeOf(HomebridgeDoorLockServer.prototype), 'unlockDoor').mockReturnValue(undefined)
   })
 
   describe('lockDoor', () => {
@@ -103,12 +99,14 @@ describe('homebridgeDoorLockServer', () => {
       expect(mockRegistry.syncStateToCache).toHaveBeenCalled()
     })
 
-    it('should call super.lockDoor to update Matter state via proper channel', async () => {
-      const superLockDoor = vi.spyOn(Object.getPrototypeOf(HomebridgeDoorLockServer.prototype), 'lockDoor')
+    it('should set lockState to Locked after the handler succeeds', async () => {
+      mockState.lockState = 2 // start unlocked
 
       await behavior.lockDoor(request)
 
-      expect(superLockDoor).toHaveBeenCalledWith(request)
+      // The featureless base has no working super.lockDoor(), so the behavior
+      // must set the attribute itself (1 = Locked).
+      expect(mockState.lockState).toBe(1)
     })
   })
 
@@ -163,12 +161,14 @@ describe('homebridgeDoorLockServer', () => {
       expect(mockRegistry.syncStateToCache).toHaveBeenCalled()
     })
 
-    it('should call super.unlockDoor to update Matter state via proper channel', async () => {
-      const superUnlockDoor = vi.spyOn(Object.getPrototypeOf(HomebridgeDoorLockServer.prototype), 'unlockDoor')
+    it('should set lockState to Unlocked after the handler succeeds', async () => {
+      mockState.lockState = 1 // start locked
 
       await behavior.unlockDoor(request)
 
-      expect(superUnlockDoor).toHaveBeenCalledWith(request)
+      // The featureless base has no working super.unlockDoor(), so the behavior
+      // must set the attribute itself (2 = Unlocked).
+      expect(mockState.lockState).toBe(2)
     })
   })
 

@@ -8,6 +8,7 @@
 import type { AccessoryConfig, PlatformConfig } from '../bridgeService.js'
 
 import { Logger } from '../logger.js'
+import { shouldStartMatterServer } from './config.js'
 
 const log = Logger.withPrefix('Matter/Config')
 const COLON_RE = /:/g
@@ -259,11 +260,17 @@ export class MatterConfigValidator {
   }
 
   /**
-   * Validate all child Matter configurations in a config
+   * Validate all child Matter configurations in a config.
+   *
+   * Strips Matter config from any child whose port duplicates one already
+   * seen — previously the validator only logged the error and let the
+   * duplicate-port config through, which then deterministically failed at
+   * runtime with EADDRINUSE on the second bridge to claim the port.
    */
   static validateAllChildMatterConfigs(
     platforms: PlatformConfig[],
     accessories: AccessoryConfig[],
+    reservedPorts: Set<number> = new Set(),
   ): MatterConfigValidationResult {
     const result: MatterConfigValidationResult = {
       isValid: true,
@@ -271,26 +278,45 @@ export class MatterConfigValidator {
       warnings: [],
     }
 
-    const usedPorts = new Set<number>()
+    const usedPorts = new Set<number>(reservedPorts)
 
     // Validate platform _bridge.matter configs
     for (const platform of platforms) {
       if (platform._bridge?.matter) {
+        // Disabled-in-place (`enabled: false`) and externalsOnly child configs
+        // never start a bridge server or bind their configured port, so preserve
+        // them as-is: don't validate, strip, or reserve a port for them.
+        // Otherwise an unrelated active Matter config triggering validation could
+        // delete a user's intentionally-disabled config (it's meant to survive so
+        // it can be re-enabled without re-commissioning).
+        if (!shouldStartMatterServer(platform._bridge.matter)) {
+          continue
+        }
+
         const validation = this.validateChildMatterConfig(
           platform,
           'platform',
           platform.platform || 'unknown',
         )
 
-        result.errors.push(...validation.errors)
+        if (!validation.isValid) {
+          // Strip the invalid Matter config so the bridge doesn't try to
+          // start a Matter server with bad settings later.
+          result.errors.push(...validation.errors)
+          result.warnings.push(...validation.warnings)
+          result.isValid = false
+          delete platform._bridge.matter
+          continue
+        }
         result.warnings.push(...validation.warnings)
-        result.isValid = result.isValid && validation.isValid
 
         // Check for port conflicts
         if (platform._bridge.matter.port) {
           if (usedPorts.has(platform._bridge.matter.port)) {
-            result.errors.push(`Duplicate Matter port ${platform._bridge.matter.port} detected. Each Matter bridge must use a unique port.`)
+            result.errors.push(`Duplicate Matter port ${platform._bridge.matter.port} detected on platform "${platform.platform}". Removing this Matter configuration so the rest of the bridge can start.`)
             result.isValid = false
+            delete platform._bridge.matter
+            continue
           }
           usedPorts.add(platform._bridge.matter.port)
         }
@@ -300,21 +326,34 @@ export class MatterConfigValidator {
     // Validate accessory _bridge.matter configs
     for (const accessory of accessories) {
       if (accessory._bridge?.matter) {
+        // See the platform loop above: disabled-in-place / externalsOnly configs
+        // are preserved untouched — they neither start a server nor bind a port.
+        if (!shouldStartMatterServer(accessory._bridge.matter)) {
+          continue
+        }
+
         const validation = this.validateChildMatterConfig(
           accessory,
           'accessory',
           accessory.accessory || 'unknown',
         )
 
-        result.errors.push(...validation.errors)
+        if (!validation.isValid) {
+          result.errors.push(...validation.errors)
+          result.warnings.push(...validation.warnings)
+          result.isValid = false
+          delete accessory._bridge.matter
+          continue
+        }
         result.warnings.push(...validation.warnings)
-        result.isValid = result.isValid && validation.isValid
 
         // Check for port conflicts
         if (accessory._bridge.matter.port) {
           if (usedPorts.has(accessory._bridge.matter.port)) {
-            result.errors.push(`Duplicate Matter port ${accessory._bridge.matter.port} detected. Each Matter bridge must use a unique port.`)
+            result.errors.push(`Duplicate Matter port ${accessory._bridge.matter.port} detected on accessory "${accessory.accessory}". Removing this Matter configuration so the rest of the bridge can start.`)
             result.isValid = false
+            delete accessory._bridge.matter
+            continue
           }
           usedPorts.add(accessory._bridge.matter.port)
         }

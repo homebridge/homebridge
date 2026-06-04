@@ -47,6 +47,7 @@ Homebridge is a single-process server that loads npm packages (named `homebridge
 This is a critical invariant enforced by **`src/matterLazyLoading.spec.ts`**: the listed core files (`api.ts`, `bridgeService.ts`, `cli.ts`, `server.ts`, `pluginManager.ts`, etc.) must not have any **runtime** import that transitively pulls in `@matter/*` packages — only `import type` is allowed. Loading `@matter/main` adds significant startup time, and bridges without a `matter` config block must not pay that cost.
 
 When changing core files, if you need something from `src/matter/`:
+
 1. Prefer `import type { … } from './matter/…'`.
 2. If you need a runtime value, import from a leaf module (e.g. `./matter/config.js`) rather than the barrel `./matter/index.js`.
 3. Move the constant out of `src/matter/` if it's truly protocol-agnostic.

@@ -22,12 +22,12 @@ import chalk from 'chalk'
 import qrcode from 'qrcode-terminal'
 
 import { HomebridgeAPI, PluginType } from './api.js'
-import { BridgeService } from './bridgeService.js'
+import { BridgeService, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
 import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
-import { MatterConfigCollector } from './matter/config.js'
+import { isMatterActive, isMatterConfigEnabled, MatterConfigCollector } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
@@ -91,6 +91,11 @@ export class Server {
   private matterMonitoringActive = false
   private matterMonitoringClients = 0
 
+  // Fallback timers for child-bridge Matter accessory lookups. Keyed by uuid
+  // so that a child's accessoryInfoData (success or error) can cancel the
+  // timer before it fires a spurious "Timed out" event at the UI.
+  private readonly pendingMatterAccessoryInfoLookups: Map<string, ReturnType<typeof setTimeout>> = new Map()
+
   // current server status
   private serverStatus: ServerStatus = ServerStatus.PENDING
 
@@ -124,6 +129,7 @@ export class Server {
     const bridgeConfig: BridgeOptions = {
       cachedAccessoriesDir: User.cachedAccessoryPath(),
       cachedAccessoriesItemName: 'cachedAccessories',
+      externalAccessoriesItemName: 'externalAccessories',
     }
 
     // shallow copy the homebridge options to the bridge options object
@@ -260,9 +266,15 @@ export class Server {
     if (Server.isHapEnabled(this.config.bridge)) {
       this.publishBridge()
     } else {
-      // HAP is opted out. The bridge ADVERTISED listener won't fire, so move
-      // server status to OK explicitly — Matter is the only protocol up here.
-      log.info('HAP is disabled for the main bridge (bridge.hap=false); skipping HAP publish.')
+      // HAP is opted out (or externalsOnly mode is set). The bridge ADVERTISED
+      // listener won't fire for the bridge itself, so move server status to OK
+      // explicitly. Matter may or may not be up — if both protocols are
+      // suppressed the bridge simply advertises nothing of its own.
+      if (isHapExternalsOnly(this.config.bridge.hap)) {
+        log.info('HAP externalsOnly mode for the main bridge; bridge accessory will not publish but external accessories will.')
+      } else {
+        log.info('HAP is disabled for the main bridge (bridge.hap.enabled=false); skipping HAP publish.')
+      }
       this.setServerStatus(ServerStatus.OK)
     }
   }
@@ -272,6 +284,15 @@ export class Server {
 
     // Teardown Matter servers (main bridge and external accessories)
     await this.matterManager?.teardown()
+
+    // Cancel any in-flight Matter accessory info fallback timers so they
+    // don't fire `accessoryInfoData` events at the IPC channel after the
+    // service has stopped. The timers are already unref()'d so they don't
+    // hold the loop open — this is for tidiness, not a real leak.
+    for (const timer of this.pendingMatterAccessoryInfoLookups.values()) {
+      clearTimeout(timer)
+    }
+    this.pendingMatterAccessoryInfoLookups.clear()
 
     this.ipcService.stop()
     this.setServerStatus(ServerStatus.DOWN)
@@ -295,18 +316,22 @@ export class Server {
 
   /**
    * Whether HAP should be published for the given bridge configuration.
-   * HAP is on by default; users opt out via `bridge.hap: false`.
+   * HAP is on by default; users opt out via `bridge.hap.enabled: false`.
+   * In externalsOnly mode the bridge accessory itself is not published, so
+   * this returns false there too — externals are handled separately by
+   * BridgeService.
    */
   public static isHapEnabled(bridgeConfig: BridgeConfiguration): boolean {
-    return bridgeConfig.hap !== false
+    return isHapConfigEnabled(bridgeConfig.hap) && !isHapExternalsOnly(bridgeConfig.hap)
   }
 
   /**
-   * Whether Matter is configured for the given bridge.
-   * Matter is opt-in: a `bridge.matter` block must be present.
+   * Whether Matter is enabled for the given bridge.
+   * Matter is opt-in: a `bridge.matter` block must be present and not
+   * explicitly disabled via `bridge.matter.enabled: false`.
    */
   public static isMatterEnabledForBridge(bridgeConfig: BridgeConfiguration): boolean {
-    return !!bridgeConfig.matter
+    return isMatterConfigEnabled(bridgeConfig.matter)
   }
 
   private static loadConfig(): HomebridgeConfig {
@@ -356,25 +381,26 @@ export class Server {
     bridge.pin = bridge.pin || defaultBridge.pin
     config.bridge = bridge
 
-    // Protocol-enablement validation: at least one of HAP or Matter must be on.
-    // HAP is enabled by default; users opt out via `bridge.hap: false`.
-    // Matter is enabled when `bridge.matter` is configured.
-    if (!Server.isHapEnabled(config.bridge) && !Server.isMatterEnabledForBridge(config.bridge)) {
-      throw new Error(
-        'At least one protocol (HAP or Matter) must be enabled. '
-        + 'Set `bridge.hap` to true or add a `bridge.matter` configuration.',
-      )
-    }
-
     // Validate Matter port pool configuration. Must run after bridge defaults
     // are filled in, since the cast to HomebridgeConfig only becomes honest at
     // that point.
     MatterConfigCollector.validateMatterPortsPool(config as HomebridgeConfig)
 
+    // Normalise the main bridge username to uppercase so downstream comparisons
+    // (validMacAddress, registry lookups, child-bridge dedup) stay case-consistent.
+    // Guarded so a malformed (non-string) value falls through to `validMacAddress`
+    // below and produces the proper "Not a valid username" error rather than a
+    // raw TypeError from calling toUpperCase on a number/boolean.
+    if (typeof config.bridge.username === 'string') {
+      config.bridge.username = config.bridge.username.toUpperCase()
+    }
     const username = config.bridge.username
     if (!validMacAddress(username)) {
       throw new Error(`Not a valid username: ${username}. Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`)
     }
+
+    // Validate the main bridge HAP config (shape + externalsOnly/enabled coherence).
+    validateHapConfig(config.bridge, { bridgeLabel: 'main bridge' })
 
     config.accessories = config.accessories || []
     config.platforms = config.platforms || []
@@ -484,6 +510,8 @@ export class Server {
 
           // Set callback for external Matter bridge registration
           childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+          // Cancel the parent-side fallback timer when this child answers a lookup
+          childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
 
           this.childBridges.set(accessoryConfig._bridge.username, childBridge)
         }
@@ -583,6 +611,8 @@ export class Server {
 
         // Set callback for external Matter bridge registration
         childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+        // Cancel the parent-side fallback timer when this child answers a lookup
+        childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
 
         this.childBridges.set(platformConfig._bridge.username, childBridge)
 
@@ -618,17 +648,13 @@ export class Server {
       )
     }
 
-    // At least one of HAP or Matter must be enabled per child bridge.
-    // Note: Matter is unsupported on accessory-style child bridges (warned about
-    // in childBridgeFork.ts), so for ACCESSORY child bridges only HAP counts.
-    const hapOk = Server.isHapEnabled(bridgeConfig)
-    const matterOk = type === PluginType.PLATFORM && Server.isMatterEnabledForBridge(bridgeConfig)
-    if (!hapOk && !matterOk) {
-      throw new Error(
-        `Error loading the ${type} "${identifier}" requested in your config.json - `
-        + 'at least one protocol must be enabled on this child bridge. '
-        + 'Set `_bridge.hap` to true or add a `_bridge.matter` configuration.',
-      )
+    // Normalise the child username to uppercase, mirroring the main bridge
+    // (loadConfig). validMacAddress only accepts A-F, so without this a lowercase
+    // MAC in _bridge.username would be rejected here even though the identical
+    // value is accepted on the main bridge. Guarded so a non-string value still
+    // falls through to the proper "not a valid username" error below.
+    if (typeof bridgeConfig.username === 'string') {
+      bridgeConfig.username = bridgeConfig.username.toUpperCase()
     }
 
     if (!validMacAddress(bridgeConfig.username)) {
@@ -655,12 +681,22 @@ export class Server {
       }
     }
 
-    if (bridgeConfig.username === this.config.bridge.username.toUpperCase()) {
+    // Both usernames are normalised to uppercase (main in loadConfig, child
+    // above), so a direct comparison is case-consistent.
+    if (bridgeConfig.username === this.config.bridge.username) {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - `
         + `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have it's own unique username.`,
       )
     }
+
+    // Validate the child bridge HAP config (shape + externalsOnly/enabled coherence).
+    // For accessory child bridges, `hap.externalsOnly` is stripped with a warning
+    // since externals are not supported via the accessory plugin API.
+    validateHapConfig(bridgeConfig, {
+      bridgeLabel: `${type} "${identifier}" child bridge`,
+      isAccessoryPlugin: type === PluginType.ACCESSORY,
+    })
   }
 
   /**
@@ -705,16 +741,16 @@ export class Server {
     })
 
     // Matter monitoring lifecycle handlers
-    this.ipcService.on(IpcIncomingEvent.START_MATTER_MONITORING, () => {
-      this.handleStartMatterMonitoring()
+    this.ipcService.on(IpcIncomingEvent.START_MATTER_MONITORING, (data) => {
+      this.handleStartMatterMonitoring(data)
     })
 
-    this.ipcService.on(IpcIncomingEvent.STOP_MATTER_MONITORING, () => {
-      this.handleStopMatterMonitoring()
+    this.ipcService.on(IpcIncomingEvent.STOP_MATTER_MONITORING, (data) => {
+      this.handleStopMatterMonitoring(data)
     })
 
     this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORIES, (data) => {
-      void this.handleGetMatterAccessories(data?.bridgeUsername)
+      void this.handleGetMatterAccessories(data)
     })
 
     this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORY_INFO, (data) => {
@@ -728,9 +764,15 @@ export class Server {
 
   /**
    * Handle start Matter monitoring request from UI
-   * Only starts monitoring if this is the first client
+   * Only starts monitoring if this is the first client.
+   *
+   * The UI parks each `startMatterMonitoring` request under a `correlationId`
+   * so it can route the ack back to the matching waiter and gate its first
+   * `getMatterAccessories` on it; echo it on the reply so the UI's dispatcher
+   * (which drops events without a correlationId) can deliver it.
    */
-  private handleStartMatterMonitoring(): void {
+  private handleStartMatterMonitoring(data?: { correlationId?: string }): void {
+    const correlationId = data?.correlationId
     this.matterMonitoringClients++
 
     // Only setup monitoring if this is the first client
@@ -747,6 +789,7 @@ export class Server {
 
       const event: MatterEvent = {
         type: 'monitoringStarted',
+        correlationId,
         data: { success: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -754,6 +797,7 @@ export class Server {
       // Already monitoring, just acknowledge
       const event: MatterEvent = {
         type: 'monitoringStarted',
+        correlationId,
         data: { success: true, alreadyActive: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -762,10 +806,23 @@ export class Server {
 
   /**
    * Handle stop Matter monitoring request from UI
-   * Only stops monitoring when no more clients
+   * Only stops monitoring when no more clients.
+   *
+   * Echo the request's `correlationId` for the same reason as
+   * `handleStartMatterMonitoring`.
    */
-  private handleStopMatterMonitoring(): void {
+  private handleStopMatterMonitoring(data?: { correlationId?: string }): void {
+    const correlationId = data?.correlationId
+
     if (this.matterMonitoringClients <= 0) {
+      // Nothing to do, but still acknowledge so the UI doesn't sit waiting
+      // for a confirmation event that never comes.
+      const event: MatterEvent = {
+        type: 'monitoringStopped',
+        correlationId,
+        data: { success: true, alreadyStopped: true },
+      }
+      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
       return
     }
 
@@ -785,6 +842,7 @@ export class Server {
 
       const event: MatterEvent = {
         type: 'monitoringStopped',
+        correlationId,
         data: { success: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -792,6 +850,7 @@ export class Server {
       // Other clients still monitoring
       const event: MatterEvent = {
         type: 'monitoringStopped',
+        correlationId,
         data: { success: true, othersActive: true },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -812,15 +871,35 @@ export class Server {
   }
 
   /**
-   * Get Matter accessories for a specific bridge or all bridges
-   * @param bridgeUsername - Optional: specific bridge username (MAC format)
+   * Cancel the pending fallback timer for a forwarded Matter accessory lookup.
+   * Called by ChildBridgeService when a child responds with accessoryInfoData
+   * so the 2s "Timed out" event isn't sent after a successful response.
    */
-  private async handleGetMatterAccessories(bridgeUsername?: string): Promise<void> {
+  private cancelPendingMatterAccessoryInfoLookup(uuid: string): void {
+    const timer = this.pendingMatterAccessoryInfoLookups.get(uuid)
+    if (timer) {
+      clearTimeout(timer)
+      this.pendingMatterAccessoryInfoLookups.delete(uuid)
+    }
+  }
+
+  /**
+   * Get Matter accessories for a specific bridge or all bridges.
+   *
+   * The UI parks each request under a `correlationId` and routes responses
+   * back to the matching waiter; events without the original correlationId
+   * are dropped, so every emitted `accessoriesData` event must echo it.
+   */
+  private async handleGetMatterAccessories(data?: { bridgeUsername?: string, correlationId?: string }): Promise<void> {
+    const bridgeUsername = data?.bridgeUsername
+    const correlationId = data?.correlationId
+
     // Check if monitoring is active
     if (!this.matterMonitoringActive) {
       matterLogger.warn('Matter monitoring not active - cannot get accessories')
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername,
           error: 'Matter monitoring not active',
@@ -834,6 +913,7 @@ export class Server {
     if (!this.api.isMatterEnabled() && this.childBridges.size === 0) {
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername,
           accessories: [],
@@ -862,6 +942,7 @@ export class Server {
 
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername: bridgeUsername || 'all',
           accessories: allAccessories,
@@ -872,6 +953,7 @@ export class Server {
       matterLogger.error('Failed to get Matter accessories:', error)
       const event: MatterEvent = {
         type: 'accessoriesData',
+        correlationId,
         data: {
           bridgeUsername,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -909,17 +991,56 @@ export class Server {
         return
       }
 
-      // If not found in main bridge, forward to child bridges with Matter enabled.
-      // Child bridges will respond directly if they have the accessory
+      // If not found on main bridge, forward to child bridges whose Matter is
+      // actually active. A child with `matter: { enabled: false }` still carries
+      // a matterConfig block but never starts a Matter message handler, so it
+      // would never answer — forwarding to it would only make the UI wait out
+      // the 2s fallback instead of getting an immediate "not found". Gate on
+      // isMatterActive (enabled or externalsOnly), which mirrors the condition
+      // under which the child actually creates its Matter handler.
+      // The matching child responds directly to the UI via the existing
+      // MATTER_EVENT forwarding path; schedule a fallback error so the UI
+      // doesn't hang if no child knows the UUID either.
+      let forwardedToChildren = false
       for (const childBridge of this.childBridges.values()) {
-        // Only forward to bridges with Matter enabled
-        if (childBridge.getMetadata().matterConfig) {
+        if (isMatterActive(childBridge.getMetadata().matterConfig)) {
           childBridge.getMatterAccessoryInfo(uuid)
+          forwardedToChildren = true
         }
       }
 
-      // If no child bridge responds, we'll send error after a timeout
-      // For now, assume child bridges will handle it
+      if (!forwardedToChildren) {
+        this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+          type: 'accessoryInfoData',
+          data: { error: `Accessory ${uuid} not found`, uuid },
+        })
+        return
+      }
+
+      // 2s is comfortably longer than a healthy child response and short
+      // enough that the UI doesn't feel stuck. Use unref() so a late
+      // shutdown doesn't wait on this timer. The timer is registered in
+      // pendingMatterAccessoryInfoLookups so a child's accessoryInfoData
+      // response (routed via ChildBridgeService.onAccessoryInfoResponse) can
+      // cancel it before it fires a spurious timed-out event. A second
+      // concurrent request for the same uuid replaces the existing timer.
+      const existing = this.pendingMatterAccessoryInfoLookups.get(uuid)
+      if (existing) {
+        clearTimeout(existing)
+      }
+      const fallback = setTimeout(() => {
+        this.pendingMatterAccessoryInfoLookups.delete(uuid)
+        this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+          type: 'accessoryInfoData',
+          data: {
+            error: `Timed out looking up Matter accessory ${uuid}; it may not be registered.`,
+            uuid,
+            timedOut: true,
+          },
+        })
+      }, 2000)
+      fallback.unref()
+      this.pendingMatterAccessoryInfoLookups.set(uuid, fallback)
     } catch (error) {
       matterLogger.error('Failed to get Matter accessory info:', error)
       const event: MatterEvent = {
@@ -1074,9 +1195,14 @@ export class Server {
         },
       })
     } catch (error) {
-      // Main bridge doesn't have accessory - forward to child bridges with Matter enabled
+      // Main bridge doesn't have accessory - forward to child bridges whose
+      // Matter is actually active. A child with `matter: { enabled: false }`
+      // still carries a matterConfig block but never starts a Matter handler,
+      // so forwarding a control request to it would just be dropped. Gate on
+      // isMatterActive (enabled or externalsOnly) — the same condition under
+      // which the child creates its Matter handler.
       const matterChildBridges = [...this.childBridges.values()].filter(
-        bridge => bridge.getMetadata().matterConfig,
+        bridge => isMatterActive(bridge.getMetadata().matterConfig),
       )
 
       if (matterChildBridges.length > 0) {

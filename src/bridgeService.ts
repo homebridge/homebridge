@@ -55,6 +55,31 @@ export const DEFAULT_BRIDGE_DEFAULTS = {
 
 const log = Logger.internal
 
+/**
+ * HAP-specific configuration for a bridge. Mirrors the shape of `MatterConfig`
+ * so the two protocol blocks are symmetric and can be reasoned about uniformly.
+ */
+export interface BridgeHapConfig {
+  /**
+   * Whether HAP is published for this bridge. Default `true` (so omitting the
+   * block, or omitting `enabled`, means HAP is on). Set to `false` to suppress
+   * the bridge's HAP advertisement while preserving any existing pairing.
+   *
+   * Both `hap` and `matter` may be disabled on the same bridge; the bridge
+   * then advertises nothing (it still loads, it just exposes no accessories).
+   */
+  enabled?: boolean
+
+  /**
+   * When `true`, the bridge accessory itself is NOT published, but external
+   * accessories registered by plugins against this bridge ARE still published
+   * (each as its own standalone HAP accessory). Intended to be paired with
+   * `enabled: false`; if `externalsOnly: true` is set on its own, validation
+   * warns and normalises `enabled` to `false` rather than rejecting the config.
+   */
+  externalsOnly?: boolean
+}
+
 export interface BridgeConfiguration {
   name: string
   username: MacAddress
@@ -71,18 +96,104 @@ export interface BridgeConfiguration {
   serialNumber?: string
   debugModeEnabled?: boolean
   /**
-   * When `false`, this bridge will not publish HAP. Useful for Matter-only
-   * bridges where the user does not want to expose a HomeKit bridge accessory.
-   * Default: `true` (HAP is published).
+   * HAP publishing config. Defaults to enabled when omitted.
    *
-   * Note: at least one of `hap` or `matter` must be enabled per bridge —
-   * setting `hap: false` without a `matter` configuration is rejected.
+   * The object form (`BridgeHapConfig`) is preferred. The bare boolean form
+   * (`hap: false` / `hap: true`) is the deprecated v2-beta shorthand, still
+   * accepted for back-compat and normalized to `{ enabled: <boolean> }` by
+   * `validateHapConfig`. The type allows it so existing configs keep compiling.
+   *
+   * @deprecated Pass `hap` as a boolean is deprecated; use `{ enabled }` instead.
    */
-  hap?: boolean
+  hap?: BridgeHapConfig | boolean
   matter?: MatterConfig
   env?: {
     DEBUG?: string
     NODE_OPTIONS?: string
+  }
+}
+
+/**
+ * Whether HAP is enabled for the given bridge configuration. HAP is on by
+ * default; users opt out via `hap: { enabled: false }`. Missing block or
+ * missing `enabled` both mean enabled.
+ *
+ * The legacy boolean form (`hap: false`/`hap: true`) is handled here too.
+ * `validateHapConfig` normalizes it to the object shape, but a raw `false`
+ * must still read as disabled even if this is reached before normalization —
+ * otherwise `!hap` (true for `false`) would wrongly report a disabled bridge
+ * as enabled and publish it anyway.
+ */
+export function isHapConfigEnabled(hap: BridgeHapConfig | boolean | undefined): boolean {
+  if (typeof hap === 'boolean') {
+    return hap
+  }
+  return !hap || hap.enabled !== false
+}
+
+/**
+ * Whether the bridge is in HAP externalsOnly mode (the bridge accessory itself
+ * is suppressed but external accessories still publish). Only the object form
+ * carries `externalsOnly`; the legacy boolean form never does, so it is always
+ * false there. Accepts the boolean form so callers can pass `bridge.hap`
+ * directly without narrowing.
+ */
+export function isHapExternalsOnly(hap: BridgeHapConfig | boolean | undefined): boolean {
+  return typeof hap === 'object' && hap.externalsOnly === true
+}
+
+/**
+ * Validate a `hap` config block. Throws on hard errors (wrong type, conflict
+ * between `externalsOnly` and `enabled`). For accessory child bridges, strips
+ * `externalsOnly` with a warn-level log because externals are not supported
+ * via the accessory plugin API.
+ *
+ * Mutates the passed block in place when stripping fields.
+ */
+export function validateHapConfig(
+  bridgeConfig: BridgeConfiguration,
+  opts: { bridgeLabel: string, isAccessoryPlugin?: boolean },
+): void {
+  const hap = bridgeConfig.hap as unknown
+  if (hap === undefined) {
+    return
+  }
+
+  // Back-compat: the v2 beta used a boolean `hap` (`hap: false` to disable HAP,
+  // `hap: true` to force it on). Normalize it to the object shape rather than
+  // rejecting it — this is not a major-version change, so existing configs that
+  // still use the boolean form must keep working without a manual edit.
+  if (typeof hap === 'boolean') {
+    bridgeConfig.hap = { enabled: hap }
+    log.warn(`${opts.bridgeLabel}: 'hap: ${hap}' is deprecated; treating it as 'hap: { enabled: ${hap} }'. Please update your config to the object form.`)
+    return
+  }
+
+  if (typeof hap !== 'object' || hap === null || Array.isArray(hap)) {
+    throw new Error(
+      `${opts.bridgeLabel}: 'hap' must be a boolean or an object with optional 'enabled' and 'externalsOnly' fields, not a ${Array.isArray(hap) ? 'array' : typeof hap}.`,
+    )
+  }
+
+  const hapBlock = hap as BridgeHapConfig
+
+  if (hapBlock.externalsOnly === true) {
+    if (opts.isAccessoryPlugin) {
+      log.warn(`${opts.bridgeLabel}: 'hap.externalsOnly' is not supported on accessory child bridges. Ignoring.`)
+      delete hapBlock.externalsOnly
+      return
+    }
+
+    if (hapBlock.enabled !== false) {
+      // Honour the unambiguous intent rather than failing the whole process:
+      // warn and normalise `enabled` to false so the block matches the canonical
+      // externalsOnly form every downstream check expects. Mirrors
+      // validateMatterExternalsOnly — the two protocol blocks stay symmetric.
+      log.warn(
+        `${opts.bridgeLabel}: 'hap.externalsOnly: true' was set without 'hap.enabled: false'. Proceeding in externalsOnly mode (the bridge accessory will not publish). Set 'hap.enabled: false' to confirm intent and silence this warning.`,
+      )
+      hapBlock.enabled = false
+    }
   }
 }
 
@@ -130,6 +241,15 @@ export interface HomebridgeConfig {
 export interface BridgeOptions extends HomebridgeOptions {
   cachedAccessoriesDir: string
   cachedAccessoriesItemName: string
+  externalAccessoriesItemName: string
+}
+
+export interface ExternalAccessoryMetadata {
+  username: MacAddress
+  plugin: PluginIdentifier
+  displayName: string
+  category: number
+  port?: number
 }
 
 export interface CharacteristicWarningOpts {
@@ -143,6 +263,7 @@ export class BridgeService {
   private cachedPlatformAccessories: PlatformAccessory[] = []
   private cachedAccessoriesFileLoaded = false
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map()
+  private readonly publishedExternalAccessoriesMetadata: Map<MacAddress, ExternalAccessoryMetadata> = new Map()
 
   constructor(
     private api: HomebridgeAPI,
@@ -153,6 +274,14 @@ export class BridgeService {
   ) {
     this.storageService = new StorageService(this.bridgeOptions.cachedAccessoriesDir)
     this.storageService.initSync()
+
+    // Externals are republished from scratch on every startup, so any persisted metadata
+    // from a previous run is stale until the owning plugin re-registers its accessories.
+    try {
+      this.storageService.removeItemSync(this.bridgeOptions.externalAccessoriesItemName)
+    } catch (error: any) {
+      log.warn('Failed to clear stale external accessories metadata file:', error.message)
+    }
 
     // Server is "secure by default", meaning it creates a top-level Bridge accessory that
     // will not allow unauthenticated requests. This matches the behavior of actual HomeKit
@@ -375,7 +504,34 @@ export class BridgeService {
     }
   }
 
+  /**
+   * Save metadata for currently published external accessories so external tools (e.g. the
+   * Homebridge UI) can attribute each accessory to the plugin that published it. The
+   * underlying HAP `AccessoryInfo` files do not store plugin attribution.
+   */
+  public saveExternalAccessoriesMetadataOnDisk(): void {
+    try {
+      const entries = Array.from(this.publishedExternalAccessoriesMetadata.values())
+      if (entries.length === 0) {
+        this.storageService.removeItemSync(this.bridgeOptions.externalAccessoriesItemName)
+        return
+      }
+      this.storageService.setItemSync(this.bridgeOptions.externalAccessoriesItemName, entries)
+    } catch (error: any) {
+      log.error('Failed to save external accessories metadata to disk:', error.message)
+    }
+  }
+
   handleRegisterPlatformAccessories(accessories: PlatformAccessory[]): void {
+    // In HAP externalsOnly mode the bridge accessory itself is never published,
+    // so bridged accessories registered here are added to the (unpublished)
+    // bridge and will not advertise. Log a debug breadcrumb for parity with the
+    // Matter manager's externalsOnly drop-stubs — external accessories still
+    // publish via handlePublishExternalAccessories.
+    if (isHapExternalsOnly(this.bridgeConfig.hap)) {
+      log.debug(`HAP externalsOnly mode: ${accessories.length} bridged accessor${accessories.length === 1 ? 'y' : 'ies'} registered to this bridge will not be advertised (only external accessories publish).`)
+    }
+
     const hapAccessories = accessories.map((accessory) => {
       // Check for UUID collision with existing bridged accessories
       const existingAccessory = this.cachedPlatformAccessories.find(
@@ -446,9 +602,12 @@ export class BridgeService {
   }
 
   async handlePublishExternalAccessories(accessories: PlatformAccessory[]): Promise<void> {
-    // HAP must be enabled to publish external accessories
-    if (this.bridgeConfig.hap === false) {
-      log.debug('Skipping external accessory HAP publish: HAP is disabled for this bridge (bridgeConfig.hap=false).')
+    // HAP must be enabled to publish externals, unless the bridge is in
+    // externalsOnly mode (where the bridge itself is suppressed but its
+    // externals continue to advertise as standalone HAP accessories).
+    const hap = this.bridgeConfig.hap
+    if (!isHapConfigEnabled(hap) && !isHapExternalsOnly(hap)) {
+      log.debug('Skipping external accessory HAP publish: HAP is disabled for this bridge (hap.enabled=false).')
       return
     }
 
@@ -465,6 +624,13 @@ export class BridgeService {
         throw new Error(`Accessory ${hapAccessory.displayName} experienced an address collision.`)
       } else {
         this.publishedExternalAccessories.set(advertiseAddress, accessory)
+        this.publishedExternalAccessoriesMetadata.set(advertiseAddress, {
+          username: advertiseAddress,
+          plugin: accessory._associatedPlugin!,
+          displayName: hapAccessory.displayName,
+          category: accessory.category,
+          port: accessoryPort,
+        })
       }
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
@@ -493,6 +659,8 @@ export class BridgeService {
       log.debug('Publishing external accessory (name: %s, publishInfo: %o).', hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo))
       void hapAccessory.publish(publishInfo, this.allowInsecureAccess)
     }
+
+    this.saveExternalAccessoriesMetadataOnDisk()
   }
 
   public createHAPAccessory(plugin: Plugin, accessoryInstance: AccessoryPlugin, displayName: string, accessoryType: AccessoryName | AccessoryIdentifier, uuidBase?: string): Accessory | undefined {

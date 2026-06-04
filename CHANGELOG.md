@@ -2,6 +2,46 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.0.3 (Pending Release)
+
+### Changes
+
+- chore: add past release deprecation workflow (#3940)
+- fix: normalise main bridge username to uppercase before MAC validation
+- fix(matter): clean up half-started external Matter server on publish failure
+- fix: tolerate missing platforms/accessories arrays in refreshConfig
+- fix: defensively validate activePlugins is an array
+- fix(api): make isMatterEnabled() truthful during plugin initialisation
+- fix(matter): release Matter ports when external accessories unregister or fail
+- fix(matter): use a sentinel error class to detect cross-bridge routing
+- fix: stop concurrent requestMatterAccessories callers stranding each other
+- fix(matter): drop BehaviorRegistry handlers when accessories unregister
+- fix: ack stopMatterMonitoring when there are no active clients
+- fix(matter): strip invalid child bridge Matter configs instead of just logging
+- fix: send fallback error when no Matter bridge has the requested accessory
+- fix(matter): close half-built ServerNode when start() fails after creation
+- feat: persist plugin attribution for external accessories so the UI can show their QR codes
+- fix(matter): echo correlationId on accessoriesData responses
+- fix(matter): serialize fabric/node IDs as strings, not BigInt
+- feat: allow disabling both hap and matter on a bridge
+- feat(matter): support disabling matter in place without tear down
+- fix(matter): set door lock state directly
+- fix(matter): echo correlationId on monitoringStarted/Stopped acks
+- feat: nested hap/matter bridge config with `externalsOnly` mode
+- fix(matter): read the Matter shutdown handler via a getter
+- test: add spec-inclusive typecheck script and fix existing spec errors
+- chore: add test-file lint rules and fix existing violations
+- refactor(matter): delegate log rendering to matter.js
+- chore: dependency updates
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.1.7`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.17.1`
+
 ## v2.0.2 (2026-05-09)
 
 ### Changes

@@ -442,5 +442,89 @@ describe('configValidator', () => {
       const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
       expect(result.isValid).toBe(true)
     })
+
+    it('strips Matter config from a duplicate-port platform so the rest of the bridge can start', () => {
+      const platforms: PlatformConfig[] = [
+        { platform: 'Platform1', _bridge: { matter: { port: 5540 } } as any },
+        { platform: 'Platform2', _bridge: { matter: { port: 5540 } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(result.isValid).toBe(false)
+      expect(platforms[0]._bridge?.matter).toBeDefined()
+      expect(platforms[1]._bridge?.matter).toBeUndefined()
+    })
+
+    it('strips Matter config from an out-of-range port platform', () => {
+      const platforms: PlatformConfig[] = [
+        { platform: 'BadPlatform', _bridge: { matter: { port: 99999 } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(result.isValid).toBe(false)
+      expect(platforms[0]._bridge?.matter).toBeUndefined()
+    })
+
+    it('honours reservedPorts so main↔child collisions are caught in the same pass', () => {
+      const platforms: PlatformConfig[] = [
+        { platform: 'Platform1', _bridge: { matter: { port: 5540 } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(
+        platforms,
+        [],
+        new Set([5540]),
+      )
+
+      expect(result.isValid).toBe(false)
+      expect(platforms[0]._bridge?.matter).toBeUndefined()
+    })
+
+    it('preserves a disabled (enabled:false) platform Matter config even when its port is invalid', () => {
+      // disabled-in-place: the config must survive so it can be re-enabled later
+      // without re-commissioning. It never starts a server, so a bad port is moot.
+      const platforms: PlatformConfig[] = [
+        { platform: 'DisabledPlatform', _bridge: { matter: { port: 99999, enabled: false } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(platforms[0]._bridge?.matter).toBeDefined()
+      expect(result.isValid).toBe(true)
+    })
+
+    it('does not let a disabled child reserve its port (an active child may reuse it)', () => {
+      // The disabled child never binds 5540, so the enabled child using 5540 must
+      // not be treated as a duplicate and stripped.
+      const platforms: PlatformConfig[] = [
+        { platform: 'Disabled', _bridge: { matter: { port: 5540, enabled: false } } as any },
+        { platform: 'Active', _bridge: { matter: { port: 5540 } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(result.isValid).toBe(true)
+      expect(platforms[0]._bridge?.matter).toBeDefined() // disabled preserved
+      expect(platforms[1]._bridge?.matter).toBeDefined() // active kept its port
+    })
+
+    it('preserves a disabled accessory Matter config with a duplicate port', () => {
+      const accessories: AccessoryConfig[] = [
+        { accessory: 'Active', name: 'A', _bridge: { matter: { port: 5540 } } as any },
+        { accessory: 'Disabled', name: 'D', _bridge: { matter: { port: 5540, enabled: false } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs([], accessories)
+
+      expect(result.isValid).toBe(true)
+      expect(accessories[0]._bridge?.matter).toBeDefined()
+      expect(accessories[1]._bridge?.matter).toBeDefined()
+    })
+
+    it('preserves an externalsOnly child Matter config (it does not bind its port either)', () => {
+      const platforms: PlatformConfig[] = [
+        { platform: 'ExternalsOnly', _bridge: { matter: { port: 99999, enabled: false, externalsOnly: true } } as any },
+      ]
+      const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])
+
+      expect(platforms[0]._bridge?.matter).toBeDefined()
+      expect(result.isValid).toBe(true)
+    })
   })
 })

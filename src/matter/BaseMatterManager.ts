@@ -15,6 +15,7 @@ import { User } from '../user.js'
 import { generate } from '../util/mac.js'
 import { mapAttributesToCommand } from './ClusterCommandMapper.js'
 import { MatterServer } from './server.js'
+import { MatterAccessoryNotOnBridgeError } from './types.js'
 
 const log = Logger.withPrefix('Matter/BaseManager')
 const COLON_RE = /:/g
@@ -30,6 +31,34 @@ export abstract class BaseMatterManager {
 
   constructor(pluginManager: PluginManager) {
     this.pluginManager = pluginManager
+  }
+
+  /**
+   * Whether this manager has Matter active in a form that handles plugin
+   * registration/update/publish events — i.e. its API event listeners are
+   * attached. The MatterAPIImpl guards use this so that a call made against a
+   * bridge with no active Matter fails fast instead of emitting an event that
+   * nothing handles (bridged registrations are dropped; external ones hang).
+   *
+   * The base implementation reflects the shared state — a bridge MatterServer
+   * has been created. Subclasses override to add their mode-specific cases
+   * (e.g. externalsOnly, where the bridge node never starts but external
+   * accessories still publish).
+   */
+  hasActiveMatter(): boolean {
+    return this.matterServer !== undefined
+  }
+
+  /**
+   * Release a Matter port previously claimed for an external accessory.
+   * Subclasses override to route to the right port service (the local
+   * allocator on the main bridge, or an IPC call on a child bridge).
+   * Default no-op so subclasses that don't (yet) plumb release through
+   * stay safe.
+   */
+  // eslint-disable-next-line unused-imports/no-unused-vars
+  protected releaseExternalMatterPort(uniqueId: string): void {
+    // overridden by subclasses
   }
 
   /**
@@ -83,11 +112,14 @@ export abstract class BaseMatterManager {
       return
     }
 
-    // Otherwise, try the bridge Matter server
-    if (!this.matterServer) {
-      // This is expected when accessory is on a different bridge - throw error for proper handling
-      log.debug(`No matterServer and external server not found for ${uuid}`)
-      throw new Error(`Accessory ${uuid} not found on this bridge`)
+    // Otherwise, try the bridge Matter server. If this bridge doesn't own the
+    // UUID, throw the routing sentinel rather than letting the StateManager
+    // throw a plain MatterDeviceError("Accessory ... not found or not
+    // registered") — otherwise control broadcasts from the UI emit a real
+    // error from every non-owner matter-enabled child bridge.
+    if (!this.matterServer || !this.matterServer.getAccessoryInfo(uuid)) {
+      log.debug(`Bridge does not own ${uuid}; signalling routing sentinel`)
+      throw new MatterAccessoryNotOnBridgeError(uuid)
     }
 
     log.debug(`Trying matterServer for ${uuid}`)
@@ -114,10 +146,13 @@ export abstract class BaseMatterManager {
       return
     }
 
-    // Otherwise, try the bridge Matter server
-    if (!this.matterServer) {
-      // This is expected when accessory is on a different bridge - throw error for proper handling
-      throw new Error(`Accessory ${uuid} not found on this bridge`)
+    // Otherwise, try the bridge Matter server. Same ownership check as
+    // handleTriggerCommand — if this bridge doesn't own the UUID, signal
+    // the routing sentinel instead of letting the StateManager throw a
+    // plain "not found or not registered" MatterDeviceError that the
+    // dispatcher would surface as a real error.
+    if (!this.matterServer || !this.matterServer.getAccessoryInfo(uuid)) {
+      throw new MatterAccessoryNotOnBridgeError(uuid)
     }
     await this.matterServer.updateAccessoryState(uuid, cluster, attributes, partId)
   }
@@ -279,8 +314,20 @@ export abstract class BaseMatterManager {
 
         log.info(`Stopping external Matter server for ${accessory.displayName}`)
 
-        // Stop the Matter server
-        await matterServer.stop()
+        // Stop the Matter server. stop() now rejects when the underlying node
+        // fails to close (it may still be bound to its port). In that case we
+        // deliberately leave the map entry, the port reservation and the
+        // storage folder in place rather than tearing them down — mirrors the
+        // publish path's "keep the port reserved" stance. Releasing the port
+        // could hand a still-bound port to the next publish (EADDRINUSE), and
+        // dropping the map entry would discard the only handle to the live
+        // node. The slot stays reserved until Homebridge restarts.
+        try {
+          await matterServer.stop()
+        } catch (stopError) {
+          log.warn(`Failed to stop external Matter server for ${accessory.displayName}; the matter.js server may still be bound. Keeping its port reserved and storage intact until Homebridge restarts.`, stopError)
+          continue
+        }
 
         // Remove from the map
         this.externalMatterServers.delete(accessory.UUID)
@@ -289,6 +336,10 @@ export abstract class BaseMatterManager {
         // Generate the same uniqueId that was used when creating the server
         const advertiseAddress = generate(accessory.UUID)
         const uniqueId = advertiseAddress.replace(COLON_RE, '')
+        // Hand the Matter port back to the allocator so the slot can be
+        // reused — without this, the allocator's pool monotonically
+        // shrinks across the install's lifetime.
+        this.releaseExternalMatterPort(uniqueId)
         const storagePath = path.join(User.matterPath(), uniqueId)
 
         try {

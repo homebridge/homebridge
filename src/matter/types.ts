@@ -332,6 +332,28 @@ export interface MatterConfig extends Record<string, unknown> {
 
   /** Name for the Matter bridge (optional) */
   name?: string
+
+  /**
+   * When `false`, Matter is configured but not advertised — the config block
+   * and the on-disk commissioning storage are preserved, so it can be
+   * re-enabled without re-commissioning. Missing/`true` means enabled. This
+   * mirrors how `bridge.hap.enabled: false` disables HAP without losing pairing data.
+   */
+  enabled?: boolean
+
+  /**
+   * When `true`, the Matter bridge node itself is NOT advertised, but plugins
+   * MAY still publish external Matter accessories (each gets its own pairing
+   * via `api.matter.publishExternalAccessories`). The Matter API surface
+   * (`api.matter`) is still made available to plugins; only the bridge
+   * aggregator is suppressed.
+   *
+   * Intended to be paired with `enabled: false`; if `externalsOnly: true` is
+   * set on its own, validation warns and normalises `enabled` to `false`
+   * rather than rejecting the config. Mirrors the behaviour of
+   * `bridge.hap.externalsOnly`.
+   */
+  externalsOnly?: boolean
 }
 
 // Note: the canonical MatterServerEvents declaration is at the bottom of this file.
@@ -435,77 +457,21 @@ export interface InternalMatterAccessory extends MatterAccessory {
 /**
  * Matter error type enum (for error handler categorization)
  */
-export enum MatterErrorType {
-  INITIALIZATION = 'INITIALIZATION',
-  NETWORK = 'NETWORK',
-  COMMISSIONING = 'COMMISSIONING',
-  DEVICE_SYNC = 'DEVICE_SYNC',
-  SERVER = 'SERVER',
-  STORAGE = 'STORAGE',
-  CONFIGURATION = 'CONFIGURATION',
-  DEVICE_ERROR = 'DEVICE_ERROR',
-  UNKNOWN = 'UNKNOWN',
-}
-
-/**
- * Matter error details interface
- */
-export interface MatterErrorDetails {
-  type?: MatterErrorType
-  recoverable?: boolean
-  code?: string
-  context?: string
-  originalError?: Error
-}
-
-/**
- * Matter error types
- */
-export class MatterError extends Error {
-  public readonly type: MatterErrorType
-  public readonly timestamp: Date
-  public readonly recoverable: boolean
-
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly details?: MatterErrorDetails,
-  ) {
-    super(message)
-    this.name = 'MatterError'
-    this.type = details?.type ?? MatterErrorType.UNKNOWN
-    this.timestamp = new Date()
-    this.recoverable = details?.recoverable ?? true
-  }
-}
-
-export class MatterCommissioningError extends MatterError {
-  constructor(message: string, details?: MatterErrorDetails) {
-    super(message, 'COMMISSIONING_ERROR', { ...details, type: MatterErrorType.COMMISSIONING })
-    this.name = 'MatterCommissioningError'
-  }
-}
-
-export class MatterStorageError extends MatterError {
-  constructor(message: string, details?: MatterErrorDetails) {
-    super(message, 'STORAGE_ERROR', { ...details, type: MatterErrorType.STORAGE })
-    this.name = 'MatterStorageError'
-  }
-}
-
-export class MatterDeviceError extends MatterError {
-  constructor(message: string, details?: MatterErrorDetails) {
-    super(message, 'DEVICE_ERROR', { ...details, type: MatterErrorType.DEVICE_ERROR })
-    this.name = 'MatterDeviceError'
-  }
-}
-
-export class MatterNetworkError extends MatterError {
-  constructor(message: string, details?: MatterErrorDetails) {
-    super(message, 'NETWORK_ERROR', { ...details, type: MatterErrorType.NETWORK })
-    this.name = 'MatterNetworkError'
-  }
-}
+// Internal Matter error class hierarchy lives in `./MatterError.ts` so the
+// lightweight `ChildBridgeMatterMessageHandler` can `instanceof`-check the
+// routing sentinel without transitively loading this file's heavy
+// `@matter/*` runtime imports. Re-exported here so all existing consumers
+// importing from `./types.js` keep working.
+export {
+  MatterAccessoryNotOnBridgeError,
+  MatterCommissioningError,
+  MatterDeviceError,
+  MatterError,
+  type MatterErrorDetails,
+  MatterErrorType,
+  MatterNetworkError,
+  MatterStorageError,
+} from './MatterError.js'
 
 /**
  * Matter device types

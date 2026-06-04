@@ -198,6 +198,16 @@ export class AccessoryManager {
       }
 
       deps.accessories.delete(uuid)
+      // Drop the handler table for this accessory + its parts so we don't
+      // retain plugin closures past the accessory's lifetime. removeEndpoint
+      // returns the accessory's own endpoint id plus any part endpoint ids it
+      // swept, so we can drop the matching endpoint→registry mappings too —
+      // RegistryManager has no parent-aware sweep, and without this its map
+      // would leak an entry per accessory/part across register/unregister cycles.
+      const removedEndpoints = deps.behaviorRegistry.removeEndpoint(uuid)
+      for (const endpointId of removedEndpoints) {
+        deps.registryManager.unregisterEndpoint(endpointId)
+      }
       log.info(`Unregistered Matter accessory: ${accessory.displayName} (${uuid})`)
 
       await this.notifyPartsListChanged(deps)

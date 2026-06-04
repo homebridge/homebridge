@@ -231,6 +231,44 @@ describe('matterAccessoryCache', () => {
     })
   })
 
+  describe('cancelPendingSave', () => {
+    it('stops an armed debounced save from ever firing', async () => {
+      vi.useFakeTimers()
+
+      const accessories = new Map<string, InternalMatterAccessory>()
+      accessories.set('test-uuid', {
+        UUID: 'test-uuid',
+        displayName: 'Test',
+        deviceType: { name: 'OnOffLight', code: 256 } as any,
+        serialNumber: 'SN-001',
+        manufacturer: 'Test',
+        model: 'Test',
+        clusters: {},
+      } as any)
+
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+
+      cache.requestSave(accessories)
+
+      // Cancelling reports that a save was armed, then a second call is a no-op.
+      expect(cache.cancelPendingSave()).toBe(true)
+      expect(cache.cancelPendingSave()).toBe(false)
+
+      // Even after the debounce window elapses, no write happens — so a map
+      // cleared after cancelling can never be persisted as an empty cache.
+      await vi.runAllTimersAsync()
+      expect(mockedWriteFile).not.toHaveBeenCalled()
+
+      vi.useRealTimers()
+    })
+
+    it('returns false when no save is armed', () => {
+      expect(cache.cancelPendingSave()).toBe(false)
+    })
+  })
+
   describe('save', () => {
     it('should save accessories to cache', async () => {
       mockedMkdir.mockResolvedValue(undefined as any)

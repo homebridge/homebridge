@@ -1,10 +1,12 @@
-import type { Logger as LoggerType } from './logger.js'
+import type { MockInstance } from 'vitest'
+
+import type { BridgeConfiguration } from './bridgeService.js'
 
 import { Accessory, Categories, CharacteristicWarningType, uuid } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
-import { BridgeService } from './bridgeService.js'
+import { BridgeService, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
 import { Logger } from './logger.js'
 import { PlatformAccessory } from './platformAccessory.js'
 
@@ -18,6 +20,7 @@ vi.mock('./storageService.js', () => {
       public getItem = vi.fn().mockResolvedValue(null)
       public copyItem = vi.fn().mockResolvedValue(undefined)
       public setItemSync = vi.fn()
+      public removeItemSync = vi.fn()
       // eslint-disable-next-line unused-imports/no-unused-vars
       constructor(_baseDir?: string) {
         storageInstances.list.push(this)
@@ -39,6 +42,7 @@ function makeBridgeOptions(overrides: any = {}): any {
   return {
     cachedAccessoriesDir: '/tmp/test-cache-dir',
     cachedAccessoriesItemName: 'cachedAccessories',
+    externalAccessoriesItemName: 'externalAccessories',
     keepOrphanedCachedAccessories: false,
     ...overrides,
   }
@@ -246,13 +250,13 @@ describe('bridgeService', () => {
       await expect(service.handlePublishExternalAccessories([a])).rejects.toThrow(/address collision/)
     })
 
-    it('skips publishing external accessories when HAP is disabled', async () => {
+    it('skips publishing external accessories when HAP is disabled (no externalsOnly)', async () => {
       const service = new BridgeService(
         api,
         pluginManager,
         externalPortService,
         makeBridgeOptions(),
-        makeBridgeConfig({ hap: false }),
+        makeBridgeConfig({ hap: { enabled: false } }),
       )
 
       const a = makePlatformAccessory('External-A')
@@ -260,10 +264,80 @@ describe('bridgeService', () => {
 
       await service.handlePublishExternalAccessories([a])
 
-      // Should not attempt to publish when hap is false
+      // Should not attempt to publish when hap is disabled and externalsOnly is not set
       expect(publishSpy).not.toHaveBeenCalled()
       // Should not request a port either
       expect(externalPortService.requestPort).not.toHaveBeenCalled()
+    })
+
+    it('publishes external accessories in externalsOnly mode (hap.enabled:false + externalsOnly:true)', async () => {
+      externalPortService.requestPort.mockResolvedValue(50001)
+      const service = new BridgeService(
+        api,
+        pluginManager,
+        externalPortService,
+        makeBridgeOptions(),
+        makeBridgeConfig({ hap: { enabled: false, externalsOnly: true } }),
+      )
+
+      const a = makePlatformAccessory('External-A')
+      const publishSpy = vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      await service.handlePublishExternalAccessories([a])
+
+      // Bridge itself is not published, but externals are
+      expect(publishSpy).toHaveBeenCalledOnce()
+      expect(externalPortService.requestPort).toHaveBeenCalledOnce()
+    })
+
+    it('clears any stale external accessories metadata file on construction', () => {
+      // eslint-disable-next-line no-new
+      new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const storage = storageInstances.list.at(-1)
+      expect(storage.removeItemSync).toHaveBeenCalledWith('externalAccessories')
+    })
+
+    it('writes plugin-attribution metadata for each published external accessory', async () => {
+      externalPortService.requestPort.mockResolvedValue(50000)
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const storage = storageInstances.list.at(-1)
+
+      const a = makePlatformAccessory('External-A', 'homebridge-foo')
+      vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      await service.handlePublishExternalAccessories([a])
+
+      const writes = storage.setItemSync.mock.calls.filter((call: any[]) => call[0] === 'externalAccessories')
+      expect(writes).toHaveLength(1)
+      const [, entries] = writes[0]
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
+        plugin: 'homebridge-foo',
+        displayName: 'External-A',
+        port: 50000,
+      })
+      expect(entries[0].username).toMatch(/^[\dA-F]{2}(:[\dA-F]{2}){5}$/)
+    })
+
+    it('rewrites the metadata file with the full set on subsequent publish calls', async () => {
+      externalPortService.requestPort.mockResolvedValueOnce(50000).mockResolvedValueOnce(50001)
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const storage = storageInstances.list.at(-1)
+
+      const a = makePlatformAccessory('External-A', 'homebridge-foo')
+      const b = makePlatformAccessory('External-B', 'homebridge-bar')
+      vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+      vi.spyOn(b._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      await service.handlePublishExternalAccessories([a])
+      await service.handlePublishExternalAccessories([b])
+
+      const writes = storage.setItemSync.mock.calls.filter((call: any[]) => call[0] === 'externalAccessories')
+      expect(writes).toHaveLength(2)
+      // Second write must contain both accessories so the file reflects the current full set.
+      const [, secondEntries] = writes[1]
+      expect(secondEntries.map((e: any) => e.displayName).sort()).toEqual(['External-A', 'External-B'])
+      expect(secondEntries.map((e: any) => e.plugin).sort()).toEqual(['homebridge-bar', 'homebridge-foo'])
     })
   })
 
@@ -346,9 +420,9 @@ describe('bridgeService', () => {
   })
 
   describe('printCharacteristicWriteWarning', () => {
-    let logSpy: ReturnType<typeof vi.spyOn<LoggerType, 'info'>>
-    let errorSpy: ReturnType<typeof vi.spyOn<LoggerType, 'error'>>
-    let debugSpy: ReturnType<typeof vi.spyOn<LoggerType, 'debug'>>
+    let logSpy: MockInstance
+    let errorSpy: MockInstance
+    let debugSpy: MockInstance
 
     beforeEach(() => {
       logSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
@@ -509,6 +583,162 @@ describe('bridgeService', () => {
 
       const publishInfo = publishSpy.mock.calls[0][0] as any
       expect(publishInfo.setupID).toBeUndefined()
+    })
+  })
+
+  describe('isHapConfigEnabled', () => {
+    it('returns true for undefined hap (default)', () => {
+      expect(isHapConfigEnabled(undefined)).toBe(true)
+    })
+
+    it('returns true for an empty hap object (defaults to enabled)', () => {
+      expect(isHapConfigEnabled({})).toBe(true)
+    })
+
+    it('returns true when enabled is explicitly true', () => {
+      expect(isHapConfigEnabled({ enabled: true })).toBe(true)
+    })
+
+    it('returns false when enabled is explicitly false', () => {
+      expect(isHapConfigEnabled({ enabled: false })).toBe(false)
+    })
+
+    it('returns false when enabled is false even alongside externalsOnly', () => {
+      expect(isHapConfigEnabled({ enabled: false, externalsOnly: true })).toBe(false)
+    })
+
+    it('treats the legacy boolean form correctly (false = disabled, true = enabled)', () => {
+      // Back-compat: a raw boolean may reach this helper before
+      // validateHapConfig normalizes it. `hap: false` must read as disabled —
+      // the old `!hap` logic would have wrongly returned true here.
+      expect(isHapConfigEnabled(false)).toBe(false)
+      expect(isHapConfigEnabled(true)).toBe(true)
+    })
+  })
+
+  describe('isHapExternalsOnly', () => {
+    it('returns true only for the object form with externalsOnly: true', () => {
+      expect(isHapExternalsOnly({ enabled: false, externalsOnly: true })).toBe(true)
+    })
+
+    it('returns false for the object form without externalsOnly', () => {
+      expect(isHapExternalsOnly({})).toBe(false)
+      expect(isHapExternalsOnly({ enabled: false })).toBe(false)
+      expect(isHapExternalsOnly({ enabled: true })).toBe(false)
+    })
+
+    it('returns false for undefined', () => {
+      expect(isHapExternalsOnly(undefined)).toBe(false)
+    })
+
+    it('returns false for the legacy boolean form (booleans never carry externalsOnly)', () => {
+      // The boolean shorthand has no externalsOnly; reading it must be safe and
+      // always false, not a property access on a primitive.
+      expect(isHapExternalsOnly(false)).toBe(false)
+      expect(isHapExternalsOnly(true)).toBe(false)
+    })
+  })
+
+  describe('validateHapConfig', () => {
+    it('is a no-op when hap is undefined', () => {
+      const cfg = makeBridgeConfig()
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+    })
+
+    it('accepts an empty hap object', () => {
+      const cfg = makeBridgeConfig({ hap: {} })
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+    })
+
+    it('accepts hap.enabled: false on its own', () => {
+      const cfg = makeBridgeConfig({ hap: { enabled: false } })
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+    })
+
+    it('accepts hap.enabled: false + externalsOnly: true (the canonical form)', () => {
+      const cfg = makeBridgeConfig({ hap: { enabled: false, externalsOnly: true } })
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+    })
+
+    it('normalizes a legacy boolean hap: false to { enabled: false } (back-compat)', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const cfg = makeBridgeConfig({ hap: false })
+
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+      expect(cfg.hap).toEqual({ enabled: false })
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('deprecated'))
+      warnSpy.mockRestore()
+    })
+
+    it('normalizes a legacy boolean hap: true to { enabled: true } (back-compat)', () => {
+      const cfg = makeBridgeConfig({ hap: true })
+
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+      expect(cfg.hap).toEqual({ enabled: true })
+    })
+
+    it('accepts the legacy boolean hap form on a strongly-typed BridgeConfiguration', () => {
+      // Stable v2.0.x shipped `hap?: boolean`, so a typed config may carry
+      // `hap: false`. The type must accept it WITHOUT a cast (this assignment
+      // is the regression — it would not compile if the field were object-only)
+      // and validateHapConfig must normalize it.
+      const cfg: BridgeConfiguration = {
+        name: 'Typed',
+        username: 'CC:22:3D:E3:CE:F6',
+        pin: '031-45-154',
+        hap: false,
+      }
+
+      validateHapConfig(cfg, { bridgeLabel: 'main' })
+      expect(cfg.hap).toEqual({ enabled: false })
+    })
+
+    it('rejects an array hap value', () => {
+      const cfg = makeBridgeConfig({ hap: [] })
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).toThrow(/must be a boolean or an object/)
+    })
+
+    it('honours standalone externalsOnly: true without enabled: false (warns + normalises, mirrors Matter) (#3944)', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const cfg = makeBridgeConfig({ hap: { externalsOnly: true } })
+
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+      expect(cfg.hap.enabled).toBe(false) // normalised in place to the canonical form
+      expect(cfg.hap.externalsOnly).toBe(true) // preserved
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/externalsOnly.*without.*enabled: false/))
+      warnSpy.mockRestore()
+    })
+
+    it('honours externalsOnly: true with enabled: true (warns + flips enabled to false)', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const cfg = makeBridgeConfig({ hap: { enabled: true, externalsOnly: true } })
+
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+      expect(cfg.hap.enabled).toBe(false)
+      expect(warnSpy).toHaveBeenCalled()
+      warnSpy.mockRestore()
+    })
+
+    it('strips externalsOnly with a warn log on accessory child bridges', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const cfg = makeBridgeConfig({ hap: { enabled: false, externalsOnly: true } })
+
+      validateHapConfig(cfg, { bridgeLabel: 'accessory child', isAccessoryPlugin: true })
+
+      expect(cfg.hap.externalsOnly).toBeUndefined()
+      expect(cfg.hap.enabled).toBe(false) // enabled left intact
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/externalsOnly.*not supported.*accessory/))
+    })
+
+    it('does not throw on accessory child bridges with mismatched externalsOnly/enabled — strips externalsOnly instead', () => {
+      // Even if accessory plugins set externalsOnly without enabled: false (which would normally throw),
+      // the accessory-plugin path strips the field first and never reaches the conflict check.
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const cfg = makeBridgeConfig({ hap: { externalsOnly: true } })
+
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'accessory child', isAccessoryPlugin: true })).not.toThrow()
+      expect(cfg.hap.externalsOnly).toBeUndefined()
+      expect(warnSpy).toHaveBeenCalled()
     })
   })
 })

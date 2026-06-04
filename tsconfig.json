@@ -7,6 +7,7 @@
     "rootDir": "./src",
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "types": ["node"],
     "strict": true,
     "declaration": true,
     "declarationMap": true,

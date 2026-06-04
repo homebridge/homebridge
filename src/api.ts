@@ -598,6 +598,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   /**
+   * In-flight loadMatterAPI promise. Cached so concurrent callers share a
+   * single dynamic-import + construction; otherwise both could observe
+   * `!this._matterAPI`, both await the import, and the second call's
+   * MatterAPIImpl would clobber the first (along with anything wired into
+   * `_pendingExternalRegistrations`).
+   */
+  private _matterAPILoadPromise?: Promise<void>
+
+  /**
    * Load Matter API implementation. Idempotent.
    *
    * Called by Server / ChildBridgeFork during startup when Matter is
@@ -607,10 +616,24 @@ export class HomebridgeAPI extends EventEmitter implements API {
    * @internal
    */
   async loadMatterAPI(): Promise<void> {
-    if (!this._matterAPI) {
-      const { MatterAPIImpl } = await import('./matter/MatterAPIImpl.js')
-      this._matterAPI = new MatterAPIImpl(this)
+    if (this._matterAPI) {
+      return
     }
+    if (!this._matterAPILoadPromise) {
+      this._matterAPILoadPromise = (async () => {
+        const { MatterAPIImpl } = await import('./matter/MatterAPIImpl.js')
+        this._matterAPI = new MatterAPIImpl(this)
+        // Mark Matter as enabled here, before plugins initialise. The later
+        // `_setMatterEnabled(true)` calls inside MatterBridgeManager /
+        // ChildBridgeMatterManager remain (idempotent) for code paths that
+        // construct those managers directly without going through
+        // loadMatterAPI. The contract `api.matter defined ⇔
+        // api.isMatterEnabled()` now holds for plugins reading either from
+        // their initialiser.
+        this.matterEnabled = true
+      })()
+    }
+    return this._matterAPILoadPromise
   }
 
   constructor() {

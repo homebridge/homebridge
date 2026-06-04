@@ -57,6 +57,7 @@ const LIGHTWEIGHT_MATTER_MODULES = [
   'matter/configValidator.ts',
   'matter/ChildBridgeMatterMessageHandler.ts',
   'matter/ipc-types.ts',
+  'matter/MatterError.ts',
   'matter/MatterPortAllocator.ts',
   'matter/sharedTypes.ts',
 ]
@@ -130,13 +131,16 @@ describe('matter lazy loading', () => {
           return false
         })
 
-        expect(matterImports, [
-          `${file} has runtime imports that would eagerly load Matter.js:`,
-          ...matterImports.map(i => `  - ${i}`),
-          '',
-          'To fix: use \`import type\` for types, import from the specific lightweight',
-          'module instead of a barrel file, or move the needed value out of src/matter/.',
-        ].join('\n')).toEqual([])
+        const message = matterImports.length === 0
+          ? ''
+          : [
+              `${file} has runtime imports that would eagerly load Matter.js:`,
+              ...matterImports.map(i => `  - ${i}`),
+              '',
+              'To fix: use \`import type\` for types, import from the specific lightweight',
+              'module instead of a barrel file, or move the needed value out of src/matter/.',
+            ].join('\n')
+        expect(message).toBe('')
       })
     }
   })
@@ -149,13 +153,56 @@ describe('matter lazy loading', () => {
 
         const heavyImports = imports.filter(imp => imp.startsWith('@matter/'))
 
-        expect(heavyImports, [
-          `${file} imports @matter/* packages, making it no longer lightweight:`,
-          ...heavyImports.map(i => `  - ${i}`),
-          '',
-          'This module is imported by core files and must stay free of @matter/* deps.',
-          'Use \`import type\` if only types are needed, or split the heavy code out.',
-        ].join('\n')).toEqual([])
+        const message = heavyImports.length === 0
+          ? ''
+          : [
+              `${file} imports @matter/* packages, making it no longer lightweight:`,
+              ...heavyImports.map(i => `  - ${i}`),
+              '',
+              'This module is imported by core files and must stay free of @matter/* deps.',
+              'Use \`import type\` if only types are needed, or split the heavy code out.',
+            ].join('\n')
+        expect(message).toBe('')
+      })
+    }
+  })
+
+  describe('lightweight matter modules must not transitively load heavy modules via sibling imports', () => {
+    // Without this guard a lightweight module could quietly load a heavy
+    // sibling (e.g. `./types.js`) and reintroduce the lazy-loading
+    // regression — the per-file `@matter/*` check above would still pass
+    // because the offending import is relative, not direct.
+    //
+    // We only check siblings inside `src/matter/`; relative imports that
+    // step out (`../logger.js`) are fine since those targets aren't
+    // governed by this allowlist.
+    const lightweightSiblings = new Set(
+      LIGHTWEIGHT_MATTER_MODULES.map(m => m.replace(/^matter\//, './').replace(/\.ts$/, '.js')),
+    )
+
+    for (const file of LIGHTWEIGHT_MATTER_MODULES) {
+      it(`${file} must only import lightweight sibling matter modules`, () => {
+        const filePath = resolve(SRC_DIR, file)
+        const imports = getRuntimeImports(filePath)
+
+        const heavySiblings = imports.filter((imp) => {
+          if (!imp.startsWith('./')) {
+            return false
+          }
+          return !lightweightSiblings.has(imp)
+        })
+
+        const message = heavySiblings.length === 0
+          ? ''
+          : [
+              `${file} runtime-imports a sibling matter module that is not in the lightweight allowlist:`,
+              ...heavySiblings.map(i => `  - ${i}`),
+              '',
+              'Loading that sibling transitively pulls in its @matter/* runtime deps,',
+              'breaking the lazy-loading invariant for any core file that imports this module.',
+              'Either move the needed value to a lightweight module or use `import type`.',
+            ].join('\n')
+        expect(message).toBe('')
       })
     }
   })

@@ -5,6 +5,7 @@ import type { HomebridgeAPI } from './api.js'
 import type {
   AccessoryConfig,
   BridgeConfiguration,
+  BridgeHapConfig,
   BridgeOptions,
   HomebridgeConfig,
   PlatformConfig,
@@ -100,6 +101,13 @@ export const enum ChildProcessMessageEventType {
   MATTER_ACCESSORY_CONTROL = 'matterAccessoryControl',
 
   /**
+   * Sent from the child when it wants to release a previously allocated
+   * Matter port back to the parent's allocator pool. Fire-and-forget; no
+   * acknowledgement is sent.
+   */
+  RELEASE_MATTER_PORT = 'releaseMatterPort',
+
+  /**
    * Unified Matter event from child process
    * Includes: accessoriesData, accessoryInfoData, accessoryControlResponse,
    * accessoryUpdate, accessoryAdded, accessoryRemoved
@@ -187,7 +195,7 @@ export interface ChildMetadata {
   identifier: string
   manuallyStopped: boolean
   pid?: number
-  hap?: boolean
+  hap?: BridgeHapConfig
   matterConfig?: MatterConfig
   matterIdentifier?: string
   matterSetupUri?: string
@@ -225,11 +233,26 @@ export class ChildBridgeService {
   private readonly maxRestarts = 4
   private scheduledRestartTimeout?: ReturnType<typeof setTimeout>
 
-  // Matter accessories pending response callback
+  // Matter accessories pending response callback. Concurrent callers of
+  // requestMatterAccessories share the same in-flight promise (see
+  // matterAccessoriesPromise) so this resolver only needs to settle once.
   private matterAccessoriesResolve?: (data: { accessories: any[], bridgeUsername: string } | undefined) => void
+
+  // In-flight requestMatterAccessories promise. Cached so that a second
+  // caller arriving while the first is pending shares the same response
+  // rather than racing for the single resolver slot — without this, the
+  // first caller's `accessoriesData` would be lost to a `undefined`
+  // short-circuit and its `handleGetMatterAccessories` would emit an
+  // accessoriesData event missing this child's accessories.
+  private matterAccessoriesPromise?: Promise<{ accessories: any[], bridgeUsername: string } | undefined>
 
   // Callback for external Matter bridge registration
   public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
+
+  // Callback fired when the child sends an accessoryInfoData response, so the
+  // parent server can cancel its pending fallback timer for that uuid before
+  // it fires a spurious "Timed out" event at the UI.
+  public onAccessoryInfoResponse?: (uuid: string) => void
 
   // Stored shutdown listener so it can be removed in teardown(),
   // matching the pattern used by MatterBridgeManager (#3915).
@@ -301,22 +324,43 @@ export class ChildBridgeService {
   /**
    * Request Matter accessories from this child bridge.
    * Returns a promise that resolves when the child responds, or undefined on timeout.
+   *
+   * Concurrent callers share the same in-flight promise. Previously each
+   * call registered its own resolver in `matterAccessoriesResolve`, and the
+   * second caller would clobber the first — when the child's
+   * `accessoriesData` arrived only the second caller would see it and the
+   * first caller would either hang until its timer fired or (after the
+   * stranding fix) short-circuit with `undefined`. Either way the first
+   * caller's `handleGetMatterAccessories` would emit an `accessoriesData`
+   * event missing this child's accessories. Coalescing lets both callers
+   * resolve with the same data on a single response.
    */
   public requestMatterAccessories(timeoutMs = 500): Promise<{ accessories: any[], bridgeUsername: string } | undefined> {
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        this.matterAccessoriesResolve = undefined
-        resolve(undefined)
-      }, timeoutMs)
+    if (this.matterAccessoriesPromise) {
+      return this.matterAccessoriesPromise
+    }
 
-      this.matterAccessoriesResolve = (data) => {
-        clearTimeout(timeout)
-        this.matterAccessoriesResolve = undefined
+    this.matterAccessoriesPromise = new Promise((resolve) => {
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      const settle = (data: { accessories: any[], bridgeUsername: string } | undefined) => {
+        if (timeout) {
+          clearTimeout(timeout)
+        }
+        // Only clear the slots if they still point at this in-flight call —
+        // defensive against a future change introducing overlapping calls
+        // before the previous one has settled.
+        if (this.matterAccessoriesResolve === settle) {
+          this.matterAccessoriesResolve = undefined
+        }
+        this.matterAccessoriesPromise = undefined
         resolve(data)
       }
+      timeout = setTimeout(settle, timeoutMs, undefined)
+      this.matterAccessoriesResolve = settle
 
       this.sendMessage(ChildProcessMessageEventType.GET_MATTER_ACCESSORIES)
     })
+    return this.matterAccessoriesPromise
   }
 
   /**
@@ -397,6 +441,13 @@ export class ChildBridgeService {
           void this.handlePortRequest(message.data as ChildProcessPortRequestEventData)
           break
         }
+        case ChildProcessMessageEventType.RELEASE_MATTER_PORT: {
+          const data = message.data as { uniqueId?: string } | undefined
+          if (data?.uniqueId) {
+            this.externalPortService.releaseMatterPort(data.uniqueId)
+          }
+          break
+        }
         case ChildProcessMessageEventType.STATUS_UPDATE: {
           // Handle unified status update with HAP and Matter info
           const statusData = message.data as ChildBridgePairedStatusEventData
@@ -435,6 +486,15 @@ export class ChildBridgeService {
               this.onExternalBridgeRegistered(data.externalBridgeUsername, this.bridgeConfig.username)
             }
           } else {
+            // accessoryInfoData responses must cancel the parent's fallback
+            // timer for that uuid before being forwarded — otherwise the UI
+            // gets a stale "Timed out" event 2s after a successful response.
+            if (matterEvent.type === 'accessoryInfoData' && this.onAccessoryInfoResponse) {
+              const uuid = (matterEvent.data as { uuid?: string } | undefined)?.uuid
+              if (uuid) {
+                this.onAccessoryInfoResponse(uuid)
+              }
+            }
             // Forward all other Matter events to main process IPC
             this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, matterEvent)
           }
@@ -568,6 +628,7 @@ export class ChildBridgeService {
     const bridgeOptions: BridgeOptions = {
       cachedAccessoriesDir: User.cachedAccessoryPath(),
       cachedAccessoriesItemName: `cachedAccessories.${this.bridgeConfig.username.replace(COLON_RE, '').toUpperCase()}`,
+      externalAccessoriesItemName: `externalAccessories.${this.bridgeConfig.username.replace(COLON_RE, '').toUpperCase()}`,
     }
 
     // shallow copy the homebridge options to the bridge options object
@@ -712,7 +773,10 @@ export class ChildBridgeService {
       const homebridgeConfig: HomebridgeConfig = await fs.readJson(User.configPath())
 
       if (this.type === PluginType.PLATFORM) {
-        const config = homebridgeConfig.platforms?.filter(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username)
+        // The on-disk config may be missing `platforms`/`accessories` entirely
+        // (we're reading via fs.readJson, not loadConfig, so the defaults
+        // don't apply). Coalesce to [] before filtering.
+        const config = (homebridgeConfig.platforms ?? []).filter(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username)
         if (config.length) {
           this.pluginConfig = config
           this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig
@@ -720,7 +784,7 @@ export class ChildBridgeService {
           this.log.warn('Platform config could not be found, using existing config.')
         }
       } else if (this.type === PluginType.ACCESSORY) {
-        const config = homebridgeConfig.accessories?.filter(x => x.accessory === this.identifier && x._bridge?.username === this.bridgeConfig.username)
+        const config = (homebridgeConfig.accessories ?? []).filter(x => x.accessory === this.identifier && x._bridge?.username === this.bridgeConfig.username)
         if (config.length) {
           this.pluginConfig = config
           this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig
@@ -749,7 +813,12 @@ export class ChildBridgeService {
       identifier: this.identifier,
       pid: this.child?.pid,
       manuallyStopped: this.manuallyStopped,
-      hap: this.bridgeConfig.hap,
+      // hap is normalized to the object form by validateHapConfig before a
+      // child bridge runs; coerce any legacy boolean defensively so
+      // ChildMetadata stays object-shaped for consumers (e.g. the config UI).
+      hap: typeof this.bridgeConfig.hap === 'boolean'
+        ? { enabled: this.bridgeConfig.hap }
+        : this.bridgeConfig.hap,
       matterConfig: this.bridgeConfig.matter,
       matterIdentifier: this.bridgeConfig.matter ? this.bridgeConfig.username : undefined,
       matterSetupUri: this.matterCommissioningInfo?.qrCode,

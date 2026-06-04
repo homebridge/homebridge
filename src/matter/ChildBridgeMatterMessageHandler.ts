@@ -9,6 +9,11 @@ import type { ChildBridgeMatterManager } from './ChildBridgeMatterManager.js'
 import type { MatterEvent } from './ipc-types.js'
 
 import { Logger } from '../logger.js'
+// Import the routing sentinel from the lightweight module so this file
+// stays free of transitive runtime `@matter/*` imports (see
+// matterLazyLoading.spec.ts and CLAUDE.md). `./types.js` would load
+// `@matter/main/clusters/*` at runtime; `./MatterError.js` does not.
+import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 
 const log = Logger.withPrefix('Matter/ChildMessageHandler')
 
@@ -27,7 +32,7 @@ export class ChildBridgeMatterMessageHandler {
    * Handle start Matter monitoring request from parent process
    */
   handleStartMatterMonitoring(): void {
-    if (this.matterManager?.isMatterEnabled()) {
+    if (this.matterManager?.hasActiveMatter()) {
       this.matterManager.enableStateMonitoring()
     }
   }
@@ -36,7 +41,7 @@ export class ChildBridgeMatterMessageHandler {
    * Handle stop Matter monitoring request from parent process
    */
   handleStopMatterMonitoring(): void {
-    if (this.matterManager?.isMatterEnabled()) {
+    if (this.matterManager?.hasActiveMatter()) {
       this.matterManager.disableStateMonitoring()
     }
   }
@@ -49,7 +54,7 @@ export class ChildBridgeMatterMessageHandler {
     const correlationId = data?.correlationId
     try {
       // Only collect accessories if Matter is actually enabled for this bridge
-      if (!this.matterManager?.isMatterEnabled()) {
+      if (!this.matterManager?.hasActiveMatter()) {
         log.debug('Matter not enabled, returning empty accessories list')
         // Return empty accessories list for bridges without Matter
         const event: MatterEvent = {
@@ -97,7 +102,7 @@ export class ChildBridgeMatterMessageHandler {
     const correlationId = data?.correlationId
     try {
       // Only process if Matter is enabled for this bridge
-      if (!this.matterManager?.isMatterEnabled()) {
+      if (!this.matterManager?.hasActiveMatter()) {
         // Don't send a response - let parent handle timeout or try other bridges
         return
       }
@@ -115,10 +120,13 @@ export class ChildBridgeMatterMessageHandler {
       // If not found, don't send a response - let parent handle timeout
     } catch (error) {
       log.error('Failed to get Matter accessory info:', error)
+      // Include uuid in the error payload so the parent server can correlate
+      // the response and cancel its pending fallback timer for this lookup.
       const event: MatterEvent = {
         type: 'accessoryInfoData',
         correlationId,
         data: {
+          uuid: data?.uuid,
           error: error instanceof Error ? error.message : 'Unknown error',
         },
       }
@@ -138,7 +146,7 @@ export class ChildBridgeMatterMessageHandler {
   }): void {
     const correlationId = data?.correlationId
     // Only process if Matter is enabled for this bridge
-    if (!this.matterManager?.isMatterEnabled()) {
+    if (!this.matterManager?.hasActiveMatter()) {
       // Silently ignore - this bridge doesn't have Matter enabled
       log.debug(`Ignoring Matter control for ${data.uuid} - Matter not enabled on child bridge ${this.bridgeUsername}`)
       return
@@ -162,8 +170,10 @@ export class ChildBridgeMatterMessageHandler {
         this.sendMessage('matterEvent', controlResponse)
       })
       .catch((error) => {
-        // Silently ignore if this bridge doesn't have the accessory
-        if (error.message.includes('not found on this bridge')) {
+        // Silently ignore if this bridge doesn't own the accessory — the
+        // parent broadcasts to all matter children, so a "wrong bridge"
+        // here is expected, not a real failure.
+        if (error instanceof MatterAccessoryNotOnBridgeError) {
           log.debug(`Accessory ${data.uuid} not on child bridge ${this.bridgeUsername}, ignoring`)
           return
         }

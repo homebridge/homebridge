@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PluginType } from './api.js'
 import { ChildBridgeFork } from './childBridgeFork.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
+import { Logger } from './logger.js'
 
 describe('childBridgeFork - Matter Accessory Guard', () => {
   it('should not have matterManager when type is ACCESSORY even with matter config', () => {
@@ -165,6 +166,89 @@ describe('childBridgeFork - Matter Handlers', () => {
       ;(childBridgeFork as any).matterMessageHandler = undefined
 
       expect(() => childBridgeFork.handleMatterAccessoryControl(mockControlData)).not.toThrow()
+    })
+  })
+
+  describe('publishHapIfEnabled', () => {
+    let publishBridgeSpy: ReturnType<typeof vi.fn>
+    let infoSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      publishBridgeSpy = vi.fn()
+      ;(childBridgeFork as any).bridgeService = { publishBridge: publishBridgeSpy }
+      infoSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+    })
+
+    it('publishes the bridge when hap is undefined (default enabled)', () => {
+      ;(childBridgeFork as any).bridgeConfig = { username: '0E:DC:5D:BE:D6:75' }
+
+      childBridgeFork.publishHapIfEnabled()
+
+      expect(publishBridgeSpy).toHaveBeenCalledOnce()
+      expect(infoSpy).not.toHaveBeenCalled()
+    })
+
+    it('publishes the bridge when hap is an empty object', () => {
+      ;(childBridgeFork as any).bridgeConfig = { username: '0E:DC:5D:BE:D6:75', hap: {} }
+
+      childBridgeFork.publishHapIfEnabled()
+
+      expect(publishBridgeSpy).toHaveBeenCalledOnce()
+    })
+
+    it('publishes the bridge when hap.enabled is explicitly true', () => {
+      ;(childBridgeFork as any).bridgeConfig = { username: '0E:DC:5D:BE:D6:75', hap: { enabled: true } }
+
+      childBridgeFork.publishHapIfEnabled()
+
+      expect(publishBridgeSpy).toHaveBeenCalledOnce()
+    })
+
+    it('does NOT publish, and logs the externalsOnly notice, when externalsOnly: true', () => {
+      ;(childBridgeFork as any).bridgeConfig = {
+        username: '0E:DC:5D:BE:D6:75',
+        hap: { enabled: false, externalsOnly: true },
+      }
+
+      childBridgeFork.publishHapIfEnabled()
+
+      expect(publishBridgeSpy).not.toHaveBeenCalled()
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringMatching(/externalsOnly mode/))
+    })
+
+    it('does NOT publish, and logs the disabled notice, when hap.enabled: false (no externalsOnly) but Matter is active', () => {
+      // matterManager is set by the outer beforeEach, so Matter is active here —
+      // a quiet info line is correct (the bridge still advertises via Matter).
+      ;(childBridgeFork as any).bridgeConfig = {
+        username: '0E:DC:5D:BE:D6:75',
+        hap: { enabled: false },
+      }
+
+      childBridgeFork.publishHapIfEnabled()
+
+      expect(publishBridgeSpy).not.toHaveBeenCalled()
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringMatching(/HAP is disabled/))
+    })
+
+    it('warns when both HAP and Matter are disabled (child bridge advertises nothing) (#3944)', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      ;(childBridgeFork as any).bridgeConfig = {
+        username: '0E:DC:5D:BE:D6:75',
+        hap: { enabled: false },
+      }
+      // No active Matter on this child ⇒ matterManager is never constructed.
+      ;(childBridgeFork as any).matterManager = undefined
+      // infoSpy is shared across tests in this describe; clear it so the
+      // "no info line" assertion below reflects only this invocation.
+      infoSpy.mockClear()
+
+      childBridgeFork.publishHapIfEnabled()
+
+      expect(publishBridgeSpy).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/Both HAP and Matter are disabled/))
+      // It must NOT fall through to the quiet info line.
+      expect(infoSpy).not.toHaveBeenCalledWith(expect.stringMatching(/HAP is disabled/))
+      warnSpy.mockRestore()
     })
   })
 

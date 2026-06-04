@@ -138,14 +138,10 @@ describe('serverConfig', () => {
     })
 
     it('should collect multiple errors and report all at once', () => {
-      try {
-        validateAndSanitizeConfig({ uniqueId: '', port: 80 })
-        expect.fail('Should have thrown')
-      } catch (error: any) {
-        // Should contain both port and uniqueId errors
-        expect(error.message).toContain('Invalid port')
-        expect(error.message).toContain('uniqueId')
-      }
+      // Use the toThrow matcher (instead of try/catch with conditional expects)
+      // so the message assertions are unconditional. Each call re-runs validation.
+      expect(() => validateAndSanitizeConfig({ uniqueId: '', port: 80 })).toThrow('Invalid port')
+      expect(() => validateAndSanitizeConfig({ uniqueId: '', port: 80 })).toThrow('uniqueId')
     })
   })
 })

@@ -302,6 +302,100 @@ describe('externalMatterAccessoryPublisher', () => {
         expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledOnce()
         expect(mockMatterServer.runServer).toHaveBeenCalledOnce()
       })
+
+      it('stops the half-started server when registerPlatformAccessories rejects', async () => {
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.registerPlatformAccessories.mockRejectedValueOnce(new Error('register failed'))
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('register failed')
+
+        // Started → must be stopped to release SIGINT/SIGTERM handlers and the
+        // mDNS responder. runServer was never reached.
+        expect(mockMatterServer.start).toHaveBeenCalledOnce()
+        expect(mockMatterServer.stop).toHaveBeenCalledOnce()
+        expect(mockMatterServer.runServer).not.toHaveBeenCalled()
+      })
+
+      it('stops the half-started server when runServer rejects', async () => {
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.runServer.mockRejectedValueOnce(new Error('run failed'))
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
+
+        expect(mockMatterServer.stop).toHaveBeenCalledOnce()
+      })
+
+      it('does not call stop when start itself fails (nothing to tear down)', async () => {
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.start.mockRejectedValueOnce(new Error('start failed'))
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('start failed')
+
+        expect(mockMatterServer.stop).not.toHaveBeenCalled()
+      })
+
+      it('releases the allocated Matter port back to the allocator on failure', async () => {
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.runServer.mockRejectedValueOnce(new Error('run failed'))
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
+
+        // Same uniqueId as the publisher computed: MAC without colons.
+        expect(mockPortService.releaseMatterPort).toHaveBeenCalledWith('AABBCCDDEEFF')
+      })
+
+      it('still throws cleanly when releaseMatterPort is not available on the port service', async () => {
+        // Older / minimal port-service shapes may not implement release.
+        // The optional chaining must keep the throw clean.
+        mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+        mockMatterServer.runServer.mockRejectedValueOnce(new Error('run failed'))
+        mockPortService.releaseMatterPort = undefined
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
+      })
+
+      it('releases the port when start fails before any binding could occur', async () => {
+        // start() never completed → matter.js never bound the port, so the
+        // allocator can safely hand it out again.
+        mockMatterServer.start.mockRejectedValueOnce(new Error('start failed'))
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('start failed')
+
+        expect(mockPortService.releaseMatterPort).toHaveBeenCalledWith('AABBCCDDEEFF')
+      })
+
+      it('keeps the port reserved when start fails but flags that the node may still be bound', async () => {
+        // ServerLifecycle annotates the error with portMayStillBeBound when its
+        // internal close() of the half-built node failed — so the port may still
+        // be bound even though start() rejected. The publisher must NOT release it.
+        const err = new Error('start failed') as Error & { portMayStillBeBound?: boolean }
+        err.portMayStillBeBound = true
+        mockMatterServer.start.mockRejectedValueOnce(err)
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('start failed')
+
+        expect(mockPortService.releaseMatterPort).not.toHaveBeenCalled()
+        // The lost slot must be surfaced at warn (not debug) so operators can
+        // see the pool shrank until restart (#3944).
+        expect(vi.mocked(Logger).internal.warn).toHaveBeenCalledWith(expect.stringMatching(/reserved.*may still be bound/i))
+      })
+
+      it('keeps the port reserved when stop() fails after a successful start', async () => {
+        // A failed stop may leave the matter.js server still bound to the
+        // port. Handing it back to the allocator would let a later publish
+        // attempt take the same port and hit EADDRINUSE — keep it reserved.
+        mockMatterServer.runServer.mockRejectedValueOnce(new Error('run failed'))
+        mockMatterServer.stop = vi.fn().mockRejectedValue(new Error('stop failed'))
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('run failed')
+
+        expect(mockPortService.releaseMatterPort).not.toHaveBeenCalled()
+        expect(vi.mocked(Logger).internal.warn).toHaveBeenCalledWith(expect.stringMatching(/reserved.*may still be bound/i))
+      })
     })
 
     describe('success path', () => {

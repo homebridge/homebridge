@@ -502,14 +502,14 @@ describe('childBridgeService', () => {
       vi.useFakeTimers()
       // Replace kill so it does NOT auto-disconnect (simulating a stuck child).
       const stuck = new FakeChildProcess()
-      stuck.kill = vi.fn(((signal: NodeJS.Signals) => {
+      stuck.kill = vi.fn((signal: NodeJS.Signals) => {
         stuck.killCalls.push(signal)
         // Crucially: do NOT set stuck.connected = false on SIGTERM.
         if (signal === 'SIGKILL') {
           stuck.connected = false
         }
         return true
-      }) as any)
+      }) as any
 
       const { service, api } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
@@ -620,6 +620,36 @@ describe('childBridgeService', () => {
 
       expect(mockLog.error).toHaveBeenCalled()
     })
+
+    it('tolerates a config file with no platforms key (PLATFORM type)', async () => {
+      const { service } = buildService({ identifier: 'TestPlatform' })
+      service.addConfig({ platform: 'TestPlatform', name: 'Original' } as any)
+      const mockLog = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn(), log: vi.fn() }
+      ;(service as any).log = Object.assign(vi.fn(), mockLog)
+      // Minimal config with no platforms or accessories at all — used to throw
+      // "Cannot read properties of undefined (reading 'length')" via the
+      // optional-chained filter.
+      ;(fs.readJson as any).mockResolvedValueOnce({ bridge: { username: '00:00:00:00:00:00' } })
+
+      await service.refreshConfig()
+
+      // Falls back to existing config + warns, not the unhelpful TypeError.
+      expect(mockLog.warn).toHaveBeenCalled()
+      expect(mockLog.error).not.toHaveBeenCalled()
+    })
+
+    it('tolerates a config file with no accessories key (ACCESSORY type)', async () => {
+      const { service } = buildService({ type: PluginType.ACCESSORY, identifier: 'TestAccessory' })
+      service.addConfig({ accessory: 'TestAccessory', name: 'Original' } as any)
+      const mockLog = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn(), log: vi.fn() }
+      ;(service as any).log = Object.assign(vi.fn(), mockLog)
+      ;(fs.readJson as any).mockResolvedValueOnce({ bridge: { username: '00:00:00:00:00:00' } })
+
+      await service.refreshConfig()
+
+      expect(mockLog.warn).toHaveBeenCalled()
+      expect(mockLog.error).not.toHaveBeenCalled()
+    })
   })
 
   describe('requestMatterAccessories', () => {
@@ -656,6 +686,102 @@ describe('childBridgeService', () => {
 
       await expect(promise).resolves.toBeUndefined()
     })
+
+    it('coalesces concurrent callers onto a single in-flight request', async () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      const sendSpy = vi.spyOn((service as any), 'sendMessage')
+
+      // Two callers race. Each used to register its own resolver in the
+      // single `matterAccessoriesResolve` slot — the second clobbered the
+      // first, the child responded once, and only the second caller saw
+      // the data. The first either hung until its timer or short-circuited
+      // to `undefined`, and its handleGetMatterAccessories emitted an
+      // accessoriesData event missing this child's accessories.
+      //
+      // After coalescing both callers share one promise: a single IPC
+      // request is sent, and the single response fans out to both.
+      const first = service.requestMatterAccessories(500)
+      const second = service.requestMatterAccessories(500)
+
+      // Only one IPC message should have been sent for the two callers.
+      const matterAccessoryRequests = sendSpy.mock.calls.filter(
+        ([id]) => id === ChildProcessMessageEventType.GET_MATTER_ACCESSORIES,
+      )
+      expect(matterAccessoryRequests).toHaveLength(1)
+
+      // Drive a single response for the shared in-flight request.
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoriesData',
+          data: { accessories: [{ uuid: 'abc' }], bridgeUsername: 'X' },
+        },
+      })
+
+      const [firstResult, secondResult] = await Promise.all([first, second])
+      // Both callers now get the same data on a single response.
+      expect(firstResult).toMatchObject({ accessories: [{ uuid: 'abc' }] })
+      expect(secondResult).toMatchObject({ accessories: [{ uuid: 'abc' }] })
+      // Identity-equal — they really are sharing the same promise resolution.
+      expect(firstResult).toBe(secondResult)
+    })
+
+    it('returns identical undefined to concurrent callers on timeout', async () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+
+      // Both callers must time out together — neither should be stranded
+      // and neither should resolve while the other is still pending.
+      const first = service.requestMatterAccessories(500)
+      const second = service.requestMatterAccessories(500)
+
+      vi.advanceTimersByTime(600)
+
+      const [firstResult, secondResult] = await Promise.all([first, second])
+      expect(firstResult).toBeUndefined()
+      expect(secondResult).toBeUndefined()
+    })
+
+    it('clears the in-flight slot so a fresh call after settlement re-issues the IPC', async () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      const sendSpy = vi.spyOn((service as any), 'sendMessage')
+
+      // First call → IPC #1.
+      const first = service.requestMatterAccessories(500)
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoriesData',
+          data: { accessories: [{ uuid: 'one' }], bridgeUsername: 'X' },
+        },
+      })
+      await expect(first).resolves.toMatchObject({ accessories: [{ uuid: 'one' }] })
+
+      // Second call, AFTER the first settled, must send a fresh IPC and
+      // be able to receive a different response. Coalescing must not stick.
+      const second = service.requestMatterAccessories(500)
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoriesData',
+          data: { accessories: [{ uuid: 'two' }], bridgeUsername: 'X' },
+        },
+      })
+      await expect(second).resolves.toMatchObject({ accessories: [{ uuid: 'two' }] })
+
+      const matterAccessoryRequests = sendSpy.mock.calls.filter(
+        ([id]) => id === ChildProcessMessageEventType.GET_MATTER_ACCESSORIES,
+      )
+      expect(matterAccessoryRequests).toHaveLength(2)
+    })
   })
 
   describe('getMetadata', () => {
@@ -675,20 +801,20 @@ describe('childBridgeService', () => {
       expect(metadata.matterIdentifier).toBeUndefined()
     })
 
-    it('reflects hap:false in metadata when HAP is disabled', () => {
+    it('reflects hap.enabled:false in metadata when HAP is disabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
       })
       const metadata = service.getMetadata()
-      expect(metadata.hap).toBe(false)
+      expect(metadata.hap).toEqual({ enabled: false })
     })
 
-    it('reflects hap:true in metadata when HAP is explicitly enabled', () => {
+    it('reflects hap.enabled:true in metadata when HAP is explicitly enabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: true }),
+        bridgeConfig: makeBridgeConfig({ hap: { enabled: true } }),
       })
       const metadata = service.getMetadata()
-      expect(metadata.hap).toBe(true)
+      expect(metadata.hap).toEqual({ enabled: true })
     })
 
     it('reflects hap as undefined in metadata when not set (defaults enabled)', () => {
@@ -696,12 +822,23 @@ describe('childBridgeService', () => {
       const metadata = service.getMetadata()
       expect(metadata.hap).toBeUndefined()
     })
+
+    it('coerces a legacy boolean hap to the object form in metadata', () => {
+      // A child whose config still carries the deprecated boolean shorthand
+      // must surface the normalized object form to consumers (the config UI),
+      // so ChildMetadata.hap stays object-shaped.
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({ hap: false }),
+      })
+      const metadata = service.getMetadata()
+      expect(metadata.hap).toEqual({ enabled: false })
+    })
   })
 
   describe('loadPlugin — hap property forwarded in LOAD message', () => {
-    it('includes hap:false in LOAD bridgeConfig when HAP is disabled', () => {
+    it('includes hap.enabled:false in LOAD bridgeConfig when HAP is disabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
       })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
@@ -711,12 +848,12 @@ describe('childBridgeService', () => {
 
       const loadMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.LOAD)
       expect(loadMessage).toBeDefined()
-      expect(loadMessage.data.bridgeConfig.hap).toBe(false)
+      expect(loadMessage.data.bridgeConfig.hap).toEqual({ enabled: false })
     })
 
-    it('includes hap:false alongside matter config in LOAD bridgeConfig', () => {
+    it('includes hap.enabled:false alongside matter config in LOAD bridgeConfig', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: false, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
       })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
@@ -725,7 +862,7 @@ describe('childBridgeService', () => {
       child.emit('message', { id: ChildProcessMessageEventType.READY })
 
       const loadMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.LOAD)
-      expect(loadMessage.data.bridgeConfig.hap).toBe(false)
+      expect(loadMessage.data.bridgeConfig.hap).toEqual({ enabled: false })
       expect(loadMessage.data.bridgeConfig.matter).toEqual({ port: 5540 })
     })
 

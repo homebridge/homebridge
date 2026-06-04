@@ -5,7 +5,7 @@
  * This ensures consistent logging output across Homebridge and Matter.js.
  */
 
-import { Diagnostic } from '@matter/general'
+import { LogFormat } from '@matter/general'
 import chalk from 'chalk'
 
 import { Logger } from '../logger.js'
@@ -41,8 +41,12 @@ export function createHomebridgeLogFormatter(): (diagnostic: unknown) => string 
         // Format facility as [Matter:FacilityName] in cyan color
         const facility = formatCyan(`[Matter/${msg.facility}]`)
 
-        // Extract the message text from values
-        let messageText = formatMessageValues(msg.values)
+        // Extract the message text from values.
+        // Delegate value rendering to Matter.js's own formatter so that Diagnostic
+        // presentations (dictionaries, lists, byte arrays, error stacks, lifecycle
+        // icons) render correctly. We use the `plain` format (no ANSI) because we
+        // apply a single Homebridge level colour to the whole line below.
+        let messageText = LogFormat.formats.plain(msg.values)
 
         // Trim excessively long messages from verbose facilities like MessageChannel
         if (msg.facility === 'MessageChannel' && messageText.length > 200) {
@@ -109,65 +113,4 @@ function formatHomebridgeTimestamp(date: Date): string {
  */
 function formatCyan(text: string): string {
   return chalk.cyan(text)
-}
-
-/**
- * Format the message values array into a readable string
- */
-function formatMessageValues(values: unknown[]): string {
-  if (!Array.isArray(values)) {
-    return String(values)
-  }
-
-  return values
-    .map((value) => {
-      if (value === null) {
-        return 'null'
-      }
-      if (value === undefined) {
-        return 'undefined'
-      }
-
-      // Matter.js uses lazy logging - call functions to get the actual message
-      if (typeof value === 'function') {
-        try {
-          return String(value())
-        } catch {
-          return String(value)
-        }
-      }
-      if (typeof value === 'object') {
-        // Check if this is a Matter.js Diagnostic object
-        // These objects store their actual value in a symbol property
-        const diagnosticValue = Diagnostic.valueOf(value)
-        if (diagnosticValue !== undefined && diagnosticValue !== value) {
-          // If diagnosticValue is an array, format each element individually
-          if (Array.isArray(diagnosticValue)) {
-            return formatMessageValues(diagnosticValue)
-          }
-
-          // Otherwise, recursively format the single value
-          return formatMessageValues([diagnosticValue])
-        }
-
-        // Special handling for error objects
-        if (value instanceof Error) {
-          const errorDetails = {
-            ...value, // include any custom properties first
-            name: value.name,
-            message: value.message,
-            stack: value.stack,
-          }
-          return JSON.stringify(errorDetails, null, 2)
-        }
-
-        try {
-          return JSON.stringify(value)
-        } catch {
-          return String(value)
-        }
-      }
-      return String(value).trim()
-    })
-    .join(' ')
 }
