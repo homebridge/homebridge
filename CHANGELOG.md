@@ -7,14 +7,15 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Changes
 
 - chore: update `actions/checkout` to `v7`
+- chore: dependency updates
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.1.7`
+- `@homebridge/hap-nodejs` @ `v2.1.8`
 
 ### Matter Dependencies
 
-- `@matter/main` @ `v0.17.1`
+- `@matter/main` @ `v0.17.4`
 
 ## v2.1.0 (2026-06-04)
 
