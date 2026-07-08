@@ -2,6 +2,20 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.1.1 (Pending Release)
+
+### Changes
+
+- chore: update `actions/checkout` to `v7`
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.1.7`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.17.1`
+
 ## v2.1.0 (2026-06-04)
 
 ### Changes
