@@ -19,6 +19,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: surface publish errors from bridge.publish and external accessory publish
 - fix(plugin): include exported keys in initializer-not-found error
 - fix: reset child bridge restart cap after a stable run
+- docs: regenerate docs for `v2.1.1`
 
 ### Homebridge Dependencies
 
