@@ -2,6 +2,21 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.1.2 (Pending Release)
+
+### Changes
+
+- chore: dependency updates
+  - updated `@matter/main` from `v0.17.4` to `v0.17.6`, [see changelog](https://github.com/matter-js/matter.js/blob/main/CHANGELOG.md)
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.1.9`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.17.6`
+
 ## v2.1.1 (2026-07-12)
 
 ### Changes
