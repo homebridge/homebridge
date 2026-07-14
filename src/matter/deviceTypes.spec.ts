@@ -58,6 +58,7 @@ describe('deviceTypes mandatory clusters', () => {
     ['RoboticVacuumCleaner', ['rvcRunMode', 'rvcOperationalState']],
     ['WaterValve', ['valveConfigurationAndControl']],
     ['GenericSwitch', ['switch']],
+    ['Pump', ['onOff', 'pumpConfigurationAndControl']],
   ]
 
   it.each(cases)('%s includes %j', (name, expectedBehaviors) => {
@@ -74,6 +75,14 @@ describe('motionSensor occupancySensing features', () => {
     const features = enabledFeatures(behaviors.occupancySensing)
     expect(features.passiveInfrared).toBe(true)
     expect(features.occupancyEvent).toBe(true)
+  })
+})
+
+describe('pump pumpConfigurationAndControl features', () => {
+  it('enables the ConstantSpeed control mode', () => {
+    const behaviors = supportedBehaviors(deviceTypes.Pump)
+    const features = enabledFeatures(behaviors.pumpConfigurationAndControl)
+    expect(features.constantSpeed).toBe(true)
   })
 })
 
