@@ -55,6 +55,7 @@ describe('deviceTypes mandatory clusters', () => {
     ['DoorLock', ['doorLock']],
     ['RoboticVacuumCleaner', ['rvcRunMode', 'rvcOperationalState']],
     ['WaterValve', ['valveConfigurationAndControl']],
+    ['GenericSwitch', ['switch']],
   ]
 
   it.each(cases)('%s includes %j', (name, expectedBehaviors) => {
@@ -71,5 +72,17 @@ describe('motionSensor occupancySensing features', () => {
     const features = enabledFeatures(behaviors.occupancySensing)
     expect(features.passiveInfrared).toBe(true)
     expect(features.occupancyEvent).toBe(true)
+  })
+})
+
+describe('genericSwitch switch features', () => {
+  it('enables the momentary feature set that SwitchAPI documents', () => {
+    const behaviors = supportedBehaviors(deviceTypes.GenericSwitch)
+    const features = enabledFeatures(behaviors.switch)
+    expect(features.momentarySwitch).toBe(true)
+    expect(features.momentarySwitchRelease).toBe(true)
+    expect(features.momentarySwitchLongPress).toBe(true)
+    expect(features.momentarySwitchMultiPress).toBe(true)
+    expect(features.latchingSwitch).toBe(false)
   })
 })
