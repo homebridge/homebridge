@@ -57,7 +57,7 @@ import { FanDevice } from '@matter/main/devices/fan'
 import { GenericSwitchDevice } from '@matter/main/devices/generic-switch'
 import { HumiditySensorDevice } from '@matter/main/devices/humidity-sensor'
 import { LightSensorDevice } from '@matter/main/devices/light-sensor'
-import { OccupancySensorDevice } from '@matter/main/devices/occupancy-sensor'
+import { OccupancySensorDevice, OccupancySensorRequirements } from '@matter/main/devices/occupancy-sensor'
 import { OnOffLightDevice } from '@matter/main/devices/on-off-light'
 import { OnOffLightSwitchDevice } from '@matter/main/devices/on-off-light-switch'
 import { OnOffPlugInUnitDevice } from '@matter/main/devices/on-off-plug-in-unit'
@@ -491,6 +491,7 @@ const devices = {
   HumiditySensorDevice,
   LightSensorDevice,
   OccupancySensorDevice,
+  OccupancySensorRequirements,
   OnOffLightDevice,
   OnOffLightSwitchDevice,
   OnOffPlugInUnitDevice,
@@ -558,7 +559,10 @@ export const deviceTypes = {
   TemperatureSensor: devices.TemperatureSensorDevice,
   HumiditySensor: devices.HumiditySensorDevice,
   LightSensor: devices.LightSensorDevice,
-  MotionSensor: devices.OccupancySensorDevice,
+  // OccupancySensing is not part of the base device type — matter.js requires the
+  // detector-type feature to be chosen. OccupancyEvent additionally makes matter.js
+  // emit the OccupancyChanged event automatically when the occupancy state changes.
+  MotionSensor: devices.OccupancySensorDevice.with(devices.OccupancySensorRequirements.OccupancySensingServer.with('PassiveInfrared', 'OccupancyEvent')),
   ContactSensor: devices.ContactSensorDevice,
   LeakSensor: devices.WaterLeakDetectorDevice,
   SmokeSensor: devices.SmokeCoAlarmDevice,

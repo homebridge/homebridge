@@ -8,6 +8,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - chore: dependency updates
   - updated `@matter/main` from `v0.17.4` to `v0.17.6`, [see changelog](https://github.com/matter-js/matter.js/blob/main/CHANGELOG.md)
+- fix(matter): add missing occupancy cluster to motion sensor
 
 ### Homebridge Dependencies
 
