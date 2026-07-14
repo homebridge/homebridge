@@ -59,6 +59,7 @@ describe('deviceTypes mandatory clusters', () => {
     ['WaterValve', ['valveConfigurationAndControl']],
     ['GenericSwitch', ['switch']],
     ['Pump', ['onOff', 'pumpConfigurationAndControl']],
+    ['RoomAirConditioner', ['onOff', 'thermostat']],
   ]
 
   it.each(cases)('%s includes %j', (name, expectedBehaviors) => {
@@ -83,6 +84,15 @@ describe('pump pumpConfigurationAndControl features', () => {
     const behaviors = supportedBehaviors(deviceTypes.Pump)
     const features = enabledFeatures(behaviors.pumpConfigurationAndControl)
     expect(features.constantSpeed).toBe(true)
+  })
+})
+
+describe('roomAirConditioner thermostat features', () => {
+  it('enables the Heating and Cooling features', () => {
+    const behaviors = supportedBehaviors(deviceTypes.RoomAirConditioner)
+    const features = enabledFeatures(behaviors.thermostat)
+    expect(features.heating).toBe(true)
+    expect(features.cooling).toBe(true)
   })
 })
 

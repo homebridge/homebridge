@@ -63,7 +63,7 @@ import { OnOffLightSwitchDevice } from '@matter/main/devices/on-off-light-switch
 import { OnOffPlugInUnitDevice } from '@matter/main/devices/on-off-plug-in-unit'
 import { PumpDevice, PumpRequirements } from '@matter/main/devices/pump'
 import { RoboticVacuumCleanerDevice, RoboticVacuumCleanerRequirements } from '@matter/main/devices/robotic-vacuum-cleaner'
-import { RoomAirConditionerDevice } from '@matter/main/devices/room-air-conditioner'
+import { RoomAirConditionerDevice, RoomAirConditionerRequirements } from '@matter/main/devices/room-air-conditioner'
 import { SmokeCoAlarmDevice, SmokeCoAlarmRequirements } from '@matter/main/devices/smoke-co-alarm'
 import { TemperatureSensorDevice } from '@matter/main/devices/temperature-sensor'
 import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/thermostat'
@@ -501,6 +501,7 @@ const devices = {
   RoboticVacuumCleanerDevice,
   RoboticVacuumCleanerRequirements,
   RoomAirConditionerDevice,
+  RoomAirConditionerRequirements,
   SmokeCoAlarmDevice,
   SmokeCoAlarmRequirements,
   TemperatureSensorDevice,
@@ -603,7 +604,11 @@ export const deviceTypes = {
   // requires a control-mode feature to be chosen. ConstantSpeed is the simplest
   // mode for on/off and level-controlled pumps bridged from HomeKit.
   Pump: devices.PumpDevice.with(devices.PumpRequirements.PumpConfigurationAndControlServer.with('ConstantSpeed')),
-  RoomAirConditioner: devices.RoomAirConditionerDevice,
+  // Thermostat is not part of the base device type — matter.js requires the
+  // Heating/Cooling features to be chosen. Both are enabled (like the Thermostat
+  // device type above) so heat-capable air conditioners work and cooling-only
+  // accessories simply leave the heating attributes at their defaults.
+  RoomAirConditioner: devices.RoomAirConditionerDevice.with(devices.RoomAirConditionerRequirements.ThermostatServer.with('Heating', 'Cooling')),
 
   // Composed device container — use as parent for accessories with parts.
   // Children appear as a single accessory in Apple Home, expandable into separate tiles.
