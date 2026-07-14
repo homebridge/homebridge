@@ -72,6 +72,8 @@ import { WaterValveDevice, WaterValveRequirements } from '@matter/main/devices/w
 import { WindowCoveringDevice } from '@matter/main/devices/window-covering'
 import { BridgedNodeEndpoint } from '@matter/main/endpoints/bridged-node'
 
+import { DefaultValveConfigurationAndControlServer } from './behaviors/ValveConfigurationAndControlBehavior.js'
+
 type BehaviorType = Behavior.Type
 
 // Re-export Matter.js types for plugin use
@@ -591,7 +593,11 @@ export const deviceTypes = {
   RoboticVacuumCleaner: devices.RoboticVacuumCleanerDevice,
 
   // Water Valve
-  WaterValve: devices.WaterValveDevice.with(devices.WaterValveRequirements.ValveConfigurationAndControlServer),
+  // The matter.js base server leaves open/close unimplemented, so use our
+  // default implementation that reflects the commands in the cluster state.
+  // Accessories with valve handlers get HomebridgeValveConfigurationAndControlServer
+  // (which extends the default) applied at registration.
+  WaterValve: devices.WaterValveDevice.with(DefaultValveConfigurationAndControlServer),
 
   // Other
   // Switch is not part of the base device type — matter.js requires latching vs

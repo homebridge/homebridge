@@ -15,6 +15,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): add missing thermostat cluster to room ac
 - feat(matter): bump configuration version on bridge changes
 - fix(matter): repair dead bridged device info guard
+- fix(matter): make water valve open/close commands work
 
 ### Homebridge Dependencies
 
