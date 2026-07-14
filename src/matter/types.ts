@@ -61,7 +61,7 @@ import { OccupancySensorDevice, OccupancySensorRequirements } from '@matter/main
 import { OnOffLightDevice } from '@matter/main/devices/on-off-light'
 import { OnOffLightSwitchDevice } from '@matter/main/devices/on-off-light-switch'
 import { OnOffPlugInUnitDevice } from '@matter/main/devices/on-off-plug-in-unit'
-import { PumpDevice } from '@matter/main/devices/pump'
+import { PumpDevice, PumpRequirements } from '@matter/main/devices/pump'
 import { RoboticVacuumCleanerDevice, RoboticVacuumCleanerRequirements } from '@matter/main/devices/robotic-vacuum-cleaner'
 import { RoomAirConditionerDevice } from '@matter/main/devices/room-air-conditioner'
 import { SmokeCoAlarmDevice, SmokeCoAlarmRequirements } from '@matter/main/devices/smoke-co-alarm'
@@ -497,6 +497,7 @@ const devices = {
   OnOffLightSwitchDevice,
   OnOffPlugInUnitDevice,
   PumpDevice,
+  PumpRequirements,
   RoboticVacuumCleanerDevice,
   RoboticVacuumCleanerRequirements,
   RoomAirConditionerDevice,
@@ -598,7 +599,10 @@ export const deviceTypes = {
   // MomentarySwitchLongPress enables long-press detection, and
   // MomentarySwitchMultiPress enables multiPressComplete sequences.
   GenericSwitch: devices.GenericSwitchDevice.with(devices.GenericSwitchRequirements.SwitchServer.with('MomentarySwitch', 'MomentarySwitchRelease', 'MomentarySwitchLongPress', 'MomentarySwitchMultiPress')),
-  Pump: devices.PumpDevice,
+  // PumpConfigurationAndControl is not part of the base device type — matter.js
+  // requires a control-mode feature to be chosen. ConstantSpeed is the simplest
+  // mode for on/off and level-controlled pumps bridged from HomeKit.
+  Pump: devices.PumpDevice.with(devices.PumpRequirements.PumpConfigurationAndControlServer.with('ConstantSpeed')),
   RoomAirConditioner: devices.RoomAirConditionerDevice,
 
   // Composed device container — use as parent for accessories with parts.
