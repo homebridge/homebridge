@@ -22,6 +22,7 @@ vi.mock('@matter/main', () => {
   return { Endpoint: MockEndpoint }
 })
 vi.mock('@matter/main/behaviors', () => ({
+  BasicInformationServer: { name: 'BasicInformationServer' },
   BridgedDeviceBasicInformationServer: { name: 'BridgedDeviceBasicInformationServer' },
 }))
 vi.mock('@matter/node/behaviors', () => ({
@@ -121,6 +122,7 @@ vi.mock('../../ipcService.js', () => ({
 function createMockDeps(overrides: Partial<AccessoryManagerDeps> = {}): AccessoryManagerDeps {
   const mockServerNode = {
     add: vi.fn(),
+    act: vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ increaseConfigurationVersion: vi.fn() })) })),
   }
   const mockAggregator = {
     add: vi.fn(),
@@ -188,6 +190,28 @@ describe('accessoryManager', () => {
 
       expect(deps.accessories.size).toBe(1)
       expect(deps.accessories.has('test-uuid-001')).toBe(true)
+    })
+
+    it('should bump the bridge configuration version when commissioned', async () => {
+      const increaseConfigurationVersion = vi.fn()
+      const deps = createMockDeps({ isCommissioned: () => true })
+      const serverNode = deps.getServerNode() as any
+      serverNode.act = vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ increaseConfigurationVersion })) }))
+      const accessory = createMockAccessory()
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(increaseConfigurationVersion).toHaveBeenCalledTimes(1)
+    })
+
+    it('should not bump the configuration version before commissioning', async () => {
+      const deps = createMockDeps()
+      const serverNode = deps.getServerNode() as any
+      const accessory = createMockAccessory()
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(serverNode.act).not.toHaveBeenCalled()
     })
 
     it('should reject duplicate UUIDs', async () => {
@@ -298,6 +322,20 @@ describe('accessoryManager', () => {
       // Unregister
       await manager.unregisterAccessory('test-uuid-001', deps)
       expect(deps.accessories.size).toBe(0)
+    })
+
+    it('should bump the bridge configuration version when commissioned', async () => {
+      const increaseConfigurationVersion = vi.fn()
+      const deps = createMockDeps({ isCommissioned: () => true })
+      const serverNode = deps.getServerNode() as any
+      serverNode.act = vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ increaseConfigurationVersion })) }))
+      const accessory = createMockAccessory()
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+      await manager.unregisterAccessory('test-uuid-001', deps)
+
+      // once for register, once for unregister
+      expect(increaseConfigurationVersion).toHaveBeenCalledTimes(2)
     })
 
     it('should handle unregistering a non-existent accessory gracefully', async () => {
