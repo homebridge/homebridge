@@ -150,11 +150,11 @@ export class AccessoryManager {
       if (!deps.config.externalAccessory) {
         // Skip if device type already includes BridgedDeviceBasicInformation
         // (e.g., BridgedNodeEndpoint used as a composed device container)
-        const hasBridgedInfo = (deviceType as any).behaviors?.supported?.bridgedDeviceBasicInformation
+        const hasBridgedInfo = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.bridgedDeviceBasicInformation !== undefined
         if (!hasBridgedInfo) {
           deviceType = (deviceType as any).with(BridgedDeviceBasicInformationServer)
+          log.debug(`Added BridgedDeviceBasicInformationServer to ${accessory.displayName}`)
         }
-        log.debug(`Added BridgedDeviceBasicInformationServer to ${accessory.displayName}`)
       }
 
       const endpointOptions = this.createEndpointOptions(accessory, deps.config)
