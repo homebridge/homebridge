@@ -215,6 +215,33 @@ describe('clusterCommandMapper', () => {
     })
   })
 
+  describe('valveConfigurationAndControl cluster', () => {
+    it('should map targetState=1 (open) to "open" command', () => {
+      const result = mapAttributesToCommand('valveConfigurationAndControl', { targetState: 1 })
+      expect(result).toEqual({ command: 'open' })
+    })
+
+    it('should map targetState=0 (closed) to "close" command', () => {
+      const result = mapAttributesToCommand('valveConfigurationAndControl', { targetState: 0 })
+      expect(result).toEqual({ command: 'close' })
+    })
+
+    it('should map _command attribute directly', () => {
+      const result = mapAttributesToCommand('valveConfigurationAndControl', { _command: 'open' })
+      expect(result).toEqual({ command: 'open' })
+    })
+
+    it('should return null for unexpected targetState values instead of closing', () => {
+      expect(mapAttributesToCommand('valveConfigurationAndControl', { targetState: 2 })).toBeNull()
+      expect(mapAttributesToCommand('valveConfigurationAndControl', { targetState: null })).toBeNull()
+    })
+
+    it('should return null for unknown attributes (state-only update)', () => {
+      const result = mapAttributesToCommand('valveConfigurationAndControl', { openDuration: 60 })
+      expect(result).toBeNull()
+    })
+  })
+
   describe('windowCovering cluster', () => {
     it('should map targetPositionLiftPercent100ths to "goToLiftPercentage" command', () => {
       const result = mapAttributesToCommand('windowCovering', {

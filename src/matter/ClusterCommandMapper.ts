@@ -199,6 +199,35 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
   },
 
   // ============================================================================
+  // WATER VALVE
+  // ============================================================================
+
+  // ValveConfigurationAndControl Cluster - Used by water valves
+  valveConfigurationAndControl: {
+    map: (attributes) => {
+      // Direct command via _command attribute
+      if ('_command' in attributes) {
+        const cmd = attributes._command as string
+
+        if (cmd === 'open' || cmd === 'close') {
+          return { command: cmd }
+        }
+      }
+
+      // Or via targetState attribute (0 = Closed, 1 = Open). Other enum
+      // values (e.g. 2 = Transitioning) must not trigger a command.
+      if (attributes.targetState === 1) {
+        return { command: 'open' }
+      }
+      if (attributes.targetState === 0) {
+        return { command: 'close' }
+      }
+
+      return null
+    },
+  },
+
+  // ============================================================================
   // THERMOSTAT
   // ============================================================================
 
