@@ -54,7 +54,7 @@ import { DimmablePlugInUnitDevice } from '@matter/main/devices/dimmable-plug-in-
 import { DoorLockDevice } from '@matter/main/devices/door-lock'
 import { ExtendedColorLightDevice } from '@matter/main/devices/extended-color-light'
 import { FanDevice } from '@matter/main/devices/fan'
-import { GenericSwitchDevice } from '@matter/main/devices/generic-switch'
+import { GenericSwitchDevice, GenericSwitchRequirements } from '@matter/main/devices/generic-switch'
 import { HumiditySensorDevice } from '@matter/main/devices/humidity-sensor'
 import { LightSensorDevice } from '@matter/main/devices/light-sensor'
 import { OccupancySensorDevice, OccupancySensorRequirements } from '@matter/main/devices/occupancy-sensor'
@@ -488,6 +488,7 @@ const devices = {
   ExtendedColorLightDevice,
   FanDevice,
   GenericSwitchDevice,
+  GenericSwitchRequirements,
   HumiditySensorDevice,
   LightSensorDevice,
   OccupancySensorDevice,
@@ -586,7 +587,12 @@ export const deviceTypes = {
   WaterValve: devices.WaterValveDevice.with(devices.WaterValveRequirements.ValveConfigurationAndControlServer),
 
   // Other
-  GenericSwitch: devices.GenericSwitchDevice,
+  // Switch is not part of the base device type — matter.js requires latching vs
+  // momentary to be chosen. The momentary feature set matches the press/release
+  // helpers in SwitchAPI: MomentarySwitchRelease enables shortRelease/longRelease,
+  // MomentarySwitchLongPress enables long-press detection, and
+  // MomentarySwitchMultiPress enables multiPressComplete sequences.
+  GenericSwitch: devices.GenericSwitchDevice.with(devices.GenericSwitchRequirements.SwitchServer.with('MomentarySwitch', 'MomentarySwitchRelease', 'MomentarySwitchLongPress', 'MomentarySwitchMultiPress')),
   Pump: devices.PumpDevice,
   RoomAirConditioner: devices.RoomAirConditionerDevice,
 
