@@ -355,6 +355,46 @@ export function detectWindowCoveringFeatures(accessory: MatterAccessory): string
 }
 
 /**
+ * Detect SmokeCoAlarm features from accessory attributes.
+ * The Matter spec requires at least one of SmokeAlarm/CoAlarm, so an accessory
+ * that declares neither state attribute falls back to SmokeAlarm — matching the
+ * friendly device type name "SmokeSensor".
+ */
+export function detectSmokeCoAlarmFeatures(accessory: MatterAccessory): string[] {
+  const scaCluster = accessory.clusters?.smokeCoAlarm as Record<string, unknown> | undefined
+  const features: string[] = []
+
+  if (scaCluster && 'smokeState' in scaCluster) {
+    features.push('SmokeAlarm')
+  }
+  if (scaCluster && 'coState' in scaCluster) {
+    features.push('CoAlarm')
+  }
+  if (features.length === 0) {
+    features.push('SmokeAlarm')
+  }
+
+  return features
+}
+
+/**
+ * Apply SmokeCoAlarm features to device type.
+ * SmokeCoAlarm is not part of the base SmokeCoAlarmDevice — matter.js requires
+ * the features to be chosen — so without this the endpoint would be created
+ * without the cluster and the accessory's smokeCoAlarm state silently dropped.
+ */
+export function applySmokeCoAlarmFeatures(
+  deviceType: EndpointType,
+  accessory: MatterAccessory,
+  features: string[],
+): EndpointType {
+  log.info(`Auto-detected SmokeCoAlarm features for ${accessory.displayName}: ${features.join(', ')}`)
+
+  const smokeCoAlarmWithFeatures = (devices.SmokeCoAlarmRequirements.SmokeCoAlarmServer as any).with(...features)
+  return (deviceType as any).with(smokeCoAlarmWithFeatures)
+}
+
+/**
  * Detect ServiceArea features from cluster attributes
  */
 export function detectServiceAreaFeatures(

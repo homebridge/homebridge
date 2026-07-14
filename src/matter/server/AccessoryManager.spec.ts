@@ -43,6 +43,8 @@ vi.mock('../serverHelpers.js', () => ({
   validateAccessoryRequiredFields: vi.fn(),
   detectWindowCoveringFeatures: vi.fn(() => []),
   applyWindowCoveringFeatures: vi.fn((dt: any) => dt),
+  detectSmokeCoAlarmFeatures: vi.fn(() => ['SmokeAlarm']),
+  applySmokeCoAlarmFeatures: vi.fn((dt: any) => dt),
   detectBehaviorFeatures: vi.fn(() => null),
   extractColorControlFeatures: vi.fn(() => []),
   extractLevelControlFeatures: vi.fn(() => []),
@@ -65,6 +67,7 @@ vi.mock('../types.js', () => {
     MatterDeviceError,
     devices: {
       RoboticVacuumCleanerDevice: { deviceType: 0x0074 },
+      SmokeCoAlarmDevice: { deviceType: 0x0076 },
       RoboticVacuumCleanerRequirements: {
         RvcCleanModeServer: { name: 'RvcCleanModeServer' },
         ServiceAreaServer: {

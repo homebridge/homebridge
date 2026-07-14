@@ -10,6 +10,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - updated `@matter/main` from `v0.17.4` to `v0.17.6`, [see changelog](https://github.com/matter-js/matter.js/blob/main/CHANGELOG.md)
 - fix(matter): add missing occupancy cluster to motion sensor
 - fix(matter): add missing switch cluster to generic switch
+- fix(matter): add missing smoke/co cluster to smoke sensor
 
 ### Homebridge Dependencies
 

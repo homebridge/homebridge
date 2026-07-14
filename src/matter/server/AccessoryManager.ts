@@ -32,9 +32,11 @@ import { Logger } from '../../logger.js'
 import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
 import {
+  applySmokeCoAlarmFeatures,
   applyWindowCoveringFeatures,
   CLUSTER_IDS,
   detectBehaviorFeatures,
+  detectSmokeCoAlarmFeatures,
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
@@ -127,6 +129,15 @@ export class AccessoryManager {
       const windowCoveringFeatures = detectWindowCoveringFeatures(accessory)
       if (windowCoveringFeatures.length > 0) {
         deviceType = applyWindowCoveringFeatures(deviceType, accessory, windowCoveringFeatures)
+      }
+
+      // SmokeCoAlarm is feature-gated in matter.js, so the base SmokeCoAlarmDevice
+      // carries no SmokeCoAlarm cluster. Add it with features detected from the
+      // accessory's declared attributes — unless the plugin already composed a
+      // device type that includes it.
+      const hasSmokeCoAlarm = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.smokeCoAlarm !== undefined
+      if (deviceType.deviceType === devices.SmokeCoAlarmDevice.deviceType && !hasSmokeCoAlarm) {
+        deviceType = applySmokeCoAlarmFeatures(deviceType, accessory, detectSmokeCoAlarmFeatures(accessory))
       }
 
       const features = this.detectClusterFeatures(accessory, deviceType)
