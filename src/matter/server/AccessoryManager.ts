@@ -24,7 +24,7 @@ import { EventEmitter } from 'node:events'
 import process from 'node:process'
 
 import { Endpoint } from '@matter/main'
-import { BridgedDeviceBasicInformationServer } from '@matter/main/behaviors'
+import { BasicInformationServer, BridgedDeviceBasicInformationServer } from '@matter/main/behaviors'
 import { PowerSourceServer } from '@matter/node/behaviors'
 
 import { IpcOutgoingEvent } from '../../ipcService.js'
@@ -693,6 +693,16 @@ export class AccessoryManager {
         } as any)
 
         log.info(`Notified controllers of parts list change (${deps.accessories.size} devices)`)
+      }
+
+      // Matter 1.6 signals bridge structure changes to controllers via
+      // BasicInformation's ConfigurationVersion. matter.js seeds the attribute
+      // but does not bump it when endpoints are added or removed — that is the
+      // bridge's job.
+      const serverNode = deps.getServerNode()
+      if (serverNode) {
+        await serverNode.act(agent => agent.get(BasicInformationServer).increaseConfigurationVersion())
+        log.debug('Increased bridge configuration version')
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)

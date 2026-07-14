@@ -13,6 +13,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): add missing smoke/co cluster to smoke sensor
 - fix(matter): add missing pump control cluster to pump
 - fix(matter): add missing thermostat cluster to room ac
+- feat(matter): bump configuration version on bridge changes
 
 ### Homebridge Dependencies
 
