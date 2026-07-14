@@ -32,6 +32,8 @@ describe('deviceTypes mandatory clusters', () => {
   // Not listed:
   // - WindowCovering: its cluster is added at registration time with
   //   auto-detected Lift/Tilt features (see applyWindowCoveringFeatures)
+  // - SmokeSensor: its cluster is added at registration time with
+  //   auto-detected SmokeAlarm/CoAlarm features (see applySmokeCoAlarmFeatures)
   // - OnOffSwitch: per the Matter spec the OnOff cluster on a light switch is
   //   a client cluster (it controls other devices), so the server type only
   //   carries Identify

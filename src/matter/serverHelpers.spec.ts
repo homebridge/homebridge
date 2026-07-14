@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   applyFeaturesToBehavior,
+  applySmokeCoAlarmFeatures,
   applyWindowCoveringFeatures,
   CLUSTER_IDS,
   detectBehaviorFeatures,
   detectServiceAreaFeatures,
+  detectSmokeCoAlarmFeatures,
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
@@ -13,7 +15,7 @@ import {
   extractThermostatFeatures,
   validateAccessoryRequiredFields,
 } from './serverHelpers.js'
-import { MatterDeviceError } from './types.js'
+import { devices, MatterDeviceError } from './types.js'
 
 describe('serverHelpers', () => {
   describe('cLUSTER_IDS', () => {
@@ -546,6 +548,56 @@ describe('serverHelpers', () => {
 
       expect(accessory.context).toBeDefined()
       expect((accessory.context as any)._skipWindowCoveringBehavior).toBe(true)
+    })
+  })
+
+  describe('detectSmokeCoAlarmFeatures', () => {
+    it('should detect SmokeAlarm from smokeState attribute', () => {
+      const accessory = {
+        displayName: 'Smoke Detector',
+        clusters: { smokeCoAlarm: { smokeState: 0, expressedState: 0 } },
+      } as any
+
+      expect(detectSmokeCoAlarmFeatures(accessory)).toEqual(['SmokeAlarm'])
+    })
+
+    it('should detect CoAlarm from coState attribute', () => {
+      const accessory = {
+        displayName: 'CO Detector',
+        clusters: { smokeCoAlarm: { coState: 0, expressedState: 0 } },
+      } as any
+
+      expect(detectSmokeCoAlarmFeatures(accessory)).toEqual(['CoAlarm'])
+    })
+
+    it('should detect both features from combined smoke/CO accessory', () => {
+      const accessory = {
+        displayName: 'Combo Detector',
+        clusters: { smokeCoAlarm: { smokeState: 0, coState: 0, expressedState: 0 } },
+      } as any
+
+      expect(detectSmokeCoAlarmFeatures(accessory)).toEqual(['SmokeAlarm', 'CoAlarm'])
+    })
+
+    it('should fall back to SmokeAlarm when neither state attribute is declared', () => {
+      const accessory = {
+        displayName: 'Bare Detector',
+        clusters: { smokeCoAlarm: { expressedState: 0 } },
+      } as any
+
+      expect(detectSmokeCoAlarmFeatures(accessory)).toEqual(['SmokeAlarm'])
+    })
+  })
+
+  describe('applySmokeCoAlarmFeatures', () => {
+    it('should add the SmokeCoAlarm cluster with the given features to the real device type', () => {
+      const accessory = { displayName: 'Smoke Detector' } as any
+
+      const result = applySmokeCoAlarmFeatures(devices.SmokeCoAlarmDevice, accessory, ['SmokeAlarm']) as any
+
+      expect(result.behaviors.smokeCoAlarm).toBeDefined()
+      expect(result.behaviors.smokeCoAlarm.features.smokeAlarm).toBe(true)
+      expect(result.behaviors.smokeCoAlarm.features.coAlarm).toBe(false)
     })
   })
 

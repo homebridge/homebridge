@@ -64,7 +64,7 @@ import { OnOffPlugInUnitDevice } from '@matter/main/devices/on-off-plug-in-unit'
 import { PumpDevice } from '@matter/main/devices/pump'
 import { RoboticVacuumCleanerDevice, RoboticVacuumCleanerRequirements } from '@matter/main/devices/robotic-vacuum-cleaner'
 import { RoomAirConditionerDevice } from '@matter/main/devices/room-air-conditioner'
-import { SmokeCoAlarmDevice } from '@matter/main/devices/smoke-co-alarm'
+import { SmokeCoAlarmDevice, SmokeCoAlarmRequirements } from '@matter/main/devices/smoke-co-alarm'
 import { TemperatureSensorDevice } from '@matter/main/devices/temperature-sensor'
 import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/thermostat'
 import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detector'
@@ -501,6 +501,7 @@ const devices = {
   RoboticVacuumCleanerRequirements,
   RoomAirConditionerDevice,
   SmokeCoAlarmDevice,
+  SmokeCoAlarmRequirements,
   TemperatureSensorDevice,
   ThermostatDevice,
   ThermostatRequirements,
@@ -566,6 +567,10 @@ export const deviceTypes = {
   MotionSensor: devices.OccupancySensorDevice.with(devices.OccupancySensorRequirements.OccupancySensingServer.with('PassiveInfrared', 'OccupancyEvent')),
   ContactSensor: devices.ContactSensorDevice,
   LeakSensor: devices.WaterLeakDetectorDevice,
+  // SmokeCoAlarm is not part of the base device type — matter.js requires the
+  // SmokeAlarm/CoAlarm features to be chosen. They are auto-detected from the
+  // accessory's declared cluster attributes at registration
+  // (see applySmokeCoAlarmFeatures in serverHelpers.ts).
   SmokeSensor: devices.SmokeCoAlarmDevice,
 
   // HVAC
