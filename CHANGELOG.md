@@ -17,6 +17,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): repair dead bridged device info guard
 - fix(matter): make water valve open/close commands work
 - feat(matter): map valve commands for ui control
+- chore(ci): bump actions/setup-node to v7
 
 ### Homebridge Dependencies
 
