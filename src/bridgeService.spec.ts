@@ -252,6 +252,88 @@ describe('bridgeService', () => {
     })
   })
 
+  describe('restoreCachedPlatformAccessories', () => {
+    it('does not discard a registerPlatformAccessories() call made synchronously from configureAccessory()', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation(accessory => accessory)
+      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
+
+      const cachedA = makePlatformAccessory('A')
+      const cachedB = makePlatformAccessory('B')
+      ;(service as any).cachedPlatformAccessories = [cachedA, cachedB]
+
+      // A dynamic platform commonly registers a brand new companion accessory
+      // (e.g. a linked sensor) from within its configureAccessory() callback,
+      // which restoreCachedPlatformAccessories() invokes synchronously while
+      // it is still iterating the cached accessory list.
+      const companion = makePlatformAccessory('Companion')
+      const platform = {
+        configureAccessory: vi.fn((accessory: any) => {
+          if (accessory === cachedA) {
+            service.handleRegisterPlatformAccessories([companion])
+          }
+        }),
+      }
+      pluginManager.getPlugin.mockReturnValue({
+        getActiveDynamicPlatform: () => platform,
+      })
+
+      service.restoreCachedPlatformAccessories()
+
+      const cached = (service as any).cachedPlatformAccessories
+      expect(cached).toContain(cachedA)
+      expect(cached).toContain(cachedB)
+      expect(cached).toContain(companion)
+    })
+
+    it('does not discard an updatePlatformAccessories() call made synchronously from configureAccessory()', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation(accessory => accessory)
+
+      const cachedA = makePlatformAccessory('A')
+      const cachedB = makePlatformAccessory('B')
+      ;(service as any).cachedPlatformAccessories = [cachedA, cachedB]
+
+      // A dynamic platform may replace a cached accessory wholesale (e.g. to
+      // add/remove a service) by handing a new PlatformAccessory instance to
+      // api.updatePlatformAccessories() with the same UUID, from within
+      // configureAccessory().
+      const replacementA = makePlatformAccessory('A-updated')
+      ;(replacementA as any)._associatedHAPAccessory.UUID = cachedA._associatedHAPAccessory.UUID
+      ;(replacementA as any).UUID = cachedA._associatedHAPAccessory.UUID
+      const platform = {
+        configureAccessory: vi.fn((accessory: any) => {
+          if (accessory === cachedA) {
+            service.handleUpdatePlatformAccessories([replacementA])
+          }
+        }),
+      }
+      pluginManager.getPlugin.mockReturnValue({
+        getActiveDynamicPlatform: () => platform,
+      })
+
+      service.restoreCachedPlatformAccessories()
+
+      const cached = (service as any).cachedPlatformAccessories
+      expect(cached).toContain(replacementA)
+      expect(cached).not.toContain(cachedA)
+      expect(cached).toContain(cachedB)
+    })
+
+    it('still drops orphaned accessories when keepOrphanedCachedAccessories is false', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions({ keepOrphanedCachedAccessories: false }), makeBridgeConfig())
+      pluginManager.getPlugin.mockReturnValue(undefined)
+      pluginManager.getPluginByActiveDynamicPlatform.mockReturnValue(undefined)
+
+      const orphan = makePlatformAccessory('Orphan')
+      ;(service as any).cachedPlatformAccessories = [orphan]
+
+      service.restoreCachedPlatformAccessories()
+
+      expect((service as any).cachedPlatformAccessories).toHaveLength(0)
+    })
+  })
+
   describe('handlePublishExternalAccessories', () => {
     it('allocates a port for each external accessory', async () => {
       externalPortService.requestPort.mockResolvedValue(50000)
