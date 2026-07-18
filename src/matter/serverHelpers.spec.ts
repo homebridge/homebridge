@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyElectricalMeasurementClusters,
+  applyElectricalMeasurementDefaults,
   applyFeaturesToBehavior,
   applySmokeCoAlarmFeatures,
   applyWindowCoveringFeatures,
   CLUSTER_IDS,
   detectBehaviorFeatures,
+  detectElectricalMeasurementClusters,
   detectServiceAreaFeatures,
   detectSmokeCoAlarmFeatures,
   detectWindowCoveringFeatures,
@@ -598,6 +601,153 @@ describe('serverHelpers', () => {
       expect(result.behaviors.smokeCoAlarm).toBeDefined()
       expect(result.behaviors.smokeCoAlarm.features.smokeAlarm).toBe(true)
       expect(result.behaviors.smokeCoAlarm.features.coAlarm).toBe(false)
+    })
+  })
+
+  describe('detectElectricalMeasurementClusters', () => {
+    it('should detect nothing when no electrical clusters are declared', () => {
+      const accessory = { displayName: 'Plain Outlet', clusters: { onOff: { onOff: false } } } as any
+
+      expect(detectElectricalMeasurementClusters(accessory)).toEqual({
+        hasPowerMeasurement: false,
+        energyFeatures: [],
+      })
+    })
+
+    it('should detect power measurement from electricalPowerMeasurement state', () => {
+      const accessory = {
+        displayName: 'Metered Outlet',
+        clusters: { electricalPowerMeasurement: { activePower: 5_000_000 } },
+      } as any
+
+      expect(detectElectricalMeasurementClusters(accessory)).toEqual({
+        hasPowerMeasurement: true,
+        energyFeatures: [],
+      })
+    })
+
+    it('should derive imported cumulative energy features from the declared attribute', () => {
+      const accessory = {
+        displayName: 'Metered Outlet',
+        clusters: { electricalEnergyMeasurement: { cumulativeEnergyImported: { energy: 1000 } } },
+      } as any
+
+      expect(detectElectricalMeasurementClusters(accessory).energyFeatures)
+        .toEqual(['ImportedEnergy', 'CumulativeEnergy'])
+    })
+
+    it('should derive exported periodic energy features from the declared attribute', () => {
+      const accessory = {
+        displayName: 'Solar Meter',
+        clusters: { electricalEnergyMeasurement: { periodicEnergyExported: { energy: 1000 } } },
+      } as any
+
+      expect(detectElectricalMeasurementClusters(accessory).energyFeatures)
+        .toEqual(['ExportedEnergy', 'PeriodicEnergy'])
+    })
+
+    it('should fall back to imported cumulative when the cluster is declared without energy attributes', () => {
+      const accessory = {
+        displayName: 'Bare Meter',
+        clusters: { electricalEnergyMeasurement: {} },
+      } as any
+
+      expect(detectElectricalMeasurementClusters(accessory).energyFeatures)
+        .toEqual(['ImportedEnergy', 'CumulativeEnergy'])
+    })
+  })
+
+  describe('applyElectricalMeasurementDefaults', () => {
+    it('should fill the mandatory power measurement attributes', () => {
+      const accessory = {
+        displayName: 'Metered Outlet',
+        clusters: { electricalPowerMeasurement: { activePower: 5_000_000, voltage: 230_000 } },
+      } as any
+
+      applyElectricalMeasurementDefaults(accessory, detectElectricalMeasurementClusters(accessory))
+
+      const epm = accessory.clusters.electricalPowerMeasurement
+      expect(epm.powerMode).toBe(2) // AC
+      expect(epm.accuracy).toHaveLength(2) // activePower + voltage
+      expect(epm.accuracy[0].measurementType).toBe(5) // ActivePower
+      expect(epm.accuracy[1].measurementType).toBe(1) // Voltage
+      expect(epm.numberOfMeasurementTypes).toBe(2)
+    })
+
+    it('should default activePower to null when not declared', () => {
+      const accessory = {
+        displayName: 'Metered Outlet',
+        clusters: { electricalPowerMeasurement: { voltage: 230_000 } },
+      } as any
+
+      applyElectricalMeasurementDefaults(accessory, detectElectricalMeasurementClusters(accessory))
+
+      expect(accessory.clusters.electricalPowerMeasurement.activePower).toBeNull()
+    })
+
+    it('should respect plugin-provided values', () => {
+      const pluginAccuracy = [{ measurementType: 5, measured: false, minMeasuredValue: 0, maxMeasuredValue: 1, accuracyRanges: [{ rangeMin: 0, rangeMax: 1, fixedMax: 1 }] }]
+      const accessory = {
+        displayName: 'Custom Meter',
+        clusters: { electricalPowerMeasurement: { activePower: 0, powerMode: 1, accuracy: pluginAccuracy, numberOfMeasurementTypes: 1 } },
+      } as any
+
+      applyElectricalMeasurementDefaults(accessory, detectElectricalMeasurementClusters(accessory))
+
+      const epm = accessory.clusters.electricalPowerMeasurement
+      expect(epm.powerMode).toBe(1)
+      expect(epm.accuracy).toBe(pluginAccuracy)
+      expect(epm.numberOfMeasurementTypes).toBe(1)
+    })
+
+    it('should synthesize the mandatory energy accuracy struct', () => {
+      const accessory = {
+        displayName: 'Metered Outlet',
+        clusters: { electricalEnergyMeasurement: { cumulativeEnergyImported: { energy: 1000 } } },
+      } as any
+
+      applyElectricalMeasurementDefaults(accessory, detectElectricalMeasurementClusters(accessory))
+
+      const eem = accessory.clusters.electricalEnergyMeasurement
+      expect(eem.accuracy).toBeDefined()
+      expect(eem.accuracy.measurementType).toBe(14) // ElectricalEnergy
+      expect(eem.accuracy.accuracyRanges).toHaveLength(1)
+    })
+  })
+
+  describe('applyElectricalMeasurementClusters', () => {
+    it('should add power topology, power and energy servers to a real outlet device type', () => {
+      const accessory = { displayName: 'Metered Outlet' } as any
+      const detection = { hasPowerMeasurement: true, energyFeatures: ['ImportedEnergy', 'CumulativeEnergy'] }
+
+      const result = applyElectricalMeasurementClusters(devices.OnOffPlugInUnitDevice, accessory, detection) as any
+
+      expect(result.behaviors.powerTopology).toBeDefined()
+      expect(result.behaviors.powerTopology.features.treeTopology).toBe(true)
+      expect(result.behaviors.electricalPowerMeasurement).toBeDefined()
+      expect(result.behaviors.electricalEnergyMeasurement).toBeDefined()
+      expect(result.behaviors.electricalEnergyMeasurement.features.importedEnergy).toBe(true)
+      expect(result.behaviors.electricalEnergyMeasurement.features.cumulativeEnergy).toBe(true)
+      expect(result.behaviors.electricalEnergyMeasurement.features.exportedEnergy).toBe(false)
+    })
+
+    it('should return the device type unchanged when nothing was detected', () => {
+      const accessory = { displayName: 'Plain Outlet' } as any
+      const detection = { hasPowerMeasurement: false, energyFeatures: [] }
+
+      const result = applyElectricalMeasurementClusters(devices.OnOffPlugInUnitDevice, accessory, detection)
+
+      expect(result).toBe(devices.OnOffPlugInUnitDevice)
+    })
+
+    it('should not re-add behaviors the device type already carries', () => {
+      const accessory = { displayName: 'Composed Meter' } as any
+      const detection = { hasPowerMeasurement: true, energyFeatures: [] }
+
+      const once = applyElectricalMeasurementClusters(devices.OnOffPlugInUnitDevice, accessory, detection) as any
+      const twice = applyElectricalMeasurementClusters(once, accessory, detection) as any
+
+      expect(twice).toBe(once)
     })
   })
 

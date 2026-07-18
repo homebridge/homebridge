@@ -503,3 +503,185 @@ export function applyFeaturesToBehavior(
   log.info(`${clusterName} custom behavior will preserve features: ${features.join(', ')}`)
   return modifiedBehavior
 }
+
+/**
+ * Matter MeasurementType enum values (Matter spec, MeasurementTypeEnum) used
+ * when synthesizing accuracy entries. Defined locally to avoid importing the
+ * full @matter/main/types barrel.
+ */
+const MEASUREMENT_TYPE = {
+  Voltage: 1,
+  ActiveCurrent: 2,
+  ActivePower: 5,
+  ElectricalEnergy: 14,
+} as const
+
+/**
+ * The subset of an accessory (or composed-device part) the electrical
+ * measurement helpers need - lets the same detection run for both.
+ */
+export interface ElectricalMeasurementHost {
+  clusters?: MatterAccessory['clusters']
+  displayName?: string
+}
+
+/**
+ * Result of detecting electrical measurement clusters on an accessory
+ */
+export interface ElectricalMeasurementDetection {
+  /** Accessory declares electricalPowerMeasurement cluster state */
+  hasPowerMeasurement: boolean
+  /**
+   * ElectricalEnergyMeasurement features derived from the declared attributes
+   * (empty when the cluster is not declared)
+   */
+  energyFeatures: string[]
+}
+
+/**
+ * Detect electrical measurement clusters from the accessory's declared state.
+ *
+ * ElectricalEnergyMeasurement is feature-gated in matter.js (Imported/Exported
+ * x Cumulative/Periodic), so the features are chosen from which energy
+ * attributes the accessory declares.
+ */
+export function detectElectricalMeasurementClusters(accessory: ElectricalMeasurementHost): ElectricalMeasurementDetection {
+  const epmCluster = accessory.clusters?.electricalPowerMeasurement as Record<string, unknown> | undefined
+  const eemCluster = accessory.clusters?.electricalEnergyMeasurement as Record<string, unknown> | undefined
+
+  const energyFeatures: string[] = []
+  if (eemCluster) {
+    if ('cumulativeEnergyImported' in eemCluster || 'periodicEnergyImported' in eemCluster) {
+      energyFeatures.push('ImportedEnergy')
+    }
+    if ('cumulativeEnergyExported' in eemCluster || 'periodicEnergyExported' in eemCluster) {
+      energyFeatures.push('ExportedEnergy')
+    }
+    if ('cumulativeEnergyImported' in eemCluster || 'cumulativeEnergyExported' in eemCluster) {
+      energyFeatures.push('CumulativeEnergy')
+    }
+    if ('periodicEnergyImported' in eemCluster || 'periodicEnergyExported' in eemCluster) {
+      energyFeatures.push('PeriodicEnergy')
+    }
+    if (energyFeatures.length === 0) {
+      // Cluster declared but no recognizable energy attribute yet - assume the
+      // most common shape (a meter reporting total imported energy).
+      energyFeatures.push('ImportedEnergy', 'CumulativeEnergy')
+    }
+  }
+
+  return {
+    hasPowerMeasurement: epmCluster !== undefined,
+    energyFeatures,
+  }
+}
+
+/**
+ * Build one synthesized MeasurementAccuracyStruct. The bounds are generous
+ * defaults - accuracy is informational metadata for controllers, and plugins
+ * can declare their own `accuracy` to override the synthesized list.
+ */
+function makeAccuracyEntry(measurementType: number, min: number, max: number, fixedMax: number): Record<string, unknown> {
+  return {
+    measurementType,
+    measured: true,
+    minMeasuredValue: min,
+    maxMeasuredValue: max,
+    accuracyRanges: [{ rangeMin: min, rangeMax: max, fixedMax }],
+  }
+}
+
+/**
+ * Fill in the mandatory ElectricalPowerMeasurement / ElectricalEnergyMeasurement
+ * attributes (powerMode, numberOfMeasurementTypes, accuracy) that plugins should
+ * not have to write themselves. Mutates the accessory's declared cluster state
+ * so the values flow into the endpoint options and the state cache together.
+ */
+export function applyElectricalMeasurementDefaults(
+  accessory: ElectricalMeasurementHost,
+  detection: ElectricalMeasurementDetection,
+): void {
+  if (detection.hasPowerMeasurement) {
+    const epm = accessory.clusters!.electricalPowerMeasurement as Record<string, unknown>
+
+    // 2 = AC (PowerModeEnum). Mains-powered metering is by far the common case.
+    epm.powerMode = epm.powerMode ?? 2
+    // ActivePower is mandatory (nullable) - null means "no measurement yet".
+    if (!('activePower' in epm)) {
+      epm.activePower = null
+    }
+
+    if (!epm.accuracy) {
+      const accuracy: Record<string, unknown>[] = [
+        // +/-100 kW range, +/-1 W accuracy
+        makeAccuracyEntry(MEASUREMENT_TYPE.ActivePower, -100_000_000, 100_000_000, 1000),
+      ]
+      if ('voltage' in epm) {
+        // 0-500 V range, +/-1 V accuracy
+        accuracy.push(makeAccuracyEntry(MEASUREMENT_TYPE.Voltage, 0, 500_000, 1000))
+      }
+      if ('activeCurrent' in epm) {
+        // +/-500 A range, +/-0.1 A accuracy
+        accuracy.push(makeAccuracyEntry(MEASUREMENT_TYPE.ActiveCurrent, -500_000, 500_000, 100))
+      }
+      epm.accuracy = accuracy
+    }
+
+    epm.numberOfMeasurementTypes = epm.numberOfMeasurementTypes
+      ?? (epm.accuracy as unknown[]).length
+  }
+
+  if (detection.energyFeatures.length > 0) {
+    const eem = accessory.clusters!.electricalEnergyMeasurement as Record<string, unknown>
+
+    if (!eem.accuracy) {
+      // 0 - 1e15 mWh (a billion kWh), +/-1 Wh accuracy
+      eem.accuracy = makeAccuracyEntry(MEASUREMENT_TYPE.ElectricalEnergy, 0, 1_000_000_000_000_000, 1000)
+    }
+  }
+}
+
+/**
+ * Apply the electrical measurement behaviors to a device type.
+ *
+ * PowerTopology is mandatory on the ElectricalSensor device type and is
+ * feature-gated in matter.js; TreeTopology fits a bridged endpoint that
+ * measures itself. The EEM server keeps matter.js's setMeasurement() helper,
+ * which also emits the CumulativeEnergyMeasured / PeriodicEnergyMeasured
+ * events required by the spec.
+ */
+export function applyElectricalMeasurementClusters(
+  deviceType: EndpointType,
+  accessory: ElectricalMeasurementHost,
+  detection: ElectricalMeasurementDetection,
+): EndpointType {
+  if (!detection.hasPowerMeasurement && detection.energyFeatures.length === 0) {
+    return deviceType
+  }
+
+  const requirements = devices.ElectricalSensorRequirements
+  const behaviors: BehaviorType[] = []
+  const existing = (deviceType as { behaviors?: Record<string, unknown> }).behaviors ?? {}
+
+  if (!existing.powerTopology) {
+    behaviors.push((requirements.PowerTopologyServer as any).with('TreeTopology'))
+  }
+  if (detection.hasPowerMeasurement && !existing.electricalPowerMeasurement) {
+    behaviors.push(requirements.ElectricalPowerMeasurementServer)
+  }
+  if (detection.energyFeatures.length > 0 && !existing.electricalEnergyMeasurement) {
+    behaviors.push((requirements.ElectricalEnergyMeasurementServer as any).with(...detection.energyFeatures))
+  }
+
+  if (behaviors.length === 0) {
+    return deviceType
+  }
+
+  const detected = [
+    detection.hasPowerMeasurement ? 'power' : undefined,
+    detection.energyFeatures.length > 0 ? `energy (${detection.energyFeatures.join(', ')})` : undefined,
+  ].filter(Boolean).join(' + ')
+  log.info(`Auto-detected electrical measurement for ${accessory.displayName}: ${detected}`)
+
+  return (deviceType as any).with(...behaviors)
+}

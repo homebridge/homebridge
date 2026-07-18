@@ -18,6 +18,49 @@ import { MatterDeviceError } from '../types.js'
 
 const log = Logger.withPrefix('Matter/Server')
 
+/**
+ * Recursively convert bigint values to numbers. matter.js can surface int64
+ * attributes (e.g. ElectricalPowerMeasurement.activePower, energy readings)
+ * as bigint, which JSON.stringify cannot serialize - and state read results
+ * cross the child-bridge IPC boundary as JSON. Energy values stay far below
+ * Number.MAX_SAFE_INTEGER (2^53 mWh is around nine billion kWh), so the
+ * conversion is lossless in practice.
+ */
+function coerceBigintsToNumbers(value: unknown): unknown {
+  if (typeof value === 'bigint') {
+    return Number(value)
+  }
+  if (Array.isArray(value)) {
+    return value.map(coerceBigintsToNumbers)
+  }
+  // Only recurse into plain data objects (cluster structs). Anything with a
+  // prototype - Uint8Array byte strings, Dates, class instances - must pass
+  // through untouched or the copy would mangle it.
+  if (value && typeof value === 'object') {
+    const proto = Object.getPrototypeOf(value)
+    if (proto !== Object.prototype && proto !== null) {
+      return value
+    }
+    const result: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(value)) {
+      result[key] = coerceBigintsToNumbers(entry)
+    }
+    return result
+  }
+  return value
+}
+
+/**
+ * Maps the four ElectricalEnergyMeasurement reading attributes to the shape
+ * matter.js setMeasurement() expects.
+ */
+const ENERGY_ATTRIBUTE_MAP: Record<string, { period: 'cumulativeEnergy' | 'periodicEnergy', direction: 'imported' | 'exported' }> = {
+  cumulativeEnergyImported: { period: 'cumulativeEnergy', direction: 'imported' },
+  cumulativeEnergyExported: { period: 'cumulativeEnergy', direction: 'exported' },
+  periodicEnergyImported: { period: 'periodicEnergy', direction: 'imported' },
+  periodicEnergyExported: { period: 'periodicEnergy', direction: 'exported' },
+}
+
 export class StateManager {
   constructor(
     private readonly accessories: Map<string, InternalMatterAccessory>,
@@ -64,8 +107,15 @@ export class StateManager {
     return new Promise((resolve, reject) => {
       setImmediate(async () => {
         try {
-          const updateObject = { [cluster]: attributes }
-          await targetEndpoint.set(updateObject)
+          if (cluster === 'electricalEnergyMeasurement') {
+            // Energy readings must go through matter.js setMeasurement() so the
+            // spec-required CumulativeEnergyMeasured / PeriodicEnergyMeasured
+            // events are emitted alongside the attribute updates.
+            await this.applyEnergyMeasurementUpdate(targetEndpoint, attributes)
+          } else {
+            const updateObject = { [cluster]: attributes }
+            await targetEndpoint.set(updateObject)
+          }
 
           // Update cached clusters object for persistence
           if (!targetClusters) {
@@ -92,6 +142,43 @@ export class StateManager {
         }
       })
     })
+  }
+
+  /**
+   * Apply an ElectricalEnergyMeasurement update. Non-null energy readings are
+   * routed through the matter.js setMeasurement() helper, which updates the
+   * attributes and also emits the CumulativeEnergyMeasured /
+   * PeriodicEnergyMeasured events the spec requires. Everything else (accuracy,
+   * null clears) goes through a plain state set.
+   */
+  private async applyEnergyMeasurementUpdate(endpoint: Endpoint, attributes: Record<string, unknown>): Promise<void> {
+    const behaviorClass = (endpoint as any).behaviors?.supported?.electricalEnergyMeasurement
+    if (!behaviorClass) {
+      // No EEM behavior on this endpoint - let the plain set produce the
+      // same "unsupported cluster" error any other cluster would.
+      await endpoint.set({ electricalEnergyMeasurement: attributes } as any)
+      return
+    }
+
+    const measurement: Record<string, Record<string, unknown>> = {}
+    const rest: Record<string, unknown> = {}
+
+    for (const [key, value] of Object.entries(attributes)) {
+      const mapping = ENERGY_ATTRIBUTE_MAP[key]
+      if (mapping && value !== null && value !== undefined) {
+        measurement[mapping.period] = { ...measurement[mapping.period], [mapping.direction]: value }
+      } else {
+        rest[key] = value
+      }
+    }
+
+    if (Object.keys(rest).length > 0) {
+      await endpoint.set({ electricalEnergyMeasurement: rest } as any)
+    }
+
+    if (Object.keys(measurement).length > 0) {
+      await endpoint.act((agent: any) => agent.get(behaviorClass).setMeasurement(measurement))
+    }
   }
 
   /**
@@ -153,7 +240,7 @@ export class StateManager {
           if (typeof value === 'function' || value === undefined) {
             continue
           }
-          result[key] = value
+          result[key] = coerceBigintsToNumbers(value)
         } catch (propError) {
           log.debug(`Could not read property ${key} from ${cluster}:`, propError)
         }

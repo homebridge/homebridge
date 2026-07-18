@@ -24,7 +24,7 @@ import { EventEmitter } from 'node:events'
 import process from 'node:process'
 
 import { Endpoint } from '@matter/main'
-import { BasicInformationServer, BridgedDeviceBasicInformationServer } from '@matter/main/behaviors'
+import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer } from '@matter/main/behaviors'
 import { PowerSourceServer } from '@matter/node/behaviors'
 
 import { IpcOutgoingEvent } from '../../ipcService.js'
@@ -32,10 +32,13 @@ import { Logger } from '../../logger.js'
 import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
 import {
+  applyElectricalMeasurementClusters,
+  applyElectricalMeasurementDefaults,
   applySmokeCoAlarmFeatures,
   applyWindowCoveringFeatures,
   CLUSTER_IDS,
   detectBehaviorFeatures,
+  detectElectricalMeasurementClusters,
   detectSmokeCoAlarmFeatures,
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
@@ -140,6 +143,23 @@ export class AccessoryManager {
         deviceType = applySmokeCoAlarmFeatures(deviceType, accessory, detectSmokeCoAlarmFeatures(accessory))
       }
 
+      // Electrical measurement clusters (power/energy metering) are feature-gated
+      // in matter.js and not part of any base device type. Detect them from the
+      // accessory's declared cluster state so any device type - outlets included -
+      // can report power/energy (surfaced by e.g. the iOS 27+ Home app energy view).
+      const electricalDetection = detectElectricalMeasurementClusters(accessory)
+      const hasElectrical = electricalDetection.hasPowerMeasurement || electricalDetection.energyFeatures.length > 0
+      if (hasElectrical) {
+        applyElectricalMeasurementDefaults(accessory, electricalDetection)
+        deviceType = applyElectricalMeasurementClusters(deviceType, accessory, electricalDetection)
+      } else if (deviceType.deviceType === devices.ElectricalSensorEndpoint?.deviceType) {
+        log.warn(
+          `${accessory.displayName} uses the ElectricalSensor device type but declares no `
+          + 'electricalPowerMeasurement or electricalEnergyMeasurement cluster state - '
+          + 'the endpoint will expose no measurement clusters.',
+        )
+      }
+
       const features = this.detectClusterFeatures(accessory, deviceType)
       const customBehaviors = await this.buildCustomBehaviors(accessory, deviceType, features)
       if (customBehaviors.length > 0) {
@@ -174,6 +194,10 @@ export class AccessoryManager {
         if (deps.config.debugModeEnabled) {
           log.debug(`Added endpoint for ${accessory.displayName} to aggregator`)
         }
+      }
+
+      if (hasElectrical) {
+        await this.advertiseElectricalSensorDeviceType(endpoint, accessory.displayName)
       }
 
       this.registerAccessoryHandlers(accessory, deps)
@@ -593,6 +617,16 @@ export class AccessoryManager {
         }
       }
 
+      // Electrical measurement detection runs for parts too, so composed
+      // devices (e.g. a power strip with metered outlets, or a solar setup
+      // exposing separate meters) can report power/energy per part.
+      const partElectrical = detectElectricalMeasurementClusters(part)
+      const partHasElectrical = partElectrical.hasPowerMeasurement || partElectrical.energyFeatures.length > 0
+      if (partHasElectrical) {
+        applyElectricalMeasurementDefaults(part, partElectrical)
+        partDeviceType = applyElectricalMeasurementClusters(partDeviceType, part, partElectrical)
+      }
+
       const partEndpointOptions: any = {
         id: partEndpointId,
         ...part.clusters,
@@ -602,6 +636,10 @@ export class AccessoryManager {
       setRegistryManager(partEndpoint, deps.registryManager)
 
       await parentEndpoint.add(partEndpoint)
+
+      if (partHasElectrical) {
+        await this.advertiseElectricalSensorDeviceType(partEndpoint, part.displayName || part.id)
+      }
 
       log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
 
@@ -623,6 +661,23 @@ export class AccessoryManager {
     }
 
     return internalParts
+  }
+
+  /**
+   * Advertise the ElectricalSensor utility device type (0x0510) in the
+   * endpoint's descriptor. Controllers discover power/energy metering through
+   * the device type list, not just the clusters, so an outlet that carries
+   * the measurement clusters must also list ElectricalSensor. matter.js
+   * dedupes the entry, so this is safe when the base device type already is
+   * an ElectricalSensor.
+   */
+  private async advertiseElectricalSensorDeviceType(endpoint: Endpoint, displayName: string): Promise<void> {
+    try {
+      await endpoint.act(agent => agent.get(DescriptorServer).addDeviceTypes('ElectricalSensor'))
+      log.debug(`Advertised ElectricalSensor device type for ${displayName}`)
+    } catch (error) {
+      log.warn(`Could not advertise ElectricalSensor device type for ${displayName}:`, error)
+    }
   }
 
   /**

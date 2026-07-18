@@ -357,3 +357,80 @@ export interface PowerSourceState {
   batChargingCurrent?: number | null
   activeBatChargeFaults?: number[]
 }
+
+/**
+ * One accuracy range within a MeasurementAccuracyStruct.
+ * At least one of the percent or fixed fields must be present.
+ * Percent fields are in hundredths of a percent (e.g. 100 = 1%),
+ * fixed fields are in the measurement's base unit (mV/mA/mW/mWh).
+ */
+export interface MeasurementAccuracyRangeStruct {
+  rangeMin: number
+  rangeMax: number
+  percentMax?: number
+  percentMin?: number
+  percentTypical?: number
+  fixedMax?: number
+  fixedMin?: number
+  fixedTypical?: number
+}
+
+/**
+ * Accuracy declaration for one measurement type (MeasurementAccuracyStruct).
+ * measurementType uses the Matter MeasurementType enum
+ * (1 = Voltage, 2 = ActiveCurrent, 5 = ActivePower, 14 = ElectricalEnergy).
+ */
+export interface MeasurementAccuracyStruct {
+  measurementType: number
+  measured: boolean
+  minMeasuredValue: number
+  maxMeasuredValue: number
+  accuracyRanges: MeasurementAccuracyRangeStruct[]
+}
+
+/**
+ * An energy reading (EnergyMeasurementStruct). energy is in milliwatt-hours.
+ * Timestamps are epoch seconds; systimes are milliseconds since boot.
+ */
+export interface EnergyMeasurementStruct {
+  energy: number
+  startTimestamp?: number
+  endTimestamp?: number
+  startSystime?: number
+  endSystime?: number
+}
+
+/**
+ * ElectricalPowerMeasurement cluster state.
+ * Units are the raw Matter units: voltage in millivolts, current in
+ * milliamps, power in milliwatts. All measurement values are nullable
+ * (null = no measurement currently available).
+ *
+ * powerMode, numberOfMeasurementTypes and accuracy are mandatory in Matter
+ * but are synthesized with sensible defaults at registration when omitted
+ * (powerMode defaults to AC; accuracy is derived from the declared
+ * measurement attributes).
+ */
+export interface ElectricalPowerMeasurementState {
+  powerMode?: number
+  numberOfMeasurementTypes?: number
+  accuracy?: MeasurementAccuracyStruct[]
+  voltage?: number | null
+  activeCurrent?: number | null
+  activePower?: number | null
+}
+
+/**
+ * ElectricalEnergyMeasurement cluster state.
+ * Cluster features (Imported/Exported x Cumulative/Periodic) are detected at
+ * registration from which of these attributes the accessory declares.
+ * accuracy is mandatory in Matter but synthesized with a sensible default
+ * when omitted.
+ */
+export interface ElectricalEnergyMeasurementState {
+  accuracy?: MeasurementAccuracyStruct
+  cumulativeEnergyImported?: EnergyMeasurementStruct | null
+  cumulativeEnergyExported?: EnergyMeasurementStruct | null
+  periodicEnergyImported?: EnergyMeasurementStruct | null
+  periodicEnergyExported?: EnergyMeasurementStruct | null
+}

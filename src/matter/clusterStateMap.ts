@@ -13,6 +13,8 @@
 import type {
   ColorControlState,
   DoorLockState,
+  ElectricalEnergyMeasurementState,
+  ElectricalPowerMeasurementState,
   FanControlState,
   LevelControlState,
   OnOffState,
@@ -81,6 +83,10 @@ export interface ClusterStateMap {
 
   // Switch (GenericSwitch - stateless remotes and buttons)
   switch: { currentPosition: number, numberOfPositions?: number }
+
+  // Electrical measurement (iOS 27+ energy display)
+  electricalPowerMeasurement: ElectricalPowerMeasurementState
+  electricalEnergyMeasurement: ElectricalEnergyMeasurementState
 
   // Identification
   identify: { identifyTime: number, identifyType: number }

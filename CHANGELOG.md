@@ -19,6 +19,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): map valve commands for ui control
 - chore(ci): bump actions/setup-node to v7
 - fix: preserve concurrent accessory registration during cache restore (#3919) (@zerafachris)
+- feat(matter): add electrical power and energy measurement clusters (#3962)
 
 ### Homebridge Dependencies
 

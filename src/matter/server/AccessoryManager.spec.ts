@@ -3,6 +3,11 @@ import type { AccessoryManagerDeps } from './AccessoryManager.js'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  applyElectricalMeasurementClusters,
+  applyElectricalMeasurementDefaults,
+  detectElectricalMeasurementClusters,
+} from '../serverHelpers.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
 // Mock all heavy dependencies
@@ -13,6 +18,7 @@ vi.mock('@matter/main', () => {
     id: string | undefined
     close = vi.fn()
     add = vi.fn()
+    act = vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ addDeviceTypes: vi.fn() })) }))
     constructor(deviceType: any, options: any) {
       this.deviceType = deviceType
       this.options = options
@@ -24,6 +30,7 @@ vi.mock('@matter/main', () => {
 vi.mock('@matter/main/behaviors', () => ({
   BasicInformationServer: { name: 'BasicInformationServer' },
   BridgedDeviceBasicInformationServer: { name: 'BridgedDeviceBasicInformationServer' },
+  DescriptorServer: { name: 'DescriptorServer' },
 }))
 vi.mock('@matter/node/behaviors', () => ({
   PowerSourceServer: { name: 'PowerSourceServer', with: vi.fn((...args: any[]) => ({ name: `PowerSourceServer.with(${args.join(',')})` })) },
@@ -46,6 +53,9 @@ vi.mock('../serverHelpers.js', () => ({
   applyWindowCoveringFeatures: vi.fn((dt: any) => dt),
   detectSmokeCoAlarmFeatures: vi.fn(() => ['SmokeAlarm']),
   applySmokeCoAlarmFeatures: vi.fn((dt: any) => dt),
+  detectElectricalMeasurementClusters: vi.fn(() => ({ hasPowerMeasurement: false, energyFeatures: [] })),
+  applyElectricalMeasurementDefaults: vi.fn(),
+  applyElectricalMeasurementClusters: vi.fn((dt: any) => dt),
   detectBehaviorFeatures: vi.fn(() => null),
   extractColorControlFeatures: vi.fn(() => []),
   extractLevelControlFeatures: vi.fn(() => []),
@@ -69,6 +79,7 @@ vi.mock('../types.js', () => {
     devices: {
       RoboticVacuumCleanerDevice: { deviceType: 0x0074 },
       SmokeCoAlarmDevice: { deviceType: 0x0076 },
+      ElectricalSensorEndpoint: { deviceType: 0x0510 },
       RoboticVacuumCleanerRequirements: {
         RvcCleanModeServer: { name: 'RvcCleanModeServer' },
         ServiceAreaServer: {
@@ -307,6 +318,70 @@ describe('accessoryManager', () => {
       // Cached state should have been merged (cache overrides plugin defaults)
       expect(accessory.clusters!.onOff!.onOff).toBe(true)
       expect(accessory.context).toEqual({ savedKey: 'savedValue' })
+    })
+  })
+
+  describe('electrical measurement registration', () => {
+    it('applies defaults, behaviors and the descriptor device type when electrical clusters are detected', async () => {
+      vi.mocked(detectElectricalMeasurementClusters).mockReturnValueOnce({
+        hasPowerMeasurement: true,
+        energyFeatures: ['ImportedEnergy', 'CumulativeEnergy'],
+      })
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        clusters: { onOff: { onOff: false }, electricalPowerMeasurement: { activePower: 0 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(applyElectricalMeasurementDefaults).toHaveBeenCalledWith(
+        accessory,
+        expect.objectContaining({ hasPowerMeasurement: true }),
+      )
+      expect(applyElectricalMeasurementClusters).toHaveBeenCalled()
+      // The ElectricalSensor device type is advertised through the descriptor
+      // after the endpoint joins the node.
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.act).toHaveBeenCalledTimes(1)
+    })
+
+    it('runs electrical detection for composed-device parts too', async () => {
+      // First call = main accessory (nothing), second call = the part (power)
+      vi.mocked(detectElectricalMeasurementClusters)
+        .mockReturnValueOnce({ hasPowerMeasurement: false, energyFeatures: [] })
+        .mockReturnValueOnce({ hasPowerMeasurement: true, energyFeatures: [] })
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        parts: [{
+          id: 'outlet-1',
+          displayName: 'Metered Outlet 1',
+          deviceType: { deviceType: 0x010A, with: vi.fn(() => ({ deviceType: 0x010A, with: vi.fn() })) } as any,
+          clusters: { onOff: { onOff: false }, electricalPowerMeasurement: { activePower: 0 } },
+        }],
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(applyElectricalMeasurementDefaults).toHaveBeenCalledTimes(1)
+      expect(applyElectricalMeasurementDefaults).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'outlet-1' }),
+        expect.objectContaining({ hasPowerMeasurement: true }),
+      )
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.act).not.toHaveBeenCalled() // main endpoint unaffected
+      expect(internal._parts[0].endpoint.act).toHaveBeenCalledTimes(1) // part advertises 0x0510
+    })
+
+    it('skips electrical wiring when no electrical clusters are declared', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory()
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(applyElectricalMeasurementDefaults).not.toHaveBeenCalled()
+      expect(applyElectricalMeasurementClusters).not.toHaveBeenCalled()
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.act).not.toHaveBeenCalled()
     })
   })
 

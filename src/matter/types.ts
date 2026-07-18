@@ -34,6 +34,8 @@ import { BooleanState } from '@matter/main/clusters/boolean-state'
 import { CarbonMonoxideConcentrationMeasurement } from '@matter/main/clusters/carbon-monoxide-concentration-measurement'
 import { ColorControl } from '@matter/main/clusters/color-control'
 import { DoorLock } from '@matter/main/clusters/door-lock'
+import { ElectricalEnergyMeasurement } from '@matter/main/clusters/electrical-energy-measurement'
+import { ElectricalPowerMeasurement } from '@matter/main/clusters/electrical-power-measurement'
 import { FanControl } from '@matter/main/clusters/fan-control'
 import { LevelControl } from '@matter/main/clusters/level-control'
 import { NitrogenDioxideConcentrationMeasurement } from '@matter/main/clusters/nitrogen-dioxide-concentration-measurement'
@@ -41,6 +43,7 @@ import { OnOff } from '@matter/main/clusters/on-off'
 import { OzoneConcentrationMeasurement } from '@matter/main/clusters/ozone-concentration-measurement'
 import { Pm10ConcentrationMeasurement } from '@matter/main/clusters/pm10-concentration-measurement'
 import { Pm25ConcentrationMeasurement } from '@matter/main/clusters/pm25-concentration-measurement'
+import { PowerTopology } from '@matter/main/clusters/power-topology'
 import { RvcOperationalState } from '@matter/main/clusters/rvc-operational-state'
 import { Thermostat } from '@matter/main/clusters/thermostat'
 import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
@@ -71,6 +74,7 @@ import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detecto
 import { WaterValveDevice, WaterValveRequirements } from '@matter/main/devices/water-valve'
 import { WindowCoveringDevice } from '@matter/main/devices/window-covering'
 import { BridgedNodeEndpoint } from '@matter/main/endpoints/bridged-node'
+import { ElectricalSensorEndpoint, ElectricalSensorRequirements } from '@matter/main/endpoints/electrical-sensor'
 
 import { DefaultValveConfigurationAndControlServer } from './behaviors/ValveConfigurationAndControlBehavior.js'
 
@@ -487,6 +491,8 @@ const devices = {
   DimmableLightDevice,
   DimmablePlugInUnitDevice,
   DoorLockDevice,
+  ElectricalSensorEndpoint,
+  ElectricalSensorRequirements,
   ExtendedColorLightDevice,
   FanDevice,
   GenericSwitchDevice,
@@ -526,6 +532,8 @@ const clusters = {
   CarbonMonoxideConcentrationMeasurement,
   ColorControl,
   DoorLock,
+  ElectricalEnergyMeasurement,
+  ElectricalPowerMeasurement,
   FanControl,
   LevelControl,
   NitrogenDioxideConcentrationMeasurement,
@@ -533,6 +541,7 @@ const clusters = {
   OzoneConcentrationMeasurement,
   Pm10ConcentrationMeasurement,
   Pm25ConcentrationMeasurement,
+  PowerTopology,
   RvcOperationalState,
   Thermostat,
   ValveConfigurationAndControl,
@@ -576,6 +585,15 @@ export const deviceTypes = {
   // accessory's declared cluster attributes at registration
   // (see applySmokeCoAlarmFeatures in serverHelpers.ts).
   SmokeSensor: devices.SmokeCoAlarmDevice,
+  // Standalone electrical sensor (power/energy metering, e.g. a solar or
+  // whole-home meter). Its clusters are feature-gated in matter.js, so the
+  // PowerTopology / ElectricalPowerMeasurement / ElectricalEnergyMeasurement
+  // servers are auto-detected from the accessory's declared cluster attributes
+  // at registration (see applyElectricalMeasurementClusters in serverHelpers.ts).
+  // The same detection also runs for outlets, so an OnOffOutlet that declares
+  // electricalPowerMeasurement / electricalEnergyMeasurement state gets these
+  // clusters too — no separate device type needed for a metering smart plug.
+  ElectricalSensor: devices.ElectricalSensorEndpoint,
 
   // HVAC
   Thermostat: devices.ThermostatDevice.with(devices.ThermostatRequirements.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy')),
