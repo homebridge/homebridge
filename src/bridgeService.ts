@@ -443,7 +443,29 @@ export class BridgeService {
   }
 
   public restoreCachedPlatformAccessories(): void {
-    this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter((accessory) => {
+    // NOTE: `platformPlugins.configureAccessory(accessory)` below runs plugin code
+    // synchronously, and plugins commonly call `api.registerPlatformAccessories()`,
+    // `api.updatePlatformAccessories()` or `api.unregisterPlatformAccessories()` from
+    // within that very callback (e.g. to add/remove a companion accessory, or to swap
+    // in an updated accessory instance). Those calls mutate `this.cachedPlatformAccessories`
+    // while this method is still iterating over it. Previously this method finished by
+    // reassigning `this.cachedPlatformAccessories` to the filtered result of the *original*
+    // pre-iteration array, which silently discarded any such concurrent mutation. Instead,
+    // we iterate a snapshot of the original list and only remove orphaned accessories from
+    // whatever `this.cachedPlatformAccessories` holds once iteration has finished. The
+    // snapshot must be a copy — `handleRegisterPlatformAccessories()` pushes into the live
+    // array, and a `for...of` over the live array would visit those new accessories and
+    // configure/bridge them a second time.
+    const accessoriesToRestore = [...this.cachedPlatformAccessories]
+    const orphanedAccessories = new Set<PlatformAccessory>()
+
+    for (const accessory of accessoriesToRestore) {
+      // Skip accessories the plugin unregistered from an earlier configureAccessory()
+      // call in this same loop — they are already off the bridge and out of the cache.
+      if (!this.cachedPlatformAccessories.includes(accessory)) {
+        continue
+      }
+
       let plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
       if (!plugin) { // a little explainer here. This section is basically here to resolve plugin name changes of dynamic platform plugins
         try {
@@ -476,7 +498,8 @@ export class BridgeService {
         log.info(`Failed to find plugin to handle accessory ${accessory._associatedHAPAccessory.displayName}`)
         if (!this.bridgeOptions.keepOrphanedCachedAccessories) {
           log.info(`Removing orphaned accessory ${accessory._associatedHAPAccessory.displayName}`)
-          return false // filter it from the list
+          orphanedAccessories.add(accessory) // remove it from the list
+          continue
         }
       } else {
         // We set a placeholder for FirmwareRevision before configureAccessory is called so the plugin has the opportunity to override it.
@@ -488,10 +511,15 @@ export class BridgeService {
         this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory)
       } catch (error: any) {
         log.warn(`${accessory._associatedPlugin ? getLogPrefix(accessory._associatedPlugin) : ''} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, error.message)
-        return false // filter it from the list
+        orphanedAccessories.add(accessory) // remove it from the list
       }
-      return true // keep it in the list
-    })
+    }
+
+    if (orphanedAccessories.size > 0) {
+      this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(
+        accessory => !orphanedAccessories.has(accessory),
+      )
+    }
   }
 
   /**
