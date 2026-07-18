@@ -18,6 +18,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): make water valve open/close commands work
 - feat(matter): map valve commands for ui control
 - chore(ci): bump actions/setup-node to v7
+- fix: preserve concurrent accessory registration during cache restore (#3919) (@zerafachris)
 
 ### Homebridge Dependencies
 
