@@ -20,6 +20,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - chore(ci): bump actions/setup-node to v7
 - fix: preserve concurrent accessory registration during cache restore (#3919) (@zerafachris)
 - feat(matter): add electrical power and energy measurement clusters (#3962)
+- docs: regenerate docs for `v2.2.0`
 
 ### Homebridge Dependencies
 

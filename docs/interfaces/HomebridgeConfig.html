@@ -15,7 +15,7 @@
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">HomebridgeConfig</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#accessories">accessories</a><span class="tsd-signature-symbol">:</span> <a href="AccessoryConfig.html" class="tsd-signature-type tsd-kind-interface">AccessoryConfig</a><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#bridge">bridge</a><span class="tsd-signature-symbol">:</span> <a href="BridgeConfiguration.html" class="tsd-signature-type tsd-kind-interface">BridgeConfiguration</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#disabledplugins">disabledPlugins</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#matterports">matterPorts</a><span class="tsd-signature-symbol">?:</span> <a href="ExternalPortsConfiguration.html" class="tsd-signature-type tsd-kind-interface">ExternalPortsConfiguration</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#mdns">mdns</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#platforms">platforms</a><span class="tsd-signature-symbol">:</span> <a href="PlatformConfig.html" class="tsd-signature-type tsd-kind-interface">PlatformConfig</a><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#plugins">plugins</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#ports">ports</a><span class="tsd-signature-symbol">?:</span> <a href="ExternalPortsConfiguration.html" class="tsd-signature-type tsd-kind-interface">ExternalPortsConfiguration</a><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L213">bridgeService.ts:213</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L213">src/bridgeService.ts:213</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -39,12 +39,12 @@
 <h3 class="tsd-anchor-link" id="accessories"><span>accessories</span><a href="#accessories" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">accessories</span><span class="tsd-signature-symbol">:</span> <a href="AccessoryConfig.html" class="tsd-signature-type tsd-kind-interface">AccessoryConfig</a><span class="tsd-signature-symbol">[]</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L221">bridgeService.ts:221</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L221">src/bridgeService.ts:221</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="bridge"><span>bridge</span><a href="#bridge" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">bridge</span><span class="tsd-signature-symbol">:</span> <a href="BridgeConfiguration.html" class="tsd-signature-type tsd-kind-interface">BridgeConfiguration</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L214">bridgeService.ts:214</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L214">src/bridgeService.ts:214</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="disabledplugins"><code class="tsd-tag">Optional</code><span>disabled<wbr/>Plugins</span><a href="#disabledplugins" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">disabledPlugins</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
@@ -53,12 +53,12 @@ Unlike the plugins[] config which prevents plugins from being initialized at all
 we can match config blocks of disabled plugins and show an appropriate message in the logs.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L231">bridgeService.ts:231</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L231">src/bridgeService.ts:231</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="matterports"><code class="tsd-tag">Optional</code><span>matter<wbr/>Ports</span><a href="#matterports" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">matterPorts</span><span class="tsd-signature-symbol">?:</span> <a href="ExternalPortsConfiguration.html" class="tsd-signature-type tsd-kind-interface">ExternalPortsConfiguration</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L238">bridgeService.ts:238</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L238">src/bridgeService.ts:238</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="mdns"><code class="tsd-tag">Optional</code><span class="deprecated">mdns</span><a href="#mdns" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">mdns</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">any</span></div>
@@ -66,22 +66,22 @@ we can match config blocks of disabled plugins and show an appropriate message i
 <div class="tsd-tag-deprecated">
 <h4 class="tsd-anchor-link" id="deprecated">Deprecated<a href="#deprecated" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4></div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L219">bridgeService.ts:219</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L219">src/bridgeService.ts:219</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="platforms"><span>platforms</span><a href="#platforms" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">platforms</span><span class="tsd-signature-symbol">:</span> <a href="PlatformConfig.html" class="tsd-signature-type tsd-kind-interface">PlatformConfig</a><span class="tsd-signature-symbol">[]</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L222">bridgeService.ts:222</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L222">src/bridgeService.ts:222</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="plugins"><code class="tsd-tag">Optional</code><span>plugins</span><a href="#plugins" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">plugins</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L224">bridgeService.ts:224</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L224">src/bridgeService.ts:224</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="ports"><code class="tsd-tag">Optional</code><span>ports</span><a href="#ports" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">ports</span><span class="tsd-signature-symbol">?:</span> <a href="ExternalPortsConfiguration.html" class="tsd-signature-type tsd-kind-interface">ExternalPortsConfiguration</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/550d7f31fac62b50436bac4c7d3ea7862dc95637/src/bridgeService.ts#L234">bridgeService.ts:234</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/819e8bc46776d762375ab7d569193f5d52286a96/src/bridgeService.ts#L234">src/bridgeService.ts:234</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
