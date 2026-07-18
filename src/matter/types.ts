@@ -707,6 +707,10 @@ export const clusterNames = {
   // Switch (GenericSwitch - stateless remotes and buttons)
   Switch: 'switch',
 
+  // Electrical Measurement (power/energy readings on outlets, ElectricalSensor, ...)
+  ElectricalPowerMeasurement: 'electricalPowerMeasurement',
+  ElectricalEnergyMeasurement: 'electricalEnergyMeasurement',
+
   // Device Information (read-only, set during registration)
   BasicInformation: 'basicInformation',
   BridgedDeviceBasicInformation: 'bridgedDeviceBasicInformation',
