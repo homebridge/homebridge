@@ -7,6 +7,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Changes
 
 - fix(matter): add electrical clusters to public cluster name map
+- chore(deps): dependency updates
 
 ### Homebridge Dependencies
 
