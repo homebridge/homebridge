@@ -452,11 +452,20 @@ export class BridgeService {
     // reassigning `this.cachedPlatformAccessories` to the filtered result of the *original*
     // pre-iteration array, which silently discarded any such concurrent mutation. Instead,
     // we iterate a snapshot of the original list and only remove orphaned accessories from
-    // whatever `this.cachedPlatformAccessories` holds once iteration has finished.
-    const accessoriesToRestore = this.cachedPlatformAccessories
+    // whatever `this.cachedPlatformAccessories` holds once iteration has finished. The
+    // snapshot must be a copy — `handleRegisterPlatformAccessories()` pushes into the live
+    // array, and a `for...of` over the live array would visit those new accessories and
+    // configure/bridge them a second time.
+    const accessoriesToRestore = [...this.cachedPlatformAccessories]
     const orphanedAccessories = new Set<PlatformAccessory>()
 
     for (const accessory of accessoriesToRestore) {
+      // Skip accessories the plugin unregistered from an earlier configureAccessory()
+      // call in this same loop — they are already off the bridge and out of the cache.
+      if (!this.cachedPlatformAccessories.includes(accessory)) {
+        continue
+      }
+
       let plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
       if (!plugin) { // a little explainer here. This section is basically here to resolve plugin name changes of dynamic platform plugins
         try {

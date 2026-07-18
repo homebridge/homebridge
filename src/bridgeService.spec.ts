@@ -255,8 +255,23 @@ describe('bridgeService', () => {
   describe('restoreCachedPlatformAccessories', () => {
     it('does not discard a registerPlatformAccessories() call made synchronously from configureAccessory()', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation(accessory => accessory)
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
+
+      // Mirror HAP-NodeJS: adding the same accessory (by UUID) to the bridge a
+      // second time throws. If the restore loop wrongly re-visits an accessory
+      // registered mid-restore, this mock surfaces it instead of hiding it.
+      const bridgedUuids = new Set<string>()
+      vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation((accessory: any) => {
+        if (bridgedUuids.has(accessory.UUID)) {
+          throw new Error(`Cannot add a bridged Accessory with the same UUID as another bridged Accessory: ${accessory.UUID}`)
+        }
+        bridgedUuids.add(accessory.UUID)
+        return accessory
+      })
+      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation((accessories: any) => {
+        for (const accessory of accessories) {
+          service.bridge.addBridgedAccessory(accessory)
+        }
+      })
 
       const cachedA = makePlatformAccessory('A')
       const cachedB = makePlatformAccessory('B')
@@ -284,6 +299,47 @@ describe('bridgeService', () => {
       expect(cached).toContain(cachedA)
       expect(cached).toContain(cachedB)
       expect(cached).toContain(companion)
+
+      // configureAccessory is only for restoring cached accessories — the
+      // companion was registered by the plugin itself and must not be handed
+      // back through configureAccessory or bridged a second time.
+      expect(platform.configureAccessory).toHaveBeenCalledTimes(2)
+      expect(platform.configureAccessory).not.toHaveBeenCalledWith(companion)
+    })
+
+    it('does not restore an accessory unregistered synchronously from an earlier configureAccessory()', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation(accessory => accessory)
+      vi.spyOn(service.bridge, 'removeBridgedAccessories').mockImplementation(() => {})
+
+      const cachedA = makePlatformAccessory('A')
+      const cachedB = makePlatformAccessory('B')
+      const cachedC = makePlatformAccessory('C')
+      ;(service as any).cachedPlatformAccessories = [cachedA, cachedB, cachedC]
+
+      // A plugin may decide during restore that a cached accessory is stale and
+      // unregister it before the loop reaches it. The loop must neither
+      // configure/bridge the removed accessory nor skip over its neighbours.
+      const platform = {
+        configureAccessory: vi.fn((accessory: any) => {
+          if (accessory === cachedA) {
+            service.handleUnregisterPlatformAccessories([cachedB])
+          }
+        }),
+      }
+      pluginManager.getPlugin.mockReturnValue({
+        getActiveDynamicPlatform: () => platform,
+      })
+
+      service.restoreCachedPlatformAccessories()
+
+      const cached = (service as any).cachedPlatformAccessories
+      expect(cached).toContain(cachedA)
+      expect(cached).not.toContain(cachedB)
+      expect(cached).toContain(cachedC)
+      expect(platform.configureAccessory).toHaveBeenCalledWith(cachedA)
+      expect(platform.configureAccessory).toHaveBeenCalledWith(cachedC)
+      expect(platform.configureAccessory).not.toHaveBeenCalledWith(cachedB)
     })
 
     it('does not discard an updatePlatformAccessories() call made synchronously from configureAccessory()', () => {
