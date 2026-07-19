@@ -410,6 +410,11 @@ export interface EnergyMeasurementStruct {
  * but are synthesized with sensible defaults at registration when omitted
  * (powerMode defaults to AC; accuracy is derived from the declared
  * measurement attributes).
+ *
+ * Update cadence: the reading attributes (voltage, activeCurrent,
+ * activePower) are quieter-quality attributes - matter.js throttles their
+ * reports to subscribers (roughly one per 10 seconds), so frequent updates
+ * are tolerated but wasted. A cadence of a few seconds or slower is plenty.
  */
 export interface ElectricalPowerMeasurementState {
   powerMode?: number
@@ -426,6 +431,12 @@ export interface ElectricalPowerMeasurementState {
  * registration from which of these attributes the accessory declares.
  * accuracy is mandatory in Matter but synthesized with a sensible default
  * when omitted.
+ *
+ * Update cadence: energy readings are delivered to controllers through the
+ * Matter CumulativeEnergyMeasured / PeriodicEnergyMeasured events, and these
+ * are NOT throttled - every update is pushed to every subscribed controller
+ * immediately. Update energy totals at a measured cadence (for example every
+ * 30-60 seconds), not on every raw sample from the device.
  */
 export interface ElectricalEnergyMeasurementState {
   accuracy?: MeasurementAccuracyStruct
