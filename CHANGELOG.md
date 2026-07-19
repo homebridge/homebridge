@@ -9,6 +9,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): add electrical clusters to public cluster name map
 - chore(deps): dependency updates
 - docs(matter): document update cadence for electrical measurement clusters
+- docs: regenerate docs for `v2.2.1`
 
 ### Homebridge Dependencies
 
