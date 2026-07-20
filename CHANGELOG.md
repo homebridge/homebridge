@@ -17,6 +17,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): add FixedLabel and PowerSource to composed parents (#3972) (@keremerkan)
 - feat(matter): expose commissioned fabrics in the child bridge status (#3974)
 - fix(matter): read the fabric vendor id from cluster-shaped fabric entries (#3974)
+- chore(deps): dependency updates
 
 ### Homebridge Dependencies
 
@@ -24,7 +25,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Matter Dependencies
 
-- `@matter/main` @ `v0.17.6`
+- `@matter/main` @ `v0.17.7-alpha`
 
 ## v2.2.1 (2026-07-19)
 

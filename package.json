@@ -50,16 +50,16 @@
   },
   "dependencies": {
     "@homebridge/hap-nodejs": "2.1.9",
-    "@matter/main": "0.17.6",
+    "@matter/main": "0.17.7-alpha.0-20260724-baac832f7",
     "chalk": "5.6.2",
     "commander": "15.0.0",
-    "fs-extra": "11.3.6",
+    "fs-extra": "^11.4.0",
     "qrcode-terminal": "0.12.0",
     "semver": "7.8.5",
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.1.0",
+    "@antfu/eslint-config": "^9.2.0",
     "@prettier/plugin-xml": "^3.4.2",
     "@types/debug": "^4.1.13",
     "@types/fs-extra": "^11.0.4",
