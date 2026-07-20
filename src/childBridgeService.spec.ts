@@ -957,6 +957,20 @@ describe('childBridgeService', () => {
       expect(loadMessage.data.bridgeConfig.hap).toEqual({ enabled: false })
     })
 
+    it('includes hap.addIdentifyingMaterial in LOAD bridgeConfig', () => {
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({ hap: { addIdentifyingMaterial: false } }),
+      })
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      child.emit('message', { id: ChildProcessMessageEventType.READY })
+
+      const loadMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.LOAD)
+      expect(loadMessage.data.bridgeConfig.hap).toEqual({ addIdentifyingMaterial: false })
+    })
+
     it('includes hap.enabled:false alongside matter config in LOAD bridgeConfig', () => {
       const { service } = buildService({
         bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),

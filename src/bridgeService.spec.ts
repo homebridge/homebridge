@@ -6,7 +6,13 @@ import { Accessory, Categories, CharacteristicWarningType, uuid } from '@homebri
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
-import { BridgeService, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
+import {
+  BridgeService,
+  isHapConfigEnabled,
+  isHapExternalsOnly,
+  shouldAddIdentifyingMaterial,
+  validateHapConfig,
+} from './bridgeService.js'
 import { Logger } from './logger.js'
 import { PlatformAccessory } from './platformAccessory.js'
 
@@ -404,6 +410,25 @@ describe('bridgeService', () => {
       expect(externalPortService.requestPort).toHaveBeenCalledTimes(1)
     })
 
+    it('forwards hap.addIdentifyingMaterial to external accessories', async () => {
+      externalPortService.requestPort.mockResolvedValue(50002)
+      const service = new BridgeService(
+        api,
+        pluginManager,
+        externalPortService,
+        makeBridgeOptions(),
+        makeBridgeConfig({ hap: { addIdentifyingMaterial: false } }),
+      )
+
+      const accessory = makePlatformAccessory('External-Exact-Name')
+      const publishSpy = vi.spyOn(accessory._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      await service.handlePublishExternalAccessories([accessory])
+
+      const publishInfo = publishSpy.mock.calls[0][0] as any
+      expect(publishInfo.addIdentifyingMaterial).toBe(false)
+    })
+
     it('throws when an accessory address collides with an existing one', async () => {
       externalPortService.requestPort.mockResolvedValue(50000)
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
@@ -729,6 +754,17 @@ describe('bridgeService', () => {
       expect(publishInfo.addIdentifyingMaterial).toBe(true)
     })
 
+    it('disables identifying material when configured in the HAP block', () => {
+      const config = makeBridgeConfig({ hap: { addIdentifyingMaterial: false } })
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), config)
+      const publishSpy = vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+
+      service.publishBridge()
+
+      const publishInfo = publishSpy.mock.calls[0][0] as any
+      expect(publishInfo.addIdentifyingMaterial).toBe(false)
+    })
+
     it('includes setupID when it is exactly 4 characters', () => {
       const config = makeBridgeConfig({ setupID: 'AB12' })
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), config)
@@ -822,6 +858,19 @@ describe('bridgeService', () => {
     })
   })
 
+  describe('shouldAddIdentifyingMaterial', () => {
+    it('defaults to true when the HAP block or option is omitted', () => {
+      expect(shouldAddIdentifyingMaterial(undefined)).toBe(true)
+      expect(shouldAddIdentifyingMaterial({})).toBe(true)
+      expect(shouldAddIdentifyingMaterial(false)).toBe(true)
+      expect(shouldAddIdentifyingMaterial(true)).toBe(true)
+    })
+
+    it('honours an explicit false value', () => {
+      expect(shouldAddIdentifyingMaterial({ addIdentifyingMaterial: false })).toBe(false)
+    })
+  })
+
   describe('validateHapConfig', () => {
     it('is a no-op when hap is undefined', () => {
       const cfg = makeBridgeConfig()
@@ -831,6 +880,11 @@ describe('bridgeService', () => {
     it('accepts an empty hap object', () => {
       const cfg = makeBridgeConfig({ hap: {} })
       expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+    })
+
+    it('rejects a non-boolean hap.addIdentifyingMaterial value', () => {
+      const cfg = makeBridgeConfig({ hap: { addIdentifyingMaterial: 'false' } })
+      expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).toThrow(/addIdentifyingMaterial.*boolean/)
     })
 
     it('accepts hap.enabled: false on its own', () => {
