@@ -2,6 +2,22 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.2.2 (Pending Release)
+
+### Changes
+
+- feat: make identifying material in bonjour configurable (#3965) (@naterator)
+- fix(matter): compose PowerSource for all device types (#3968) (@zbuc)
+- feat(matter): expose matter status errors on `api.matter.status`
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.1.9`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.17.6`
+
 ## v2.2.1 (2026-07-19)
 
 ### Changes

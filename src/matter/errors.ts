@@ -8,18 +8,21 @@
  * the appropriate status code to the controller (e.g., Home app) instead
  * of crashing the endpoint.
  *
+ * Reach these through `api.matter.status` rather than importing `MatterStatus`
+ * from the `homebridge` package: the import is a value import, so it resolves
+ * the package at plugin load time and fails on installs that keep Homebridge in
+ * a separate `node_modules` tree.
+ *
  * @example
  * ```typescript
- * import { MatterStatus } from 'homebridge'
- *
  * handlers: {
  *   onOff: {
  *     on: async () => {
  *       if (deviceIsBusy) {
- *         throw new MatterStatus.Busy('Device is processing another command')
+ *         throw new api.matter!.status.Busy('Device is processing another command')
  *       }
  *       if (requestTimedOut) {
- *         throw new MatterStatus.Timeout('Device did not respond in time')
+ *         throw new api.matter!.status.Timeout('Device did not respond in time')
  *       }
  *       // ... control device
  *     }
