@@ -10,6 +10,7 @@ import type {
   deviceTypes,
   MatterAccessory,
   MatterServer,
+  MatterStatus,
   MatterTypes,
 } from './matter/index.js'
 import type { SwitchAPI } from './matter/SwitchAPI.js'
@@ -287,6 +288,32 @@ export interface MatterAPI {
    * ```
    */
   readonly types: typeof MatterTypes
+
+  /**
+   * Matter protocol status errors for handlers.
+   *
+   * Throw one of these from a handler to send a specific Matter status code to
+   * the controller instead of failing the endpoint. Prefer this over importing
+   * `MatterStatus` from the `homebridge` package: a value import resolves the
+   * package when the plugin file is loaded, which fails on installs that keep
+   * Homebridge in a separate `node_modules` tree, taking the whole plugin down
+   * with it. The `api` object a plugin already holds has no such problem.
+   *
+   * @example
+   * ```typescript
+   * handlers: {
+   *   onOff: {
+   *     on: async () => {
+   *       if (deviceIsBusy) {
+   *         throw new api.matter!.status.Busy('Device is processing another command')
+   *       }
+   *       // ... control device
+   *     }
+   *   }
+   * }
+   * ```
+   */
+  readonly status: typeof MatterStatus
 
   /**
    * Register Matter platform accessories (works exactly like HAP's registerPlatformAccessories)

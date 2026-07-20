@@ -9,6 +9,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat: make identifying material in bonjour configurable (#3965) (@naterator)
 - fix(matter): compose PowerSource for all device types (#3968) (@zbuc)
 - chore(deps): dependency updates
+- feat(matter): expose matter status errors on `api.matter.status`
 
 ### Homebridge Dependencies
 

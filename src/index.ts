@@ -129,15 +129,22 @@ export { MatterRequests } from './matter/index.js'
 
 /**
  * Matter protocol status errors for plugin handlers
+ *
+ * Prefer `api.matter.status`, which carries the same error classes. Importing
+ * `MatterStatus` from this package is a value import, so it resolves the
+ * `homebridge` package when the plugin file is loaded rather than when an
+ * error is thrown. On installs that keep Homebridge in a separate
+ * `node_modules` tree that resolution fails, and because platforms usually
+ * import every accessory file at startup, a single such import takes down the
+ * entire plugin.
+ *
  * @example
  * ```typescript
- * import { MatterStatus } from 'homebridge'
- *
  * handlers: {
  *   onOff: {
  *     on: async () => {
  *       if (deviceIsBusy) {
- *         throw new MatterStatus.Busy('Device is processing another command')
+ *         throw new api.matter!.status.Busy('Device is processing another command')
  *       }
  *       // ... control device
  *     }
