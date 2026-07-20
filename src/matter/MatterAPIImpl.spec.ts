@@ -9,6 +9,7 @@ vi.mock('./index.js', () => ({
   clusterNames: {},
   clusters: {},
   deviceTypes: { RoboticVacuumCleaner: { deviceType: 0x74 } },
+  MatterStatus: { Busy: class Busy extends Error {} },
   MatterTypes: {},
 }))
 
@@ -189,5 +190,33 @@ describe('matterAPIImpl.unregisterPlatformAccessories — guard before the manag
     await impl.unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [{ UUID: 'uuid-1', deviceType: 'OnOff' } as any])
 
     expect(api.emit).toHaveBeenCalled()
+  })
+})
+
+describe('matterAPIImpl.status — Matter status errors without a runtime homebridge import (#3966)', () => {
+  it('exposes the Matter status error classes', () => {
+    const impl = new MatterAPIImpl(makeApi())
+
+    expect(impl.status).toBeDefined()
+    expect(impl.status.Busy).toBeDefined()
+  })
+
+  it('returns throwable error classes', () => {
+    const impl = new MatterAPIImpl(makeApi())
+
+    const error = new impl.status.Busy('Device is processing another command')
+
+    expect(error).toBeInstanceOf(Error)
+    expect(() => {
+      throw error
+    }).toThrow('Device is processing another command')
+  })
+
+  it('is available before the Matter manager is attached', () => {
+    // Plugins construct handlers at registration time, so the error classes
+    // must not depend on the manager being ready.
+    const impl = new MatterAPIImpl(makeApi({ _matterManager: undefined }))
+
+    expect(impl.status.Busy).toBeDefined()
   })
 })

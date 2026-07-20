@@ -23,7 +23,7 @@ import type { InternalMatterAccessory, MatterAccessory, MatterServer } from './i
 
 import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
-import { clusterNames, clusters, deviceTypes, MatterTypes } from './index.js'
+import { clusterNames, clusters, deviceTypes, MatterStatus, MatterTypes } from './index.js'
 import { SwitchAPIImpl } from './SwitchAPI.js'
 
 /**
@@ -216,6 +216,17 @@ export class MatterAPIImpl implements MatterAPI {
    */
   get types() {
     return MatterTypes
+  }
+
+  /**
+   * Matter protocol status errors for handlers
+   *
+   * Exposed here so plugins never need a runtime import of the `homebridge`
+   * package, which cannot resolve on installs that keep Homebridge in a
+   * separate node_modules tree.
+   */
+  get status() {
+    return MatterStatus
   }
 
   /**
