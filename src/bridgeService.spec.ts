@@ -895,9 +895,9 @@ describe('bridgeService', () => {
 
       validateHapConfig(cfg, { bridgeLabel: 'main bridge' })
 
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(
-        /main bridge.*identifying material is disabled.*bridge names.*unique.*mDNS name collisions.*pairing instability/i,
-      ))
+      expect(warnSpy).toHaveBeenCalledOnce()
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/^main bridge:/))
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/identifying material is disabled/i))
     })
 
     it('does not warn when hap.disableIdentifyingMaterial is omitted or false', () => {

@@ -81,7 +81,7 @@ export interface BridgeHapConfig {
 
   /**
    * Whether to disable HAP-NodeJS's `addIdentifyingMaterial` publish option,
-   * which appends identifying material derived from the bridge name to the
+   * which appends identifying material derived from the username to the
    * bridge display name and mDNS service instance name. Defaults to `false`.
    */
   disableIdentifyingMaterial?: boolean
