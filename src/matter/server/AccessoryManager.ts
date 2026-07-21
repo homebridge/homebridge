@@ -35,11 +35,13 @@ import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
   applySmokeCoAlarmFeatures,
+  applyThermostatFeatures,
   applyWindowCoveringFeatures,
   CLUSTER_IDS,
   detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
   detectSmokeCoAlarmFeatures,
+  detectThermostatFeatures,
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
@@ -180,6 +182,15 @@ export class AccessoryManager {
       const hasSmokeCoAlarm = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.smokeCoAlarm !== undefined
       if (deviceType.deviceType === devices.SmokeCoAlarmDevice.deviceType && !hasSmokeCoAlarm) {
         deviceType = applySmokeCoAlarmFeatures(deviceType, accessory, detectSmokeCoAlarmFeatures(accessory))
+      }
+
+      // Thermostat is feature-gated in the same way, so the base ThermostatDevice
+      // carries no thermostat cluster. Add it with features detected from the
+      // declared setpoints, so a heating-only thermostat is not forced to claim
+      // cooling - unless the plugin already composed the cluster itself.
+      const hasThermostat = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.thermostat !== undefined
+      if (deviceType.deviceType === devices.ThermostatDevice?.deviceType && !hasThermostat) {
+        deviceType = applyThermostatFeatures(deviceType, accessory, detectThermostatFeatures(accessory))
       }
 
       // Electrical measurement clusters (power/energy metering) are feature-gated
