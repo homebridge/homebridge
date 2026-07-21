@@ -34,6 +34,9 @@ describe('deviceTypes mandatory clusters', () => {
   //   auto-detected Lift/Tilt features (see applyWindowCoveringFeatures)
   // - SmokeSensor: its cluster is added at registration time with
   //   auto-detected SmokeAlarm/CoAlarm features (see applySmokeCoAlarmFeatures)
+  // - Thermostat: its cluster is added at registration time with
+  //   auto-detected Heating/Cooling features (see applyThermostatFeatures), so a
+  //   heating-only thermostat is not forced to advertise cooling
   // - OnOffSwitch: per the Matter spec the OnOff cluster on a light switch is
   //   a client cluster (it controls other devices), so the server type only
   //   carries Identify
@@ -52,7 +55,6 @@ describe('deviceTypes mandatory clusters', () => {
     ['MotionSensor', ['occupancySensing']],
     ['ContactSensor', ['booleanState']],
     ['LeakSensor', ['booleanState']],
-    ['Thermostat', ['thermostat']],
     ['Fan', ['fanControl']],
     ['DoorLock', ['doorLock']],
     ['RoboticVacuumCleaner', ['rvcRunMode', 'rvcOperationalState']],

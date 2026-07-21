@@ -5,12 +5,14 @@ import {
   applyElectricalMeasurementDefaults,
   applyFeaturesToBehavior,
   applySmokeCoAlarmFeatures,
+  applyThermostatFeatures,
   applyWindowCoveringFeatures,
   CLUSTER_IDS,
   detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
   detectServiceAreaFeatures,
   detectSmokeCoAlarmFeatures,
+  detectThermostatFeatures,
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
@@ -551,6 +553,79 @@ describe('serverHelpers', () => {
 
       expect(accessory.context).toBeDefined()
       expect((accessory.context as any)._skipWindowCoveringBehavior).toBe(true)
+    })
+  })
+
+  describe('detectThermostatFeatures', () => {
+    it('should detect Heating alone for a heating-only thermostat', () => {
+      const accessory = {
+        displayName: 'Spa Heater',
+        clusters: { thermostat: { occupiedHeatingSetpoint: 3800, systemMode: 4 } },
+      } as any
+
+      expect(detectThermostatFeatures(accessory)).toEqual(['Heating'])
+    })
+
+    it('should detect Cooling alone for a cooling-only thermostat', () => {
+      const accessory = {
+        displayName: 'Cooler',
+        clusters: { thermostat: { occupiedCoolingSetpoint: 2400 } },
+      } as any
+
+      expect(detectThermostatFeatures(accessory)).toEqual(['Cooling'])
+    })
+
+    it('should add AutoMode only when the thermostat can both heat and cool', () => {
+      const accessory = {
+        displayName: 'Heat Pump',
+        clusters: { thermostat: { occupiedHeatingSetpoint: 2000, occupiedCoolingSetpoint: 2400 } },
+      } as any
+
+      expect(detectThermostatFeatures(accessory)).toEqual(['Heating', 'Cooling', 'AutoMode'])
+    })
+
+    it('should add Occupancy when the unoccupied setpoints are declared', () => {
+      const accessory = {
+        displayName: 'Full Thermostat',
+        clusters: {
+          thermostat: {
+            occupiedHeatingSetpoint: 2000,
+            occupiedCoolingSetpoint: 2400,
+            unoccupiedHeatingSetpoint: 1800,
+            unoccupiedCoolingSetpoint: 2600,
+          },
+        },
+      } as any
+
+      expect(detectThermostatFeatures(accessory)).toEqual(['Heating', 'Cooling', 'AutoMode', 'Occupancy'])
+    })
+
+    it('should fall back to Heating when no setpoints are declared', () => {
+      const accessory = {
+        displayName: 'Bare Thermostat',
+        clusters: { thermostat: { localTemperature: 2100 } },
+      } as any
+
+      expect(detectThermostatFeatures(accessory)).toEqual(['Heating'])
+    })
+
+    it('should fall back to Heating when there is no thermostat cluster at all', () => {
+      const accessory = { displayName: 'Nothing Declared' } as any
+
+      expect(detectThermostatFeatures(accessory)).toEqual(['Heating'])
+    })
+  })
+
+  describe('applyThermostatFeatures', () => {
+    it('should add the Thermostat cluster with only the given features', () => {
+      const accessory = { displayName: 'Spa Heater' } as any
+
+      const result = applyThermostatFeatures(devices.ThermostatDevice, accessory, ['Heating']) as any
+
+      expect(result.behaviors.thermostat).toBeDefined()
+      expect(result.behaviors.thermostat.features.heating).toBe(true)
+      expect(result.behaviors.thermostat.features.cooling).toBe(false)
+      expect(result.behaviors.thermostat.features.autoMode).toBe(false)
     })
   })
 

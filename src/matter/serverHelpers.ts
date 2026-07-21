@@ -395,6 +395,56 @@ export function applySmokeCoAlarmFeatures(
 }
 
 /**
+ * Detect Thermostat features from accessory attributes.
+ *
+ * A thermostat that only heats should not advertise cooling, so the features
+ * follow the setpoints the accessory actually declares. The Matter spec requires
+ * at least one of Heating/Cooling, so an accessory declaring neither falls back
+ * to Heating. AutoMode is only meaningful when the device can do both, and
+ * Occupancy only when the unoccupied setpoints are present.
+ */
+export function detectThermostatFeatures(accessory: MatterAccessory): string[] {
+  const thermostatCluster = accessory.clusters?.thermostat as Record<string, unknown> | undefined
+  const has = (attribute: string): boolean => thermostatCluster !== undefined && attribute in thermostatCluster
+  const features: string[] = []
+
+  if (has('occupiedHeatingSetpoint') || has('unoccupiedHeatingSetpoint')) {
+    features.push('Heating')
+  }
+  if (has('occupiedCoolingSetpoint') || has('unoccupiedCoolingSetpoint')) {
+    features.push('Cooling')
+  }
+  if (features.length === 0) {
+    features.push('Heating')
+  }
+  if (features.includes('Heating') && features.includes('Cooling')) {
+    features.push('AutoMode')
+  }
+  if (has('unoccupiedHeatingSetpoint') || has('unoccupiedCoolingSetpoint')) {
+    features.push('Occupancy')
+  }
+
+  return features
+}
+
+/**
+ * Apply Thermostat features to device type.
+ * Thermostat is not part of the base ThermostatDevice — matter.js requires the
+ * features to be chosen — so without this the endpoint would be created without
+ * the cluster and the accessory's thermostat state silently dropped.
+ */
+export function applyThermostatFeatures(
+  deviceType: EndpointType,
+  accessory: MatterAccessory,
+  features: string[],
+): EndpointType {
+  log.info(`Auto-detected Thermostat features for ${accessory.displayName}: ${features.join(', ')}`)
+
+  const thermostatWithFeatures = (devices.ThermostatRequirements.ThermostatServer as any).with(...features)
+  return (deviceType as any).with(thermostatWithFeatures)
+}
+
+/**
  * Detect ServiceArea features from cluster attributes
  */
 export function detectServiceAreaFeatures(
