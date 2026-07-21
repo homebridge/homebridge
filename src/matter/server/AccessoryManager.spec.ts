@@ -56,6 +56,7 @@ vi.mock('../serverHelpers.js', () => ({
   applySmokeCoAlarmFeatures: vi.fn((dt: any) => dt),
   detectElectricalMeasurementClusters: vi.fn(() => ({ hasPowerMeasurement: false, energyFeatures: [] })),
   applyElectricalMeasurementDefaults: vi.fn(),
+  applyLevelControlLightingFloor: vi.fn(),
   applyElectricalMeasurementClusters: vi.fn((dt: any) => dt),
   detectBehaviorFeatures: vi.fn(() => null),
   extractColorControlFeatures: vi.fn(() => []),

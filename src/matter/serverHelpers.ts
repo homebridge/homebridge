@@ -53,6 +53,12 @@ interface BehaviorInfo {
     id: number
     supportedFeatures?: Record<string, boolean>
   }
+  /**
+   * Features of a composed behavior, as recorded by matter.js's `.with(...)`.
+   * This is where the feature flags actually live for the clusters inspected
+   * here; `cluster.supportedFeatures` stays undefined for them.
+   */
+  features?: Record<string, boolean>
 }
 
 /**
@@ -113,7 +119,7 @@ export function validateAccessoryRequiredFields(accessory: MatterAccessory): voi
         + 'Clusters define the functionality of your device. Example:\n'
         + '  clusters: {\n'
         + '    onOff: { onOff: false },\n'
-        + '    levelControl: { currentLevel: 0, minLevel: 0, maxLevel: 254 }\n'
+        + '    levelControl: { currentLevel: 1, minLevel: 1, maxLevel: 254 }\n'
         + '  }\n'
         + 'Alternatively, use "parts" array for composed devices with multiple endpoints.',
       )
@@ -201,11 +207,18 @@ export function detectBehaviorFeatures(
   const behaviorsArray = convertBehaviorsToArray(existingBehaviors)
   const behavior = findBehaviorByCluster(behaviorsArray, clusterIdOrName)
 
-  if (!behavior?.cluster?.supportedFeatures) {
+  // matter.js records a composed behavior's features on the behavior itself.
+  // `cluster.supportedFeatures` is only populated for clusters that declare it,
+  // which none of the ones we inspect here do — so relying on it alone meant
+  // this always returned null and every caller fell back to its "no features"
+  // path. Read the behavior's own features when the cluster does not carry them.
+  const supportedFeatures = behavior?.cluster?.supportedFeatures ?? behavior?.features
+
+  if (!supportedFeatures) {
     return null
   }
 
-  return featureExtractor(behavior.cluster.supportedFeatures)
+  return featureExtractor(supportedFeatures)
 }
 
 /**
@@ -392,6 +405,39 @@ export function applySmokeCoAlarmFeatures(
 
   const smokeCoAlarmWithFeatures = (devices.SmokeCoAlarmRequirements.SmokeCoAlarmServer as any).with(...features)
   return (deviceType as any).with(smokeCoAlarmWithFeatures)
+}
+
+/**
+ * Raise a LevelControl floor of 0 to 1 when the Lighting feature is active.
+ *
+ * The Lighting feature reserves level 0 for "off", so the spec constrains
+ * MinLevel to 1-254 and matter.js rejects 0 outright. Homebridge's own guidance
+ * has suggested `minLevel: 0`, so accessories in the wild carry it. Lift those
+ * to 1 with a warning rather than refusing to register the accessory.
+ */
+export function applyLevelControlLightingFloor(
+  accessory: MatterAccessory,
+  levelControlFeatures: string[] | null,
+): void {
+  if (!levelControlFeatures?.includes('Lighting')) {
+    return
+  }
+
+  const levelControl = accessory.clusters?.levelControl as Record<string, unknown> | undefined
+  if (!levelControl) {
+    return
+  }
+
+  for (const attribute of ['minLevel', 'currentLevel'] as const) {
+    const value = levelControl[attribute]
+    if (typeof value === 'number' && value < 1) {
+      log.warn(
+        `${accessory.displayName} declares levelControl.${attribute} of ${value}, but the Lighting `
+        + 'feature reserves level 0 - using 1 instead.',
+      )
+      levelControl[attribute] = 1
+    }
+  }
 }
 
 /**
