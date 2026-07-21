@@ -109,12 +109,51 @@ export class AccessoryManager {
 
     if (deps.accessories.has(accessory.UUID)) {
       const existing = deps.accessories.get(accessory.UUID)
-      throw new MatterDeviceError(
-        `Matter accessory with UUID "${accessory.UUID}" is already registered.\n`
-        + `Existing accessory: "${existing?.displayName}"\n`
-        + `New accessory: "${accessory.displayName}"\n`
-        + 'Each accessory must have a unique UUID. Use api.hap.uuid.generate() with a unique string.',
-      )
+      // A cache-restored accessory keeps its endpoint (so the parts list never
+      // churns); the plugin's registration attaches its handlers and metadata
+      // in place. Structural changes fall through to a fresh registration.
+      if (existing?._restoredFromCache) {
+        const partIds = (list?: { id: string }[]) => JSON.stringify((list ?? []).map(part => part.id).sort())
+        const sameShape = (existing.deviceType as { name?: string })?.name === (accessory.deviceType as { name?: string })?.name
+          && partIds(existing._parts ?? existing.parts) === partIds(accessory.parts)
+        if (sameShape) {
+          log.info(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
+          deps.accessories.set(accessory.UUID, {
+            ...existing,
+            ...accessory,
+            endpoint: existing.endpoint,
+            _parts: existing._parts,
+            registered: true,
+            _restoredFromCache: false,
+          })
+          this.registerAccessoryHandlers(accessory, deps)
+          for (const part of accessory.parts ?? []) {
+            if (!part.handlers) {
+              continue
+            }
+            const partEndpointId = `${accessory.UUID}-part-${part.id}`
+            deps.behaviorRegistry.registerPartEndpoint(partEndpointId, accessory.UUID, part.id)
+            for (const [clusterName, handlers] of Object.entries(part.handlers)) {
+              for (const [commandName, handler] of Object.entries(handlers)) {
+                deps.behaviorRegistry.registerHandler(partEndpointId, clusterName, commandName, handler)
+              }
+            }
+          }
+          if (deps.accessoryCache) {
+            deps.accessoryCache.requestSave(deps.accessories)
+          }
+          return
+        }
+        log.info(`Restored accessory ${accessory.displayName} changed structure - re-registering`)
+        await this.unregisterAccessory(accessory.UUID, deps)
+      } else {
+        throw new MatterDeviceError(
+          `Matter accessory with UUID "${accessory.UUID}" is already registered.\n`
+          + `Existing accessory: "${existing?.displayName}"\n`
+          + `New accessory: "${accessory.displayName}"\n`
+          + 'Each accessory must have a unique UUID. Use api.hap.uuid.generate() with a unique string.',
+        )
+      }
     }
 
     this.restoreCachedState(accessory, deps.accessoryCache)

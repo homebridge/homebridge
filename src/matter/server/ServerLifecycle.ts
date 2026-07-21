@@ -50,6 +50,14 @@ export interface ServerLifecycleDeps {
   getCommissioningDeps: () => CommissioningDeps
   getAccessoryCache: () => MatterAccessoryCache | null
   setAccessoryCache: (cache: MatterAccessoryCache) => void
+  /**
+   * Rebuilds cached accessories into the aggregator. Called after the
+   * aggregator exists but BEFORE the server node goes online, so that a
+   * commissioned controller reconnecting during startup never observes a
+   * shrunken parts list (which makes controllers treat the missing endpoints
+   * as removed devices and e.g. discard their room assignments).
+   */
+  restoreAccessoriesFromCache?: () => Promise<void>
   setServerNode: (node: ServerNode | null) => void
   getServerNode: () => ServerNode | null
   setAggregator: (agg: Endpoint<typeof AggregatorEndpointType> | null) => void
@@ -368,6 +376,14 @@ export class ServerLifecycle {
       process.on('SIGTERM', shutdownHandler)
 
       if (!deps.config.externalAccessory) {
+        // Restore cached accessories into the aggregator before going online.
+        // Controllers (verified with an Apple Home hub) re-establish their
+        // subscription within the first second of the node coming online and
+        // prune any bridged device missing from the parts list at that moment.
+        if (deps.restoreAccessoriesFromCache) {
+          await deps.restoreAccessoriesFromCache()
+        }
+
         await this.startServerNode(serverNode, deps)
       } else {
         log.debug('Deferred start mode - server prepared but not running yet (will start after device registration)')

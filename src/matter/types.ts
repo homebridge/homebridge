@@ -456,6 +456,13 @@ export interface InternalMatterAccessory extends MatterAccessory {
   /** Plugin identifier (set when registered) */
   _associatedPlugin?: string
 
+  /**
+   * True while this accessory was rebuilt from the accessory cache at startup
+   * and its plugin has not re-registered yet. The plugin's registration
+   * attaches handlers to the existing endpoint instead of erroring.
+   */
+  _restoredFromCache?: boolean
+
   /** Platform name (set when registered) */
   _associatedPlatform?: string
 

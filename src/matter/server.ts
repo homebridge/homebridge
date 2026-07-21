@@ -5,7 +5,7 @@
  * All public method signatures are preserved for external callers.
  */
 
-import type { ServerNode } from '@matter/main'
+import type { EndpointType, ServerNode } from '@matter/main'
 
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { MatterServerConfig } from './sharedTypes.js'
@@ -367,6 +367,92 @@ export class MatterServer extends EventEmitter {
       getAccessoryCache: () => this.accessoryCache,
       setAccessoryCache: (cache: MatterAccessoryCache) => {
         this.accessoryCache = cache
+      },
+      restoreAccessoriesFromCache: async () => {
+        if (!this.accessoryCache) {
+          return
+        }
+        let cached: Map<string, SerializedMatterAccessory>
+        try {
+          cached = await this.accessoryCache.load()
+        } catch (error) {
+          log.warn('Failed to load Matter accessory cache for pre-online restore:', error)
+          return
+        }
+        if (cached.size === 0) {
+          return
+        }
+
+        // Device types are cached as name-only info; resolve them back through
+        // the public registry.
+        const typeByName = new Map<string, EndpointType>()
+        for (const [key, value] of Object.entries(deviceTypes)) {
+          typeByName.set(key, value as EndpointType)
+          const name = (value as { name?: string }).name
+          if (name) {
+            typeByName.set(name, value as EndpointType)
+          }
+        }
+
+        // Handlers are functions and cannot be cached, but custom behaviors
+        // (e.g. the OnOff server on switch device types) are only attached for
+        // clusters that have handlers. Synthesize empty stubs per cached
+        // cluster so the restored endpoint is structurally identical to the
+        // original; the plugin's re-registration supplies the real handlers.
+        const stubHandlers = (clusters?: Record<string, unknown>) => {
+          const handlers: Record<string, Record<string, never>> = {}
+          for (const clusterName of Object.keys(clusters ?? {})) {
+            handlers[clusterName] = {}
+          }
+          return Object.keys(handlers).length > 0 ? handlers : undefined
+        }
+
+        let restored = 0
+        for (const serialized of cached.values()) {
+          try {
+            const deviceType = typeByName.get(serialized.deviceType?.name ?? '')
+            if (!deviceType) {
+              log.warn(`Cannot restore cached Matter accessory ${serialized.displayName}: unknown device type "${serialized.deviceType?.name}"`)
+              continue
+            }
+            const parts = (serialized.parts ?? [])
+              .map(part => ({
+                id: part.id,
+                displayName: part.displayName,
+                deviceType: typeByName.get(part.deviceType?.name ?? ''),
+                clusters: part.clusters ?? {},
+                handlers: stubHandlers(part.clusters),
+              }))
+              .filter((part): part is typeof part & { deviceType: EndpointType } => part.deviceType !== undefined)
+
+            const accessory: InternalMatterAccessory = {
+              UUID: serialized.uuid,
+              displayName: serialized.displayName,
+              deviceType,
+              serialNumber: serialized.serialNumber,
+              manufacturer: serialized.manufacturer,
+              model: serialized.model,
+              firmwareRevision: serialized.firmwareRevision,
+              hardwareRevision: serialized.hardwareRevision,
+              softwareVersion: serialized.softwareVersion,
+              context: serialized.context ?? {},
+              clusters: serialized.clusters ?? {},
+              handlers: stubHandlers(serialized.clusters),
+              registered: false,
+              _restoredFromCache: true,
+            }
+            if (parts.length > 0) {
+              accessory.parts = parts
+            }
+            await this.accessoryManager.registerAccessory(serialized.plugin, serialized.platform, accessory, this.getAccessoryManagerDeps())
+            restored++
+          } catch (error) {
+            log.warn(`Failed to restore cached Matter accessory ${serialized.displayName}:`, error)
+          }
+        }
+        if (restored > 0) {
+          log.info(`Restored ${restored} cached Matter accessories into the bridge before going online`)
+        }
       },
       setServerNode: (node: ServerNode | null) => {
         this.serverNode = node
