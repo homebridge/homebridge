@@ -403,6 +403,29 @@ export class AccessoryManager {
   ): Promise<BehaviorType[]> {
     const customBehaviors: BehaviorType[] = []
 
+    // PowerSource (battery) is a general utility cluster, not device-type
+    // specific — like the ElectricalPowerMeasurement/ElectricalEnergyMeasurement
+    // clusters, it should be composed for any device type. Compose it up front,
+    // before the no-handlers early return below: battery-powered sensors
+    // (contact/leak/occupancy, etc.) are read-only and declare no handlers at
+    // all, so gating this on handlers would silently drop their battery.
+    if (accessory.clusters?.powerSource) {
+      const hasBattery = accessory.clusters.powerSource.batPercentRemaining !== undefined
+        || accessory.clusters.powerSource.batChargeLevel !== undefined
+      const hasRechargeable = accessory.clusters.powerSource.batChargeState !== undefined
+      let powerSourceBehavior: BehaviorType = PowerSourceServer
+      if (hasBattery && hasRechargeable) {
+        powerSourceBehavior = (PowerSourceServer as any).with('Battery', 'Rechargeable')
+        log.debug('Adding PowerSource server with battery and rechargeable features')
+      } else if (hasBattery) {
+        powerSourceBehavior = (PowerSourceServer as any).with('Battery')
+        log.debug('Adding PowerSource server with battery feature')
+      } else {
+        log.debug('Adding base PowerSource server')
+      }
+      customBehaviors.push(powerSourceBehavior)
+    }
+
     if (!accessory.handlers) {
       return customBehaviors
     }
@@ -441,23 +464,6 @@ export class AccessoryManager {
           customBehaviors.push(behaviorClass)
           log.info('Adding base ServiceArea server')
         }
-      }
-
-      if (accessory.clusters?.powerSource) {
-        const hasBattery = accessory.clusters.powerSource.batPercentRemaining !== undefined
-          || accessory.clusters.powerSource.batChargeLevel !== undefined
-        const hasRechargeable = accessory.clusters.powerSource.batChargeState !== undefined
-        let powerSourceBehavior: BehaviorType = PowerSourceServer
-        if (hasBattery && hasRechargeable) {
-          powerSourceBehavior = (PowerSourceServer as any).with('Battery', 'Rechargeable')
-          log.debug('Adding PowerSource server with battery and rechargeable features')
-        } else if (hasBattery) {
-          powerSourceBehavior = (PowerSourceServer as any).with('Battery')
-          log.debug('Adding PowerSource server with battery feature')
-        } else {
-          log.debug('Adding base PowerSource server')
-        }
-        customBehaviors.push(powerSourceBehavior)
       }
     }
 

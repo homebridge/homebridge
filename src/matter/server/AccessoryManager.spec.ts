@@ -1,6 +1,7 @@
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 import type { AccessoryManagerDeps } from './AccessoryManager.js'
 
+import { PowerSourceServer } from '@matter/node/behaviors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -382,6 +383,62 @@ describe('accessoryManager', () => {
       expect(applyElectricalMeasurementClusters).not.toHaveBeenCalled()
       const internal = deps.accessories.get('test-uuid-001') as any
       expect(internal.endpoint.act).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('powerSource (battery) composition', () => {
+    // A battery cluster must compose for any device type, not just
+    // RoboticVacuumCleaner, and — since it is read-only — even for accessories
+    // that declare no handlers at all (sensors).
+
+    it('composes PowerSource for a non-RVC device type that has handlers (e.g. a lock)', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        clusters: {
+          doorLock: { lockState: 1 },
+          powerSource: { batPercentRemaining: 200, batChargeLevel: 0 },
+        },
+        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery')
+    })
+
+    it('composes PowerSource for a non-RVC device with no handlers (e.g. a battery-powered sensor)', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x0015, name: 'ContactSensor', with: vi.fn(() => ({ deviceType: 0x0015, with: vi.fn() })) } as any,
+        clusters: {
+          // read-only sensor: a battery, and no handlers at all
+          powerSource: { batPercentRemaining: 200, batChargeLevel: 0 },
+        },
+      })
+      delete (accessory as any).handlers
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      // Regression guard for the no-handlers early return: without the fix this
+      // accessory bails before the battery is ever composed.
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery')
+    })
+
+    it('composes the Rechargeable feature when a charge state is declared', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        clusters: {
+          doorLock: { lockState: 1 },
+          powerSource: { batPercentRemaining: 200, batChargeLevel: 0, batChargeState: 0 },
+        },
+        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
     })
   })
 
