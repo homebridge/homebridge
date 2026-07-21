@@ -4,6 +4,7 @@ import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
   applyFeaturesToBehavior,
+  applyLevelControlLightingFloor,
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
   applyWindowCoveringFeatures,
@@ -553,6 +554,61 @@ describe('serverHelpers', () => {
 
       expect(accessory.context).toBeDefined()
       expect((accessory.context as any)._skipWindowCoveringBehavior).toBe(true)
+    })
+  })
+
+  describe('applyLevelControlLightingFloor', () => {
+    it('should raise a minLevel of 0 to 1 when Lighting is active', () => {
+      const accessory = {
+        displayName: 'Dimmable Light',
+        clusters: { levelControl: { currentLevel: 0, minLevel: 0, maxLevel: 254 } },
+      } as any
+
+      applyLevelControlLightingFloor(accessory, ['OnOff', 'Lighting'])
+
+      expect(accessory.clusters.levelControl.minLevel).toBe(1)
+      expect(accessory.clusters.levelControl.currentLevel).toBe(1)
+    })
+
+    it('should leave levels alone when Lighting is not active', () => {
+      const accessory = {
+        displayName: 'Pump',
+        clusters: { levelControl: { currentLevel: 0, minLevel: 0, maxLevel: 254 } },
+      } as any
+
+      applyLevelControlLightingFloor(accessory, [])
+
+      expect(accessory.clusters.levelControl.minLevel).toBe(0)
+      expect(accessory.clusters.levelControl.currentLevel).toBe(0)
+    })
+
+    it('should leave already-valid levels untouched', () => {
+      const accessory = {
+        displayName: 'Dimmable Light',
+        clusters: { levelControl: { currentLevel: 127, minLevel: 1, maxLevel: 254 } },
+      } as any
+
+      applyLevelControlLightingFloor(accessory, ['OnOff', 'Lighting'])
+
+      expect(accessory.clusters.levelControl.minLevel).toBe(1)
+      expect(accessory.clusters.levelControl.currentLevel).toBe(127)
+    })
+
+    it('should do nothing when there is no levelControl cluster', () => {
+      const accessory = { displayName: 'Switch', clusters: { onOff: { onOff: true } } } as any
+
+      expect(() => applyLevelControlLightingFloor(accessory, ['Lighting'])).not.toThrow()
+    })
+
+    it('should do nothing when features could not be detected', () => {
+      const accessory = {
+        displayName: 'Unknown',
+        clusters: { levelControl: { minLevel: 0 } },
+      } as any
+
+      applyLevelControlLightingFloor(accessory, null)
+
+      expect(accessory.clusters.levelControl.minLevel).toBe(0)
     })
   })
 

@@ -34,6 +34,7 @@ import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../be
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
+  applyLevelControlLightingFloor,
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
   applyWindowCoveringFeatures,
@@ -211,6 +212,11 @@ export class AccessoryManager {
       }
 
       const features = this.detectClusterFeatures(accessory, deviceType)
+
+      // Now that we know whether LevelControl keeps its Lighting feature, make
+      // sure the declared levels are legal for it.
+      applyLevelControlLightingFloor(accessory, features.levelControlFeatures)
+
       const customBehaviors = await this.buildCustomBehaviors(accessory, deviceType, features)
       if (customBehaviors.length > 0) {
         deviceType = (deviceType as any).with(...customBehaviors)
