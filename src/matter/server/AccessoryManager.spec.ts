@@ -80,6 +80,7 @@ vi.mock('../types.js', () => {
     devices: {
       RoboticVacuumCleanerDevice: { deviceType: 0x0074 },
       SmokeCoAlarmDevice: { deviceType: 0x0076 },
+      ThermostatDevice: { deviceType: 0x0301 },
       ElectricalSensorEndpoint: { deviceType: 0x0510 },
       RoboticVacuumCleanerRequirements: {
         RvcCleanModeServer: { name: 'RvcCleanModeServer' },

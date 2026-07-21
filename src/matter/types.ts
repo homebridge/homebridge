@@ -614,7 +614,13 @@ export const deviceTypes = {
   ElectricalSensor: devices.ElectricalSensorEndpoint,
 
   // HVAC
-  Thermostat: devices.ThermostatDevice.with(devices.ThermostatRequirements.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy')),
+  // The Thermostat cluster is feature-gated in matter.js, so the base
+  // ThermostatDevice carries no thermostat cluster. It is added at registration
+  // with the features detected from the accessory's declared setpoints — a
+  // heating-only accessory gets Heating alone rather than being forced to claim
+  // cooling it cannot do (see applyThermostatFeatures in serverHelpers.ts).
+  // Compose the cluster yourself with `.with(...)` to override the detection.
+  Thermostat: devices.ThermostatDevice,
   Fan: devices.FanDevice,
 
   // Security
