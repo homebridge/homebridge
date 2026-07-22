@@ -340,6 +340,30 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     })
   })
 
+  describe('restoring cached accessories before going online (#3969)', () => {
+    it('runs restoreAccessoriesFromCache before startServerNode', async () => {
+      const order: string[] = []
+      const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
+      vi.spyOn(proto, 'startServerNode').mockImplementation(async () => {
+        order.push('startServerNode')
+      })
+      const restoreAccessoriesFromCache = vi.fn(async () => {
+        order.push('restore')
+      })
+
+      await lifecycle.start(createMockDeps({ restoreAccessoriesFromCache }))
+
+      expect(restoreAccessoriesFromCache).toHaveBeenCalledTimes(1)
+      // The controller prunes bridged devices missing from the parts list the
+      // moment the node comes online, so the rebuild must happen first.
+      expect(order).toEqual(['restore', 'startServerNode'])
+    })
+
+    it('still starts when no restoreAccessoriesFromCache hook is provided', async () => {
+      await expect(lifecycle.start(createMockDeps())).resolves.not.toThrow()
+    })
+  })
+
   describe('setting network.interface after ServerNode creation', () => {
     it('sets network.interface only after MatterServerNode.create resolves', async () => {
       const deps = createMockDeps({

@@ -290,6 +290,75 @@ describe('accessoryManager', () => {
       ).rejects.toThrow('already registered')
     })
 
+    // Cache-restored accessories are rebuilt into the bridge before going online
+    // (#3969). When the plugin later re-registers the same UUID it must attach to
+    // the existing endpoint in place (no parts-list churn) rather than hitting the
+    // duplicate-UUID error, and a genuine structural change must re-register fresh.
+    describe('cache-restored attach-in-place (#3969)', () => {
+      it('attaches a plugin registration to a restored accessory in place when the shape is unchanged', async () => {
+        const deps = createMockDeps()
+        const restored = {
+          ...createMockAccessory(),
+          endpoint: { marker: 'restored-endpoint' },
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set('test-uuid-001', restored)
+
+        // Same UUID, same device type, now carrying the plugin's real handlers.
+        const pluginAccessory = createMockAccessory({
+          handlers: { onOff: { on: vi.fn(), off: vi.fn() } },
+        } as any)
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
+
+        const stored = deps.accessories.get('test-uuid-001') as any
+        expect(stored.registered).toBe(true)
+        expect(stored._restoredFromCache).toBe(false)
+        // Kept the endpoint built during restore — no new endpoint, no parts-list churn.
+        expect(stored.endpoint).toEqual({ marker: 'restored-endpoint' })
+        expect(deps.accessories.size).toBe(1)
+        // The plugin's handlers were wired to the existing endpoint.
+        expect(deps.behaviorRegistry.registerHandler).toHaveBeenCalledWith('test-uuid-001', 'onOff', 'on', expect.any(Function))
+      })
+
+      it('does not throw the duplicate-UUID error for a restored accessory', async () => {
+        const deps = createMockDeps()
+        deps.accessories.set('test-uuid-001', {
+          ...createMockAccessory(),
+          endpoint: { close: vi.fn() },
+          registered: false,
+          _restoredFromCache: true,
+        } as any)
+
+        await expect(
+          manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps),
+        ).resolves.toBeUndefined()
+      })
+
+      it('re-registers fresh when a restored accessory changed device type', async () => {
+        const deps = createMockDeps()
+        const restored = {
+          ...createMockAccessory(),
+          deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) },
+          endpoint: { close: vi.fn() },
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set('test-uuid-001', restored)
+        const unregisterSpy = vi.spyOn(manager, 'unregisterAccessory')
+
+        // Plugin registers the same UUID but as a different device type.
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)
+
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        const stored = deps.accessories.get('test-uuid-001') as any
+        expect(stored).toBeDefined()
+        expect((stored.deviceType as any).name).toBe('OnOffLight')
+        expect(stored._restoredFromCache).toBeFalsy()
+      })
+    })
+
     it('should throw when server is not started', async () => {
       const deps = createMockDeps({
         getServerNode: () => null,
