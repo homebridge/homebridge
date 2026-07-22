@@ -220,3 +220,45 @@ describe('matterAPIImpl.status — Matter status errors without a runtime homebr
     expect(impl.status.Busy).toBeDefined()
   })
 })
+
+describe('matterAPIImpl.registerPlatformAccessories — bridged registration before the server is running (#3970)', () => {
+  const bridgedAccessory = {
+    UUID: 'uuid-1',
+    displayName: 'Light',
+    deviceType: { deviceType: 0x0100 }, // not RoboticVacuumCleaner → bridged
+    manufacturer: 'Acme',
+    model: 'X',
+    serialNumber: 'S1',
+  } as any
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('rejects and does not emit when the bridge server is still starting', async () => {
+    // hasActiveMatter() is true (server constructed) but the node has not started
+    // yet — the previously silent-drop window.
+    const api = makeApi({ _matterManager: { hasActiveMatter: () => true, isBridgeServerStarting: () => true } })
+    const impl = new MatterAPIImpl(api)
+    vi.spyOn(impl as any, 'validateAccessories').mockReturnValue([bridgedAccessory])
+
+    await expect(
+      impl.registerPlatformAccessories('homebridge-test', 'TestPlatform', [bridgedAccessory]),
+    ).rejects.toThrow(/still starting/)
+
+    // Must not have emitted a (fire-and-forget) registration the plugin can't see fail.
+    expect(api.emit).not.toHaveBeenCalled()
+  })
+
+  it('emits the registration once the bridge server is running', async () => {
+    const api = makeApi({ _matterManager: { hasActiveMatter: () => true, isBridgeServerStarting: () => false } })
+    const impl = new MatterAPIImpl(api)
+    vi.spyOn(impl as any, 'validateAccessories').mockReturnValue([bridgedAccessory])
+
+    await expect(
+      impl.registerPlatformAccessories('homebridge-test', 'TestPlatform', [bridgedAccessory]),
+    ).resolves.toBeUndefined()
+
+    expect(api.emit).toHaveBeenCalled()
+  })
+})

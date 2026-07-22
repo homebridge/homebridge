@@ -50,6 +50,25 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Whether a bridge Matter server has been constructed but its node has not
+   * finished starting.
+   *
+   * `hasActiveMatter()` becomes true as soon as the MatterServer is constructed,
+   * which is BEFORE `start()` completes. Registering a bridged accessory in that
+   * window is silently dropped — the bridged register event is emitted
+   * fire-and-forget, and the "Matter server not started" error thrown downstream
+   * is only logged, so the plugin's `registerPlatformAccessories()` still
+   * resolves. Callers reject such a registration instead.
+   *
+   * This is deliberately distinct from externalsOnly mode, where there is no
+   * bridge server at all (`matterServer` is undefined) and bridged registrations
+   * are intentionally dropped by the drop stubs — that must not throw.
+   */
+  isBridgeServerStarting(): boolean {
+    return this.matterServer !== undefined && !this.matterServer.isServerRunning()
+  }
+
+  /**
    * Release a Matter port previously claimed for an external accessory.
    * Subclasses override to route to the right port service (the local
    * allocator on the main bridge, or an IPC call on a child bridge).
