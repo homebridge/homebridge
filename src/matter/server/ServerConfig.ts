@@ -20,6 +20,14 @@ export const SERVER_READY_POLL_INTERVAL_MS = 100
 export const SERVER_INIT_DELAY_MS = 200
 export const MAX_PASSCODE_ATTEMPTS = 100
 
+// A quick restart can race the previous process's release of the Matter
+// storage directory lock. matter.js reclaims *stale* locks itself (crashed
+// owner); this only fires while the previous instance is still alive and
+// shutting down, which clears within a second or two. Retry rather than
+// giving up and disabling Matter for the whole process lifetime.
+export const STORAGE_LOCK_RETRY_ATTEMPTS = 5
+export const STORAGE_LOCK_RETRY_DELAY_MS = 1000
+
 /**
  * Validate and sanitize Matter server configuration
  * Throws descriptive errors if configuration is invalid
