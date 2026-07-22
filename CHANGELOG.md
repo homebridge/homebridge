@@ -10,6 +10,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): compose PowerSource for all device types (#3968) (@zbuc)
 - chore(deps): dependency updates
 - feat(matter): expose matter status errors on `api.matter.status`
+- fix(matter): retry Matter server start on transient storage-lock contention
 
 ### Homebridge Dependencies
 
