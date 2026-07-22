@@ -228,6 +228,55 @@ describe('accessoryManager', () => {
       expect(serverNode.act).not.toHaveBeenCalled()
     })
 
+    it('retries the parts-list notification when the config-version bump hits a synchronous lock (#3970)', async () => {
+      const increaseConfigurationVersion = vi.fn()
+      const deps = createMockDeps({ isCommissioned: () => true })
+      const serverNode = deps.getServerNode() as any
+      // First act() loses the lock race (matter.js-internal offline transaction),
+      // then the lock clears and it succeeds.
+      serverNode.act = vi.fn()
+        .mockRejectedValueOnce(new Error('Cannot lock test-bridge.basicInformation.state synchronously'))
+        .mockImplementation(async (fn: any) => fn({ get: vi.fn(() => ({ increaseConfigurationVersion })) }))
+      const accessory = createMockAccessory()
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(serverNode.act).toHaveBeenCalledTimes(2)
+      expect(increaseConfigurationVersion).toHaveBeenCalledTimes(1)
+    })
+
+    it('gives up without throwing when the lock never clears (#3970)', async () => {
+      const deps = createMockDeps({ isCommissioned: () => true })
+      const serverNode = deps.getServerNode() as any
+      serverNode.act = vi.fn().mockRejectedValue(
+        new Error('Cannot lock test-bridge.basicInformation.state synchronously'),
+      )
+      const accessory = createMockAccessory()
+
+      // The failure must be swallowed — a dropped notification must never fail
+      // the accessory registration.
+      await expect(
+        manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps),
+      ).resolves.toBeUndefined()
+
+      // PARTS_LIST_NOTIFY_ATTEMPTS = 5.
+      expect(serverNode.act).toHaveBeenCalledTimes(5)
+      expect(deps.accessories.has('test-uuid-001')).toBe(true)
+    })
+
+    it('does not retry a non-lock notification error (#3970)', async () => {
+      const deps = createMockDeps({ isCommissioned: () => true })
+      const serverNode = deps.getServerNode() as any
+      serverNode.act = vi.fn().mockRejectedValue(new Error('some other failure'))
+      const accessory = createMockAccessory()
+
+      await expect(
+        manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps),
+      ).resolves.toBeUndefined()
+
+      expect(serverNode.act).toHaveBeenCalledTimes(1)
+    })
+
     it('should reject duplicate UUIDs', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory()
