@@ -164,10 +164,13 @@ vi.mock('./ServerConfig.js', () => ({
   SERVER_INIT_DELAY_MS: 0,
   SERVER_READY_POLL_INTERVAL_MS: 0,
   SERVER_READY_TIMEOUT_MS: 1000,
+  STORAGE_LOCK_RETRY_ATTEMPTS: 3,
+  STORAGE_LOCK_RETRY_DELAY_MS: 0,
 }))
 
 // Import after mocks are registered so the module under test binds to the mocked symbols.
 const { ServerLifecycle } = await import('./ServerLifecycle.js')
+const { ServerNode: MatterServerNode } = await import('@matter/main')
 
 function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLifecycleDeps {
   let serverNode: unknown = null
@@ -1007,5 +1010,66 @@ describe('serverLifecycle.start — port-binding signal when the half-built node
 
     expect(thrown.message).toBe('commissioning failed')
     expect(thrown.portMayStillBeBound).toBeUndefined()
+  })
+})
+
+describe('serverLifecycle.createServerNodeWithRecovery — transient storage-lock retry (#3970)', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    lifecycle = new ServerLifecycle()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('retries and succeeds once a lock held by another process clears', async () => {
+    // A quick restart: the previous instance still holds the storage lock on the
+    // first attempt, then releases it.
+    vi.mocked(MatterServerNode.create).mockRejectedValueOnce(
+      new Error('Storage is locked by another process (pid 1234)'),
+    )
+
+    const node = await lifecycle.createServerNodeWithRecovery({} as never, 'TEST0001')
+
+    expect(node).toBeDefined()
+    expect(MatterServerNode.create).toHaveBeenCalledTimes(2)
+  })
+
+  it('gives up after the retry budget when the lock never clears', async () => {
+    vi.mocked(MatterServerNode.create).mockRejectedValue(
+      new Error('Storage is locked by another process (pid 1234)'),
+    )
+
+    await expect(
+      lifecycle.createServerNodeWithRecovery({} as never, 'TEST0001'),
+    ).rejects.toThrow(/locked by another process/)
+
+    // STORAGE_LOCK_RETRY_ATTEMPTS is mocked to 3.
+    expect(MatterServerNode.create).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not retry "already locked by this process" — that is a bug, not a race', async () => {
+    vi.mocked(MatterServerNode.create).mockRejectedValue(
+      new Error('Storage is already locked by this process'),
+    )
+
+    await expect(
+      lifecycle.createServerNodeWithRecovery({} as never, 'TEST0001'),
+    ).rejects.toThrow(/already locked by this process/)
+
+    expect(MatterServerNode.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry an unrelated creation error', async () => {
+    vi.mocked(MatterServerNode.create).mockRejectedValue(new Error('boom'))
+
+    await expect(
+      lifecycle.createServerNodeWithRecovery({} as never, 'TEST0001'),
+    ).rejects.toThrow('boom')
+
+    expect(MatterServerNode.create).toHaveBeenCalledTimes(1)
   })
 })

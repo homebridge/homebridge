@@ -39,6 +39,8 @@ import {
   SERVER_INIT_DELAY_MS,
   SERVER_READY_POLL_INTERVAL_MS,
   SERVER_READY_TIMEOUT_MS,
+  STORAGE_LOCK_RETRY_ATTEMPTS,
+  STORAGE_LOCK_RETRY_DELAY_MS,
 } from './ServerConfig.js'
 
 const log = Logger.withPrefix('Matter/Server')
@@ -79,6 +81,47 @@ export class ServerLifecycle {
   public matterStoragePath?: string
 
   /**
+   * Whether a ServerNode creation failure is a transient storage-lock contention
+   * (a previous instance still releasing the lock) rather than a hard failure.
+   *
+   * matter.js already reclaims stale locks left by a crashed owner, so only a
+   * live previous instance produces "locked by another process". The
+   * "already locked by this process" variant is a bug, not a race, so it is
+   * deliberately not treated as transient.
+   */
+  private isTransientStorageLock(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error)
+    return message.includes('locked by another process')
+  }
+
+  /**
+   * Create a ServerNode, retrying on transient storage-lock contention.
+   *
+   * Without this, a quick restart where the previous process is still releasing
+   * the storage lock throws straight out of start(), which disables Matter for
+   * the entire process lifetime with no retry (a transient condition turned into
+   * a hard failure).
+   */
+  private async createServerNode(
+    nodeOptions: Parameters<typeof MatterServerNode.create>[0],
+  ): Promise<ServerNode> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await MatterServerNode.create(nodeOptions)
+      } catch (error: unknown) {
+        if (!this.isTransientStorageLock(error) || attempt >= STORAGE_LOCK_RETRY_ATTEMPTS) {
+          throw error
+        }
+        log.warn(
+          'Matter storage is locked, most likely a previous instance is still shutting down '
+          + `(attempt ${attempt}/${STORAGE_LOCK_RETRY_ATTEMPTS}); retrying in ${STORAGE_LOCK_RETRY_DELAY_MS}ms...`,
+        )
+        await new Promise(resolve => setTimeout(resolve, STORAGE_LOCK_RETRY_DELAY_MS))
+      }
+    }
+  }
+
+  /**
    * Create ServerNode with automatic recovery from corrupted storage
    */
   async createServerNodeWithRecovery(
@@ -86,7 +129,7 @@ export class ServerLifecycle {
     sanitizedId: string,
   ): Promise<ServerNode> {
     try {
-      return await MatterServerNode.create(nodeOptions)
+      return await this.createServerNode(nodeOptions)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : ''
       const causeMessage = error instanceof Error && error.cause instanceof Error ? error.cause.message : ''
@@ -147,7 +190,7 @@ export class ServerLifecycle {
           log.warn('No corrupted storage files found, corruption may be elsewhere')
         }
 
-        const serverNode = await MatterServerNode.create(nodeOptions)
+        const serverNode = await this.createServerNode(nodeOptions)
         log.info('Successfully recovered from corrupted Matter storage')
         return serverNode
       } catch (retryError) {
