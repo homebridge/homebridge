@@ -72,7 +72,7 @@ describe('homebridgeAPI', () => {
       // API directly, so stand in a manager stub to satisfy that precondition.
       // getExternalServer is included because getAccessoryState consults it;
       // hasActiveMatter returns true so the register/update guards pass.
-      ;(api as any)._matterManager = { getExternalServer: () => undefined, hasActiveMatter: () => true }
+      ;(api as any)._matterManager = { getExternalServer: () => undefined, hasActiveMatter: () => true, isBridgeServerStarting: () => false }
     })
 
     describe('loadMatterAPI lifecycle', () => {

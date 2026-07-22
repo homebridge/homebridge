@@ -308,6 +308,20 @@ export class MatterAPIImpl implements MatterAPI {
 
     // Handle normal accessories (added to bridge)
     if (normalAccessories.length > 0) {
+      // The bridged register event is emitted fire-and-forget, so if the bridge
+      // Matter server node is not running yet the registration is silently
+      // dropped (the downstream "Matter server not started" error is only
+      // logged) and this call would still resolve. Reject instead, so the plugin
+      // can tell the accessory was not registered. External accessories are
+      // unaffected — they run on their own dedicated server and already await a
+      // completion resolver.
+      const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
+      if (matterManager && matterManager.isBridgeServerStarting()) {
+        throw new Error(
+          `${pluginIdentifier}: Cannot register Matter accessories yet — the Matter server for this bridge is still starting. Register from your platform's 'didFinishLaunching' event; if you already do, this is transient and the accessories are restored from cache on the next start.`,
+        )
+      }
+
       // Add plugin/platform association
       normalAccessories.forEach((accessory) => {
         const internal = accessory as InternalMatterAccessory

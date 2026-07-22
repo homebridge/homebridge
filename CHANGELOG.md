@@ -11,6 +11,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): expose matter status errors on `api.matter.status`
 - fix(matter): retry Matter server start on transient storage-lock contention
 - fix(matter): retry parts-list notification on synchronous lock contention
+- fix(matter): reject bridged registrations that arrive before the server is running
 
 ### Homebridge Dependencies
 
