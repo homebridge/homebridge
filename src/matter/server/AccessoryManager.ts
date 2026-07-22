@@ -57,6 +57,15 @@ import {
 import { stripVendorFromLabel } from '../utils.js'
 import { CORE_CLUSTER_BEHAVIOR_MAP } from './BehaviorMap.js'
 
+// The parts-list update and ConfigurationVersion bump run inside matter.js
+// transactions that acquire their resource lock synchronously. A controller
+// re-establishing its subscription (matter.js-internal "offline" transactions)
+// can briefly hold that lock, making the synchronous acquisition throw. Those
+// transactions release almost immediately, so retry with a short yield rather
+// than dropping the structure-change notification (#3970).
+const PARTS_LIST_NOTIFY_ATTEMPTS = 5
+const PARTS_LIST_NOTIFY_RETRY_DELAY_MS = 50
+
 type BehaviorType = Behavior.Type
 
 interface DetectedClusterFeatures {
@@ -793,37 +802,66 @@ export class AccessoryManager {
       return
     }
 
-    try {
-      const aggregatorState = aggregator as any
+    for (let attempt = 1; attempt <= PARTS_LIST_NOTIFY_ATTEMPTS; attempt++) {
+      try {
+        await this.applyPartsListNotification(aggregator, deps)
+        return
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
 
-      if (aggregatorState.state?.descriptor) {
-        const partsList = aggregatorState.state.descriptor.partsList || []
-
-        if (deps.config.debugModeEnabled) {
-          log.debug(`Parts list changed: ${partsList.length} devices (endpoints: ${partsList.join(', ')})`)
+        // matter.js reports synchronous lock contention with "Cannot lock ...
+        // synchronously" / "acquire locks asynchronously". The blocking
+        // transaction releases almost immediately, so yield and retry rather
+        // than dropping the notification.
+        const isLockContention = errorMessage.includes('Cannot lock') || errorMessage.includes('acquire locks')
+        if (isLockContention && attempt < PARTS_LIST_NOTIFY_ATTEMPTS) {
+          await new Promise(resolve => setTimeout(resolve, PARTS_LIST_NOTIFY_RETRY_DELAY_MS))
+          continue
         }
 
-        await aggregator.set({
-          descriptor: {
-            partsList,
-          },
-        } as any)
-
-        log.info(`Notified controllers of parts list change (${deps.accessories.size} devices)`)
+        log.warn(`Failed to notify controllers of parts list change: ${errorMessage}`)
+        return
       }
-
-      // Matter 1.6 signals bridge structure changes to controllers via
-      // BasicInformation's ConfigurationVersion. matter.js seeds the attribute
-      // but does not bump it when endpoints are added or removed — that is the
-      // bridge's job.
-      const serverNode = deps.getServerNode()
-      if (serverNode) {
-        await serverNode.act(agent => agent.get(BasicInformationServer).increaseConfigurationVersion())
-        log.debug('Increased bridge configuration version')
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      log.warn(`Failed to notify controllers of parts list change: ${errorMessage}`)
     }
+  }
+
+  /**
+   * A single attempt at pushing the parts-list change to controllers: update the
+   * aggregator's parts list and bump the bridge ConfigurationVersion. Both bump
+   * once per successful call, so retrying the whole thing after a mid-way lock
+   * failure does not double-count (the parts-list set is idempotent and only a
+   * successful `increaseConfigurationVersion()` mutates the version).
+   */
+  private async applyPartsListNotification(
+    aggregator: NonNullable<ReturnType<AccessoryManagerDeps['getAggregator']>>,
+    deps: AccessoryManagerDeps,
+  ): Promise<void> {
+    const aggregatorState = aggregator as any
+
+    if (aggregatorState.state?.descriptor) {
+      const partsList = aggregatorState.state.descriptor.partsList || []
+
+      if (deps.config.debugModeEnabled) {
+        log.debug(`Parts list changed: ${partsList.length} devices (endpoints: ${partsList.join(', ')})`)
+      }
+
+      await aggregator.set({
+        descriptor: {
+          partsList,
+        },
+      } as any)
+    }
+
+    // Matter 1.6 signals bridge structure changes to controllers via
+    // BasicInformation's ConfigurationVersion. matter.js seeds the attribute
+    // but does not bump it when endpoints are added or removed — that is the
+    // bridge's job.
+    const serverNode = deps.getServerNode()
+    if (serverNode) {
+      await serverNode.act(agent => agent.get(BasicInformationServer).increaseConfigurationVersion())
+      log.debug('Increased bridge configuration version')
+    }
+
+    log.info(`Notified controllers of parts list change (${deps.accessories.size} devices)`)
   }
 }
