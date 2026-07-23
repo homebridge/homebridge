@@ -13,6 +13,7 @@ import type { MatterServerConfig } from '../sharedTypes.js'
 import type { CommissioningDeps, CommissioningManager } from './CommissioningManager.js'
 import type { FabricManager } from './FabricManager.js'
 
+import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
 import { access, mkdir, rm, stat } from 'node:fs/promises'
 import { homedir, release } from 'node:os'
@@ -288,6 +289,15 @@ export class ServerLifecycle {
 
       const sanitizedId = deps.config.uniqueId!
 
+      // Apple homed refuses to register nodes whose firmware metadata is
+      // missing or unparseable ("invalid matter AFU settings") - which
+      // silently breaks its whole control path. Derive a consistent
+      // numeric+string version pair from the configured firmware revision.
+      const versionMatch = /(\d+)\.(\d+)\.(\d+)/.exec(deps.config.firmwareRevision || getVersion() || '')
+      const version = versionMatch
+        ? [Number(versionMatch[1]) & 0xFF, Number(versionMatch[2]) & 0xFF, Number(versionMatch[3]) & 0xFF]
+        : [1, 0, 0]
+
       const nodeOptions: Parameters<typeof MatterServerNode.create>[0] = {
         id: sanitizedId,
         network: {
@@ -307,9 +317,17 @@ export class ServerLifecycle {
           serialNumber: deps.config.serialNumber || deps.config.uniqueId,
           hardwareVersion: 1,
           hardwareVersionString: release(),
-          softwareVersion: 1,
-          softwareVersionString: deps.config.firmwareRevision || getVersion(),
+          softwareVersion: (version[0] << 16) | (version[1] << 8) | version[2],
+          softwareVersionString: version.join('.'),
+          configurationVersion: 1,
+          productUrl: 'https://homebridge.io',
           reachable: true,
+          // matter.js otherwise fills uniqueId with a random string persisted
+          // only in its own storage; controllers key node identity on it.
+          // Derive it from the bridge's uniqueId so the same bridge always
+          // yields the same identity. This is a stable non-cryptographic
+          // identity derivation, truncated to the attribute's 32-char cap.
+          uniqueId: createHash('sha256').update(deps.config.uniqueId).digest('hex').slice(0, 32),
         },
       }
 
@@ -427,7 +445,15 @@ export class ServerLifecycle {
           await deps.restoreAccessoriesFromCache()
         }
 
-        await this.startServerNode(serverNode, deps)
+        if (deps.config.deferOnline) {
+          // Deferred-online mode: the node is fully built (cache restored) but
+          // stays offline until runServer() - plugins register against the
+          // offline node so its FIRST advertisement already carries the final
+          // structure, and subscription re-establishment runs on a quiet node.
+          log.info('Deferred online mode - Matter node built, waiting for initial registrations before going online')
+        } else {
+          await this.startServerNode(serverNode, deps)
+        }
       } else {
         log.debug('Deferred start mode - server prepared but not running yet (will start after device registration)')
       }
@@ -476,7 +502,8 @@ export class ServerLifecycle {
   }
 
   /**
-   * Run the server after devices have been added (for external accessory mode)
+   * Run the server after devices have been added (for external accessory and
+   * deferred-online modes)
    */
   async runServer(deps: ServerLifecycleDeps): Promise<void> {
     const serverNode = deps.getServerNode()
@@ -489,8 +516,8 @@ export class ServerLifecycle {
       return
     }
 
-    if (!deps.config.externalAccessory) {
-      throw new MatterDeviceError('runServer() should only be called when externalAccessory mode is enabled')
+    if (!deps.config.externalAccessory && !deps.config.deferOnline) {
+      throw new MatterDeviceError('runServer() should only be called when externalAccessory or deferOnline mode is enabled')
     }
 
     log.debug('Running deferred server with device(s) already attached')

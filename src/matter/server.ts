@@ -60,6 +60,7 @@ export class MatterServer extends EventEmitter {
   private readonly behaviorRegistry: BehaviorRegistry
   private readonly registryManager: RegistryManager
   private isRunning = false
+  private lastRegistrationAt = 0
   private shutdownHandler: (() => Promise<void>) | null = null
   private cleanupHandlers: Array<() => void | Promise<void>> = []
   private accessoryCache: MatterAccessoryCache | null = null
@@ -151,7 +152,17 @@ export class MatterServer extends EventEmitter {
   // Accessory registration (Plugin API - matches HAP pattern)
   // ============================================================================
 
+  /**
+   * When the last registerPlatformAccessories() call arrived. The
+   * deferred-online settle loop (ChildBridgeMatterManager) polls this to
+   * detect when the initial registration burst has gone idle.
+   */
+  getLastRegistrationAt(): number {
+    return this.lastRegistrationAt
+  }
+
   async registerPlatformAccessories(pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): Promise<void> {
+    this.lastRegistrationAt = Date.now()
     for (const accessory of accessories) {
       await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
     }
