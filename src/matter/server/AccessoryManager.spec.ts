@@ -26,12 +26,19 @@ vi.mock('@matter/main', () => {
       this.id = options?.id
     }
   }
-  return { Endpoint: MockEndpoint }
+  return { Endpoint: MockEndpoint, VendorId: vi.fn((id: number) => id) }
 })
 vi.mock('@matter/main/behaviors', () => ({
   BasicInformationServer: { name: 'BasicInformationServer' },
-  BridgedDeviceBasicInformationServer: { name: 'BridgedDeviceBasicInformationServer' },
-  DescriptorServer: { name: 'DescriptorServer' },
+  BridgedDeviceBasicInformationServer: {
+    name: 'BridgedDeviceBasicInformationServer',
+    enable: vi.fn(() => ({ name: 'BridgedDeviceBasicInformationServer.enable' })),
+  },
+  DescriptorServer: {
+    name: 'DescriptorServer',
+    with: vi.fn((...args: any[]) => ({ name: `DescriptorServer.with(${args.join(',')})` })),
+  },
+  FixedLabelServer: { name: 'FixedLabelServer' },
 }))
 vi.mock('@matter/node/behaviors', () => ({
   PowerSourceServer: { name: 'PowerSourceServer', with: vi.fn((...args: any[]) => ({ name: `PowerSourceServer.with(${args.join(',')})` })) },
@@ -171,11 +178,18 @@ function createMockDeps(overrides: Partial<AccessoryManagerDeps> = {}): Accessor
   }
 }
 
+// Composed (parts-bearing) accessories chain several `.with()` calls on the
+// parent device type (BridgedDeviceBasicInformation, FixedLabel, PowerSource),
+// so the mock must stay chainable at any depth.
+function createChainableDeviceType(props: Record<string, unknown>): any {
+  return { ...props, with: vi.fn(() => createChainableDeviceType(props)) }
+}
+
 function createMockAccessory(overrides: Partial<MatterAccessory> = {}): MatterAccessory {
   return {
     UUID: 'test-uuid-001',
     displayName: 'Test Light',
-    deviceType: { deviceType: 0x0100, name: 'OnOffLight', with: vi.fn(() => ({ deviceType: 0x0100, with: vi.fn() })) } as any,
+    deviceType: createChainableDeviceType({ deviceType: 0x0100, name: 'OnOffLight' }),
     serialNumber: 'SN-001',
     manufacturer: 'Test Mfg',
     model: 'Test Model',
