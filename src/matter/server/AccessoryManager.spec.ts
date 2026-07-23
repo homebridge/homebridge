@@ -1,6 +1,7 @@
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 import type { AccessoryManagerDeps } from './AccessoryManager.js'
 
+import { DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
 import { PowerSourceServer } from '@matter/node/behaviors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -183,6 +184,26 @@ function createMockDeps(overrides: Partial<AccessoryManagerDeps> = {}): Accessor
 // so the mock must stay chainable at any depth.
 function createChainableDeviceType(props: Record<string, unknown>): any {
   return { ...props, with: vi.fn(() => createChainableDeviceType(props)) }
+}
+
+// A parent device type whose `.with()` is a single self-returning spy, so a
+// test can assert exactly which behaviors (FixedLabel, wired PowerSource) were
+// composed onto it across the several chained `.with()` calls registerAccessory
+// makes on the parent.
+function createSpyDeviceType(props: Record<string, unknown>): any {
+  const deviceType: any = { ...props }
+  deviceType.with = vi.fn(() => deviceType)
+  return deviceType
+}
+
+// A composed-device part: a plain device type plus a cluster, no handlers.
+function createComposedPart(id = 'part-1'): any {
+  return {
+    id,
+    displayName: `Part ${id}`,
+    deviceType: createChainableDeviceType({ deviceType: 0x0100, name: 'OnOffLight' }),
+    clusters: { onOff: { onOff: false } },
+  }
 }
 
 function createMockAccessory(overrides: Partial<MatterAccessory> = {}): MatterAccessory {
@@ -573,6 +594,94 @@ describe('accessoryManager', () => {
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
       expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
+    })
+  })
+
+  describe('composed parent (FixedLabel + wired PowerSource + tag list)', () => {
+    // A parts-bearing (composed/BridgedNode) parent must carry a FixedLabel and,
+    // unless the accessory declared its own PowerSource, a wired (AC) PowerSource
+    // — Apple's controller needs both to finish per-accessory session setup.
+    // Flat accessories get neither, and part endpoints carry a semantic tag list.
+
+    it('a composed accessory gets a FixedLabel and a wired PowerSource on the parent', async () => {
+      const deps = createMockDeps()
+      const deviceType = createSpyDeviceType({ deviceType: 0x0100, name: 'OnOffLight' })
+      const accessory = createMockAccessory({
+        deviceType,
+        parts: [createComposedPart()],
+      } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      // FixedLabelServer is composed onto the parent device type...
+      expect(deviceType.with).toHaveBeenCalledWith(FixedLabelServer)
+      // ...and a wired PowerSource is synthesized.
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Wired')
+
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.options.fixedLabel).toEqual({
+        labelList: [{ label: 'composed', value: 'true' }],
+      })
+      // wiredCurrentType 0 = AC.
+      expect(internal.endpoint.options.powerSource.wiredCurrentType).toBe(0)
+    })
+
+    it('a composed accessory that declares its own PowerSource (battery) keeps it and gets no wired PowerSource', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: createSpyDeviceType({ deviceType: 0x0100, name: 'OnOffLight' }),
+        clusters: {
+          onOff: { onOff: false },
+          powerSource: { batPercentRemaining: 200, batChargeLevel: 0 },
+        },
+        parts: [createComposedPart()],
+      } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      // The plugin's battery PowerSource is composed...
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery')
+      // ...and our wired PowerSource must never overwrite it.
+      expect(PowerSourceServer.with).not.toHaveBeenCalledWith('Wired')
+      const internal = deps.accessories.get('test-uuid-001') as any
+      // The plugin's battery cluster state survives, untouched by a wired override.
+      expect(internal.endpoint.options.powerSource.batPercentRemaining).toBe(200)
+      expect(internal.endpoint.options.powerSource.wiredCurrentType).toBeUndefined()
+    })
+
+    it('a flat accessory (no parts) gets no FixedLabel or synthesized PowerSource', async () => {
+      const deps = createMockDeps()
+      const deviceType = createSpyDeviceType({ deviceType: 0x0100, name: 'OnOffLight' })
+      const accessory = createMockAccessory({ deviceType })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(deviceType.with).not.toHaveBeenCalledWith(FixedLabelServer)
+      expect(PowerSourceServer.with).not.toHaveBeenCalledWith('Wired')
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.options.fixedLabel).toBeUndefined()
+      expect(internal.endpoint.options.powerSource).toBeUndefined()
+    })
+
+    it('part endpoints carry a tag list', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: createSpyDeviceType({ deviceType: 0x0100, name: 'OnOffLight' }),
+        parts: [createComposedPart('outlet-1')],
+      } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      // The part's Descriptor gains the TagList feature...
+      expect(DescriptorServer.with).toHaveBeenCalledWith('TagList')
+      // ...and the part endpoint carries a Number-namespace (7) tag per part index.
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal._parts[0].endpoint.options.descriptor.tagList).toEqual([{
+        mfgCode: null,
+        namespaceId: 7,
+        tag: 0,
+        label: 'Part outlet-1',
+      }])
     })
   })
 
