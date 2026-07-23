@@ -89,6 +89,30 @@ describe('baseMatterManager', () => {
     })
   })
 
+  describe('isBridgeServerStarting', () => {
+    it('is false when no bridge MatterServer exists', () => {
+      expect(manager.isBridgeServerStarting()).toBe(false)
+    })
+
+    it('is false once the server is running', () => {
+      manager.setMatterServer({ isServerRunning: () => true, isDeferredPreOnline: () => false } as any)
+      expect(manager.isBridgeServerStarting()).toBe(false)
+    })
+
+    it('is true while the server is still starting (not running, not deferred)', () => {
+      manager.setMatterServer({ isServerRunning: () => false, isDeferredPreOnline: () => false } as any)
+      expect(manager.isBridgeServerStarting()).toBe(true)
+    })
+
+    it('is false while deliberately offline in deferOnline mode, so registrations are accepted', () => {
+      // The deadlock this guards against: if registrations were rejected while
+      // the deferred node is offline, the settle signal would never fire and
+      // the node would come online with no accessories.
+      manager.setMatterServer({ isServerRunning: () => false, isDeferredPreOnline: () => true } as any)
+      expect(manager.isBridgeServerStarting()).toBe(false)
+    })
+  })
+
   describe('handleTriggerCommand', () => {
     it('should route commands to external server if accessory is external', async () => {
       const uuid = 'test-uuid'

@@ -266,4 +266,34 @@ describe('commissioningManager', () => {
       await expect(manager.updateCommissioningFile(deps)).resolves.not.toThrow()
     })
   })
+
+  describe('purgeSubscriptionsForFabric', () => {
+    function serverNodeWith(subs: any[]) {
+      const subscriptions = { state: { subscriptions: subs } }
+      return {
+        node: { act: async (cb: any) => cb({ get: () => subscriptions }) },
+        subscriptions,
+      }
+    }
+
+    it('removes only the persisted subscriptions of the deleted fabric', async () => {
+      const { node, subscriptions } = serverNodeWith([
+        { peerAddress: { fabricIndex: 1 } },
+        { peerAddress: { fabricIndex: 2 } },
+        { peerAddress: { fabricIndex: 1 } },
+      ])
+      await (manager as any).purgeSubscriptionsForFabric(node, 1)
+      expect(subscriptions.state.subscriptions).toEqual([{ peerAddress: { fabricIndex: 2 } }])
+    })
+
+    it('leaves subscriptions untouched when none belong to the fabric', async () => {
+      const { node, subscriptions } = serverNodeWith([{ peerAddress: { fabricIndex: 2 } }])
+      await (manager as any).purgeSubscriptionsForFabric(node, 1)
+      expect(subscriptions.state.subscriptions).toEqual([{ peerAddress: { fabricIndex: 2 } }])
+    })
+
+    it('is a no-op when there is no server node', async () => {
+      await expect((manager as any).purgeSubscriptionsForFabric(null, 1)).resolves.toBeUndefined()
+    })
+  })
 })
