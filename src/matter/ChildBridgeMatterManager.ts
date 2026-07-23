@@ -294,9 +294,12 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
         return
       }
 
-      const lastRegistrationAt = server.getLastRegistrationAt()
-      const idleSince = Math.max(lastRegistrationAt, deferStartedAt)
-      const settled = lastRegistrationAt > 0 && Date.now() - idleSince >= DEFER_ONLINE_SETTLE_MS
+      // Settle once no registration has started or been in flight for the
+      // settle window. A bridge that never registers (or restores purely from
+      // the accessory cache) settles the window after deferStartedAt, so it
+      // goes online promptly rather than waiting for the cap.
+      const idleSince = Math.max(server.getLastRegistrationAt(), deferStartedAt)
+      const settled = server.getRegistrationsInFlight() === 0 && Date.now() - idleSince >= DEFER_ONLINE_SETTLE_MS
       const capped = Date.now() - deferStartedAt >= DEFER_ONLINE_CAP_MS
 
       if (!settled && !capped) {

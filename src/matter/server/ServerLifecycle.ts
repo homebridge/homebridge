@@ -13,7 +13,6 @@ import type { MatterServerConfig } from '../sharedTypes.js'
 import type { CommissioningDeps, CommissioningManager } from './CommissioningManager.js'
 import type { FabricManager } from './FabricManager.js'
 
-import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
 import { access, mkdir, rm, stat } from 'node:fs/promises'
 import { homedir, release } from 'node:os'
@@ -318,16 +317,11 @@ export class ServerLifecycle {
           hardwareVersion: 1,
           hardwareVersionString: release(),
           softwareVersion: (version[0] << 16) | (version[1] << 8) | version[2],
-          softwareVersionString: version.join('.'),
-          configurationVersion: 1,
-          productUrl: 'https://homebridge.io',
+          // Keep the full version string (including any pre-release suffix) so
+          // beta builds remain identifiable to controllers/support; only the
+          // numeric softwareVersion is derived from the parsed triplet.
+          softwareVersionString: deps.config.firmwareRevision || getVersion(),
           reachable: true,
-          // matter.js otherwise fills uniqueId with a random string persisted
-          // only in its own storage; controllers key node identity on it.
-          // Derive it from the bridge's uniqueId so the same bridge always
-          // yields the same identity. This is a stable non-cryptographic
-          // identity derivation, truncated to the attribute's 32-char cap.
-          uniqueId: createHash('sha256').update(deps.config.uniqueId).digest('hex').slice(0, 32),
         },
       }
 

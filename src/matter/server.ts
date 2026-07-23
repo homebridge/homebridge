@@ -61,6 +61,7 @@ export class MatterServer extends EventEmitter {
   private readonly registryManager: RegistryManager
   private isRunning = false
   private lastRegistrationAt = 0
+  private registrationsInFlight = 0
   private shutdownHandler: (() => Promise<void>) | null = null
   private cleanupHandlers: Array<() => void | Promise<void>> = []
   private accessoryCache: MatterAccessoryCache | null = null
@@ -161,10 +162,24 @@ export class MatterServer extends EventEmitter {
     return this.lastRegistrationAt
   }
 
+  /** Registration calls that have started but not finished; used by the deferred-online settle check. */
+  getRegistrationsInFlight(): number {
+    return this.registrationsInFlight
+  }
+
   async registerPlatformAccessories(pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): Promise<void> {
+    // Stamp on both entry and exit and track in-flight calls so the deferred-
+    // online settle check never treats a batch that is still registering (or
+    // one that takes longer than the settle window) as idle.
+    this.registrationsInFlight++
     this.lastRegistrationAt = Date.now()
-    for (const accessory of accessories) {
-      await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
+    try {
+      for (const accessory of accessories) {
+        await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
+      }
+    } finally {
+      this.lastRegistrationAt = Date.now()
+      this.registrationsInFlight--
     }
   }
 
@@ -326,6 +341,15 @@ export class MatterServer extends EventEmitter {
 
   isServerRunning(): boolean {
     return this.isRunning
+  }
+
+  /**
+   * True while the node is built but deliberately kept offline in deferOnline
+   * mode, waiting for the initial registration burst to settle. Registrations
+   * are expected in this window, so callers must not treat it as "starting".
+   */
+  isDeferredPreOnline(): boolean {
+    return this.config.deferOnline === true && !this.isRunning
   }
 
   getDeviceTypes(): typeof deviceTypes {

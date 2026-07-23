@@ -65,6 +65,13 @@ export abstract class BaseMatterManager {
    * are intentionally dropped by the drop stubs — that must not throw.
    */
   isBridgeServerStarting(): boolean {
+    // In deferOnline mode the server is deliberately built but kept offline
+    // until the initial registration burst settles, so registrations MUST be
+    // accepted while it is offline — otherwise they are rejected, the settle
+    // signal never fires, and the node comes online with no accessories.
+    if (this.matterServer?.isDeferredPreOnline()) {
+      return false
+    }
     return this.matterServer !== undefined && !this.matterServer.isServerRunning()
   }
 
