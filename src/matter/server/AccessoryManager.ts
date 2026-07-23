@@ -21,11 +21,10 @@ import type {
   MatterAccessoryPart,
 } from '../types.js'
 
-import { createHash } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import process from 'node:process'
 
-import { Endpoint, VendorId } from '@matter/main'
+import { Endpoint } from '@matter/main'
 import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
 import { PowerSourceServer } from '@matter/node/behaviors'
 
@@ -58,7 +57,6 @@ import {
 } from '../types.js'
 import { stripVendorFromLabel } from '../utils.js'
 import { CORE_CLUSTER_BEHAVIOR_MAP } from './BehaviorMap.js'
-import { DEFAULT_VENDOR_ID } from './ServerConfig.js'
 
 // The parts-list update and ConfigurationVersion bump run inside matter.js
 // transactions that acquire their resource lock synchronously. A controller
@@ -88,25 +86,6 @@ interface DetectedClusterFeatures {
 }
 
 const log = Logger.withPrefix('Matter/Server')
-
-/**
- * Human-readable kind for the FixedLabel "composed" value on a parts-bearing
- * parent, derived from the first part's device type name (matterbridge uses
- * the device class here; controllers accept any string).
- */
-function composedKindLabel(part: MatterAccessoryPart): string {
-  const name = (part.deviceType as { name?: string })?.name ?? ''
-  if (name.includes('Light')) {
-    return 'Light'
-  }
-  if (name.includes('Outlet') || name.includes('PlugIn')) {
-    return 'Outlet'
-  }
-  if (name.includes('Switch')) {
-    return 'Switch'
-  }
-  return 'Device'
-}
 
 export interface AccessoryManagerDeps {
   config: MatterServerConfig
@@ -261,7 +240,7 @@ export class AccessoryManager {
         if (!hasBridgedInfo) {
           // Enable the Leave and ReachableChanged events - controllers use them
           // to track bridged device lifecycle, and known-good bridges expose both.
-          deviceType = (deviceType as any).with(BridgedDeviceBasicInformationServer.enable({ events: { leave: true, reachableChanged: true } }))
+          deviceType = (deviceType as any).with(BridgedDeviceBasicInformationServer)
           log.debug(`Added BridgedDeviceBasicInformationServer to ${accessory.displayName}`)
         }
       }
@@ -273,21 +252,27 @@ export class AccessoryManager {
       // to the composed accessory. Without it (plus the PowerSource below),
       // homed never finishes its per-accessory session setup: commands fail
       // silently ("No Response") from ~30s after pairing while reads keep working.
-      if (accessory.parts && accessory.parts.length > 0 && (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.fixedLabel === undefined) {
-        deviceType = (deviceType as any).with(FixedLabelServer)
-        endpointOptions.fixedLabel = {
-          labelList: [{ label: 'composed', value: composedKindLabel(accessory.parts[0]) }],
+      if (accessory.parts && accessory.parts.length > 0) {
+        if ((deviceType as { behaviors?: Record<string, unknown> }).behaviors?.fixedLabel === undefined) {
+          deviceType = (deviceType as any).with(FixedLabelServer)
+          endpointOptions.fixedLabel = {
+            labelList: [{ label: 'composed', value: 'true' }],
+          }
         }
 
         // Known-good bridges also expose a wired PowerSource on composed
-        // parents; Apple's controller appears to expect it.
-        deviceType = (deviceType as any).with((PowerSourceServer as any).with('Wired'))
-        endpointOptions.powerSource = {
-          status: 1, // Active
-          order: 0,
-          description: 'AC Power',
-          endpointList: [],
-          wiredCurrentType: 1, // AC
+        // parents; Apple's controller appears to expect it. Only synthesize it
+        // when the accessory has not declared its own PowerSource — otherwise a
+        // plugin-provided battery PowerSource (added below) would be overwritten.
+        if (!accessory.clusters?.powerSource) {
+          deviceType = (deviceType as any).with((PowerSourceServer as any).with('Wired'))
+          endpointOptions.powerSource = {
+            status: 1, // Active
+            order: 0,
+            description: 'AC Power',
+            endpointList: [],
+            wiredCurrentType: 0, // AC (PowerSource.WiredCurrentType.Ac)
+          }
         }
       }
 
@@ -653,17 +638,7 @@ export class AccessoryManager {
     }
 
     if (!config.externalAccessory) {
-      // Apple homed refuses to register accessories whose firmware metadata is
-      // missing or unparseable ("invalid matter AFU settings") - which silently
-      // breaks its whole control path. Derive a consistent numeric+string
-      // version pair from the accessory's firmware revision.
-      const versionMatch = /(\d+)\.(\d+)\.(\d+)/.exec(accessory.firmwareRevision || '')
-      const version = versionMatch
-        ? [Number(versionMatch[1]) & 0xFF, Number(versionMatch[2]) & 0xFF, Number(versionMatch[3]) & 0xFF]
-        : [1, 0, 0]
-
       endpointOptions.bridgedDeviceBasicInformation = {
-        vendorId: VendorId(DEFAULT_VENDOR_ID),
         vendorName: accessory.manufacturer,
         nodeLabel: accessory.displayName,
         productName: accessory.model,
@@ -672,19 +647,7 @@ export class AccessoryManager {
         productLabel: stripVendorFromLabel(accessory.displayName, accessory.manufacturer)
           || accessory.model || 'Device',
         serialNumber: accessory.serialNumber,
-        softwareVersion: (version[0] << 16) | (version[1] << 8) | version[2],
-        softwareVersionString: version.join('.'),
-        hardwareVersion: 1,
-        hardwareVersionString: '1.0.0',
-        configurationVersion: 1,
-        productUrl: 'https://homebridge.io',
         reachable: true,
-        // matter.js otherwise fills uniqueId with a random string persisted
-        // only in its own storage; controllers key bridged accessory identity
-        // on it. Derive it from the accessory UUID so the same registration
-        // always yields the same identity. This is a stable non-cryptographic
-        // identity derivation, truncated to the attribute's 32-char cap.
-        uniqueId: createHash('sha256').update(accessory.UUID).digest('hex').slice(0, 32),
       }
     }
 
