@@ -18,7 +18,6 @@ import type {
   InternalMatterAccessoryPart,
   MatterAccessory,
   MatterAccessoryEventEmitter,
-  MatterAccessoryPart,
 } from '../types.js'
 
 import { EventEmitter } from 'node:events'
