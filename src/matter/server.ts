@@ -347,9 +347,12 @@ export class MatterServer extends EventEmitter {
    * True while the node is built but deliberately kept offline in deferOnline
    * mode, waiting for the initial registration burst to settle. Registrations
    * are expected in this window, so callers must not treat it as "starting".
+   * The aggregator check keeps this false before start() has built the node
+   * (and when start() failed) - registrations in that gap must be rejected as
+   * "starting", or they would be silently dropped (#3970).
    */
   isDeferredPreOnline(): boolean {
-    return this.config.deferOnline === true && !this.isRunning
+    return this.config.deferOnline === true && !this.isRunning && this.aggregator !== null
   }
 
   getDeviceTypes(): typeof deviceTypes {
