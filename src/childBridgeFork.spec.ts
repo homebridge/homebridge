@@ -351,6 +351,8 @@ describe('childBridgeFork - Matter Handlers', () => {
           manualPairingCode: '12345-67890',
           serialNumber: 'SN-1',
           commissioned: false,
+          fabricCount: 0,
+          fabrics: [],
         })),
       }
 
@@ -364,6 +366,8 @@ describe('childBridgeFork - Matter Handlers', () => {
           manualPairingCode: '12345-67890',
           serialNumber: 'SN-1',
           commissioned: false,
+          fabricCount: 0,
+          fabrics: [],
         },
       })
     })

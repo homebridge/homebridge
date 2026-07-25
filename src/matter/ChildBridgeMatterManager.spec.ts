@@ -221,6 +221,11 @@ describe('childBridgeMatterManager', () => {
         mockPluginManager,
       )
 
+      const fabrics = [
+        { fabricIndex: 1, fabricId: '1', nodeId: '10', rootVendorId: 0x1349, label: 'My Home' },
+        { fabricIndex: 2, fabricId: '2', nodeId: '11', rootVendorId: 0x1384, label: '' },
+      ]
+
       const mockMatterServer = {
         getCommissioningInfo: vi.fn().mockReturnValue({
           qrCode: 'MT:Y.K9000ABC1234567890',
@@ -228,6 +233,7 @@ describe('childBridgeMatterManager', () => {
           serialNumber: '0EDC5DBED675',
           commissioned: true,
         }),
+        getCommissioningSnapshot: vi.fn().mockReturnValue({ commissioned: true, fabricCount: 2, fabrics }),
         getAccessories: vi.fn().mockReturnValue([{ UUID: 'test' }]),
       } as any
 
@@ -239,6 +245,45 @@ describe('childBridgeMatterManager', () => {
       expect(statusInfo?.serialNumber).toBe('0EDC5DBED675')
       expect(statusInfo?.commissioned).toBe(true)
       expect(statusInfo?.deviceCount).toBe(1)
+      expect(statusInfo?.fabricCount).toBe(2)
+      expect(statusInfo?.fabrics).toEqual(fabrics)
+    })
+
+    it('takes commissioned from the fabric snapshot, not the lagging serverNode flag', () => {
+      const configWithMatter = {
+        ...mockBridgeConfig,
+        matter: { port: 5540 } as MatterConfig,
+      }
+
+      manager = new ChildBridgeMatterManager(
+        configWithMatter,
+        mockBridgeOptions,
+        mockApi,
+        mockExternalPortService,
+        mockPluginManager,
+      )
+
+      // After a controller-side removal of the last fabric, the serverNode's
+      // commissioning flag (surfaced via getCommissioningInfo) can stay true
+      // until restart, while the fabric list is already empty. The status
+      // payload must follow the fabric list (#3974).
+      const mockMatterServer = {
+        getCommissioningInfo: vi.fn().mockReturnValue({
+          qrCode: 'MT:Y.K9000ABC1234567890',
+          manualPairingCode: '12345678900',
+          serialNumber: '0EDC5DBED675',
+          commissioned: true,
+        }),
+        getCommissioningSnapshot: vi.fn().mockReturnValue({ commissioned: false, fabricCount: 0, fabrics: [] }),
+        getAccessories: vi.fn().mockReturnValue([]),
+      } as any
+
+      ;(manager as any).matterServer = mockMatterServer
+
+      const statusInfo = manager.getMatterStatusInfo()
+      expect(statusInfo?.commissioned).toBe(false)
+      expect(statusInfo?.fabricCount).toBe(0)
+      expect(statusInfo?.fabrics).toEqual([])
     })
   })
 
