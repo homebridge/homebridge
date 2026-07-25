@@ -60,7 +60,10 @@ export class FabricManager {
             fabricIndex: fabric.fabricIndex || 0,
             fabricId: fabric.fabricId?.toString() || '',
             nodeId: fabric.nodeId?.toString() || '',
-            rootVendorId: fabric.rootVendorId || 0,
+            // The operational credentials cluster's FabricDescriptorStruct names
+            // the vendor field `vendorId` (per the Matter spec); matter.js's
+            // internal Fabric object and persisted storage use `rootVendorId`
+            rootVendorId: fabric.rootVendorId ?? fabric.vendorId ?? 0,
             label: fabric.label || '',
           }))
         }
@@ -101,7 +104,7 @@ export class FabricManager {
               fabricIndex: fabric.fabricIndex || 0,
               fabricId: fabric.fabricId?.value?.toString() || fabric.fabricId?.toString() || '',
               nodeId: fabric.nodeId?.value?.toString() || fabric.nodeId?.toString() || '',
-              rootVendorId: fabric.rootVendorId || 0,
+              rootVendorId: fabric.rootVendorId ?? fabric.vendorId ?? 0,
               label: fabric.label || '',
             }))
           }
