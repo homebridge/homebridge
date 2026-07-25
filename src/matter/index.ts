@@ -29,6 +29,7 @@ export { type MatterConfigValidationResult, MatterConfigValidator } from './conf
 export { MatterStatus } from './errors.js'
 export { MatterBridgeManager } from './MatterBridgeManager.js'
 export { MatterServer } from './server.js'
+export type { CommissioningSnapshot, FabricInfo } from './server/FabricManager.js'
 export {
   clusterNames,
   clusters,

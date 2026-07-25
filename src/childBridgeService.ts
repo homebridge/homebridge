@@ -13,7 +13,7 @@ import type {
 import type { ExternalPortService } from './externalPortService.js'
 import type { IpcService, MatterEvent } from './ipcService.js'
 import type { Logging } from './logger.js'
-import type { MatterConfig } from './matter/index.js'
+import type { FabricInfo, MatterConfig } from './matter/index.js'
 import type { Plugin } from './plugin.js'
 import type { HomebridgeOptions } from './server.js'
 
@@ -171,6 +171,8 @@ export interface ChildBridgePairedStatusEventData {
     serialNumber?: string
     commissioned: boolean
     deviceCount: number
+    fabricCount?: number
+    fabrics?: FabricInfo[]
   }
 }
 
@@ -203,6 +205,8 @@ export interface ChildMetadata {
   matterSerialNumber?: string
   matterCommissioned?: boolean
   matterDeviceCount?: number
+  matterFabricCount?: number
+  matterFabrics?: FabricInfo[]
 }
 
 /**
@@ -224,6 +228,8 @@ export class ChildBridgeService {
     serialNumber?: string
     commissioned: boolean
     deviceCount?: number
+    fabricCount?: number
+    fabrics?: FabricInfo[]
   }
 
   private pluginConfig: Array<PlatformConfig | AccessoryConfig> = []
@@ -478,6 +484,8 @@ export class ChildBridgeService {
               serialNumber: statusData.matter.serialNumber,
               commissioned: statusData.matter.commissioned || false,
               deviceCount: statusData.matter.deviceCount,
+              fabricCount: statusData.matter.fabricCount,
+              fabrics: statusData.matter.fabrics,
             }
           }
 
@@ -866,6 +874,8 @@ export class ChildBridgeService {
       matterSerialNumber: this.matterCommissioningInfo?.serialNumber,
       matterCommissioned: this.matterCommissioningInfo?.commissioned,
       matterDeviceCount: this.matterCommissioningInfo?.deviceCount,
+      matterFabricCount: this.matterCommissioningInfo?.fabricCount,
+      matterFabrics: this.matterCommissioningInfo?.fabrics,
     }
   }
 }

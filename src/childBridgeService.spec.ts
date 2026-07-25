@@ -289,7 +289,9 @@ describe('childBridgeService', () => {
             qrCode: 'MT:ABCD',
             manualPairingCode: '12345-67890',
             serialNumber: 'SN-1',
-            commissioned: false,
+            commissioned: true,
+            fabricCount: 1,
+            fabrics: [{ fabricIndex: 1, fabricId: '1', nodeId: '10', rootVendorId: 0x1349, label: 'My Home' }],
           },
         },
       })
@@ -298,10 +300,17 @@ describe('childBridgeService', () => {
       expect((service as any).setupUri).toBe('X-HM://abc')
       expect((service as any).matterCommissioningInfo).toMatchObject({
         qrCode: 'MT:ABCD',
-        commissioned: false,
+        commissioned: true,
+        fabricCount: 1,
+        fabrics: [{ fabricIndex: 1, rootVendorId: 0x1349, label: 'My Home' }],
       })
       // sendStatusUpdate called as part of handler
       expect(ipcService.sendMessage).toHaveBeenCalled()
+
+      // The fabric list flows on into the metadata the UI consumes
+      const metadata = service.getMetadata()
+      expect(metadata.matterFabricCount).toBe(1)
+      expect(metadata.matterFabrics).toEqual([{ fabricIndex: 1, fabricId: '1', nodeId: '10', rootVendorId: 0x1349, label: 'My Home' }])
     })
 
     it('on PORT_REQUEST, forwards to externalPortService and replies with PORT_ALLOCATED', async () => {

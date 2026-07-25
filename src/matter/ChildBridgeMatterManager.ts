@@ -9,6 +9,7 @@ import type { HomebridgeAPI } from '../api.js'
 import type { BridgeConfiguration, BridgeOptions } from '../bridgeService.js'
 import type { ChildBridgeExternalPortService } from '../externalPortService.js'
 import type { AccessoryInfo } from './managerTypes.js'
+import type { FabricInfo } from './server/FabricManager.js'
 import type { InternalMatterAccessory, MatterAccessory, MatterConfig } from './types.js'
 
 import process from 'node:process'
@@ -45,6 +46,8 @@ export interface ChildBridgeMatterStatusInfo {
   serialNumber?: string
   commissioned: boolean
   deviceCount: number
+  fabricCount: number
+  fabrics: FabricInfo[]
 }
 
 /**
@@ -448,12 +451,22 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     }
 
     const commissioningInfo = this.matterServer.getCommissioningInfo()
+
+    // The fabric list and commissioned state come from the coalesced snapshot,
+    // which treats the fabric list as the source of truth. isCommissioned()
+    // trusts the serverNode's commissioning flag first, and that flag can lag
+    // behind a controller-side removal — reporting "commissioned" with zero
+    // fabrics until the next restart (#3974).
+    const snapshot = this.matterServer.getCommissioningSnapshot()
+
     return {
       qrCode: commissioningInfo.qrCode,
       manualPairingCode: commissioningInfo.manualPairingCode,
       serialNumber: this.matterSerialNumber || commissioningInfo.serialNumber,
-      commissioned: commissioningInfo.commissioned || false,
+      commissioned: snapshot.commissioned,
       deviceCount: this.matterServer.getAccessories().length,
+      fabricCount: snapshot.fabricCount,
+      fabrics: snapshot.fabrics,
     }
   }
 
