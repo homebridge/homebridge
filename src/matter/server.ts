@@ -60,6 +60,8 @@ export class MatterServer extends EventEmitter {
   private readonly behaviorRegistry: BehaviorRegistry
   private readonly registryManager: RegistryManager
   private isRunning = false
+  private lastRegistrationAt = 0
+  private registrationsInFlight = 0
   private shutdownHandler: (() => Promise<void>) | null = null
   private cleanupHandlers: Array<() => void | Promise<void>> = []
   private accessoryCache: MatterAccessoryCache | null = null
@@ -151,9 +153,33 @@ export class MatterServer extends EventEmitter {
   // Accessory registration (Plugin API - matches HAP pattern)
   // ============================================================================
 
+  /**
+   * When the last registerPlatformAccessories() call arrived. The
+   * deferred-online settle loop (ChildBridgeMatterManager) polls this to
+   * detect when the initial registration burst has gone idle.
+   */
+  getLastRegistrationAt(): number {
+    return this.lastRegistrationAt
+  }
+
+  /** Registration calls that have started but not finished; used by the deferred-online settle check. */
+  getRegistrationsInFlight(): number {
+    return this.registrationsInFlight
+  }
+
   async registerPlatformAccessories(pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): Promise<void> {
-    for (const accessory of accessories) {
-      await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
+    // Stamp on both entry and exit and track in-flight calls so the deferred-
+    // online settle check never treats a batch that is still registering (or
+    // one that takes longer than the settle window) as idle.
+    this.registrationsInFlight++
+    this.lastRegistrationAt = Date.now()
+    try {
+      for (const accessory of accessories) {
+        await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
+      }
+    } finally {
+      this.lastRegistrationAt = Date.now()
+      this.registrationsInFlight--
     }
   }
 
@@ -315,6 +341,18 @@ export class MatterServer extends EventEmitter {
 
   isServerRunning(): boolean {
     return this.isRunning
+  }
+
+  /**
+   * True while the node is built but deliberately kept offline in deferOnline
+   * mode, waiting for the initial registration burst to settle. Registrations
+   * are expected in this window, so callers must not treat it as "starting".
+   * The aggregator check keeps this false before start() has built the node
+   * (and when start() failed) - registrations in that gap must be rejected as
+   * "starting", or they would be silently dropped (#3970).
+   */
+  isDeferredPreOnline(): boolean {
+    return this.config.deferOnline === true && !this.isRunning && this.aggregator !== null
   }
 
   getDeviceTypes(): typeof deviceTypes {
