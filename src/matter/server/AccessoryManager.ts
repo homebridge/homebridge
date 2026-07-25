@@ -237,8 +237,6 @@ export class AccessoryManager {
         // (e.g., BridgedNodeEndpoint used as a composed device container)
         const hasBridgedInfo = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.bridgedDeviceBasicInformation !== undefined
         if (!hasBridgedInfo) {
-          // Enable the Leave and ReachableChanged events - controllers use them
-          // to track bridged device lifecycle, and known-good bridges expose both.
           deviceType = (deviceType as any).with(BridgedDeviceBasicInformationServer)
           log.debug(`Added BridgedDeviceBasicInformationServer to ${accessory.displayName}`)
         }
