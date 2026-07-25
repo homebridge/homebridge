@@ -24,7 +24,7 @@ import { EventEmitter } from 'node:events'
 import process from 'node:process'
 
 import { Endpoint } from '@matter/main'
-import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer } from '@matter/main/behaviors'
+import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
 import { PowerSourceServer } from '@matter/node/behaviors'
 
 import { IpcOutgoingEvent } from '../../ipcService.js'
@@ -243,6 +243,36 @@ export class AccessoryManager {
       }
 
       const endpointOptions = this.createEndpointOptions(accessory, deps.config)
+
+      // Composed parents carry a FixedLabel marking the composition, matching
+      // known-good bridges - Apple's controller needs it to bind child endpoints
+      // to the composed accessory. Without it (plus the PowerSource below),
+      // homed never finishes its per-accessory session setup: commands fail
+      // silently ("No Response") from ~30s after pairing while reads keep working.
+      if (accessory.parts && accessory.parts.length > 0) {
+        if ((deviceType as { behaviors?: Record<string, unknown> }).behaviors?.fixedLabel === undefined) {
+          deviceType = (deviceType as any).with(FixedLabelServer)
+          endpointOptions.fixedLabel = {
+            labelList: [{ label: 'composed', value: 'true' }],
+          }
+        }
+
+        // Known-good bridges also expose a wired PowerSource on composed
+        // parents; Apple's controller appears to expect it. Only synthesize it
+        // when the accessory has not declared its own PowerSource — otherwise a
+        // plugin-provided battery PowerSource (added below) would be overwritten.
+        if (!accessory.clusters?.powerSource) {
+          deviceType = (deviceType as any).with((PowerSourceServer as any).with('Wired'))
+          endpointOptions.powerSource = {
+            status: 1, // Active
+            order: 0,
+            description: 'AC Power',
+            endpointList: [],
+            wiredCurrentType: 0, // AC (PowerSource.WiredCurrentType.Ac)
+          }
+        }
+      }
+
       const endpoint = new Endpoint(deviceType, endpointOptions)
 
       setRegistryManager(endpoint, deps.registryManager)
@@ -663,7 +693,7 @@ export class AccessoryManager {
 
     log.info(`Creating ${accessory.parts.length} child endpoint(s) for ${accessory.displayName}`)
 
-    for (const part of accessory.parts) {
+    for (const [partIndex, part] of accessory.parts.entries()) {
       const partEndpointId = `${accessory.UUID}-part-${part.id}`
 
       deps.behaviorRegistry.registerPartEndpoint(partEndpointId, accessory.UUID, part.id)
@@ -698,8 +728,22 @@ export class AccessoryManager {
         partDeviceType = applyElectricalMeasurementClusters(partDeviceType, part, partElectrical)
       }
 
+      // Tag each child with a semantic Number tag so controllers can stably
+      // re-map otherwise-identical children of a composed device; without it
+      // they are distinguishable only by transient endpoint number, which
+      // Apple Home mishandles across hub changes.
+      partDeviceType = (partDeviceType as any).with(DescriptorServer.with('TagList'))
+
       const partEndpointOptions: any = {
         id: partEndpointId,
+        descriptor: {
+          tagList: [{
+            mfgCode: null,
+            namespaceId: 7, // Number namespace
+            tag: partIndex,
+            label: (part.displayName || part.id).slice(0, 64),
+          }],
+        },
         ...part.clusters,
       }
 
