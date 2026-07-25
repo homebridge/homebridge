@@ -192,6 +192,14 @@ export interface MatterServerConfig {
   /** External accessory mode - device is not bridged and so added before server starts */
   externalAccessory?: boolean
 
+  /**
+   * Deferred-online mode - the node is fully built by `start()` (aggregator
+   * created, accessory cache restored) but stays offline until `runServer()`,
+   * so initial plugin registrations apply to the offline node and its first
+   * advertisement already carries the final structure
+   */
+  deferOnline?: boolean
+
   /** Network interfaces to bind to (inherited from `bridge.bind` config) */
   networkInterfaces?: string[]
 

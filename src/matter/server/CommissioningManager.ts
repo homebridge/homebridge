@@ -15,6 +15,7 @@ import { randomBytes } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { SubscriptionsServer } from '@matter/node'
 import { ManualPairingCodeCodec, QrCode, QrPairingCodeCodec } from '@matter/types/schema'
 
 import { Logger } from '../../logger.js'
@@ -308,6 +309,12 @@ export class CommissioningManager {
       this.onFabricsChanged = (fabricIndex, action) => {
         log.info(`Fabric ${action}: index ${fabricIndex}`)
 
+        if (action === 'deleted') {
+          this.purgeSubscriptionsForFabric(deps.serverNode, fabricIndex).catch((error) => {
+            log.debug(`Failed to purge persisted subscriptions for removed fabric ${fabricIndex}:`, error)
+          })
+        }
+
         // Compute commissioning state once and reuse for both the file update
         // and the IPC emit, then push the snapshot into updateCommissioningFile
         // so it doesn't redo the same fabric reads.
@@ -348,6 +355,34 @@ export class CommissioningManager {
       // Roll back any partial registration so a retry can succeed
       this.teardownCommissioningEventListeners(deps.serverNode)
     }
+  }
+
+  /**
+   * Delete persisted subscriptions belonging to a removed fabric.
+   *
+   * matter.js persists controller subscriptions so it can proactively
+   * re-establish them when the node next comes online (a single pass with a
+   * short, no-retry connection timeout per peer). It removes the fabric's
+   * sessions on removal but leaves the persisted subscription entries behind,
+   * so re-establishment wastes its window on peers that can never answer
+   * ("Failed to connect to ... Fabric index #N does not exist").
+   */
+  private async purgeSubscriptionsForFabric(serverNode: ServerNode | null, fabricIndex: number): Promise<void> {
+    if (!serverNode) {
+      return
+    }
+
+    await serverNode.act((agent) => {
+      const subscriptions = agent.get(SubscriptionsServer)
+      const remaining = subscriptions.state.subscriptions.filter(
+        subscription => subscription.peerAddress.fabricIndex !== fabricIndex,
+      )
+      const purged = subscriptions.state.subscriptions.length - remaining.length
+      if (purged > 0) {
+        subscriptions.state.subscriptions = remaining
+        log.debug(`Purged ${purged} persisted subscription(s) for removed fabric ${fabricIndex}`)
+      }
+    })
   }
 
   /**

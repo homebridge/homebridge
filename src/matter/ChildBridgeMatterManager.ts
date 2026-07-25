@@ -28,6 +28,14 @@ import { appendUsernameSuffix, getMatterJsVersion, normalizeBindConfig } from '.
 const log = Logger.withPrefix('Matter/ChildManager')
 const COLON_RE = /:/g
 
+// Deferred-online settle loop tuning (see startMatterServer): the node goes
+// online once registrations have been idle for SETTLE_MS, checked every
+// POLL_MS, capped at CAP_MS so a stuck or registration-less plugin cannot
+// keep the bridge offline.
+const DEFER_ONLINE_SETTLE_MS = 2000
+const DEFER_ONLINE_CAP_MS = 45000
+const DEFER_ONLINE_POLL_MS = 500
+
 /**
  * Matter status information for child bridge IPC communication
  */
@@ -242,6 +250,12 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       serialNumber,
       networkInterfaces,
       disableIpv4: matterConfig.disableIpv4,
+      // Build the node fully (accessory cache restored, initial plugin
+      // registrations applied offline) before it goes online, so a
+      // commissioned controller's subscription re-establishment - which runs
+      // once, right after the node comes online, with a short per-peer
+      // connection timeout - is not aborted by registration transactions.
+      deferOnline: true,
     })
 
     await this.matterServer.start()
@@ -260,6 +274,48 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
     // Set up event listeners for Matter API calls
     this.setupEventListeners()
+
+    // Deferred-online: bring the node online once the initial plugin
+    // registration burst has settled.
+    this.runServerWhenSettled(this.matterServer)
+  }
+
+  /**
+   * Poll until plugin registrations have been idle for DEFER_ONLINE_SETTLE_MS
+   * (capped at DEFER_ONLINE_CAP_MS so a stuck or registration-less plugin
+   * cannot keep the bridge offline), then bring the deferred node online.
+   */
+  private runServerWhenSettled(server: MatterServer): void {
+    const deferStartedAt = Date.now()
+
+    const check = (): void => {
+      // Stop polling if the server was torn down (or replaced) mid-defer.
+      if (this.matterServer !== server) {
+        return
+      }
+
+      // Settle once no registration has started or been in flight for the
+      // settle window. A bridge that never registers (or restores purely from
+      // the accessory cache) settles the window after deferStartedAt, so it
+      // goes online promptly rather than waiting for the cap.
+      const idleSince = Math.max(server.getLastRegistrationAt(), deferStartedAt)
+      const settled = server.getRegistrationsInFlight() === 0 && Date.now() - idleSince >= DEFER_ONLINE_SETTLE_MS
+      const capped = Date.now() - deferStartedAt >= DEFER_ONLINE_CAP_MS
+
+      if (!settled && !capped) {
+        setTimeout(check, DEFER_ONLINE_POLL_MS)
+        return
+      }
+
+      if (capped && !settled) {
+        log.warn(`Deferred Matter start: no registrations settled within ${DEFER_ONLINE_CAP_MS / 1000}s - going online anyway`)
+      }
+      server.runServer().catch((error) => {
+        log.error('Deferred Matter server start failed:', error)
+      })
+    }
+
+    setTimeout(check, DEFER_ONLINE_POLL_MS)
   }
 
   /**

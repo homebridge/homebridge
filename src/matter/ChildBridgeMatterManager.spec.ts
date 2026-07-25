@@ -3,7 +3,7 @@ import type { BridgeConfiguration, BridgeOptions } from '../bridgeService.js'
 import type { ChildBridgeExternalPortService } from '../externalPortService.js'
 import type { MatterConfig } from './types.js'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
@@ -549,6 +549,105 @@ describe('childBridgeMatterManager', () => {
       // REGISTER and UPDATE etc. appear at least twice — once for the normal listener, once for the drop stub.
       const registerRemovals = removed.filter((e: any) => e === InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES)
       expect(registerRemovals.length).toBe(2)
+    })
+  })
+
+  describe('runServerWhenSettled (deferred online)', () => {
+    const SETTLE_MS = 2000
+    const CAP_MS = 45000
+
+    function makeManager(): ChildBridgeMatterManager {
+      return new ChildBridgeMatterManager(
+        { ...mockBridgeConfig, matter: { enabled: true } } as any,
+        mockBridgeOptions,
+        mockApi,
+        mockExternalPortService,
+        mockPluginManager,
+      )
+    }
+
+    function makeServer(overrides: Partial<{ inFlight: number, lastRegistrationAt: number }> = {}): any {
+      return {
+        getRegistrationsInFlight: vi.fn(() => overrides.inFlight ?? 0),
+        getLastRegistrationAt: vi.fn(() => overrides.lastRegistrationAt ?? 0),
+        runServer: vi.fn().mockResolvedValue(undefined),
+      }
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('brings the node online once registrations settle', async () => {
+      const manager = makeManager()
+      const server = makeServer({ lastRegistrationAt: Date.now() })
+      ;(manager as any).matterServer = server
+      ;(manager as any).runServerWhenSettled(server)
+
+      // Still within the settle window after the last registration.
+      await vi.advanceTimersByTimeAsync(SETTLE_MS - 100)
+      expect(server.runServer).not.toHaveBeenCalled()
+
+      // Past the settle window -> online.
+      await vi.advanceTimersByTimeAsync(600)
+      expect(server.runServer).toHaveBeenCalledTimes(1)
+    })
+
+    it('goes online promptly when no registrations ever arrive', async () => {
+      const manager = makeManager()
+      const server = makeServer({ lastRegistrationAt: 0, inFlight: 0 })
+      ;(manager as any).matterServer = server
+      ;(manager as any).runServerWhenSettled(server)
+
+      // Online just after the settle window, long before the 45s cap - if it
+      // waited for the cap it would not have fired at 2.6s.
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + 600)
+      expect(server.runServer).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not go online while a registration is still in flight', async () => {
+      const manager = makeManager()
+      const server = makeServer({ inFlight: 1, lastRegistrationAt: Date.now() })
+      ;(manager as any).matterServer = server
+      ;(manager as any).runServerWhenSettled(server)
+
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + 2000)
+      expect(server.runServer).not.toHaveBeenCalled()
+
+      // Once in flight drains and the window passes, it comes online.
+      server.getRegistrationsInFlight.mockReturnValue(0)
+      server.getLastRegistrationAt.mockReturnValue(Date.now())
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + 600)
+      expect(server.runServer).toHaveBeenCalledTimes(1)
+    })
+
+    it('stops polling if the server is torn down mid-wait', async () => {
+      const manager = makeManager()
+      const server = makeServer()
+      ;(manager as any).matterServer = server
+      ;(manager as any).runServerWhenSettled(server)
+
+      // A restart mid-wait replaces the server reference.
+      ;(manager as any).matterServer = makeServer()
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + CAP_MS)
+      expect(server.runServer).not.toHaveBeenCalled()
+    })
+
+    it('goes online at the cap if registrations never drain', async () => {
+      const manager = makeManager()
+      const server = makeServer({ inFlight: 1, lastRegistrationAt: Date.now() })
+      ;(manager as any).matterServer = server
+      ;(manager as any).runServerWhenSettled(server)
+
+      // Never settles (in flight stuck), so it only comes online at the cap.
+      await vi.advanceTimersByTimeAsync(CAP_MS - 1000)
+      expect(server.runServer).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1600)
+      expect(server.runServer).toHaveBeenCalledTimes(1)
     })
   })
 })

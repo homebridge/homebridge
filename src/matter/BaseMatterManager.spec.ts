@@ -89,6 +89,52 @@ describe('baseMatterManager', () => {
     })
   })
 
+  describe('isBridgeServerStarting', () => {
+    it('is false when no bridge MatterServer exists', () => {
+      expect(manager.isBridgeServerStarting()).toBe(false)
+    })
+
+    it('is false once the server is running', () => {
+      manager.setMatterServer({ isServerRunning: () => true, isDeferredPreOnline: () => false } as any)
+      expect(manager.isBridgeServerStarting()).toBe(false)
+    })
+
+    it('is true while the server is still starting (not running, not deferred)', () => {
+      manager.setMatterServer({ isServerRunning: () => false, isDeferredPreOnline: () => false } as any)
+      expect(manager.isBridgeServerStarting()).toBe(true)
+    })
+
+    it('is false while deliberately offline in deferOnline mode, so registrations are accepted', () => {
+      // The deadlock this guards against: if registrations were rejected while
+      // the deferred node is offline, the settle signal would never fire and
+      // the node would come online with no accessories.
+      manager.setMatterServer({ isServerRunning: () => false, isDeferredPreOnline: () => true } as any)
+      expect(manager.isBridgeServerStarting()).toBe(false)
+    })
+
+    it('treats a constructed but not yet built deferred server as starting (real isDeferredPreOnline)', () => {
+      // Exercises the real method, not a stub: between `new MatterServer()`
+      // and start() building the node, deferOnline is already set but no
+      // aggregator exists yet. Registrations in that gap must be rejected as
+      // "starting", or they would hit the silent-drop path from #3970.
+      const server = new MatterServer({ uniqueId: 'test-bridge', deferOnline: true })
+      manager.setMatterServer(server as any)
+      expect(server.isDeferredPreOnline()).toBe(false)
+      expect(manager.isBridgeServerStarting()).toBe(true)
+
+      // Once start() has built the aggregator, the defer window opens...
+      ;(server as any).aggregator = {}
+      expect(server.isDeferredPreOnline()).toBe(true)
+      expect(manager.isBridgeServerStarting()).toBe(false)
+
+      // ...and once the node is online, normal behaviour resumes
+      // (running, so no longer "starting" either).
+      ;(server as any).isRunning = true
+      expect(server.isDeferredPreOnline()).toBe(false)
+      expect(manager.isBridgeServerStarting()).toBe(false)
+    })
+  })
+
   describe('handleTriggerCommand', () => {
     it('should route commands to external server if accessory is external', async () => {
       const uuid = 'test-uuid'
