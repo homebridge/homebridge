@@ -856,10 +856,24 @@ describe('serverHelpers', () => {
       expect(result.behaviors.powerTopology).toBeDefined()
       expect(result.behaviors.powerTopology.features.treeTopology).toBe(true)
       expect(result.behaviors.electricalPowerMeasurement).toBeDefined()
+      expect(result.behaviors.electricalPowerMeasurement.features.alternatingCurrent).toBe(true)
       expect(result.behaviors.electricalEnergyMeasurement).toBeDefined()
       expect(result.behaviors.electricalEnergyMeasurement.features.importedEnergy).toBe(true)
       expect(result.behaviors.electricalEnergyMeasurement.features.cumulativeEnergy).toBe(true)
       expect(result.behaviors.electricalEnergyMeasurement.features.exportedEnergy).toBe(false)
+    })
+
+    it('should declare DirectCurrent instead of AlternatingCurrent when the accessory declares DC powerMode', () => {
+      const accessory = {
+        displayName: 'USB Meter',
+        clusters: { electricalPowerMeasurement: { activePower: 0, powerMode: 1 } },
+      } as any
+      const detection = { hasPowerMeasurement: true, energyFeatures: [] }
+
+      const result = applyElectricalMeasurementClusters(devices.OnOffPlugInUnitDevice, accessory, detection) as any
+
+      expect(result.behaviors.electricalPowerMeasurement.features.directCurrent).toBe(true)
+      expect(result.behaviors.electricalPowerMeasurement.features.alternatingCurrent).toBe(false)
     })
 
     it('should return the device type unchanged when nothing was detected', () => {

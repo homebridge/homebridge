@@ -763,7 +763,13 @@ export function applyElectricalMeasurementClusters(
     behaviors.push((requirements.PowerTopologyServer as any).with('TreeTopology'))
   }
   if (detection.hasPowerMeasurement && !existing.electricalPowerMeasurement) {
-    behaviors.push(requirements.ElectricalPowerMeasurementServer)
+    // The EPM cluster's feature conformance requires at least one of
+    // DirectCurrent/AlternatingCurrent. Follow the accessory's powerMode
+    // (already resolved by applyElectricalMeasurementDefaults: plugin value
+    // or the AC default): 1 = DC, everything else measures mains.
+    const powerMode = (accessory.clusters?.electricalPowerMeasurement as Record<string, unknown> | undefined)?.powerMode
+    const currentFeature = powerMode === 1 ? 'DirectCurrent' : 'AlternatingCurrent'
+    behaviors.push((requirements.ElectricalPowerMeasurementServer as any).with(currentFeature))
   }
   if (detection.energyFeatures.length > 0 && !existing.electricalEnergyMeasurement) {
     behaviors.push((requirements.ElectricalEnergyMeasurementServer as any).with(...detection.energyFeatures))
