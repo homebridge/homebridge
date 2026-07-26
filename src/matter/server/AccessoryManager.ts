@@ -646,6 +646,25 @@ export class AccessoryManager {
         serialNumber: accessory.serialNumber,
         reachable: true,
       }
+      // Surface the device's firmware version to controllers (shown in the
+      // accessory details of e.g. Apple Home). The numeric companion is
+      // derived from a leading semver triplet when the string has one and
+      // the parts fit the 16/8/8-bit encoding - otherwise only the string
+      // is set (both attributes are independently optional per spec, and a
+      // failed uint32 validation would block the accessory registering).
+      // The spec caps SoftwareVersionString at 64 characters.
+      if (typeof accessory.firmwareRevision === 'string' && accessory.firmwareRevision.length > 0) {
+        endpointOptions.bridgedDeviceBasicInformation.softwareVersionString = accessory.firmwareRevision.slice(0, 64)
+        const semver = accessory.firmwareRevision.match(/^(\d+)\.(\d+)\.(\d+)/)
+        if (semver) {
+          const [major, minor, patch] = [Number(semver[1]), Number(semver[2]), Number(semver[3])]
+          if (major <= 0xFFFF && minor <= 0xFF && patch <= 0xFF) {
+            // >>> 0 keeps the value unsigned - a signed << would go negative
+            // for majors >= 0x8000 and fail matter.js's uint32 validation.
+            endpointOptions.bridgedDeviceBasicInformation.softwareVersion = ((major << 16) | (minor << 8) | patch) >>> 0
+          }
+        }
+      }
     }
 
     return endpointOptions

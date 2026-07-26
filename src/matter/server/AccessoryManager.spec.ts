@@ -685,6 +685,93 @@ describe('accessoryManager', () => {
     })
   })
 
+  describe('bridged firmware version (BDBI software version)', () => {
+    // The firmwareRevision every plugin already provides is surfaced to
+    // controllers via BridgedDeviceBasicInformation, so e.g. Apple Home can
+    // show the bridged device's firmware in the accessory details.
+
+    it('maps firmwareRevision to softwareVersionString with a derived numeric softwareVersion', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({ firmwareRevision: '1.7.5-g9979d16' } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const bdbi = (deps.accessories.get('test-uuid-001') as any).endpoint.options.bridgedDeviceBasicInformation
+      expect(bdbi.softwareVersionString).toBe('1.7.5-g9979d16')
+      // (1 << 16) | (7 << 8) | 5
+      expect(bdbi.softwareVersion).toBe(67333)
+    })
+
+    it('keeps the string but omits the numeric version when no semver triplet leads the string', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({ firmwareRevision: 'build-2026' } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const bdbi = (deps.accessories.get('test-uuid-001') as any).endpoint.options.bridgedDeviceBasicInformation
+      expect(bdbi.softwareVersionString).toBe('build-2026')
+      expect(bdbi.softwareVersion).toBeUndefined()
+    })
+
+    it('encodes a large major that still fits 16 bits as an unsigned value', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({ firmwareRevision: '40000.0.0' } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const bdbi = (deps.accessories.get('test-uuid-001') as any).endpoint.options.bridgedDeviceBasicInformation
+      expect(bdbi.softwareVersionString).toBe('40000.0.0')
+      // 40000 sets the sign bit under a plain 32-bit shift; the value must stay unsigned
+      expect(bdbi.softwareVersion).toBe(40000 * 0x10000)
+    })
+
+    it('omits the numeric version when the major does not fit 16 bits', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({ firmwareRevision: '70000.0.0' } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const bdbi = (deps.accessories.get('test-uuid-001') as any).endpoint.options.bridgedDeviceBasicInformation
+      expect(bdbi.softwareVersionString).toBe('70000.0.0')
+      expect(bdbi.softwareVersion).toBeUndefined()
+    })
+
+    it('omits the numeric version when minor or patch exceeds 255', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({ firmwareRevision: '1.7.300' } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const bdbi = (deps.accessories.get('test-uuid-001') as any).endpoint.options.bridgedDeviceBasicInformation
+      expect(bdbi.softwareVersionString).toBe('1.7.300')
+      expect(bdbi.softwareVersion).toBeUndefined()
+    })
+
+    it('truncates softwareVersionString to the 64-character spec limit', async () => {
+      const deps = createMockDeps()
+      const longRevision = `1.2.3+${'a'.repeat(80)}`
+      const accessory = createMockAccessory({ firmwareRevision: longRevision } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const bdbi = (deps.accessories.get('test-uuid-001') as any).endpoint.options.bridgedDeviceBasicInformation
+      expect(bdbi.softwareVersionString).toBe(longRevision.slice(0, 64))
+      expect(bdbi.softwareVersionString).toHaveLength(64)
+      expect(bdbi.softwareVersion).toBe((1 << 16) | (2 << 8) | 3)
+    })
+
+    it('sets neither field when the accessory has no firmwareRevision', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory()
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const bdbi = (deps.accessories.get('test-uuid-001') as any).endpoint.options.bridgedDeviceBasicInformation
+      expect(bdbi.softwareVersionString).toBeUndefined()
+      expect(bdbi.softwareVersion).toBeUndefined()
+    })
+  })
+
   describe('unregisterAccessory', () => {
     it('should remove an accessory from the map', async () => {
       const deps = createMockDeps()
