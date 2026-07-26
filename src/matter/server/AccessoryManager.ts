@@ -646,6 +646,17 @@ export class AccessoryManager {
         serialNumber: accessory.serialNumber,
         reachable: true,
       }
+      // Surface the device's firmware version to controllers (shown in the
+      // accessory details of e.g. Apple Home). The numeric companion is
+      // derived from a leading semver triplet when the string has one.
+      if (typeof accessory.firmwareRevision === 'string' && accessory.firmwareRevision.length > 0) {
+        endpointOptions.bridgedDeviceBasicInformation.softwareVersionString = accessory.firmwareRevision
+        const semver = accessory.firmwareRevision.match(/^(\d+)\.(\d+)\.(\d+)/)
+        if (semver) {
+          endpointOptions.bridgedDeviceBasicInformation.softwareVersion
+            = (Number(semver[1]) << 16) | (Number(semver[2]) << 8) | Number(semver[3])
+        }
+      }
     }
 
     return endpointOptions
