@@ -18,10 +18,11 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): expose commissioned fabrics in the child bridge status (#3974)
 - fix(matter): read the fabric vendor id from cluster-shaped fabric entries (#3974)
 - chore(deps): dependency updates
+- feat: Support for NodeJS 26 
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.1.9`
+- `@homebridge/hap-nodejs` @ `v2.1.10`
 
 ### Matter Dependencies
 
