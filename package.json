@@ -30,7 +30,7 @@
     "dist"
   ],
   "engines": {
-    "node": "^22 || ^24"
+    "node": "^22 || ^24 || ^26"
   },
   "scripts": {
     "build": "npm run clean && tsc",
@@ -49,7 +49,7 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.1.9",
+    "@homebridge/hap-nodejs": "2.1.10-beta.0",
     "@matter/main": "0.17.7",
     "chalk": "5.6.2",
     "commander": "15.0.0",

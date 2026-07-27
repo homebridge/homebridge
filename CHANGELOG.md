@@ -24,10 +24,11 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): populate bridged accessory firmware version from firmwareRevision (#3976) (@keremerkan)
 - chore(deps): dependency updates
 - chore(deps): bump `@matter/main` to the released v0.17.7
+- feat: Support for NodeJS 26 
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.1.9`
+- `@homebridge/hap-nodejs` @ `v2.1.10`
 
 ### Matter Dependencies
 
