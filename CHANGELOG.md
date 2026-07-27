@@ -8,7 +8,10 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - feat: make identifying material in bonjour configurable (#3965) (@naterator)
 - fix(matter): compose PowerSource for all device types (#3968) (@zbuc)
+- fix(matter): restore cached accessories into the bridge before going online (#3969) (@keremerkan)
 - feat(matter): expose matter status errors on `api.matter.status`
+- feat(matter): detect thermostat features from the declared setpoints
+- fix(matter): read cluster features from the behavior, not the cluster
 - fix(matter): retry Matter server start on transient storage-lock contention
 - fix(matter): retry parts-list notification on synchronous lock contention
 - fix(matter): reject bridged registrations that arrive before the server is running
@@ -17,7 +20,10 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): add FixedLabel and PowerSource to composed parents (#3972) (@keremerkan)
 - feat(matter): expose commissioned fabrics in the child bridge status (#3974)
 - fix(matter): read the fabric vendor id from cluster-shaped fabric entries (#3974)
+- fix(matter): declare ac/dc feature on power measurement (#3977) (@keremerkan)
+- feat(matter): populate bridged accessory firmware version from firmwareRevision (#3976) (@keremerkan)
 - chore(deps): dependency updates
+- chore(deps): bump `@matter/main` to the released v0.17.7
 
 ### Homebridge Dependencies
 
@@ -25,7 +31,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Matter Dependencies
 
-- `@matter/main` @ `v0.17.7-alpha`
+- `@matter/main` @ `v0.17.7`
 
 ## v2.2.1 (2026-07-19)
 
