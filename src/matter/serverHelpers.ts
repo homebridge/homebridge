@@ -474,6 +474,79 @@ export function detectThermostatFeatures(accessory: MatterAccessory): string[] {
 }
 
 /**
+ * The spec's absolute setpoint bounds, in 0.01°C. matter.js falls back to these
+ * when an accessory declares no abs*SetpointLimit of its own.
+ */
+const THERMOSTAT_ABS_LIMITS = {
+  Heat: { min: 700, max: 3000 },
+  Cool: { min: 1600, max: 3200 },
+} as const
+
+/**
+ * Check that an AutoMode thermostat's setpoint LIMITS can satisfy its deadband.
+ *
+ * ⚠️ The deadband applies to the limits, not only to the setpoints. matter.js
+ * requires both of these, in 0.01°C:
+ *   maxCoolSetpointLimit - maxHeatSetpointLimit >= deadband
+ *   minCoolSetpointLimit - minHeatSetpointLimit >= deadband
+ *
+ * `minSetpointDeadBand` is declared in 0.1°C, so it is multiplied by 10 first.
+ *
+ * This is easy to get wrong and the symptom is badly disconnected from the
+ * cause: the endpoint is created happily, then EVERY later setpoint update
+ * fails with "Thermostat setpoints could not be reconciled within the
+ * configured limits". matter.js 0.17.6 only validated the attribute being
+ * written, so an impossible configuration went unnoticed until 0.17.7 began
+ * validating the whole cluster. Warning here points at the real problem.
+ *
+ * Returns a message describing the problem, or undefined when the limits are
+ * satisfiable.
+ */
+export function checkThermostatSetpointLimits(
+  accessory: MatterAccessory,
+  features: string[],
+): string | undefined {
+  if (!features.includes('AutoMode')) {
+    return undefined
+  }
+
+  const cluster = accessory.clusters?.thermostat as Record<string, number | undefined> | undefined
+  if (!cluster) {
+    return undefined
+  }
+
+  // matter.js treats an undeclared deadband as 2.0°C, and replaces anything
+  // above the legal 0..127 with the same value.
+  const declared = cluster.minSetpointDeadBand
+  const deadBand = (declared === undefined || declared > 127 ? 20 : declared) * 10
+
+  const limit = (scope: 'Heat' | 'Cool', bound: 'min' | 'max'): number =>
+    cluster[`${bound}${scope}SetpointLimit`]
+    ?? THERMOSTAT_ABS_LIMITS[scope][bound]
+
+  const problems: string[] = []
+  for (const bound of ['max', 'min'] as const) {
+    const cool = limit('Cool', bound)
+    const heat = limit('Heat', bound)
+    if (cool - heat < deadBand) {
+      problems.push(
+        `${bound}CoolSetpointLimit (${cool}) - ${bound}HeatSetpointLimit (${heat}) = ${cool - heat}, `
+        + `which is less than the ${deadBand} deadband`,
+      )
+    }
+  }
+
+  if (problems.length === 0) {
+    return undefined
+  }
+
+  return `${accessory.displayName} declares a thermostat with Auto mode whose setpoint limits cannot satisfy its `
+    + `minSetpointDeadBand of ${deadBand / 10} (${deadBand} in setpoint units): ${problems.join('; ')}. `
+    + 'Every setpoint update will be rejected until this is corrected - either lower minSetpointDeadBand, '
+    + 'or widen the gap between the heating and cooling limits.'
+}
+
+/**
  * Apply Thermostat features to device type.
  * Thermostat is not part of the base ThermostatDevice — matter.js requires the
  * features to be chosen — so without this the endpoint would be created without
@@ -485,6 +558,11 @@ export function applyThermostatFeatures(
   features: string[],
 ): EndpointType {
   log.info(`Auto-detected Thermostat features for ${accessory.displayName}: ${features.join(', ')}`)
+
+  const limitProblem = checkThermostatSetpointLimits(accessory, features)
+  if (limitProblem) {
+    log.warn(limitProblem)
+  }
 
   const thermostatWithFeatures = (devices.ThermostatRequirements.ThermostatServer as any).with(...features)
   return (deviceType as any).with(thermostatWithFeatures)

@@ -8,6 +8,7 @@ import {
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
   applyWindowCoveringFeatures,
+  checkThermostatSetpointLimits,
   CLUSTER_IDS,
   detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
@@ -669,6 +670,118 @@ describe('serverHelpers', () => {
       const accessory = { displayName: 'Nothing Declared' } as any
 
       expect(detectThermostatFeatures(accessory)).toEqual(['Heating'])
+    })
+  })
+
+  describe('checkThermostatSetpointLimits', () => {
+    const autoMode = ['Heating', 'Cooling', 'AutoMode']
+
+    it('should accept limits that leave room for the deadband', () => {
+      const accessory = {
+        displayName: 'Good Thermostat',
+        clusters: {
+          thermostat: {
+            minHeatSetpointLimit: 700,
+            maxHeatSetpointLimit: 2950,
+            minCoolSetpointLimit: 1600,
+            maxCoolSetpointLimit: 3200,
+            minSetpointDeadBand: 25,
+          },
+        },
+      } as any
+
+      expect(checkThermostatSetpointLimits(accessory, autoMode)).toBeUndefined()
+    })
+
+    it('should reject a deadband the max limits cannot satisfy', () => {
+      // The real case: both limits sit at the spec's absolute maxima, so the
+      // widest gap available is 2.0°C and a 2.5°C deadband is impossible.
+      // matter.js accepts the endpoint, then rejects every setpoint update.
+      const accessory = {
+        displayName: 'Impossible Thermostat',
+        clusters: {
+          thermostat: {
+            minHeatSetpointLimit: 700,
+            maxHeatSetpointLimit: 3000,
+            minCoolSetpointLimit: 1600,
+            maxCoolSetpointLimit: 3200,
+            minSetpointDeadBand: 25,
+          },
+        },
+      } as any
+
+      const warning = checkThermostatSetpointLimits(accessory, autoMode)
+      expect(warning).toContain('Impossible Thermostat')
+      expect(warning).toContain('maxCoolSetpointLimit (3200)')
+      expect(warning).toContain('maxHeatSetpointLimit (3000)')
+      expect(warning).toContain('250')
+    })
+
+    it('should catch the min limits being too close together too', () => {
+      const accessory = {
+        displayName: 'Tight Minimums',
+        clusters: {
+          thermostat: {
+            minHeatSetpointLimit: 1500,
+            maxHeatSetpointLimit: 2900,
+            minCoolSetpointLimit: 1600,
+            maxCoolSetpointLimit: 3200,
+            minSetpointDeadBand: 25,
+          },
+        },
+      } as any
+
+      expect(checkThermostatSetpointLimits(accessory, autoMode)).toContain('minCoolSetpointLimit')
+    })
+
+    it('should say nothing when the thermostat has no Auto mode', () => {
+      // Without AutoMode matter.js reports a deadband of 0, so the limits
+      // cannot conflict however they are declared.
+      const accessory = {
+        displayName: 'Heat Only',
+        clusters: {
+          thermostat: {
+            maxHeatSetpointLimit: 3000,
+            maxCoolSetpointLimit: 3200,
+            minSetpointDeadBand: 25,
+          },
+        },
+      } as any
+
+      expect(checkThermostatSetpointLimits(accessory, ['Heating'])).toBeUndefined()
+    })
+
+    it('should assume the 2.0°C default when no deadband is declared', () => {
+      // matter.js seeds an undeclared deadband to 20, so limits only 1.0°C
+      // apart are still a problem even though nothing was declared.
+      const accessory = {
+        displayName: 'Defaulted Deadband',
+        clusters: {
+          thermostat: {
+            maxHeatSetpointLimit: 3000,
+            maxCoolSetpointLimit: 3100,
+            minCoolSetpointLimit: 1600,
+            minHeatSetpointLimit: 700,
+          },
+        },
+      } as any
+
+      expect(checkThermostatSetpointLimits(accessory, autoMode)).toContain('deadband')
+    })
+
+    it('should fall back to the spec absolute limits when none are declared', () => {
+      // Declaring nothing leaves heat 700..3000 and cool 1600..3200, which is
+      // exactly 200 apart at the top - fine at the default 2.0°C deadband.
+      const accessory = {
+        displayName: 'Bare Thermostat',
+        clusters: { thermostat: { occupiedHeatingSetpoint: 2000, occupiedCoolingSetpoint: 2400 } },
+      } as any
+
+      expect(checkThermostatSetpointLimits(accessory, autoMode)).toBeUndefined()
+    })
+
+    it('should not throw when there is no thermostat cluster', () => {
+      expect(checkThermostatSetpointLimits({ displayName: 'None' } as any, autoMode)).toBeUndefined()
     })
   })
 

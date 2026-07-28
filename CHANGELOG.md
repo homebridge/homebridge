@@ -25,6 +25,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - chore(deps): dependency updates
 - chore(deps): bump `@matter/main` to the released v0.17.7
 - feat: Support for NodeJS 26 
+- feat(matter): warn when a thermostat's setpoint limits cannot satisfy its auto-mode deadband
 
 ### Homebridge Dependencies
 
