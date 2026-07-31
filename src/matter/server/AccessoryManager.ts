@@ -292,7 +292,22 @@ export class AccessoryManager {
       }
 
       if (hasElectrical) {
-        await this.advertiseElectricalSensorDeviceType(endpoint, accessory.displayName)
+        await this.advertiseUtilityDeviceType(endpoint, 'ElectricalSensor', accessory.displayName)
+      }
+
+      // ⚠️ A battery is only visible to a controller once the endpoint also
+      // advertises the PowerSource device type. Composing the cluster is not
+      // enough - exactly as with ElectricalSensor above - because a controller
+      // that cannot see the type in the DeviceTypeList has no reason to read
+      // the cluster. Without this, Apple Home showed no battery anywhere while
+      // every attribute was present and correct (homebridge-sharkiq#88).
+      //
+      // Deliberately only for a power source the plugin declared. The wired one
+      // synthesized for composed parents above is left alone: it exists to
+      // satisfy Apple's controller in a case that already works, and this area
+      // fails silently and badly when disturbed.
+      if (accessory.clusters?.powerSource) {
+        await this.advertiseUtilityDeviceType(endpoint, 'PowerSource', accessory.displayName)
       }
 
       this.registerAccessoryHandlers(accessory, deps)
@@ -772,7 +787,7 @@ export class AccessoryManager {
       await parentEndpoint.add(partEndpoint)
 
       if (partHasElectrical) {
-        await this.advertiseElectricalSensorDeviceType(partEndpoint, part.displayName || part.id)
+        await this.advertiseUtilityDeviceType(partEndpoint, 'ElectricalSensor', part.displayName || part.id)
       }
 
       log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
@@ -805,12 +820,12 @@ export class AccessoryManager {
    * dedupes the entry, so this is safe when the base device type already is
    * an ElectricalSensor.
    */
-  private async advertiseElectricalSensorDeviceType(endpoint: Endpoint, displayName: string): Promise<void> {
+  private async advertiseUtilityDeviceType(endpoint: Endpoint, deviceTypeName: string, displayName: string): Promise<void> {
     try {
-      await endpoint.act(agent => agent.get(DescriptorServer).addDeviceTypes('ElectricalSensor'))
-      log.debug(`Advertised ElectricalSensor device type for ${displayName}`)
+      await endpoint.act(agent => agent.get(DescriptorServer).addDeviceTypes(deviceTypeName as never))
+      log.debug(`Advertised ${deviceTypeName} device type for ${displayName}`)
     } catch (error) {
-      log.warn(`Could not advertise ElectricalSensor device type for ${displayName}:`, error)
+      log.warn(`Could not advertise ${deviceTypeName} device type for ${displayName}:`, error)
     }
   }
 

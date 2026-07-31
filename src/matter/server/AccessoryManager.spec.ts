@@ -20,7 +20,17 @@ vi.mock('@matter/main', () => {
     id: string | undefined
     close = vi.fn()
     add = vi.fn()
-    act = vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ addDeviceTypes: vi.fn() })) }))
+    // Device types advertised through the descriptor, so tests can assert WHICH
+    // type was added rather than only how many times act() ran.
+    advertisedDeviceTypes: string[] = []
+    act = vi.fn(async (fn: any) => fn({
+      get: vi.fn(() => ({
+        addDeviceTypes: vi.fn((name: string) => {
+          this.advertisedDeviceTypes.push(name)
+        }),
+      })),
+    }))
+
     constructor(deviceType: any, options: any) {
       this.deviceType = deviceType
       this.options = options
@@ -499,6 +509,49 @@ describe('accessoryManager', () => {
       // after the endpoint joins the node.
       const internal = deps.accessories.get('test-uuid-001') as any
       expect(internal.endpoint.act).toHaveBeenCalledTimes(1)
+    })
+
+    /**
+     * ⚠️ A battery is invisible to a controller unless the endpoint advertises
+     * the PowerSource device type as well as carrying the cluster. Apple Home
+     * showed no battery at all while every attribute was present and correct
+     * (homebridge-sharkiq#88).
+     */
+    it('advertises the PowerSource device type for a declared battery', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        clusters: {
+          onOff: { onOff: false },
+          powerSource: { batPercentRemaining: 180, batChargeLevel: 0, batChargeState: 1 },
+        },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.advertisedDeviceTypes).toContain('PowerSource')
+    })
+
+    it('advertises PowerSource for a non-battery power source too', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        clusters: { onOff: { onOff: false }, powerSource: { status: 1, order: 0, description: 'AC Power' } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.advertisedDeviceTypes).toContain('PowerSource')
+    })
+
+    it('does not advertise PowerSource when the accessory declares none', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory()
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.advertisedDeviceTypes).not.toContain('PowerSource')
     })
 
     it('runs electrical detection for composed-device parts too', async () => {
