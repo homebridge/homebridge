@@ -612,7 +612,10 @@ describe('accessoryManager', () => {
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
-      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery')
+      // Every battery composes Rechargeable, with batChargeState seeded, so a
+      // device that starts reporting a charge state later is not rejected by
+      // conformance (#3982)
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
     })
 
     it('composes PowerSource for a non-RVC device with no handlers (e.g. a battery-powered sensor)', async () => {
@@ -630,7 +633,7 @@ describe('accessoryManager', () => {
 
       // Regression guard for the no-handlers early return: without the fix this
       // accessory bails before the battery is ever composed.
-      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery')
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
     })
 
     it('composes the Rechargeable feature when a charge state is declared', async () => {
@@ -647,6 +650,119 @@ describe('accessoryManager', () => {
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
       expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
+    })
+
+    it('seeds batChargeState to Unknown for a battery that has not reported one yet (#3982)', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        clusters: {
+          doorLock: { lockState: 1 },
+          // asleep at startup: a battery, but no charge state reported yet
+          powerSource: { batPercentRemaining: 180, batChargeLevel: 0 },
+        },
+        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      // The seed must reach the endpoint's registration-time state - the
+      // Rechargeable feature's conformance requires the attribute to exist
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.options.powerSource.batChargeState).toBe(0)
+      // 0 = PowerSource.BatChargeState.Unknown; the device's first real report
+      // replaces it through a normal state update instead of being rejected
+    })
+
+    it('keeps a plugin-reported batChargeState instead of overwriting it with the seed', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        clusters: {
+          doorLock: { lockState: 1 },
+          powerSource: { batPercentRemaining: 180, batChargeLevel: 0, batChargeState: 1 },
+        },
+        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.options.powerSource.batChargeState).toBe(1)
+    })
+
+    it('seeds batFunctionalWhileCharging, which Rechargeable also requires (#3982)', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        clusters: {
+          doorLock: { lockState: 1 },
+          powerSource: { batPercentRemaining: 180, batChargeLevel: 0 },
+        },
+        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      // matter.js defaults this to false, so registration would succeed without
+      // it - seeding it keeps the feature and both required attributes together
+      // rather than depending on that default
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.options.powerSource.batFunctionalWhileCharging).toBe(false)
+    })
+
+    it('keeps a plugin-reported batFunctionalWhileCharging', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        clusters: {
+          doorLock: { lockState: 1 },
+          powerSource: { batPercentRemaining: 180, batFunctionalWhileCharging: true },
+        },
+        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.options.powerSource.batFunctionalWhileCharging).toBe(true)
+    })
+
+    it('composes Battery from static battery facts alone, before any reading arrives (#3982)', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        clusters: {
+          doorLock: { lockState: 1 },
+          // a sleeping device: the plugin knows the battery facts but has no
+          // level or percentage yet. Gating on the live values would compose no
+          // Battery feature, and the first real reading would then be rejected
+          // for the life of the process - #3982 one level up.
+          powerSource: { status: 0, order: 0, description: 'Battery', batReplaceability: 2, batPresent: true },
+        },
+        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
+    })
+
+    it('leaves a power source with no battery attributes as a plain PowerSource', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        clusters: {
+          doorLock: { lockState: 1 },
+          // indistinguishable from a wired source - do not guess a battery
+          powerSource: { status: 0, order: 0, description: 'AC Power' },
+        },
+        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(PowerSourceServer.with).not.toHaveBeenCalled()
     })
   })
 
@@ -693,7 +809,7 @@ describe('accessoryManager', () => {
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
       // The plugin's battery PowerSource is composed...
-      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery')
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
       // ...and our wired PowerSource must never overwrite it.
       expect(PowerSourceServer.with).not.toHaveBeenCalledWith('Wired')
       const internal = deps.accessories.get('test-uuid-001') as any

@@ -520,16 +520,51 @@ export class AccessoryManager {
     // (contact/leak/occupancy, etc.) are read-only and declare no handlers at
     // all, so gating this on handlers would silently drop their battery.
     if (accessory.clusters?.powerSource) {
-      const hasBattery = accessory.clusters.powerSource.batPercentRemaining !== undefined
-        || accessory.clusters.powerSource.batChargeLevel !== undefined
-      const hasRechargeable = accessory.clusters.powerSource.batChargeState !== undefined
+      // Any battery attribute at all marks this as a battery source. Reading
+      // only the live values (batPercentRemaining/batChargeLevel) reintroduced
+      // #3982 one level up: a plugin that declares the static battery facts it
+      // knows at startup - batReplaceability, batPresent, batQuantity - but has
+      // no reading yet from a sleeping device would compose a PowerSource with
+      // no Battery feature at all, and then its first real reading would be
+      // rejected for the life of the process. Static facts are the declaration
+      // of intent, so they count. Nothing here invents a reading: a source that
+      // declares no battery attribute whatsoever is indistinguishable from a
+      // wired one and is left alone.
+      const powerSource = accessory.clusters.powerSource as Record<string, unknown>
+      const hasBattery = Object.keys(powerSource).some(
+        key => /^(?:bat|activeBat)/.test(key) && powerSource[key] !== undefined,
+      )
       let powerSourceBehavior: BehaviorType = PowerSourceServer
-      if (hasBattery && hasRechargeable) {
+      if (hasBattery) {
+        // The feature set is decided once, here, but a device can start
+        // reporting batChargeState later (e.g. a vacuum asleep on its dock at
+        // startup). If the feature were gated on the attribute being present
+        // now, that first report would be rejected by conformance, and the
+        // rollback discards every attribute in the same update - the battery
+        // freezes at its startup value until a restart happens to catch the
+        // device awake (#3982). So every battery carries Rechargeable, seeded
+        // with Unknown: the endpoint options spread this same object, so the
+        // seed is also the registration-time value the feature's conformance
+        // requires.
+        //
+        // The trade is deliberate: a non-rechargeable battery ends up
+        // advertising Rechargeable with a charge state of Unknown, which is not
+        // strictly true. Determinism is worth more here than that precision -
+        // the alternative decides a device's feature set on whether it happened
+        // to be awake when homebridge last restarted, and fails invisibly.
+        if (accessory.clusters.powerSource.batChargeState === undefined) {
+          accessory.clusters.powerSource.batChargeState = 0 // PowerSource.BatChargeState.Unknown
+        }
+        // Rechargeable also makes batFunctionalWhileCharging mandatory. matter.js
+        // happens to default it to false, so registration succeeds without it -
+        // but seeding it here means the feature and BOTH of its required
+        // attributes are introduced together, rather than resting on a default
+        // in someone else's package that could change.
+        if (accessory.clusters.powerSource.batFunctionalWhileCharging === undefined) {
+          accessory.clusters.powerSource.batFunctionalWhileCharging = false
+        }
         powerSourceBehavior = (PowerSourceServer as any).with('Battery', 'Rechargeable')
         log.debug('Adding PowerSource server with battery and rechargeable features')
-      } else if (hasBattery) {
-        powerSourceBehavior = (PowerSourceServer as any).with('Battery')
-        log.debug('Adding PowerSource server with battery feature')
       } else {
         log.debug('Adding base PowerSource server')
       }
