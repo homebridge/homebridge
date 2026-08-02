@@ -1,0 +1,77 @@
+# Packaging configuration for Homebridge Desktop.
+#
+# Run `npm run desktop:prepare` first: it builds Homebridge, generates the
+# icons, downloads the Node.js 22 runtime and stages the server bundle into
+# .desktop-build/staging, which is what `extraResources` below ships.
+#
+# The staging step has to run on Windows — see scripts/desktop/stage-server.mjs.
+
+appId: io.homebridge.desktop
+productName: Homebridge Desktop
+copyright: Copyright © Homebridge contributors
+
+directories:
+  # `desktop/` carries its own package.json so the app is packaged from it
+  # rather than from the repository root. That keeps Homebridge's dependency
+  # tree — which the Electron shell never loads — out of the asar; electron
+  # -builder collects the app directory's production dependencies, and the
+  # shell has none.
+  app: desktop
+  output: .desktop-build/release
+  # buildResources is deliberately left at its default (a `build/` directory
+  # that does not exist here). Pointing it at desktop/resources would exclude
+  # that directory from the app, and the shell loads its window and tray icons
+  # from there at runtime. The installer icon is named explicitly under `win`.
+
+# Copied as one tree on purpose. electron-builder's copy filter unconditionally
+# drops a node_modules directory that sits at the root of an extraResources
+# source, and no filter overrides it — so `from: staging/server` would ship an
+# app with no Homebridge at all. Copying the staging root puts node_modules one
+# level down, where it survives, and lands the resources/node and
+# resources/server layout the app expects.
+extraResources:
+  - from: .desktop-build/staging
+    to: .
+    filter:
+      - '**/*'
+
+# The shell requires nothing but Electron and Node built-ins. Without an
+# explicit exclusion electron-builder walks up to the repository root, finds
+# Homebridge's production dependencies and packs that whole tree into the asar,
+# where it would sit unused next to the real copy in resources/server.
+files:
+  - '**/*'
+  - '!node_modules/**'
+  - '!**/*.spec.*'
+
+asar: true
+
+# Nothing in the asar is native, and the native modules under resources/server
+# are built for Node.js 22 — rebuilding them against Electron's ABI would break
+# them.
+npmRebuild: false
+
+publish: null
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: desktop/resources/icon.ico
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Homebridge Desktop
+  # The bridge's config, pairing data and plugins live in the storage folder,
+  # not in app data — an uninstall must never take them with it.
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: ${productName}-${version}-${arch}-portable.${ext}

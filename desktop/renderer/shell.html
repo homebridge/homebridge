@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+    <title>Homebridge Desktop</title>
+    <link rel="stylesheet" href="./app.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M16 3 3 13v2h3v13h8v-8h4v8h8V15h3v-2Z" fill="#7c5cff" />
+        </svg>
+        <span>Homebridge Desktop</span>
+      </div>
+      <div class="status">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">Starting…</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1 id="hero-title">Starting Homebridge…</h1>
+        <p id="hero-message">The bundled Homebridge server is starting up.</p>
+        <p class="hint" id="hero-hint"></p>
+
+        <div class="banner" id="banner" hidden></div>
+
+        <div class="actions">
+          <button type="button" class="primary" id="open-ui" hidden>Open Web UI</button>
+          <button type="button" id="start">Start</button>
+          <button type="button" id="restart">Restart</button>
+          <button type="button" id="stop">Stop</button>
+          <button type="button" id="open-browser">Open in Browser</button>
+          <button type="button" id="open-storage">Storage Folder</button>
+          <button type="button" id="open-log">Log File</button>
+          <button type="button" id="open-settings">Settings…</button>
+        </div>
+      </section>
+
+      <section class="console">
+        <div class="console-bar">
+          <input type="search" id="filter" placeholder="Filter log…" aria-label="Filter log">
+          <label><input type="checkbox" id="autoscroll" checked> Auto-scroll</label>
+          <button type="button" id="copy-log">Copy</button>
+          <button type="button" id="clear-log">Clear</button>
+        </div>
+        <div class="log" id="log" role="log" aria-live="polite">
+          <span class="log-empty">Waiting for output…</span>
+        </div>
+      </section>
+    </main>
+
+    <footer id="footer"></footer>
+
+    <script src="./ansi.js" defer></script>
+    <script src="./shell.js" defer></script>
+  </body>
+</html>

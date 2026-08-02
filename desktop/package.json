@@ -1,0 +1,10 @@
+{
+  "name": "homebridge-desktop",
+  "version": "2.2.1",
+  "private": true,
+  "description": "Homebridge and its web interface as a Windows desktop app",
+  "author": "Homebridge contributors",
+  "license": "Apache-2.0",
+  "main": "main/main.cjs",
+  "dependencies": {}
+}

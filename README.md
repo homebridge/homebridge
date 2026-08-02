@@ -73,6 +73,7 @@ HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7f
 
 ### Windows 10 / 11
 
+[Homebridge Desktop](./desktop/README.md) — a desktop app that bundles Homebridge, its web interface and Node.js 22 in one installer, with nothing to set up beforehand <br>
 [Install Homebridge on Windows 10 / 11 Using Hyper V](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10-Using-Hyper-V)
 
 ---
