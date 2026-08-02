@@ -28,14 +28,16 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): warn when a thermostat's setpoint limits cannot satisfy its auto-mode deadband
 - fix(matter): advertise the power source device type on endpoints with a battery, per the Matter spec
 - fix(matter): seed a battery's unknown charge state, so a late first report is not rejected (#3982)
+- chore(deps): updated `@matter/main` from `v0.17.6` to `v0.17.9`
+  - [see changelog &rarr;](https://github.com/matter-js/matter.js/blob/main/CHANGELOG.md)
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.1.10`
+- `@homebridge/hap-nodejs` @ `v2.2.0`
 
 ### Matter Dependencies
 
-- `@matter/main` @ `v0.17.7`
+- `@matter/main` @ `v0.17.9`
 
 ## v2.2.1 (2026-07-19)
 

@@ -49,22 +49,22 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.1.10-beta.0",
-    "@matter/main": "0.17.7",
-    "chalk": "5.6.2",
+    "@homebridge/hap-nodejs": "2.2.0",
+    "@matter/main": "0.17.9",
+    "chalk": "6.0.0",
     "commander": "15.0.0",
-    "fs-extra": "^11.4.0",
+    "fs-extra": "11.4.0",
     "qrcode-terminal": "0.12.0",
     "semver": "7.8.5",
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.2.0",
+    "@antfu/eslint-config": "^9.3.0",
     "@prettier/plugin-xml": "^3.4.2",
     "@types/debug": "^4.1.13",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^26.1.1",
-    "@types/semver": "^7.7.1",
+    "@types/node": "^26.2.0",
+    "@types/semver": "^7.8.0",
     "@types/source-map-support": "^0.5.10",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint-plugin-format": "^2.0.1",
@@ -76,6 +76,6 @@
     "vitest": "^4.1.10"
   },
   "allowScripts": {
-    "fsevents@2.3.3": true
+    "fsevents": true
   }
 }
