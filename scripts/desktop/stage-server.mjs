@@ -29,7 +29,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync } from 'node:fs'
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import process from 'node:process'
 
 import { cacheDir, desktopDir, nodeStagingDir, readAppConfig, repoRoot, resolveNodeVersion, serverStagingDir } from './lib/paths.mjs'
@@ -38,46 +38,75 @@ function log(message) {
   process.stdout.write(`[stage-server] ${message}\n`)
 }
 
+function describe(command, args) {
+  return [command, ...args].join(' ')
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { stdio: 'inherit', shell: false, ...options })
 
   if (result.error) {
-    throw result.error
+    throw new Error(`Failed to run ${describe(command, args)}: ${result.error.message}`)
   }
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} exited with code ${result.status}`)
+    throw new Error(`${describe(command, args)} exited with code ${result.status}`)
   }
 
   return result
 }
 
 function capture(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: 'utf8', ...options })
+  const result = spawnSync(command, args, { encoding: 'utf8', shell: false, ...options })
 
   if (result.error) {
-    throw result.error
+    throw new Error(`Failed to run ${describe(command, args)}: ${result.error.message}`)
   }
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} exited with code ${result.status}:\n${result.stderr}`)
+    throw new Error(`${describe(command, args)} exited with code ${result.status}:\n${result.stderr}`)
   }
 
   return result.stdout
 }
 
 /**
- * Prefer the bundled Node/npm when staging on Windows so native modules are
- * built or downloaded for exactly the runtime that will execute them. On other
- * hosts fall back to the build machine's npm and cross-target Windows.
+ * Work out how to run npm.
+ *
+ * Never by spawning `npm.cmd`: since the fix for CVE-2024-27980, Node refuses
+ * to spawn a `.bat`/`.cmd` file without `shell: true` and fails with EINVAL,
+ * and going through a shell would mean hand-quoting every path. Running npm's
+ * own CLI entry point with a Node binary sidesteps both.
+ *
+ * The bundled runtime is preferred where it can execute, so every npm operation
+ * — including any native module build — runs on the exact Node.js that will
+ * later run the staged bundle.
  */
-function resolveNpmCommand() {
-  const bundledNode = join(nodeStagingDir, 'node.exe')
-  const bundledNpmCli = join(nodeStagingDir, 'node_modules', 'npm', 'bin', 'npm-cli.js')
+function resolveNpm() {
+  const bundledNode = join(nodeStagingDir, process.platform === 'win32' ? 'node.exe' : join('bin', 'node'))
+  const hostNodeDir = dirname(process.execPath)
 
-  if (process.platform === 'win32' && existsSync(bundledNode) && existsSync(bundledNpmCli)) {
-    return { command: bundledNode, prefixArgs: [bundledNpmCli], bundled: true }
+  const candidates = [
+    { bundled: true, cli: join(nodeStagingDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'), node: bundledNode },
+    // Windows and portable installs keep npm next to the node binary...
+    { bundled: false, cli: join(hostNodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'), node: process.execPath },
+    // ...Unix prefixes keep it one level up, under lib.
+    { bundled: false, cli: join(hostNodeDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), node: process.execPath },
+  ]
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate.node) && existsSync(candidate.cli)) {
+      return { bundled: candidate.bundled, command: candidate.node, prefixArgs: [candidate.cli] }
+    }
   }
 
-  return { command: process.platform === 'win32' ? 'npm.cmd' : 'npm', prefixArgs: [], bundled: false }
+  if (process.platform === 'win32') {
+    throw new Error([
+      'Could not find an npm CLI to run.',
+      'Run "npm run desktop:runtime" first so the bundled Node.js 22 runtime (which ships npm) is staged.',
+    ].join('\n'))
+  }
+
+  // On Unix `npm` is a shell script, so spawning it directly is safe.
+  return { bundled: false, command: 'npm', prefixArgs: [] }
 }
 
 /**
@@ -85,12 +114,13 @@ function resolveNpmCommand() {
  * dependency spec changes whenever Homebridge's build output changes and npm
  * can never resolve a stale copy out of its cache.
  */
-async function packHomebridge(arch) {
+async function packHomebridge(npm, arch) {
   if (!existsSync(join(repoRoot, 'dist', 'cli.js'))) {
     throw new Error('dist/cli.js is missing — run "npm run build" before staging the desktop app')
   }
 
-  const packOutput = capture(process.platform === 'win32' ? 'npm.cmd' : 'npm', [
+  const packOutput = capture(npm.command, [
+    ...npm.prefixArgs,
     'pack',
     '--pack-destination',
     cacheDir,
@@ -190,7 +220,10 @@ async function main() {
 
   await mkdir(serverStagingDir, { recursive: true })
 
-  const tarball = await packHomebridge(arch)
+  const npm = resolveNpm()
+  log(npm.bundled ? 'using the bundled Node.js 22 runtime and its npm' : `using npm via ${npm.command}`)
+
+  const tarball = await packHomebridge(npm, arch)
 
   await writeFile(join(serverStagingDir, 'package.json'), `${JSON.stringify({
     name: 'homebridge-desktop-server',
@@ -203,12 +236,9 @@ async function main() {
     },
   }, null, 2)}\n`)
 
-  const npm = resolveNpmCommand()
   const env = { ...process.env }
 
-  if (npm.bundled) {
-    log('installing with the bundled Node.js 22 runtime')
-  } else {
+  if (crossStaged) {
     log(`cross-staging from ${process.platform} — targeting win32/${arch} for native prebuilds`)
     // prebuild-install (used by @homebridge/node-pty-prebuilt-multiarch) reads
     // these to pick which prebuilt binary to download.

@@ -88,6 +88,11 @@ Individual steps:
 | `npm run desktop:dist`    | Full Windows build: NSIS installer plus portable executable                        |
 | `npm run desktop:start`   | Runs the shell against `.desktop-build/staging` without packaging                  |
 
+Run the steps in order — `desktop:server` uses the Node.js runtime that
+`desktop:runtime` stages, both to install with and to run npm at all. It never
+spawns `npm.cmd`: Node refuses to spawn `.cmd` files without a shell since the
+fix for CVE-2024-27980, so npm's CLI is invoked with a Node binary instead.
+
 Versions are pinned in [`app-config.json`](./app-config.json). Bumping the
 Node.js or web UI version there is the only change needed to ship a new one;
 `HOMEBRIDGE_DESKTOP_NODE_VERSION` overrides the Node.js version for a one-off
