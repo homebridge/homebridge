@@ -1,0 +1,9 @@
+{
+  "appId": "io.homebridge.desktop",
+  "productName": "Homebridge Desktop",
+  "nodeVersion": "22.23.2",
+  "nodeArch": "x64",
+  "configUiVersion": "5.27.0",
+  "defaultUiPort": 8581,
+  "serviceName": "Homebridge"
+}

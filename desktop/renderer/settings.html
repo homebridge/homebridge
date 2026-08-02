@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+    <title>Homebridge Desktop Settings</title>
+    <link rel="stylesheet" href="./app.css">
+  </head>
+  <body>
+    <div class="form">
+      <div class="field">
+        <h2 class="section-title">Homebridge</h2>
+        <span class="field-title">Storage folder</span>
+        <div class="row">
+          <input type="text" id="storage-path" spellcheck="false">
+          <button type="button" id="browse">Browse…</button>
+        </div>
+        <span class="description">
+          Holds config.json, cached accessories, HomeKit pairing data, the log file and installed plugins.
+          Changing it restarts Homebridge.
+        </span>
+      </div>
+
+      <div class="field">
+        <span class="field-title">Web UI port</span>
+        <div class="row">
+          <input type="number" id="ui-port" min="1" max="65535" step="1">
+        </div>
+        <span class="description">
+          Only used the first time Homebridge runs. After that the port in config.json wins — change it from the
+          web UI's own settings page.
+        </span>
+      </div>
+
+      <div class="field">
+        <h2 class="section-title">Application</h2>
+        <div class="toggles">
+          <label><input type="checkbox" id="start-server"> Start Homebridge when the app launches</label>
+          <label><input type="checkbox" id="close-to-tray"> Keep Homebridge running in the tray when the window is closed</label>
+          <label><input type="checkbox" id="start-hidden"> Start with the window hidden</label>
+          <label><input type="checkbox" id="launch-at-login"> Launch at login</label>
+          <label><input type="checkbox" id="debug-logging"> Verbose web UI logging</label>
+        </div>
+      </div>
+
+      <div class="banner" id="banner" hidden></div>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" id="close">Close</button>
+      <button type="button" class="primary" id="save">Save</button>
+    </div>
+
+    <script src="./settings.js" defer></script>
+  </body>
+</html>

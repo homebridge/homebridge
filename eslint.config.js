@@ -2,7 +2,7 @@ import antfu from '@antfu/eslint-config'
 
 export default antfu(
   {
-    ignores: ['dist', 'docs'],
+    ignores: ['.desktop-build', 'dist', 'docs'],
     rules: {
       'antfu/consistent-list-newline': 'off',
       'curly': ['error'],
