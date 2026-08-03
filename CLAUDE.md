@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run test` — `vitest run`. `npm run test-coverage` adds `--coverage`. Vitest config: `pool: 'threads'`, `testTimeout: 10000`, coverage scoped to `src/**`.
 - Run a single test file: `npx vitest run src/server.spec.ts`. Filter by name: `npx vitest run -t "registers plugin"`.
 - `npm run docs` / `npm run lint-docs` — TypeDoc. `lint-docs` treats warnings as errors.
+- `npm run desktop:*` — the Windows desktop app (see below). `desktop:prepare` stages it, `desktop:dist` packages it, `desktop:start` runs it unpackaged.
 - Engines: Node `^22 || ^24`. ESM-only (`"type": "module"`); use `import` and `.js` extensions on relative imports (TS resolves `nodenext`).
 
 ## Running locally
@@ -61,6 +62,18 @@ The `Server.matterManager` field is `?:` and only constructed lazily; `MatterBri
 ### Logging
 
 `src/logger.ts` exports the `Logger` class and `Logging` interface. Plugin code should always use the `Logging` instance handed in by the API (which is `Logger.withPrefix(pluginName)`). Internal modules use `Logger.internal` or a custom `Logger.withPrefix('Matter/MainManager')`-style prefix. `LogLevel` is a `const enum` — preserved at runtime via `preserveConstEnums: true` in `tsconfig.json`.
+
+## Desktop app (Windows)
+
+`desktop/` is an Electron shell that ships Homebridge, `homebridge-config-ui-x` and a pinned Node.js 22 runtime as one Windows installer. It is entirely additive: nothing under `src/` knows about it, and `package.json`'s `files` array is unchanged, so the npm package is unaffected. Full detail in [`desktop/README.md`](./desktop/README.md).
+
+- **The window is the web UI.** The shell opens a local boot screen (`desktop/renderer/shell.html`) and navigates to `http://127.0.0.1:<port>` once the bundled UI answers. Only that boot/diagnostics screen and the settings window are the shell's own.
+- **One child process.** `desktop/main/supervisor.cjs` spawns `hb-service run` from the bundled config-ui-x, on the bundled `node.exe`. That command starts the UI in-process and forks Homebridge itself — the same entry point the official Windows service uses. Homebridge does _not_ run on Electron's Node.
+- **Layout is load-bearing.** `hb-service` finds Homebridge by looking for a sibling `homebridge` directory next to its own install, which is why `scripts/desktop/stage-server.mjs` installs both into one `node_modules`.
+- **Two package.json files.** `desktop/package.json` exists so electron-builder packages from `desktop/` and does not pull Homebridge's dependency tree into the asar. Its `version` is synced from the root by `stage-server.mjs`.
+- **`.cjs` on purpose.** The root package is ESM; the Electron main and preload files use `.cjs` so they stay CommonJS regardless. Renderer scripts are classic `<script>` tags — `file://` pages cannot load ES modules.
+- **Staging must happen on Windows.** `homebridge-config-ui-x` hard-requires `@homebridge/node-pty-prebuilt-multiarch`, whose Windows binaries are only assembled by an install running on Windows. `stage-server.mjs` refuses otherwise; `--allow-cross-stage` produces an inspectable, non-shippable bundle.
+- Build output and the download cache live in `.desktop-build/` (gitignored), as do the generated icons in `desktop/resources/`.
 
 ## Conventions
 
