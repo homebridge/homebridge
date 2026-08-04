@@ -62,6 +62,12 @@ describe('deviceTypes mandatory clusters', () => {
     ['GenericSwitch', ['switch']],
     ['Pump', ['onOff', 'pumpConfigurationAndControl']],
     ['RoomAirConditioner', ['onOff', 'thermostat']],
+    // Closures, for garage doors and gates
+    ['Closure', ['closureControl']],
+    // Media. MediaPlayer carries playback and source selection but NOT volume,
+    // which lives on a separate Speaker endpoint composed alongside it
+    ['MediaPlayer', ['mediaPlayback']],
+    ['Speaker', ['onOff', 'levelControl']],
   ]
 
   it.each(cases)('%s includes %j', (name, expectedBehaviors) => {

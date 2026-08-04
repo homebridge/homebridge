@@ -30,6 +30,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): seed a battery's unknown charge state, so a late first report is not rejected (#3982)
 - chore(deps): updated `@matter/main` from `v0.17.6` to `v0.17.9`
   - [see changelog &rarr;](https://github.com/matter-js/matter.js/blob/main/CHANGELOG.md)
+- feat(matter): expose the closure, media player and speaker device types to plugins
 
 ### Homebridge Dependencies
 

@@ -22,7 +22,7 @@ import { EventEmitter } from 'node:events'
  *
  * Why this matters:
  * - Barrel import: `import * as devices from '@matter/main/devices'` loads ALL 186+ exports (~800ms)
- * - Individual imports: Only loads the 23 devices we actually use (~50-100ms)
+ * - Individual imports: Only loads the 27 devices we actually use (~50-100ms)
  * - Result: 50-100x faster on powerful machines, even more improvement on Raspberry Pi
  *
  * This optimization is especially important for users on resource-constrained devices like
@@ -50,6 +50,8 @@ import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-config
 import { WindowCovering } from '@matter/main/clusters/window-covering'
 // Direct imports from individual device files
 import { AirQualitySensorDevice } from '@matter/main/devices/air-quality-sensor'
+import { BasicVideoPlayerDevice } from '@matter/main/devices/basic-video-player'
+import { ClosureDevice, ClosureRequirements } from '@matter/main/devices/closure'
 import { ColorTemperatureLightDevice } from '@matter/main/devices/color-temperature-light'
 import { ContactSensorDevice } from '@matter/main/devices/contact-sensor'
 import { DimmableLightDevice } from '@matter/main/devices/dimmable-light'
@@ -68,6 +70,7 @@ import { PumpDevice, PumpRequirements } from '@matter/main/devices/pump'
 import { RoboticVacuumCleanerDevice, RoboticVacuumCleanerRequirements } from '@matter/main/devices/robotic-vacuum-cleaner'
 import { RoomAirConditionerDevice, RoomAirConditionerRequirements } from '@matter/main/devices/room-air-conditioner'
 import { SmokeCoAlarmDevice, SmokeCoAlarmRequirements } from '@matter/main/devices/smoke-co-alarm'
+import { SpeakerDevice } from '@matter/main/devices/speaker'
 import { TemperatureSensorDevice } from '@matter/main/devices/temperature-sensor'
 import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/thermostat'
 import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detector'
@@ -534,9 +537,13 @@ const devices = {
   ThermostatDevice,
   ThermostatRequirements,
   WaterLeakDetectorDevice,
+  SpeakerDevice,
   WaterValveDevice,
   WaterValveRequirements,
   WindowCoveringDevice,
+  BasicVideoPlayerDevice,
+  ClosureDevice,
+  ClosureRequirements,
 }
 
 /**
@@ -628,6 +635,35 @@ export const deviceTypes = {
 
   // Window Coverings (features will be auto-detected based on accessory attributes)
   WindowCovering: devices.WindowCoveringDevice,
+
+  // Closures — garage doors, gates and similar. Until the Closures work landed
+  // in the spec there was no such device type, and the usual stand-in was
+  // WindowCovering, which drives the hardware correctly but presents as a blind.
+  //
+  // ⚠️ Apple Home does not support this type yet, so an accessory using it will
+  // not appear there. It is exposed for plugin authors building against Google
+  // or Alexa, and to have the groundwork done for whenever Apple catches up.
+  //
+  // ClosureControl is not part of the base device type — matter.js requires a
+  // feature to be chosen, and without one the endpoint is built carrying only
+  // Identify and any closure state a plugin supplies is silently dropped.
+  // Positioning is the one that makes open/closed/part-open meaningful, which
+  // is what a garage door or gate needs; compose your own with `.with(...)` to
+  // add Speed, Ventilation, Pedestrian or the rest.
+  Closure: devices.ClosureDevice.with(devices.ClosureRequirements.ClosureControlServer.with('Positioning')),
+
+  // Media — the name says video, but nothing in the device type is video-only:
+  // it carries MediaPlayback (play/pause/stop), MediaInput and AudioOutput
+  // (source selection), Channel, TargetNavigator and KeypadInput. An audio-only
+  // device is a legitimate use of it.
+  //
+  // Volume and mute are NOT here. In Matter those live on a separate Speaker
+  // endpoint (LevelControl + OnOff), composed alongside this one under a
+  // BridgedNode — which is why both are exposed together.
+  //
+  // ⚠️ Apple Home does not support either type yet; see the note on Closure.
+  MediaPlayer: devices.BasicVideoPlayerDevice,
+  Speaker: devices.SpeakerDevice,
 
   // Appliances
   // RVC optional clusters (RvcCleanMode, ServiceArea) are added dynamically in matterServer
