@@ -32,12 +32,15 @@ import { EventEmitter } from 'node:events'
 import { AirQuality } from '@matter/main/clusters/air-quality'
 import { BooleanState } from '@matter/main/clusters/boolean-state'
 import { CarbonMonoxideConcentrationMeasurement } from '@matter/main/clusters/carbon-monoxide-concentration-measurement'
+import { ClosureControl } from '@matter/main/clusters/closure-control'
 import { ColorControl } from '@matter/main/clusters/color-control'
 import { DoorLock } from '@matter/main/clusters/door-lock'
 import { ElectricalEnergyMeasurement } from '@matter/main/clusters/electrical-energy-measurement'
 import { ElectricalPowerMeasurement } from '@matter/main/clusters/electrical-power-measurement'
 import { FanControl } from '@matter/main/clusters/fan-control'
+import { KeypadInput } from '@matter/main/clusters/keypad-input'
 import { LevelControl } from '@matter/main/clusters/level-control'
+import { MediaPlayback } from '@matter/main/clusters/media-playback'
 import { NitrogenDioxideConcentrationMeasurement } from '@matter/main/clusters/nitrogen-dioxide-concentration-measurement'
 import { OnOff } from '@matter/main/clusters/on-off'
 import { OzoneConcentrationMeasurement } from '@matter/main/clusters/ozone-concentration-measurement'
@@ -555,12 +558,15 @@ const clusters = {
   AirQuality,
   BooleanState,
   CarbonMonoxideConcentrationMeasurement,
+  ClosureControl,
   ColorControl,
   DoorLock,
   ElectricalEnergyMeasurement,
   ElectricalPowerMeasurement,
   FanControl,
+  KeypadInput,
   LevelControl,
+  MediaPlayback,
   NitrogenDioxideConcentrationMeasurement,
   OnOff,
   OzoneConcentrationMeasurement,
@@ -749,6 +755,14 @@ export const clusterNames = {
 
   // Valve
   ValveConfigurationAndControl: 'valveConfigurationAndControl',
+
+  // Closures — garage doors, gates and similar
+  ClosureControl: 'closureControl',
+
+  // Media — the player endpoint; volume and mute are levelControl/onOff on a
+  // separate Speaker endpoint rather than anything here
+  MediaPlayback: 'mediaPlayback',
+  KeypadInput: 'keypadInput',
 
   // Identification
   Identify: 'identify',
