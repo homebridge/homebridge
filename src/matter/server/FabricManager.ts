@@ -80,6 +80,23 @@ export class FabricManager {
   }
 
   /**
+   * Whether the running server node is actually reporting its fabric list.
+   *
+   * `getFabricInfo()` returns `[]` both for "no controller is paired" and for
+   * "the list could not be read", and the two need different answers. When the
+   * operational credentials cluster hands back an array — even an empty one —
+   * that array is the truth.
+   */
+  private hasLiveFabricList(): boolean {
+    try {
+      const serverNode = this.getServerNode() as any
+      return Array.isArray(serverNode?.state?.operationalCredentials?.fabrics)
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Read fabric information from storage files
    */
   private readFabricsFromStorage(): FabricInfo[] {
@@ -169,8 +186,19 @@ export class FabricManager {
       return { commissioned: true, fabricCount, fabrics }
     }
 
-    // Fabric list is empty — fall back to the serverNode commissioning flag in
-    // case the state is reachable but fabric enumeration didn't return rows.
+    // The fabric list is empty. ⚠️ The serverNode commissioning flag is NOT a
+    // tie-breaker here. It lags behind a controller-side fabric removal, so
+    // consulting it would report "commissioned" with nothing paired right up
+    // until the next restart — the #3974 symptom this snapshot exists to fix,
+    // and the state that hides the QR code the owner needs to re-pair.
+    //
+    // So only fall back to the flag when the live list could not be read at
+    // all, which is the one case where an empty list means "don't know" rather
+    // than "nothing is paired".
+    if (this.hasLiveFabricList()) {
+      return { commissioned: false, fabricCount, fabrics }
+    }
+
     let commissioned = false
     try {
       const serverNode = this.getServerNode()

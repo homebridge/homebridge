@@ -98,5 +98,23 @@ describe('fabricManager', () => {
       const manager = makeFabricManager({ env: {}, state: {} })
       expect(manager.getCommissioningSnapshot()).toEqual({ commissioned: false, fabricCount: 0, fabrics: [] })
     })
+
+    it('reports not commissioned for an empty fabric list even while the flag still says otherwise (#3974)', () => {
+      // The controller-side removal of the last fabric leaves
+      // state.commissioning.commissioned true until the next restart. Trusting
+      // it here is what showed the bridge as paired with nothing attached -
+      // and hid the QR code the owner needed to pair again.
+      const manager = makeFabricManager(makeServerNode([]))
+
+      expect(manager.getCommissioningSnapshot()).toEqual({ commissioned: false, fabricCount: 0, fabrics: [] })
+    })
+
+    it('still trusts the commissioning flag when the fabric list cannot be read at all', () => {
+      // No operationalCredentials means we do not know, rather than know there
+      // is nothing - so the flag stays the tie-breaker for that one case.
+      const manager = makeFabricManager({ env: {}, state: { commissioning: { commissioned: true } } })
+
+      expect(manager.getCommissioningSnapshot()).toEqual({ commissioned: true, fabricCount: 0, fabrics: [] })
+    })
   })
 })
