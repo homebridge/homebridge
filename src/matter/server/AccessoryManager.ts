@@ -18,6 +18,7 @@ import type {
   InternalMatterAccessoryPart,
   MatterAccessory,
   MatterAccessoryEventEmitter,
+  MatterAccessoryPart,
 } from '../types.js'
 
 import { EventEmitter } from 'node:events'
@@ -46,6 +47,7 @@ import {
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
+  extractDeclaredFeatures,
   extractLevelControlFeatures,
   extractThermostatFeatures,
   validateAccessoryRequiredFields,
@@ -73,6 +75,8 @@ interface DetectedClusterFeatures {
   serviceAreaFeatures: string[] | null
   colorControlFeatures: string[] | null
   thermostatFeatures: string[] | null
+  closureControlFeatures: string[] | null
+  mediaPlaybackFeatures: string[] | null
   /**
    * LevelControl features to apply via `.with(...)`. `null` means the accessory
    * has no `levelControl` handler and we should leave the base class alone.
@@ -179,58 +183,9 @@ export class AccessoryManager {
     }
 
     try {
-      let deviceType = accessory.deviceType
-      const windowCoveringFeatures = detectWindowCoveringFeatures(accessory)
-      if (windowCoveringFeatures.length > 0) {
-        deviceType = applyWindowCoveringFeatures(deviceType, accessory, windowCoveringFeatures)
-      }
-
-      // SmokeCoAlarm is feature-gated in matter.js, so the base SmokeCoAlarmDevice
-      // carries no SmokeCoAlarm cluster. Add it with features detected from the
-      // accessory's declared attributes — unless the plugin already composed a
-      // device type that includes it.
-      const hasSmokeCoAlarm = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.smokeCoAlarm !== undefined
-      if (deviceType.deviceType === devices.SmokeCoAlarmDevice.deviceType && !hasSmokeCoAlarm) {
-        deviceType = applySmokeCoAlarmFeatures(deviceType, accessory, detectSmokeCoAlarmFeatures(accessory))
-      }
-
-      // Thermostat is feature-gated in the same way, so the base ThermostatDevice
-      // carries no thermostat cluster. Add it with features detected from the
-      // declared setpoints, so a heating-only thermostat is not forced to claim
-      // cooling - unless the plugin already composed the cluster itself.
-      const hasThermostat = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.thermostat !== undefined
-      if (deviceType.deviceType === devices.ThermostatDevice?.deviceType && !hasThermostat) {
-        deviceType = applyThermostatFeatures(deviceType, accessory, detectThermostatFeatures(accessory))
-      }
-
-      // Electrical measurement clusters (power/energy metering) are feature-gated
-      // in matter.js and not part of any base device type. Detect them from the
-      // accessory's declared cluster state so any device type - outlets included -
-      // can report power/energy (surfaced by e.g. the iOS 27+ Home app energy view).
-      const electricalDetection = detectElectricalMeasurementClusters(accessory)
-      const hasElectrical = electricalDetection.hasPowerMeasurement || electricalDetection.energyFeatures.length > 0
-      if (hasElectrical) {
-        applyElectricalMeasurementDefaults(accessory, electricalDetection)
-        deviceType = applyElectricalMeasurementClusters(deviceType, accessory, electricalDetection)
-      } else if (deviceType.deviceType === devices.ElectricalSensorEndpoint?.deviceType) {
-        log.warn(
-          `${accessory.displayName} uses the ElectricalSensor device type but declares no `
-          + 'electricalPowerMeasurement or electricalEnergyMeasurement cluster state - '
-          + 'the endpoint will expose no measurement clusters.',
-        )
-      }
-
-      const features = this.detectClusterFeatures(accessory, deviceType)
-
-      // Now that we know whether LevelControl keeps its Lighting feature, make
-      // sure the declared levels are legal for it.
-      applyLevelControlLightingFloor(accessory, features.levelControlFeatures)
-
-      const customBehaviors = await this.buildCustomBehaviors(accessory, deviceType, features)
-      if (customBehaviors.length > 0) {
-        deviceType = (deviceType as any).with(...customBehaviors)
-        log.info(`Applied ${customBehaviors.length} custom behavior(s) to device type`)
-      }
+      const prepared = await this.prepareDeviceType(accessory)
+      const { hasElectrical } = prepared
+      let { deviceType } = prepared
 
       if (!deps.config.externalAccessory) {
         // Skip if device type already includes BridgedDeviceBasicInformation
@@ -416,6 +371,103 @@ export class AccessoryManager {
   }
 
   /**
+   * Work out the endpoint's final device type: compose the feature-gated
+   * clusters it needs, fix up any state that would fail conformance, and
+   * attach the Homebridge behaviors that route commands to plugin handlers.
+   *
+   * ⚠️ Shared by the parent accessory AND by every part. Child endpoints used
+   * to run a cut-down version of this that only looked up behaviors by name,
+   * so a composed part quietly lost anything decided here — its battery was
+   * never composed, a thermostat part had no thermostat cluster at all
+   * (matter.js gates it behind features, so the base device type carries
+   * none), and a dimmable part declaring the once-documented `minLevel: 0`
+   * still failed to register. Anything added here must therefore stay free of
+   * parent-only assumptions; the caller handles what genuinely differs
+   * (bridged info, the composed-parent labels, the child tag list).
+   */
+  private async prepareDeviceType(
+    accessory: MatterAccessory,
+  ): Promise<{ deviceType: EndpointType, hasElectrical: boolean }> {
+    let deviceType = accessory.deviceType
+    const windowCoveringFeatures = detectWindowCoveringFeatures(accessory)
+    if (windowCoveringFeatures.length > 0) {
+      deviceType = applyWindowCoveringFeatures(deviceType, accessory, windowCoveringFeatures)
+    }
+
+    // SmokeCoAlarm is feature-gated in matter.js, so the base SmokeCoAlarmDevice
+    // carries no SmokeCoAlarm cluster. Add it with features detected from the
+    // accessory's declared attributes — unless the plugin already composed a
+    // device type that includes it.
+    const hasSmokeCoAlarm = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.smokeCoAlarm !== undefined
+    if (deviceType.deviceType === devices.SmokeCoAlarmDevice.deviceType && !hasSmokeCoAlarm) {
+      deviceType = applySmokeCoAlarmFeatures(deviceType, accessory, detectSmokeCoAlarmFeatures(accessory))
+    }
+
+    // Thermostat is feature-gated in the same way, so the base ThermostatDevice
+    // carries no thermostat cluster. Add it with features detected from the
+    // declared setpoints, so a heating-only thermostat is not forced to claim
+    // cooling - unless the plugin already composed the cluster itself.
+    const hasThermostat = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.thermostat !== undefined
+    if (deviceType.deviceType === devices.ThermostatDevice?.deviceType && !hasThermostat) {
+      deviceType = applyThermostatFeatures(deviceType, accessory, detectThermostatFeatures(accessory))
+    }
+
+    // Electrical measurement clusters (power/energy metering) are feature-gated
+    // in matter.js and not part of any base device type. Detect them from the
+    // accessory's declared cluster state so any device type - outlets included -
+    // can report power/energy (surfaced by e.g. the iOS 27+ Home app energy view).
+    const electricalDetection = detectElectricalMeasurementClusters(accessory)
+    const hasElectrical = electricalDetection.hasPowerMeasurement || electricalDetection.energyFeatures.length > 0
+    if (hasElectrical) {
+      applyElectricalMeasurementDefaults(accessory, electricalDetection)
+      deviceType = applyElectricalMeasurementClusters(deviceType, accessory, electricalDetection)
+    } else if (deviceType.deviceType === devices.ElectricalSensorEndpoint?.deviceType) {
+      log.warn(
+        `${accessory.displayName} uses the ElectricalSensor device type but declares no `
+        + 'electricalPowerMeasurement or electricalEnergyMeasurement cluster state - '
+        + 'the endpoint will expose no measurement clusters.',
+      )
+    }
+
+    const features = this.detectClusterFeatures(accessory, deviceType)
+
+    // Now that we know whether LevelControl keeps its Lighting feature, make
+    // sure the declared levels are legal for it.
+    applyLevelControlLightingFloor(accessory, features.levelControlFeatures)
+
+    const customBehaviors = await this.buildCustomBehaviors(accessory, deviceType, features)
+    if (customBehaviors.length > 0) {
+      deviceType = (deviceType as any).with(...customBehaviors)
+      log.info(`Applied ${customBehaviors.length} custom behavior(s) to device type`)
+    }
+
+    return { deviceType, hasElectrical }
+  }
+
+  /**
+   * Present a part as an accessory so it can go through {@link prepareDeviceType}.
+   *
+   * Parts carry the same `deviceType`/`clusters`/`handlers` shape as their
+   * parent, just without the bridge-level identity fields — which nothing in
+   * the preparation pipeline reads. `clusters` is passed by reference on
+   * purpose: the pipeline edits it (electrical defaults, the battery charge
+   * state seed, the LevelControl floor) and those edits have to land on the
+   * part object that is about to be registered.
+   */
+  private partAsAccessory(part: MatterAccessoryPart, partEndpointId: string): MatterAccessory {
+    return {
+      UUID: partEndpointId,
+      displayName: part.displayName || part.id,
+      deviceType: part.deviceType,
+      serialNumber: '',
+      manufacturer: '',
+      model: '',
+      clusters: part.clusters,
+      handlers: part.handlers,
+    } as MatterAccessory
+  }
+
+  /**
    * Detect cluster features for an accessory
    */
   private detectClusterFeatures(
@@ -460,6 +512,29 @@ export class AccessoryManager {
       )
     }
 
+    // ClosureControl and MediaPlayback are feature-gated too, and the device
+    // type is where the choice was made - Closure composes Positioning, and a
+    // plugin may have composed more. Read whatever is there so replacing the
+    // base behavior with the handler-calling one carries it across instead of
+    // resetting the cluster to its featureless form.
+    let closureControlFeatures: string[] | null = null
+    if (accessory.handlers?.closureControl) {
+      closureControlFeatures = detectBehaviorFeatures(
+        deviceType,
+        CLUSTER_IDS.CLOSURE_CONTROL,
+        extractDeclaredFeatures,
+      )
+    }
+
+    let mediaPlaybackFeatures: string[] | null = null
+    if (accessory.handlers?.mediaPlayback) {
+      mediaPlaybackFeatures = detectBehaviorFeatures(
+        deviceType,
+        CLUSTER_IDS.MEDIA_PLAYBACK,
+        extractDeclaredFeatures,
+      )
+    }
+
     // LevelControl: matter.js's public `LevelControlServer` inherits the
     // Lighting+OnOff feature set from its internal `LevelControlBase` (see
     // LevelControlServer.ts line ~20: `LevelControlBehavior.with(OnOff, Lighting)`).
@@ -499,6 +574,8 @@ export class AccessoryManager {
       serviceAreaFeatures,
       colorControlFeatures,
       thermostatFeatures,
+      closureControlFeatures,
+      mediaPlaybackFeatures,
       levelControlFeatures,
     }
   }
@@ -649,6 +726,16 @@ export class AccessoryManager {
         }
       }
 
+      if (clusterName === 'closureControl' && behaviorClass && features.closureControlFeatures && features.closureControlFeatures.length > 0) {
+        behaviorClass = (behaviorClass as any).with(...features.closureControlFeatures)
+        log.info(`ClosureControl custom behavior will preserve features: ${features.closureControlFeatures.join(', ')}`)
+      }
+
+      if (clusterName === 'mediaPlayback' && behaviorClass && features.mediaPlaybackFeatures && features.mediaPlaybackFeatures.length > 0) {
+        behaviorClass = (behaviorClass as any).with(...features.mediaPlaybackFeatures)
+        log.info(`MediaPlayback custom behavior will preserve features: ${features.mediaPlaybackFeatures.join(', ')}`)
+      }
+
       if (clusterName === 'serviceArea' && behaviorClass && features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.serviceAreaFeatures)
         log.info(`ServiceArea custom behavior will preserve features: ${features.serviceAreaFeatures.join(', ')}`)
@@ -767,35 +854,12 @@ export class AccessoryManager {
 
       deps.behaviorRegistry.registerPartEndpoint(partEndpointId, accessory.UUID, part.id)
 
-      let partDeviceType: EndpointType = part.deviceType
-      const partCustomBehaviors: BehaviorType[] = []
-
-      if (part.handlers) {
-        for (const clusterName of Object.keys(part.handlers)) {
-          const behaviorClass = CORE_CLUSTER_BEHAVIOR_MAP[clusterName]
-          if (behaviorClass) {
-            partCustomBehaviors.push(behaviorClass)
-            log.info(`  Will use ${behaviorClass.name} for part ${part.id}`)
-          } else {
-            log.warn(`No custom behavior class available for cluster '${clusterName}' on part ${part.id}`)
-          }
-        }
-
-        if (partCustomBehaviors.length > 0) {
-          partDeviceType = (partDeviceType as any).with(...partCustomBehaviors)
-          log.info(`  Applied ${partCustomBehaviors.length} custom behavior(s) to part ${part.id}`)
-        }
-      }
-
-      // Electrical measurement detection runs for parts too, so composed
-      // devices (e.g. a power strip with metered outlets, or a solar setup
-      // exposing separate meters) can report power/energy per part.
-      const partElectrical = detectElectricalMeasurementClusters(part)
-      const partHasElectrical = partElectrical.hasPowerMeasurement || partElectrical.energyFeatures.length > 0
-      if (partHasElectrical) {
-        applyElectricalMeasurementDefaults(part, partElectrical)
-        partDeviceType = applyElectricalMeasurementClusters(partDeviceType, part, partElectrical)
-      }
+      // Parts go through the same preparation as their parent — feature-gated
+      // clusters, the battery PowerSource, conformance fix-ups and the
+      // behaviors that route commands to handlers. See prepareDeviceType().
+      const partPrepared = await this.prepareDeviceType(this.partAsAccessory(part, partEndpointId))
+      const partHasElectrical = partPrepared.hasElectrical
+      let partDeviceType: EndpointType = partPrepared.deviceType
 
       // Tag each child with a semantic Number tag so controllers can stably
       // re-map otherwise-identical children of a composed device; without it
@@ -823,6 +887,13 @@ export class AccessoryManager {
 
       if (partHasElectrical) {
         await this.advertiseUtilityDeviceType(partEndpoint, 'ElectricalSensor', part.displayName || part.id)
+      }
+
+      // Same rule as the parent: composing the battery cluster is not enough,
+      // the endpoint has to advertise the PowerSource device type or no
+      // controller has a reason to read it.
+      if (part.clusters?.powerSource) {
+        await this.advertiseUtilityDeviceType(partEndpoint, 'PowerSource', part.displayName || part.id)
       }
 
       log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)

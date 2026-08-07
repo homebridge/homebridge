@@ -8,7 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
+  applyLevelControlLightingFloor,
+  applyThermostatFeatures,
   detectElectricalMeasurementClusters,
+  detectThermostatFeatures,
 } from '../serverHelpers.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
@@ -72,6 +75,8 @@ vi.mock('../serverHelpers.js', () => ({
   applyWindowCoveringFeatures: vi.fn((dt: any) => dt),
   detectSmokeCoAlarmFeatures: vi.fn(() => ['SmokeAlarm']),
   applySmokeCoAlarmFeatures: vi.fn((dt: any) => dt),
+  detectThermostatFeatures: vi.fn(() => ['Heating']),
+  applyThermostatFeatures: vi.fn((dt: any) => dt),
   detectElectricalMeasurementClusters: vi.fn(() => ({ hasPowerMeasurement: false, energyFeatures: [] })),
   applyElectricalMeasurementDefaults: vi.fn(),
   applyLevelControlLightingFloor: vi.fn(),
@@ -80,10 +85,13 @@ vi.mock('../serverHelpers.js', () => ({
   extractColorControlFeatures: vi.fn(() => []),
   extractLevelControlFeatures: vi.fn(() => []),
   extractThermostatFeatures: vi.fn(() => []),
+  extractDeclaredFeatures: vi.fn(() => []),
   determineColorControlFeaturesFromHandlers: vi.fn(() => []),
   CLUSTER_IDS: {
+    CLOSURE_CONTROL: 0x0104,
     COLOR_CONTROL: 0x0300,
     LEVEL_CONTROL: 0x0008,
+    MEDIA_PLAYBACK: 0x0506,
     THERMOSTAT: 0x0201,
   },
 }))
@@ -572,10 +580,14 @@ describe('accessoryManager', () => {
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
       expect(applyElectricalMeasurementDefaults).toHaveBeenCalledTimes(1)
-      expect(applyElectricalMeasurementDefaults).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'outlet-1' }),
-        expect.objectContaining({ hasPowerMeasurement: true }),
-      )
+      // The part runs through the parent's preparation pipeline as an
+      // accessory-shaped view of itself. `clusters` must be the part's own
+      // object, not a copy, or the defaults written here would be applied to
+      // something that is then thrown away.
+      const [target, detection] = vi.mocked(applyElectricalMeasurementDefaults).mock.calls[0]
+      expect(target.displayName).toBe('Metered Outlet 1')
+      expect(target.clusters).toBe(accessory.parts![0].clusters)
+      expect(detection).toEqual(expect.objectContaining({ hasPowerMeasurement: true }))
       const internal = deps.accessories.get('test-uuid-001') as any
       expect(internal.endpoint.act).not.toHaveBeenCalled() // main endpoint unaffected
       expect(internal._parts[0].endpoint.act).toHaveBeenCalledTimes(1) // part advertises 0x0510
@@ -763,6 +775,101 @@ describe('accessoryManager', () => {
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
       expect(PowerSourceServer.with).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('parts get the same preparation as their parent', () => {
+    // Child endpoints used to run a cut-down pipeline that only looked up
+    // behaviors by cluster name. Everything the parent's preparation decides
+    // was skipped, silently: a composed battery was never exposed, a
+    // thermostat part had no thermostat cluster at all, and a dimmable part
+    // declaring minLevel 0 still failed to register.
+
+    function partsAccessory(part: Record<string, unknown>) {
+      return createMockAccessory({
+        deviceType: createChainableDeviceType({ deviceType: 0x000E, name: 'Aggregator' }),
+        clusters: {},
+        parts: [{
+          id: 'child-1',
+          displayName: 'Child One',
+          deviceType: createChainableDeviceType({ deviceType: 0x0101, name: 'DimmableLight' }),
+          ...part,
+        }],
+      } as any)
+    }
+
+    it('composes a battery PowerSource declared on a part', async () => {
+      const deps = createMockDeps()
+
+      await manager.registerAccessory(
+        'homebridge-test',
+        'TestPlatform',
+        partsAccessory({ clusters: { onOff: { onOff: false }, powerSource: { batPercentRemaining: 150 } } }),
+        deps,
+      )
+
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
+    })
+
+    it('advertises the PowerSource device type on the part endpoint', async () => {
+      const deps = createMockDeps()
+
+      await manager.registerAccessory(
+        'homebridge-test',
+        'TestPlatform',
+        partsAccessory({ clusters: { onOff: { onOff: false }, powerSource: { batPercentRemaining: 150 } } }),
+        deps,
+      )
+
+      // Composing the cluster is not enough - without the device type in the
+      // descriptor no controller has a reason to read the battery.
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal._parts[0].endpoint.advertisedDeviceTypes).toContain('PowerSource')
+    })
+
+    it('seeds the batChargeState of a part battery, as it does for the parent', async () => {
+      const deps = createMockDeps()
+      const accessory = partsAccessory({ clusters: { powerSource: { batPercentRemaining: 150 } } })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect((accessory.parts![0].clusters as any).powerSource.batChargeState).toBe(0)
+    })
+
+    it('adds the feature-gated Thermostat cluster to a thermostat part', async () => {
+      const deps = createMockDeps()
+
+      await manager.registerAccessory(
+        'homebridge-test',
+        'TestPlatform',
+        partsAccessory({
+          deviceType: createChainableDeviceType({ deviceType: 0x0301, name: 'Thermostat' }),
+          clusters: { thermostat: { occupiedHeatingSetpoint: 2000 } },
+        }),
+        deps,
+      )
+
+      // matter.js gates the cluster behind features, so the base device type
+      // carries none - skipping this dropped the part's thermostat entirely.
+      expect(applyThermostatFeatures).toHaveBeenCalledTimes(1)
+      expect(detectThermostatFeatures).toHaveBeenCalledTimes(1)
+    })
+
+    it('applies the LevelControl lighting floor to a part', async () => {
+      const deps = createMockDeps()
+
+      await manager.registerAccessory(
+        'homebridge-test',
+        'TestPlatform',
+        partsAccessory({
+          clusters: { levelControl: { currentLevel: 0, minLevel: 0 } },
+          handlers: { levelControl: { moveToLevel: vi.fn() } },
+        }),
+        deps,
+      )
+
+      // Two calls: once for the parent, once for the part.
+      expect(applyLevelControlLightingFloor).toHaveBeenCalledTimes(2)
     })
   })
 
