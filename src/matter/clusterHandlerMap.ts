@@ -9,7 +9,7 @@
  * so they automatically update when matter.js is bumped.
  */
 
-import type { ColorControl, DoorLock, FanControl, Identify, LevelControl, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WindowCovering } from '@matter/main/clusters'
+import type { ClosureControl, ColorControl, DoorLock, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WindowCovering } from '@matter/main/clusters'
 
 import type { MatterCommandHandler } from './types.js'
 
@@ -156,6 +156,44 @@ export interface ServiceAreaHandlers {
 }
 
 /**
+ * ClosureControl cluster handler methods
+ *
+ * `stop` is not available on a closure composed with the Instantaneous
+ * feature - such a closure reaches its target immediately, so the spec has
+ * nothing for Stop to do.
+ */
+export interface ClosureControlHandlers {
+  moveTo?: MatterCommandHandler<ClosureControl.MoveToRequest>
+  stop?: MatterCommandHandler
+}
+
+/**
+ * MediaPlayback cluster handler methods
+ *
+ * The transport controls a player always has. The feature-gated commands
+ * (Rewind and FastForward behind VariableSpeed, Seek behind AdvancedSeek, the
+ * track commands behind AudioTracks/TextTracks) are not routed - a plugin that
+ * composes those features needs to supply its own behavior for them.
+ */
+export interface MediaPlaybackHandlers {
+  play?: MatterCommandHandler
+  pause?: MatterCommandHandler
+  stop?: MatterCommandHandler
+  startOver?: MatterCommandHandler
+  previous?: MatterCommandHandler
+  next?: MatterCommandHandler
+  skipForward?: MatterCommandHandler<MediaPlayback.SkipForwardRequest>
+  skipBackward?: MatterCommandHandler<MediaPlayback.SkipBackwardRequest>
+}
+
+/**
+ * KeypadInput cluster handler methods
+ */
+export interface KeypadInputHandlers {
+  sendKey?: MatterCommandHandler<KeypadInput.SendKeyRequest>
+}
+
+/**
  * ValveConfigurationAndControl cluster handler methods
  */
 export interface ValveConfigurationAndControlHandlers {
@@ -203,4 +241,7 @@ export interface ClusterHandlerMap {
   rvcOperationalState: RvcOperationalStateHandlers
   serviceArea: ServiceAreaHandlers
   valveConfigurationAndControl: ValveConfigurationAndControlHandlers
+  closureControl: ClosureControlHandlers
+  mediaPlayback: MediaPlaybackHandlers
+  keypadInput: KeypadInputHandlers
 }

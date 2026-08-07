@@ -14,6 +14,7 @@ import type { Behavior } from '@matter/node'
 
 import { describe, expect, it } from 'vitest'
 
+import { CORE_CLUSTER_BEHAVIOR_MAP } from './server/BehaviorMap.js'
 import { deviceTypes } from './types.js'
 
 /** Read the supported behavior classes off a device type. */
@@ -75,6 +76,52 @@ describe('deviceTypes mandatory clusters', () => {
     for (const behaviorId of expectedBehaviors) {
       expect(behaviors[behaviorId], `expected ${name} to include the '${behaviorId}' cluster`).toBeDefined()
     }
+  })
+})
+
+describe('command clusters are routable to plugin handlers', () => {
+  // Carrying the cluster is only half the job. If CORE_CLUSTER_BEHAVIOR_MAP has
+  // no entry for it, the plugin's handlers are registered but nothing ever
+  // invokes them - the endpoint advertises controls that silently do nothing.
+  // That is what shipped for Closure and MediaPlayer, so guard it by name.
+  const cases: Array<[keyof typeof deviceTypes, string[]]> = [
+    ['Closure', ['closureControl']],
+    ['MediaPlayer', ['mediaPlayback', 'keypadInput']],
+    ['Speaker', ['onOff', 'levelControl']],
+    ['WaterValve', ['valveConfigurationAndControl']],
+    ['DoorLock', ['doorLock']],
+  ]
+
+  it.each(cases)('%s can route %j', (name, clusterNames) => {
+    for (const clusterName of clusterNames) {
+      expect(
+        CORE_CLUSTER_BEHAVIOR_MAP[clusterName],
+        `${name} advertises '${clusterName}' but no behavior routes its commands`,
+      ).toBeDefined()
+    }
+  })
+})
+
+describe('closure and media default servers', () => {
+  // matter.js implements none of these commands, so the base servers throw
+  // NotImplementedError. The device types must compose ours instead, or a
+  // plugin that supplies no handlers gets an endpoint that fails every command.
+  it.each([
+    ['Closure', 'closureControl', 'DefaultClosureControlServer'],
+    ['MediaPlayer', 'mediaPlayback', 'DefaultMediaPlaybackServer'],
+    ['MediaPlayer', 'keypadInput', 'DefaultKeypadInputServer'],
+  ] as const)('%s uses our %s implementation', (name, clusterName, expectedBase) => {
+    const behavior = supportedBehaviors(deviceTypes[name])[clusterName]
+
+    // `.with(...)` produces an anonymous subclass, so walk up to the named one.
+    let current: any = behavior
+    const names: string[] = []
+    while (current) {
+      names.push(current.name)
+      current = Object.getPrototypeOf(current)
+    }
+
+    expect(names).toContain(expectedBase)
   })
 })
 

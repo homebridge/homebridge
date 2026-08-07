@@ -32,6 +32,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
   - [see changelog &rarr;](https://github.com/matter-js/matter.js/blob/main/CHANGELOG.md)
 - feat(matter): expose the closure, media player and speaker device types to plugins
 - fix(matter): expose the clusters and enums the new device types need, so plugins are not left with magic numbers
+- fix(matter): route closure, media playback and keypad commands to plugin handlers
 
 ### Homebridge Dependencies
 

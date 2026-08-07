@@ -82,6 +82,9 @@ import { WindowCoveringDevice } from '@matter/main/devices/window-covering'
 import { BridgedNodeEndpoint } from '@matter/main/endpoints/bridged-node'
 import { ElectricalSensorEndpoint, ElectricalSensorRequirements } from '@matter/main/endpoints/electrical-sensor'
 
+import { DefaultClosureControlServer } from './behaviors/ClosureControlBehavior.js'
+import { DefaultKeypadInputServer } from './behaviors/KeypadInputBehavior.js'
+import { DefaultMediaPlaybackServer } from './behaviors/MediaPlaybackBehavior.js'
 import { DefaultValveConfigurationAndControlServer } from './behaviors/ValveConfigurationAndControlBehavior.js'
 
 type BehaviorType = Behavior.Type
@@ -656,7 +659,11 @@ export const deviceTypes = {
   // Positioning is the one that makes open/closed/part-open meaningful, which
   // is what a garage door or gate needs; compose your own with `.with(...)` to
   // add Speed, Ventilation, Pedestrian or the rest.
-  Closure: devices.ClosureDevice.with(devices.ClosureRequirements.ClosureControlServer.with('Positioning')),
+  //
+  // matter.js's own ClosureControlServer leaves every command unimplemented, so
+  // use ours: it records the move, and is replaced by the handler-calling
+  // version when a plugin supplies closureControl handlers.
+  Closure: devices.ClosureDevice.with(DefaultClosureControlServer.with('Positioning')),
 
   // Media — the name says video, but nothing in the device type is video-only:
   // it carries MediaPlayback (play/pause/stop), MediaInput and AudioOutput
@@ -668,7 +675,11 @@ export const deviceTypes = {
   // BridgedNode — which is why both are exposed together.
   //
   // ⚠️ Apple Home does not support either type yet; see the note on Closure.
-  MediaPlayer: devices.BasicVideoPlayerDevice,
+  //
+  // MediaPlayback and KeypadInput are the device type's two mandatory command
+  // clusters and matter.js implements neither, so the same substitution as
+  // Closure applies - otherwise every play/pause/key press would fail.
+  MediaPlayer: devices.BasicVideoPlayerDevice.with(DefaultMediaPlaybackServer, DefaultKeypadInputServer),
   Speaker: devices.SpeakerDevice,
 
   // Appliances

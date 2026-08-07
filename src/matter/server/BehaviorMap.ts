@@ -10,11 +10,14 @@ import type { Behavior } from '@matter/node'
 import {
   HomebridgeAirQualityServer,
   HomebridgeCarbonMonoxideConcentrationMeasurementServer,
+  HomebridgeClosureControlServer,
   HomebridgeColorControlServer,
   HomebridgeDoorLockServer,
   HomebridgeFanControlServer,
   HomebridgeIdentifyServer,
+  HomebridgeKeypadInputServer,
   HomebridgeLevelControlServer,
+  HomebridgeMediaPlaybackServer,
   HomebridgeNitrogenDioxideConcentrationMeasurementServer,
   HomebridgeOnOffServer,
   HomebridgeOzoneConcentrationMeasurementServer,
@@ -46,9 +49,14 @@ export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
   levelControl: HomebridgeLevelControlServer,
   colorControl: HomebridgeColorControlServer,
 
-  // Coverings & locks
+  // Coverings, closures & locks
   windowCovering: HomebridgeWindowCoveringServer,
+  closureControl: HomebridgeClosureControlServer,
   doorLock: HomebridgeDoorLockServer,
+
+  // Media players & speakers
+  mediaPlayback: HomebridgeMediaPlaybackServer,
+  keypadInput: HomebridgeKeypadInputServer,
 
   // Climate control
   fanControl: HomebridgeFanControlServer,

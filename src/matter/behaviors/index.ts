@@ -6,6 +6,7 @@
 export { HomebridgeAirQualityServer } from './AirQualityBehavior.js'
 export type { MatterAccessoryMap, MatterCommandHandler } from './BehaviorRegistry.js'
 export { BehaviorRegistry } from './BehaviorRegistry.js'
+export { DefaultClosureControlServer, HomebridgeClosureControlServer } from './ClosureControlBehavior.js'
 export { HomebridgeColorControlServer } from './ColorControlBehavior.js'
 export {
   HomebridgeCarbonMonoxideConcentrationMeasurementServer,
@@ -17,7 +18,9 @@ export {
 export { HomebridgeDoorLockServer } from './DoorLockBehavior.js'
 export { HomebridgeFanControlServer } from './FanControlBehavior.js'
 export { HomebridgeIdentifyServer } from './IdentifyBehavior.js'
+export { DefaultKeypadInputServer, HomebridgeKeypadInputServer } from './KeypadInputBehavior.js'
 export { HomebridgeLevelControlServer } from './LevelControlBehavior.js'
+export { DefaultMediaPlaybackServer, HomebridgeMediaPlaybackServer } from './MediaPlaybackBehavior.js'
 export { HomebridgeOnOffServer } from './OnOffBehavior.js'
 export { RegistryManager } from './RegistryManager.js'
 export { HomebridgeRvcCleanModeServer } from './RvcCleanModeBehavior.js'
