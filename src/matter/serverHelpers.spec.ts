@@ -780,6 +780,69 @@ describe('serverHelpers', () => {
       expect(checkThermostatSetpointLimits(accessory, autoMode)).toBeUndefined()
     })
 
+    it('should prefer a declared absolute limit over the spec default', () => {
+      // An unset user limit falls back to the accessory's OWN absolute limit,
+      // which is what matter.js validates against. Heat tops out at its
+      // declared 2600 rather than the spec's 3000, so the 4.0°C gap to cool's
+      // 3200 is fine - measuring against the spec default would have warned.
+      const accessory = {
+        displayName: 'Custom Absolutes',
+        clusters: {
+          thermostat: {
+            absMaxHeatSetpointLimit: 2600,
+            maxCoolSetpointLimit: 3200,
+            minHeatSetpointLimit: 700,
+            minCoolSetpointLimit: 1600,
+            minSetpointDeadBand: 40,
+          },
+        },
+      } as any
+
+      expect(checkThermostatSetpointLimits(accessory, autoMode)).toBeUndefined()
+    })
+
+    it('should catch a declared absolute limit that breaks the deadband', () => {
+      // The mirror case: cool's absolute maximum is pulled down to meet heat's,
+      // so no setpoint update can ever satisfy the deadband. Falling back to
+      // the spec default (3200) would have missed it entirely.
+      const accessory = {
+        displayName: 'Narrowed Absolutes',
+        clusters: {
+          thermostat: {
+            maxHeatSetpointLimit: 3000,
+            absMaxCoolSetpointLimit: 3050,
+            minHeatSetpointLimit: 700,
+            minCoolSetpointLimit: 1600,
+            minSetpointDeadBand: 20,
+          },
+        },
+      } as any
+
+      const warning = checkThermostatSetpointLimits(accessory, autoMode)
+      expect(warning).toContain('maxCoolSetpointLimit (3050)')
+      expect(warning).toContain('maxHeatSetpointLimit (3000)')
+    })
+
+    it('should let an explicit user limit win over the absolute limit', () => {
+      // Both are declared, so the user limit is the effective one - the
+      // absolute is only the fallback.
+      const accessory = {
+        displayName: 'Both Declared',
+        clusters: {
+          thermostat: {
+            maxHeatSetpointLimit: 2500,
+            absMaxHeatSetpointLimit: 3000,
+            maxCoolSetpointLimit: 3200,
+            minHeatSetpointLimit: 700,
+            minCoolSetpointLimit: 1600,
+            minSetpointDeadBand: 50,
+          },
+        },
+      } as any
+
+      expect(checkThermostatSetpointLimits(accessory, autoMode)).toBeUndefined()
+    })
+
     it('should not throw when there is no thermostat cluster', () => {
       expect(checkThermostatSetpointLimits({ displayName: 'None' } as any, autoMode)).toBeUndefined()
     })

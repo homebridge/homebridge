@@ -32,9 +32,12 @@ const log = Logger.withPrefix('Matter/Server')
 export const CLUSTER_IDS = {
   AIR_QUALITY: clusters.AirQuality.Cluster.id,
   CARBON_MONOXIDE_CONCENTRATION: clusters.CarbonMonoxideConcentrationMeasurement.Cluster.id,
+  CLOSURE_CONTROL: clusters.ClosureControl.Cluster.id,
   COLOR_CONTROL: clusters.ColorControl.Cluster.id,
   DOOR_LOCK: clusters.DoorLock.Cluster.id,
+  KEYPAD_INPUT: clusters.KeypadInput.Cluster.id,
   LEVEL_CONTROL: clusters.LevelControl.Cluster.id,
+  MEDIA_PLAYBACK: clusters.MediaPlayback.Cluster.id,
   NITROGEN_DIOXIDE_CONCENTRATION: clusters.NitrogenDioxideConcentrationMeasurement.Cluster.id,
   ON_OFF: clusters.OnOff.Cluster.id,
   OZONE_CONCENTRATION: clusters.OzoneConcentrationMeasurement.Cluster.id,
@@ -219,6 +222,24 @@ export function detectBehaviorFeatures(
   }
 
   return featureExtractor(supportedFeatures)
+}
+
+/**
+ * Extract whatever features a behavior already declares, whatever the cluster.
+ *
+ * matter.js records a composed behavior's features as camelCase booleans and
+ * `.with(...)` takes the PascalCase names, so carrying a feature set across is
+ * just a capitalise - the same mapping the per-cluster extractors below do by
+ * hand (`hueSaturation` to `HueSaturation`, `xy` to `Xy`).
+ *
+ * Used for clusters whose features we have no reason to reason about. We only
+ * need them preserved when a Homebridge behavior replaces the base one, and a
+ * hand-written list would silently drop any feature matter.js adds later.
+ */
+export function extractDeclaredFeatures(supportedFeatures: Record<string, boolean>): string[] {
+  return Object.entries(supportedFeatures)
+    .filter(([, enabled]) => enabled)
+    .map(([name]) => name.charAt(0).toUpperCase() + name.slice(1))
 }
 
 /**
@@ -520,8 +541,15 @@ export function checkThermostatSetpointLimits(
   const declared = cluster.minSetpointDeadBand
   const deadBand = (declared === undefined || declared > 127 ? 20 : declared) * 10
 
+  // An unset user limit does NOT fall back to the spec default - it falls back
+  // to the accessory's own absolute limit for that mode, and only then to the
+  // spec default. matter.js does exactly this (`#userLimit` reads
+  // `min|maxXSetpointLimit ?? absMin|absMaxXSetpointLimit`), so a thermostat
+  // that widens only its absolute range would otherwise be measured against
+  // bounds it never declared - and warned about, or cleared, wrongly.
   const limit = (scope: 'Heat' | 'Cool', bound: 'min' | 'max'): number =>
     cluster[`${bound}${scope}SetpointLimit`]
+    ?? cluster[`abs${bound === 'min' ? 'Min' : 'Max'}${scope}SetpointLimit`]
     ?? THERMOSTAT_ABS_LIMITS[scope][bound]
 
   const problems: string[] = []

@@ -34,6 +34,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): expose the clusters and enums the new device types need, so plugins are not left with magic numbers
 - fix(matter): route closure, media playback and keypad commands to plugin handlers
 - fix(matter): give composed parts the same preparation as their parent accessory
+- fix(matter): measure thermostat setpoint limits against the declared absolute limits
 
 ### Homebridge Dependencies
 
