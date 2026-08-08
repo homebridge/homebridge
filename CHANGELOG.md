@@ -8,6 +8,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - chore(deps): dependency updates
 - fix(matter): echo the control correlationId so the ui stops retrying successful commands
+- refactor(matter): collapse the three identical rvc operational command handlers into one
 
 ### Homebridge Dependencies
 
