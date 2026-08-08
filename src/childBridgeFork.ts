@@ -454,6 +454,7 @@ export class ChildBridgeFork {
     cluster: string
     attributes: Record<string, unknown>
     partId?: string
+    correlationId?: string
   }): void {
     this.matterMessageHandler?.handleMatterAccessoryControl(data)
   }
@@ -524,6 +525,7 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
         cluster: string
         attributes: Record<string, unknown>
         partId?: string
+        correlationId?: string
       })
       break
     }

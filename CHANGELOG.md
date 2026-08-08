@@ -7,6 +7,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 ### Changes
 
 - chore(deps): dependency updates
+- fix(matter): echo the control correlationId so the ui stops retrying successful commands
 
 ### Homebridge Dependencies
 

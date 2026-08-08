@@ -571,6 +571,217 @@ describe('server', () => {
         expect.objectContaining({ uuid: 'ctrl-uuid' }),
       )
     })
+
+    it('echoes the request correlationId on its own control responses', async () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      // The UI parks each control request under a correlationId and its
+      // dispatcher drops events without one. A response that fails to echo it
+      // sat through a 10s timeout, was retried (running the command a second
+      // time), and was then reported as failed even when the control worked.
+      await (server as any).handleMatterAccessoryControl({
+        uuid: 'ctrl-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+        correlationId: 'ctrl-corr-1',
+      })
+
+      const response = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'accessoryControlResponse',
+      )
+      expect(response).toBeDefined()
+      expect((response![1] as any).correlationId).toBe('ctrl-corr-1')
+    })
+
+    // handleMatterAccessoryControl answers from ten different places, and the UI
+    // drops any response without the correlationId - so pinning only the happy
+    // path would leave every failure route free to regress back into a 10s
+    // timeout, a retry, and a false "failed" in the UI.
+    it.each([
+      [
+        'the request is missing required parameters',
+        {},
+        'Missing required parameters',
+      ],
+      [
+        'the named bridge does not exist',
+        { uuid: 'ctrl-uuid', cluster: 'OnOff', attributes: { on: true }, bridgeUsername: 'DD:00:00:00:00:99' },
+        'Bridge DD:00:00:00:00:99 not found',
+      ],
+      [
+        'no bridge anywhere owns the accessory',
+        { uuid: 'ctrl-uuid', cluster: 'OnOff', attributes: { on: true } },
+        'Accessory not found',
+      ],
+    ])('echoes the correlationId when %s', async (_reason, request, expectedError) => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      await (server as any).handleMatterAccessoryControl({ ...request, correlationId: 'corr-fail' })
+
+      const response = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent'
+        && (payload as any)?.type === 'accessoryControlResponse'
+        && (payload as any)?.data?.error === expectedError,
+      )
+      expect(response).toBeDefined()
+      expect((response![1] as any).correlationId).toBe('corr-fail')
+    })
+
+    it.each([
+      ['succeeds', true],
+      ['fails', false],
+    ])('echoes the correlationId when the main bridge %s', async (_outcome, succeeds) => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+      vi.spyOn(server as any, 'handleTriggerMatterCommand').mockImplementation(() =>
+        succeeds ? Promise.resolve() : Promise.reject(new Error('cluster rejected')),
+      )
+
+      await (server as any).handleMatterAccessoryControl({
+        uuid: 'ctrl-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+        // routes straight to the main bridge rather than the auto-discovery path
+        bridgeUsername: (server as any).config.bridge.username,
+        correlationId: 'corr-main',
+      })
+
+      const response = sendSpy.mock.calls.find(([id, payload]) =>
+        id === 'matterEvent' && (payload as any)?.type === 'accessoryControlResponse',
+      )
+      expect(response).toBeDefined()
+      expect((response![1] as any).correlationId).toBe('corr-main')
+      expect((response![1] as any).data.success).toBe(succeeds)
+    })
+
+    it('passes the correlationId through to the child bridge it forwards to', async () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+
+      const activeChild = {
+        getMetadata: () => ({ matterConfig: { enabled: true } }),
+        controlMatterAccessory: vi.fn(),
+      }
+      ;(server as any).childBridges.set('CC:00:00:00:00:06', activeChild)
+
+      // The child's message handler echoes the correlationId on its response,
+      // so it has to arrive there in the first place
+      await (server as any).handleMatterAccessoryControl({
+        uuid: 'ctrl-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+        correlationId: 'ctrl-corr-2',
+      })
+
+      expect(activeChild.controlMatterAccessory).toHaveBeenCalledWith(
+        expect.objectContaining({ correlationId: 'ctrl-corr-2' }),
+      )
+    })
+
+    // The broadcast asks every Matter child and only the owner answers - a child
+    // that does not have the accessory returns silently. So when no child owns
+    // it nothing came back at all, and the UI sat through its own 10s timeout,
+    // retried, then reported a failure. Same fallback shape as accessoryInfoData.
+    describe('no child claims the accessory', () => {
+      function serverWithMatterChild() {
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+        ;(server as any).childBridges.set('CC:00:00:00:00:07', {
+          getMetadata: () => ({ matterConfig: { enabled: true } }),
+          controlMatterAccessory: vi.fn(),
+        })
+        return { server, sendSpy }
+      }
+
+      function notFoundResponses(sendSpy: ReturnType<typeof vi.spyOn>) {
+        return sendSpy.mock.calls.filter(([id, payload]) =>
+          id === 'matterEvent'
+          && (payload as any)?.type === 'accessoryControlResponse'
+          && (payload as any)?.data?.error === 'Accessory not found',
+        )
+      }
+
+      it('answers the ui instead of leaving it to time out', async () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = serverWithMatterChild()
+
+          await (server as any).handleMatterAccessoryControl({
+            uuid: 'orphan-uuid',
+            cluster: 'OnOff',
+            attributes: { on: true },
+            correlationId: 'corr-orphan',
+          })
+
+          expect(notFoundResponses(sendSpy)).toHaveLength(0)
+          vi.advanceTimersByTime(2000)
+
+          const responses = notFoundResponses(sendSpy)
+          expect(responses).toHaveLength(1)
+          expect((responses[0][1] as any).correlationId).toBe('corr-orphan')
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('stays quiet when the owning child does answer', async () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = serverWithMatterChild()
+
+          await (server as any).handleMatterAccessoryControl({
+            uuid: 'owned-uuid',
+            cluster: 'OnOff',
+            attributes: { on: true },
+            correlationId: 'corr-owned',
+          })
+
+          // what ChildBridgeService.onAccessoryControlResponse does when the
+          // owning child forwards its response
+          ;(server as any).cancelPendingMatterControlRequest('corr-owned')
+          vi.advanceTimersByTime(5000)
+
+          expect(notFoundResponses(sendSpy)).toHaveLength(0)
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('arms nothing without a correlationId, since the ui would drop the response anyway', async () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = serverWithMatterChild()
+
+          await (server as any).handleMatterAccessoryControl({
+            uuid: 'orphan-uuid',
+            cluster: 'OnOff',
+            attributes: { on: true },
+          })
+          vi.advanceTimersByTime(5000)
+
+          expect(notFoundResponses(sendSpy)).toHaveLength(0)
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+    })
   })
 
   describe('handleStopMatterMonitoring (no-clients ack)', () => {
