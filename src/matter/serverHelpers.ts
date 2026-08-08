@@ -340,6 +340,47 @@ export function determineColorControlFeaturesFromHandlers(
 }
 
 /**
+ * Determine ColorControl features from the cluster's own attributes.
+ *
+ * The handler-based detection above cannot work on a cache restore: handlers are
+ * functions, so they are not cached, and the restore synthesizes empty stubs in
+ * their place. That left ColorControl with no features at all, and a persisted
+ * `colorTemperatureMireds` or `currentHue` then failed Matter's conformance check
+ * ("Matter does not allow you to set this attribute") and took the whole accessory
+ * registration down with it.
+ *
+ * The attributes do survive the cache, so they are what we fall back to - the same
+ * approach {@link detectWindowCoveringFeatures} already takes.
+ *
+ * @param clusters - the accessory's cluster state
+ * @returns Array of detected feature names
+ */
+export function determineColorControlFeaturesFromClusters(
+  clusters: Record<string, unknown> | undefined,
+): string[] {
+  const colorControl = clusters?.colorControl as Record<string, unknown> | undefined
+  if (!colorControl) {
+    return []
+  }
+
+  const features: string[] = []
+
+  if ('currentHue' in colorControl || 'currentSaturation' in colorControl) {
+    features.push('HueSaturation')
+  }
+
+  if ('currentX' in colorControl || 'currentY' in colorControl) {
+    features.push('Xy')
+  }
+
+  if ('colorTemperatureMireds' in colorControl) {
+    features.push('ColorTemperature')
+  }
+
+  return features
+}
+
+/**
  * Detect WindowCovering features from accessory attributes
  * Auto-detects Lift and Tilt capabilities based on cluster attributes
  *

@@ -45,6 +45,7 @@ import {
   detectSmokeCoAlarmFeatures,
   detectThermostatFeatures,
   detectWindowCoveringFeatures,
+  determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
   extractDeclaredFeatures,
@@ -499,7 +500,15 @@ export class AccessoryManager {
         extractColorControlFeatures,
       )
       if (colorControlFeatures) {
-        colorControlFeatures = determineColorControlFeaturesFromHandlers(accessory.handlers.colorControl)
+        // Handlers first: they are the authority on what the plugin can actually do.
+        // On a cache restore they are empty stubs though (functions cannot be cached),
+        // so fall back to the cluster's own attributes - otherwise ColorControl is
+        // built with no features and the persisted colorTemperatureMireds/currentHue
+        // fail Matter's conformance check, taking the whole accessory down with them.
+        const fromHandlers = determineColorControlFeaturesFromHandlers(accessory.handlers.colorControl)
+        colorControlFeatures = fromHandlers.length > 0
+          ? fromHandlers
+          : determineColorControlFeaturesFromClusters(accessory.clusters)
       }
     }
 

@@ -16,6 +16,7 @@ import {
   detectSmokeCoAlarmFeatures,
   detectThermostatFeatures,
   detectWindowCoveringFeatures,
+  determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
   extractLevelControlFeatures,
@@ -352,6 +353,65 @@ describe('serverHelpers', () => {
       }
       const features = determineColorControlFeaturesFromHandlers(handlers)
       expect(features).toEqual([])
+    })
+  })
+
+  // Regression: on a cache restore the handlers are empty stubs, because functions
+  // cannot be cached. ColorControl features were derived from handler names alone, so
+  // a restored colour light got no features at all - and its persisted
+  // colorTemperatureMireds/currentHue then failed Matter's conformance check, taking
+  // the whole accessory registration down on every restart.
+  describe('determineColorControlFeaturesFromClusters', () => {
+    it('should detect ColorTemperature from the persisted mireds attribute', () => {
+      const features = determineColorControlFeaturesFromClusters({
+        colorControl: { colorTemperatureMireds: 370 },
+      })
+      expect(features).toEqual(['ColorTemperature'])
+    })
+
+    it('should detect HueSaturation from either hue or saturation', () => {
+      expect(determineColorControlFeaturesFromClusters({
+        colorControl: { currentHue: 120 },
+      })).toEqual(['HueSaturation'])
+
+      expect(determineColorControlFeaturesFromClusters({
+        colorControl: { currentSaturation: 254 },
+      })).toEqual(['HueSaturation'])
+    })
+
+    it('should detect Xy from either coordinate', () => {
+      expect(determineColorControlFeaturesFromClusters({
+        colorControl: { currentX: 24939 },
+      })).toEqual(['Xy'])
+
+      expect(determineColorControlFeaturesFromClusters({
+        colorControl: { currentY: 24701 },
+      })).toEqual(['Xy'])
+    })
+
+    it('should detect every feature an extended colour light persists', () => {
+      const features = determineColorControlFeaturesFromClusters({
+        colorControl: {
+          currentHue: 120,
+          currentSaturation: 254,
+          currentX: 24939,
+          currentY: 24701,
+          colorTemperatureMireds: 370,
+        },
+      })
+      expect(features).toEqual(['HueSaturation', 'Xy', 'ColorTemperature'])
+    })
+
+    it('should detect an attribute that is present but zero', () => {
+      // `in` rather than a truthiness check: hue 0 is red, not "absent"
+      expect(determineColorControlFeaturesFromClusters({
+        colorControl: { currentHue: 0 },
+      })).toEqual(['HueSaturation'])
+    })
+
+    it('should return empty when there is no colorControl cluster', () => {
+      expect(determineColorControlFeaturesFromClusters({ onOff: { onOff: true } })).toEqual([])
+      expect(determineColorControlFeaturesFromClusters(undefined)).toEqual([])
     })
   })
 
