@@ -2,6 +2,20 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.3.1 (Pending Release)
+
+### Changes
+
+- chore(deps): dependency updates
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.2.0`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.18.0-alpha`
+
 ## v2.3.0 (2026-08-08)
 
 ### Changes

@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@homebridge/hap-nodejs": "2.2.0",
-    "@matter/main": "0.17.9",
+    "@matter/main": "0.18.0-alpha.0-20260807-335c3291b",
     "chalk": "6.0.0",
     "commander": "15.0.0",
     "fs-extra": "11.4.0",
