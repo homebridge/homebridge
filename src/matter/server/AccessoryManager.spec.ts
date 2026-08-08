@@ -5,6 +5,7 @@ import { DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
 import { PowerSourceServer } from '@matter/node/behaviors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Logger } from '../../logger.js'
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
@@ -538,6 +539,41 @@ describe('accessoryManager', () => {
 
       // the handlers are the authority on what the plugin can actually do
       expect(determineColorControlFeaturesFromClusters).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('warning about a cluster with no custom behavior', () => {
+    function warnings() {
+      return vi.mocked(Logger.withPrefix('Matter/Server')).warn.mock.calls.map((call: any[]) => String(call[0]))
+    }
+
+    // The cache restore synthesizes an empty handler stub per cached cluster, because
+    // functions cannot be cached. Warning on those meant complaining about clusters the
+    // plugin never intended to handle - nine lines on a restart for a plugin that had
+    // done nothing wrong.
+    it('stays quiet for a cluster whose handlers are an empty stub', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        handlers: { smokeCoAlarm: {}, temperatureMeasurement: {} },
+        clusters: { smokeCoAlarm: { smokeState: 0 }, temperatureMeasurement: { measuredValue: 2000 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(warnings().filter(message => message.includes('No custom behavior class'))).toEqual([])
+    })
+
+    // Still worth saying when it is real: a handler that can never be routed is a gap.
+    it('warns when the plugin really did supply a handler we cannot route', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        handlers: { smokeCoAlarm: { selfTestRequestLogic: vi.fn() } },
+        clusters: { smokeCoAlarm: { smokeState: 0 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(warnings().some(message => message.includes('smokeCoAlarm'))).toBe(true)
     })
   })
 

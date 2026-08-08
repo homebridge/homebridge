@@ -77,7 +77,12 @@ export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
 
 /**
  * Full cluster behavior map including sensor/measurement behaviors.
- * Used by serverHelpers.ts for behavior resolution.
+ *
+ * ⚠️ Nothing consumes this. Every entry below is a no-op subclass that only calls
+ * `super.initialize()`, so attaching them would change no behaviour - the base
+ * matter.js servers the device type already carries do the work. Kept for now
+ * because the classes are exported API; see STATE_ONLY_CLUSTERS above for how the
+ * behavior builder handles these clusters instead.
  */
 export const FULL_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
   ...CORE_CLUSTER_BEHAVIOR_MAP,
