@@ -390,7 +390,10 @@ export class ChildBridgeService {
   /**
    * Control a Matter accessory on this child bridge
    */
-  public controlMatterAccessory(data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string }): void {
+  public controlMatterAccessory(data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, correlationId?: string }): void {
+    // The correlationId (when the UI sent one) rides through to the child,
+    // whose message handler echoes it on its accessoryControlResponse - that
+    // is what lets the UI match the response to its pending request.
     this.sendMessage(ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL, data)
   }
 

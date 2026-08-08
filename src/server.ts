@@ -1061,24 +1061,42 @@ export class Server {
   /**
    * Handle Matter accessory control command
    */
+  /**
+   * Send an `accessoryControlResponse` back over IPC, echoing the request's
+   * `correlationId` when one was given. The UI parks each control request
+   * under its correlationId and its dispatcher only delivers events that
+   * carry it — a response without one is dropped, so the request would sit
+   * through a 10s timeout, be retried (running the command a second time),
+   * and then be reported as failed even though the control succeeded.
+   */
+  private sendMatterControlResponse(
+    data: { success: boolean, uuid?: string, error?: string },
+    correlationId?: string,
+  ): void {
+    this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
+      type: 'accessoryControlResponse',
+      correlationId,
+      data,
+    })
+  }
+
   private async handleMatterAccessoryControl(data?: {
     uuid: string
     cluster: string
     attributes: Record<string, unknown>
     bridgeUsername?: string
     partId?: string
+    correlationId?: string
   }): Promise<void> {
     matterLogger.debug(`Matter control request: uuid=${data?.uuid}, cluster=${data?.cluster}, bridge=${data?.bridgeUsername || 'auto'}, part=${data?.partId || 'main'}`)
+    const correlationId = data?.correlationId
 
     if (!data?.uuid || !data?.cluster || !data?.attributes) {
       matterLogger.error('Missing required parameters for Matter control')
-      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-        type: 'accessoryControlResponse',
-        data: {
-          success: false,
-          error: 'Missing required parameters',
-        },
-      })
+      this.sendMatterControlResponse({
+        success: false,
+        error: 'Missing required parameters',
+      }, correlationId)
       return
     }
 
@@ -1092,23 +1110,10 @@ export class Server {
         try {
           await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
           matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
-          this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-            type: 'accessoryControlResponse',
-            data: {
-              success: true,
-              uuid: data.uuid,
-            },
-          })
+          this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
         } catch (error: any) {
           matterLogger.error(`Main bridge failed to control ${data.uuid}: ${error.message}`)
-          this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-            type: 'accessoryControlResponse',
-            data: {
-              success: false,
-              error: error.message,
-              uuid: data.uuid,
-            },
-          })
+          this.sendMatterControlResponse({ success: false, error: error.message, uuid: data.uuid }, correlationId)
         }
         return
       }
@@ -1134,23 +1139,10 @@ export class Server {
           try {
             await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
             matterLogger.debug(`External accessory ${data.uuid} successfully controlled via main bridge`)
-            this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-              type: 'accessoryControlResponse',
-              data: {
-                success: true,
-                uuid: data.uuid,
-              },
-            })
+            this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
           } catch (error: any) {
             matterLogger.error(`Main bridge failed to control external accessory ${data.uuid}: ${error.message}`)
-            this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-              type: 'accessoryControlResponse',
-              data: {
-                success: false,
-                error: error.message,
-                uuid: data.uuid,
-              },
-            })
+            this.sendMatterControlResponse({ success: false, error: error.message, uuid: data.uuid }, correlationId)
           }
         } else {
           // External accessory on child bridge - lookup by username
@@ -1160,14 +1152,7 @@ export class Server {
             childBridge.controlMatterAccessory(data)
           } else {
             matterLogger.error(`Owner bridge ${ownerUsername} not found for external bridge ${targetUsername}`)
-            this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-              type: 'accessoryControlResponse',
-              data: {
-                success: false,
-                error: `Owner bridge ${ownerUsername} not found`,
-                uuid: data.uuid,
-              },
-            })
+            this.sendMatterControlResponse({ success: false, error: `Owner bridge ${ownerUsername} not found`, uuid: data.uuid }, correlationId)
           }
         }
         return
@@ -1176,14 +1161,7 @@ export class Server {
       // Bridge username provided but not found anywhere
       // With registry, we should always be able to find the bridge if the data is correct
       matterLogger.error(`Bridge ${targetUsername} not found in main/child bridges or registry`)
-      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-        type: 'accessoryControlResponse',
-        data: {
-          success: false,
-          error: `Bridge ${targetUsername} not found`,
-          uuid: data.uuid,
-        },
-      })
+      this.sendMatterControlResponse({ success: false, error: `Bridge ${targetUsername} not found`, uuid: data.uuid }, correlationId)
       return
     }
 
@@ -1192,13 +1170,7 @@ export class Server {
     try {
       await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
       matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
-      this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-        type: 'accessoryControlResponse',
-        data: {
-          success: true,
-          uuid: data.uuid,
-        },
-      })
+      this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
     } catch (error) {
       // Main bridge doesn't have accessory - forward to child bridges whose
       // Matter is actually active. A child with `matter: { enabled: false }`
@@ -1217,14 +1189,7 @@ export class Server {
         }
       } else {
         matterLogger.warn(`Accessory ${data.uuid} not found - not on main bridge and no child bridges with Matter available`)
-        this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
-          type: 'accessoryControlResponse',
-          data: {
-            success: false,
-            error: 'Accessory not found',
-            uuid: data.uuid,
-          },
-        })
+        this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid: data.uuid }, correlationId)
       }
     }
   }
