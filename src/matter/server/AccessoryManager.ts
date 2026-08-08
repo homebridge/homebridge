@@ -763,6 +763,13 @@ export class AccessoryManager {
       if (behaviorClass) {
         customBehaviors.push(behaviorClass)
         log.info(`Will use ${behaviorClass.name} for ${accessory.displayName}`)
+      } else if (Object.keys(accessory.handlers?.[clusterName] ?? {}).length === 0) {
+        // No handlers, so there is nothing for a custom behavior to route and nothing
+        // to warn about. This is the normal shape for a read-only cluster the plugin
+        // only pushes state into, and it is every cluster on a cache restore: the
+        // restore synthesizes an empty stub per cached cluster, so warning here put a
+        // line in the log for clusters the plugin never intended to handle.
+        log.debug(`No handlers supplied for cluster '${clusterName}', no custom behavior needed`)
       } else {
         log.warn(`No custom behavior class available for cluster '${clusterName}' - handlers will be registered but may not be called`)
       }

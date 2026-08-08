@@ -10,6 +10,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): echo the control correlationId so the ui stops retrying successful commands
 - refactor(matter): collapse the three identical rvc operational command handlers into one
 - fix(matter): keep a restored colour light's colour features, so it stops failing on every restart
+- fix(matter): only warn about a cluster the plugin actually supplies handlers for
 
 ### Homebridge Dependencies
 
