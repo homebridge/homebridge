@@ -10,8 +10,11 @@ import {
   applyElectricalMeasurementDefaults,
   applyLevelControlLightingFloor,
   applyThermostatFeatures,
+  detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
   detectThermostatFeatures,
+  determineColorControlFeaturesFromClusters,
+  determineColorControlFeaturesFromHandlers,
 } from '../serverHelpers.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
@@ -87,6 +90,7 @@ vi.mock('../serverHelpers.js', () => ({
   extractThermostatFeatures: vi.fn(() => []),
   extractDeclaredFeatures: vi.fn(() => []),
   determineColorControlFeaturesFromHandlers: vi.fn(() => []),
+  determineColorControlFeaturesFromClusters: vi.fn(() => []),
   CLUSTER_IDS: {
     CLOSURE_CONTROL: 0x0104,
     COLOR_CONTROL: 0x0300,
@@ -492,6 +496,48 @@ describe('accessoryManager', () => {
       // Cached state should have been merged (cache overrides plugin defaults)
       expect(accessory.clusters!.onOff!.onOff).toBe(true)
       expect(accessory.context).toEqual({ savedKey: 'savedValue' })
+    })
+  })
+
+  /**
+   * ⚠️ Handlers are functions, so they are not cached. The cache restore synthesizes
+   * empty stubs in their place, which meant ColorControl came back with no features
+   * at all — and a persisted colorTemperatureMireds or currentHue then failed Matter's
+   * conformance check ("Matter does not allow you to set this attribute"), taking the
+   * whole accessory registration down on every single restart.
+   */
+  describe('colorControl features on a cache restore', () => {
+    it('falls back to the cluster attributes when the handlers are empty stubs', async () => {
+      vi.mocked(detectBehaviorFeatures).mockReturnValueOnce(['ColorTemperature'])
+      vi.mocked(determineColorControlFeaturesFromHandlers).mockReturnValueOnce([])
+      vi.mocked(determineColorControlFeaturesFromClusters).mockReturnValueOnce(['ColorTemperature'])
+
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        // exactly what the restore builds: a stub per cached cluster, no logic names
+        handlers: { colorControl: {} },
+        clusters: { onOff: { onOff: false }, colorControl: { colorTemperatureMireds: 370 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(determineColorControlFeaturesFromClusters).toHaveBeenCalledWith(accessory.clusters)
+    })
+
+    it('prefers the handlers when the plugin has supplied real ones', async () => {
+      vi.mocked(detectBehaviorFeatures).mockReturnValueOnce(['ColorTemperature'])
+      vi.mocked(determineColorControlFeaturesFromHandlers).mockReturnValueOnce(['ColorTemperature'])
+
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        handlers: { colorControl: { moveToColorTemperatureLogic: vi.fn() } },
+        clusters: { onOff: { onOff: false }, colorControl: { colorTemperatureMireds: 370 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      // the handlers are the authority on what the plugin can actually do
+      expect(determineColorControlFeaturesFromClusters).not.toHaveBeenCalled()
     })
   })
 
