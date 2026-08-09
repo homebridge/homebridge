@@ -2,7 +2,7 @@ import type { MockInstance } from 'vitest'
 
 import type { BridgeConfiguration } from './bridgeService.js'
 
-import { Accessory, Categories, CharacteristicWarningType, uuid } from '@homebridge/hap-nodejs'
+import { Accessory, Categories, CharacteristicWarningType, Service, uuid } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
@@ -206,6 +206,41 @@ describe('bridgeService', () => {
   })
 
   describe('handleUpdatePlatformAccessories', () => {
+    it('persists reconciled services through the API cache path without replacing serialized accessory identity', async () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const storage = storageInstances.list.at(-1)
+      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
+      await service.loadCachedPlatformAccessoriesFromDisk()
+
+      const accessory = new PlatformAccessory('Reconciled Switch', uuid.generate('bridgeService.reconcileServices'), Categories.SWITCH)
+      accessory.context = { test: 'reconciled-cache', revision: 3980 }
+      const desired = accessory.addService(Service.Switch)
+      accessory.addService(Service.ContactSensor)
+      const identity = {
+        UUID: accessory.UUID,
+        displayName: accessory.displayName,
+        category: accessory.category,
+        context: accessory.context,
+      }
+
+      api.registerPlatformAccessories('homebridge-test', 'TestPlatform', [accessory])
+      accessory.reconcileServices([desired])
+      const writesBeforeUpdate = storage.setItemSync.mock.calls.length
+      api.updatePlatformAccessories([accessory])
+
+      expect(storage.setItemSync).toHaveBeenCalledTimes(writesBeforeUpdate + 1)
+      const [cacheKey, serializedAccessories] = storage.setItemSync.mock.calls.at(-1)
+      expect(cacheKey).toBe('cachedAccessories')
+      const restarted = PlatformAccessory.deserialize(serializedAccessories[0])
+      expect(restarted.UUID).toBe(identity.UUID)
+      expect(restarted.displayName).toBe(identity.displayName)
+      expect(restarted.category).toBe(identity.category)
+      expect(restarted.context).toStrictEqual(identity.context)
+      expect(restarted.getService(Service.Switch)).toBeDefined()
+      expect(restarted.getService(Service.ContactSensor)).toBeUndefined()
+      expect(restarted.getService(Service.AccessoryInformation)).toBeDefined()
+    })
+
     it('is a no-op for non-array input', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
       vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})

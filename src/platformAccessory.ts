@@ -2,7 +2,6 @@ import type {
   Controller,
   ControllerConstructor,
   SerializedAccessory,
-  Service,
   VoidCallback,
   WithUUID,
 } from '@homebridge/hap-nodejs'
@@ -12,7 +11,7 @@ import type { PlatformName, PluginIdentifier, PluginName } from './api.js'
 
 import { EventEmitter } from 'node:events'
 
-import { Accessory, AccessoryEventTypes, Categories } from '@homebridge/hap-nodejs'
+import { Accessory, AccessoryEventTypes, Categories, Service } from '@homebridge/hap-nodejs'
 
 export type UnknownContext = Record<string, any>
 
@@ -95,6 +94,51 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
 
   public removeService(service: Service): void {
     this._associatedHAPAccessory.removeService(service)
+  }
+
+  /**
+   * Removes services omitted from a platform's current discovery result.
+   *
+   * Call this after discovery and controller configuration, never during deserialization. Pass every
+   * attached plugin, controller, linked, camera, and external-accessory service that should remain.
+   * Any omitted non-HAP-managed service is removed. Desired services are compared by instance, so
+   * services with the same UUID but different subtypes remain independent.
+   *
+   * HAP-managed {@link Service.AccessoryInformation | AccessoryInformation} and
+   * {@link Service.ProtocolInformation | ProtocolInformation} services always remain. Passing an
+   * empty array removes every other service. This method does not persist changes or prune
+   * characteristics, context, or accessories.
+   *
+   * @example
+   * ```ts
+   * accessory.reconcileServices([switchService, contactSensorService])
+   * api.updatePlatformAccessories([accessory])
+   * ```
+   *
+   * @param desiredServices The services retained after the current discovery.
+   * @returns The stale services removed from this accessory.
+   * @throws {@link RangeError} When a desired service is not attached to this accessory.
+   */
+  public reconcileServices(desiredServices: readonly Service[]): Service[] {
+    const desired = new Set(desiredServices)
+
+    for (const service of desired) {
+      if (!this.services.includes(service)) {
+        throw new RangeError('Cannot reconcile service that is not attached to this accessory')
+      }
+    }
+
+    const staleServices = this.services.filter(service =>
+      service.UUID !== Service.AccessoryInformation.UUID
+      && service.UUID !== Service.ProtocolInformation.UUID
+      && !desired.has(service),
+    )
+
+    for (const service of staleServices) {
+      this.removeService(service)
+    }
+
+    return staleServices
   }
 
   public getService<T extends WithUUID<typeof Service>>(name: string | T): Service | undefined {
