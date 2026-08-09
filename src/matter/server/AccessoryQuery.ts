@@ -4,7 +4,7 @@
  * Handles accessory lookup and UI display collection methods.
  */
 
-import type { EndpointType } from '@matter/main'
+import type { Endpoint, EndpointType } from '@matter/main'
 
 import type { MatterAccessoryCache, SerializedMatterAccessory } from '../accessoryCache.js'
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
@@ -12,6 +12,45 @@ import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 import { Logger } from '../../logger.js'
 
 const log = Logger.withPrefix('Matter/Server')
+
+/**
+ * Add each cluster's featureMap to the declared cluster state.
+ *
+ * The declared clusters are what the PLUGIN asked for, so on their own they
+ * cannot tell a consumer which features the cluster ended up with - a
+ * thermostat with and without AutoMode declares the same setpoints, and the
+ * deadband is optional either way. The featureMap (named booleans, e.g.
+ * `{ heating: true, cooling: true, autoMode: false }`) comes off the live
+ * endpoint and settles that.
+ *
+ * Features never change after registration and the UI merges later state
+ * updates into the cluster object rather than replacing it, so sending the map
+ * once is enough.
+ */
+function withFeatureMaps(
+  clusters: Record<string, any>,
+  endpoint: Endpoint | undefined,
+): Record<string, any> {
+  const endpointState = (endpoint as { state?: Record<string, { featureMap?: unknown }> } | undefined)?.state
+  if (!endpointState) {
+    // Not registered yet (or restored without a live endpoint) - serve the
+    // declared state as-is and let the consumer fall back
+    return clusters
+  }
+
+  const enriched: Record<string, any> = {}
+  for (const [clusterName, state] of Object.entries(clusters)) {
+    try {
+      const featureMap = endpointState[clusterName]?.featureMap
+      enriched[clusterName] = featureMap !== undefined ? { featureMap, ...state } : state
+    } catch {
+      // Reading a behavior's state can throw while the endpoint is still
+      // initialising - the declared state alone is still correct
+      enriched[clusterName] = state
+    }
+  }
+  return enriched
+}
 
 export class AccessoryQuery {
   constructor(
@@ -76,17 +115,8 @@ export class AccessoryQuery {
   }
 
   /**
-   * Get current cluster state for an accessory or part
-   *
-   * The clusters object is what the PLUGIN declared, so on its own it cannot
-   * tell a consumer which features the cluster ended up with - a thermostat
-   * with and without AutoMode declares the same setpoints, and the deadband is
-   * optional either way. The UI needs the features to know which controls to
-   * offer, so each cluster is enriched with the live endpoint's featureMap
-   * (named booleans, e.g. `{ heating: true, cooling: true, autoMode: false }`).
-   * Features never change after registration, and the UI merges later state
-   * updates into the cluster object rather than replacing it, so sending the
-   * map here is enough.
+   * Get current cluster state for an accessory or part, enriched with each
+   * cluster's featureMap - see {@link withFeatureMaps}
    */
   private getCurrentState(uuid: string, partId?: string): Record<string, any> {
     const accessory = this.accessories.get(uuid)
@@ -95,30 +125,13 @@ export class AccessoryQuery {
     }
 
     if (partId) {
+      // A part carries its own endpoint, so its clusters are enriched the same
+      // way - a thermostat exposed as a part needs the features just as much
       const part = accessory._parts?.find(p => p.id === partId)
-      return part?.clusters || {}
+      return part ? withFeatureMaps(part.clusters || {}, part.endpoint) : {}
     }
 
-    const clusters = accessory.clusters || {}
-    const endpointState = (accessory.endpoint as { state?: Record<string, { featureMap?: unknown }> } | undefined)?.state
-    if (!endpointState) {
-      // Not registered yet (or restored without a live endpoint) - serve the
-      // declared state as-is and let the consumer fall back
-      return clusters
-    }
-
-    const enriched: Record<string, any> = {}
-    for (const [clusterName, state] of Object.entries(clusters)) {
-      try {
-        const featureMap = endpointState[clusterName]?.featureMap
-        enriched[clusterName] = featureMap !== undefined ? { featureMap, ...state } : state
-      } catch {
-        // Reading a behavior's state can throw while the endpoint is still
-        // initialising - the declared state alone is still correct
-        enriched[clusterName] = state
-      }
-    }
-    return enriched
+    return withFeatureMaps(accessory.clusters || {}, accessory.endpoint)
   }
 
   /**
