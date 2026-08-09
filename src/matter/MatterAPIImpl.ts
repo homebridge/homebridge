@@ -23,7 +23,7 @@ import type { InternalMatterAccessory, MatterAccessory, MatterServer } from './i
 
 import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
-import { clusterNames, clusters, deviceTypes, MatterStatus, MatterTypes } from './index.js'
+import { clusterNames, clusters, deviceRequirements, deviceTypes, MatterStatus, MatterTypes } from './index.js'
 import { SwitchAPIImpl } from './SwitchAPI.js'
 
 /**
@@ -195,6 +195,15 @@ export class MatterAPIImpl implements MatterAPI {
    */
   get deviceTypes() {
     return deviceTypes
+  }
+
+  /**
+   * The matter.js requirements behind the feature-gated device types, for
+   * composing a cluster yourself when the detected features are not what the
+   * device actually does
+   */
+  get deviceRequirements() {
+    return deviceRequirements
   }
 
   /**

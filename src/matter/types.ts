@@ -78,7 +78,7 @@ import { TemperatureSensorDevice } from '@matter/main/devices/temperature-sensor
 import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/thermostat'
 import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detector'
 import { WaterValveDevice, WaterValveRequirements } from '@matter/main/devices/water-valve'
-import { WindowCoveringDevice } from '@matter/main/devices/window-covering'
+import { WindowCoveringDevice, WindowCoveringRequirements } from '@matter/main/devices/window-covering'
 import { BridgedNodeEndpoint } from '@matter/main/endpoints/bridged-node'
 import { ElectricalSensorEndpoint, ElectricalSensorRequirements } from '@matter/main/endpoints/electrical-sensor'
 
@@ -547,6 +547,7 @@ const devices = {
   WaterValveDevice,
   WaterValveRequirements,
   WindowCoveringDevice,
+  WindowCoveringRequirements,
   BasicVideoPlayerDevice,
   ClosureDevice,
   ClosureRequirements,
@@ -714,6 +715,45 @@ export const deviceTypes = {
   // Composed device container — use as parent for accessories with parts.
   // Children appear as a single accessory in Apple Home, expandable into separate tiles.
   BridgedNode: BridgedNodeEndpoint,
+} as const
+
+/**
+ * The matter.js "requirements" behind the feature-gated device types above,
+ * keyed to match {@link deviceTypes}.
+ *
+ * Several Matter clusters are feature-gated: matter.js will not compose them
+ * until the features are chosen, which is why the entries in `deviceTypes`
+ * above call `.with(...)` on these. Homebridge picks sensible features from the
+ * state an accessory declares, and that is right almost always — but the
+ * choices are not always derivable.
+ *
+ * The thermostat is the clearest case: declaring a heating and a cooling
+ * setpoint gets AutoMode too, because that is what nearly every thermostat
+ * wants. A device that genuinely heats and cools but has no auto mode has no
+ * way to say so, and `HEAT` + `COOL` without `AUTO` is perfectly legal in the
+ * spec. Exposing these lets a plugin compose the cluster itself:
+ *
+ * ```typescript
+ * deviceType: api.matter.deviceTypes.Thermostat.with(
+ *   api.matter.deviceRequirements.Thermostat.ThermostatServer.with('Heating', 'Cooling'),
+ * )
+ * ```
+ *
+ * Homebridge leaves a device type alone when the plugin has already composed
+ * the cluster, so the features above are used as given rather than detected.
+ */
+export const deviceRequirements = {
+  MotionSensor: devices.OccupancySensorRequirements,
+  SmokeSensor: devices.SmokeCoAlarmRequirements,
+  ElectricalSensor: devices.ElectricalSensorRequirements,
+  Thermostat: devices.ThermostatRequirements,
+  Closure: devices.ClosureRequirements,
+  RoboticVacuumCleaner: devices.RoboticVacuumCleanerRequirements,
+  WaterValve: devices.WaterValveRequirements,
+  GenericSwitch: devices.GenericSwitchRequirements,
+  Pump: devices.PumpRequirements,
+  RoomAirConditioner: devices.RoomAirConditionerRequirements,
+  WindowCovering: devices.WindowCoveringRequirements,
 } as const
 
 /**

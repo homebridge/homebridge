@@ -131,8 +131,18 @@ export class AccessoryManager {
       // in place. Structural changes fall through to a fresh registration.
       if (existing?._restoredFromCache) {
         const partIds = (list?: { id: string }[]) => JSON.stringify((list ?? []).map(part => part.id).sort())
+        // ⚠️ The name is not enough. The cache stores a device type as
+        // {name, code}, so a restore rebuilds the BASE type - anything the
+        // plugin composed itself (via api.matter.deviceRequirements) is gone,
+        // while the name still matches. Attaching in place then kept the
+        // restored endpoint and silently reverted the plugin's own feature
+        // choice to the detected one on every restart, which is exactly the
+        // case deviceRequirements exists to serve. Compare what is composed.
+        const behaviorKeys = (deviceType: unknown) =>
+          Object.keys((deviceType as { behaviors?: Record<string, unknown> })?.behaviors ?? {}).sort().join(',')
         const sameShape = (existing.deviceType as { name?: string })?.name === (accessory.deviceType as { name?: string })?.name
           && partIds(existing._parts ?? existing.parts) === partIds(accessory.parts)
+          && behaviorKeys(existing.deviceType) === behaviorKeys(accessory.deviceType)
         if (sameShape) {
           log.info(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
           deps.accessories.set(accessory.UUID, {
@@ -390,8 +400,26 @@ export class AccessoryManager {
     accessory: MatterAccessory,
   ): Promise<{ deviceType: EndpointType, hasElectrical: boolean }> {
     let deviceType = accessory.deviceType
+    // WindowCovering is feature-gated too, and detection reads the declared
+    // lift/tilt attributes. A plugin that composed the cluster itself has
+    // already said what the device does, so leave its choice alone - matching
+    // SmokeCoAlarm and Thermostat below.
+    //
+    // ⚠️ The skip flag still has to be set. It is what stops the behavior loop
+    // adding the custom WindowCovering server *without* features on top; only
+    // skipping the call here would clobber the plugin's composition further
+    // down instead of here.
+    const hasWindowCovering = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.windowCovering !== undefined
     const windowCoveringFeatures = detectWindowCoveringFeatures(accessory)
-    if (windowCoveringFeatures.length > 0) {
+    if (hasWindowCovering) {
+      if (windowCoveringFeatures.length > 0) {
+        log.debug(`${accessory.displayName} composed its own WindowCovering cluster - keeping its features`)
+      }
+      if (!accessory.context) {
+        accessory.context = {}
+      }
+      (accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior = true
+    } else if (windowCoveringFeatures.length > 0) {
       deviceType = applyWindowCoveringFeatures(deviceType, accessory, windowCoveringFeatures)
     }
 
