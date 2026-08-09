@@ -7,6 +7,7 @@ import type {
   clusterNames,
   clusters,
   ClusterStateMap,
+  deviceRequirements,
   deviceTypes,
   MatterAccessory,
   MatterServer,
@@ -254,6 +255,25 @@ export interface MatterAPI {
    * Maps friendly names to Matter.js device types, including stateless controller types like `GenericSwitch`.
    */
   readonly deviceTypes: typeof deviceTypes
+
+  /**
+   * The matter.js requirements behind the feature-gated device types, keyed to
+   * match {@link deviceTypes}.
+   *
+   * Homebridge picks a feature set from the state an accessory declares, which
+   * suits almost every device. Use these when it cannot: a thermostat that
+   * declares both a heating and a cooling setpoint is given AutoMode too, so a
+   * device that heats and cools but has no auto mode has to compose the cluster
+   * itself. Homebridge leaves an already-composed cluster alone.
+   *
+   * @example
+   * ```typescript
+   * deviceType: api.matter.deviceTypes.Thermostat.with(
+   *   api.matter.deviceRequirements.Thermostat.ThermostatServer.with('Heating', 'Cooling'),
+   * )
+   * ```
+   */
+  readonly deviceRequirements: typeof deviceRequirements
 
   /**
    * Matter clusters - Direct access to Matter.js cluster definitions
