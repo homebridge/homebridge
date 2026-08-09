@@ -3,6 +3,7 @@ import type { SerializedPlatformAccessory } from './platformAccessory.js'
 import {
   Accessory,
   Categories,
+  Characteristic,
   RemoteController,
   Service,
   uuid,
@@ -84,6 +85,120 @@ describe('platformAccessory', () => {
 
       accessory.removeService(service)
       expect(spy).toHaveBeenCalledWith(service)
+    })
+  })
+
+  describe('platformAccessory.prototype.reconcileServices', () => {
+    it('snapshots three consecutive stale services before removal to avoid mutation-while-iterating skips', () => {
+      const accessory = createAccessory()
+      const desired = accessory.addService(Service.Switch)
+      accessory.addService(Service.ContactSensor)
+      accessory.addService(Service.MotionSensor)
+      accessory.addService(Service.OccupancySensor)
+
+      const removed = accessory.reconcileServices([desired])
+
+      expect(removed.map(service => service.UUID)).toStrictEqual([
+        Service.ContactSensor.UUID,
+        Service.MotionSensor.UUID,
+        Service.OccupancySensor.UUID,
+      ])
+      expect(accessory.services).toStrictEqual([
+        accessory.getService(Service.AccessoryInformation),
+        desired,
+      ])
+      expect(accessory.reconcileServices([desired])).toStrictEqual([])
+      expect(accessory.services).toHaveLength(2)
+    })
+
+    it('preserves serialized accessory identity across restore, reconciliation, and restart', () => {
+      const accessory = createAccessory('Serialized', Categories.SWITCH)
+      accessory.context = { test: 'serialized-context', count: 3980 }
+      accessory.addService(Service.Switch)
+      accessory.addService(Service.ContactSensor)
+      const identity = {
+        UUID: accessory.UUID,
+        displayName: accessory.displayName,
+        category: accessory.category,
+        context: accessory.context,
+      }
+
+      const restored = PlatformAccessory.deserialize(PlatformAccessory.serialize(accessory))
+      const desired = restored.getService(Service.Switch)!
+      restored.reconcileServices([desired])
+
+      const restarted = PlatformAccessory.deserialize(PlatformAccessory.serialize(restored))
+      expect(restarted.UUID).toBe(identity.UUID)
+      expect(restarted.displayName).toBe(identity.displayName)
+      expect(restarted.category).toBe(identity.category)
+      expect(restarted.context).toStrictEqual(identity.context)
+      expect(restarted.getService(Service.Switch)).toBeDefined()
+      expect(restarted.getService(Service.ContactSensor)).toBeUndefined()
+      expect(restarted.getService(Service.AccessoryInformation)).toBeDefined()
+    })
+
+    it('distinguishes services with the same UUID by instance', () => {
+      const accessory = createAccessory()
+      const desired = accessory.addService(Service.Switch, 'Desired', 'desired')
+      accessory.addService(Service.Switch, 'Stale', 'stale')
+
+      accessory.reconcileServices([desired])
+
+      expect(accessory.getServiceById(Service.Switch, 'desired')).toBe(desired)
+      expect(accessory.getServiceById(Service.Switch, 'stale')).toBeUndefined()
+    })
+
+    it('preserves characteristics on retained desired service instances', () => {
+      const accessory = createAccessory()
+      const desired = accessory.addService(Service.Switch)
+      desired.updateCharacteristic(Characteristic.On, true)
+      accessory.addService(Service.ContactSensor)
+
+      accessory.reconcileServices([desired])
+
+      expect(accessory.getService(Service.Switch)).toBe(desired)
+      expect(desired.getCharacteristic(Characteristic.On).value).toBe(true)
+    })
+
+    it('preserves HAP-managed services when they are not listed as desired', () => {
+      const accessory = createAccessory()
+      const protocolInformation = accessory.addService(Service.ProtocolInformation)
+
+      expect(accessory.reconcileServices([])).toStrictEqual([])
+      expect(accessory.getService(Service.AccessoryInformation)).toBeDefined()
+      expect(accessory.getService(Service.ProtocolInformation)).toBe(protocolInformation)
+    })
+
+    it('rejects desired services that are not attached to this accessory', () => {
+      const accessory = createAccessory()
+      const detached = new Service.Switch('Detached', 'detached')
+      const stale = accessory.addService(Service.ContactSensor)
+      const servicesBeforeReconciliation = [...accessory.services]
+
+      expect(() => accessory.reconcileServices([detached]))
+        .toThrow('Cannot reconcile service that is not attached to this accessory')
+      expect(accessory.services).toStrictEqual(servicesBeforeReconciliation)
+      expect(accessory.getService(Service.ContactSensor)).toBe(stale)
+    })
+
+    it('preserves restored controller services when reconciliation follows controller setup', () => {
+      const accessory = createAccessory()
+      accessory.configureController(new RemoteController())
+      accessory.addService(Service.ContactSensor)
+
+      const restored = PlatformAccessory.deserialize(PlatformAccessory.serialize(accessory))
+      restored.configureController(new RemoteController())
+      const stale = restored.getService(Service.ContactSensor)!
+      const desired = restored.services.filter(service => service !== stale)
+
+      expect(restored.reconcileServices(desired)).toStrictEqual([stale])
+      expect(restored.services).toStrictEqual(desired)
+
+      const restarted = PlatformAccessory.deserialize(PlatformAccessory.serialize(restored))
+      restarted.configureController(new RemoteController())
+      expect(restarted.getService(Service.ContactSensor)).toBeUndefined()
+      expect(restarted.services.map(service => [service.UUID, service.subtype]))
+        .toStrictEqual(desired.map(service => [service.UUID, service.subtype]))
     })
   })
 
