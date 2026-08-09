@@ -67,6 +67,49 @@ describe('featureMap enrichment for the UI payload', () => {
     expect(clusters.thermostat.featureMap).toBeUndefined()
   })
 
+  it('enriches a part the same way as the accessory itself', () => {
+    // A part has its own endpoint, and used to be served straight from the
+    // declared clusters - so a thermostat exposed as a part never reached the
+    // UI with its features and the modal always offered Auto
+    const accessory = makeAccessory({
+      endpoint: { state: {} },
+      _parts: [{
+        id: 'part-1',
+        displayName: 'Zone 2',
+        deviceType: { name: 'ThermostatDevice' },
+        clusters: { thermostat: { occupiedHeatingSetpoint: 1800 } },
+        endpoint: {
+          state: { thermostat: { featureMap: { heating: true, cooling: false, autoMode: false } } },
+        },
+      }],
+    } as unknown as Partial<InternalMatterAccessory>)
+
+    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+    const [entry] = query.collectAccessories('user', 'child', 'Bridge')
+    const partClusters = entry.parts[0].clusters as Record<string, Record<string, unknown>>
+
+    expect(partClusters.thermostat.featureMap).toEqual({ heating: true, cooling: false, autoMode: false })
+    expect(partClusters.thermostat.occupiedHeatingSetpoint).toBe(1800)
+  })
+
+  it('serves a part as-is when it has no live endpoint', () => {
+    const accessory = makeAccessory({
+      _parts: [{
+        id: 'part-1',
+        displayName: 'Zone 2',
+        deviceType: { name: 'ThermostatDevice' },
+        clusters: { thermostat: { occupiedHeatingSetpoint: 1800 } },
+      }],
+    } as unknown as Partial<InternalMatterAccessory>)
+
+    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+    const [entry] = query.collectAccessories('user', 'child', 'Bridge')
+    const partClusters = entry.parts[0].clusters as Record<string, Record<string, unknown>>
+
+    expect(partClusters.thermostat.featureMap).toBeUndefined()
+    expect(partClusters.thermostat.occupiedHeatingSetpoint).toBe(1800)
+  })
+
   it('survives a behavior whose state read throws mid-initialisation', () => {
     const state: Record<string, unknown> = {}
     Object.defineProperty(state, 'thermostat', {
