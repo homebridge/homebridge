@@ -15,6 +15,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): send each cluster's feature map to the ui, so it can offer only the controls a device has
 - chore(deps): point at the hap-nodejs beta
 - fix(matter): send the feature map for accessory parts too, not just the accessory
+- fix(matter): stop rejecting the bridge's own storage path on windows (#3987)
 
 ### Homebridge Dependencies
 
