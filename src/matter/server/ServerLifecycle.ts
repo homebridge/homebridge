@@ -16,7 +16,7 @@ import type { FabricManager } from './FabricManager.js'
 import { constants } from 'node:fs'
 import { access, mkdir, rm, stat } from 'node:fs/promises'
 import { homedir, release } from 'node:os'
-import { join, normalize, resolve } from 'node:path'
+import { isAbsolute, join, normalize, relative, resolve } from 'node:path'
 import process from 'node:process'
 
 import { Filesystem } from '@matter/general'
@@ -31,6 +31,7 @@ import { NodeJsFilesystem } from '@matter/nodejs'
 
 import { DEFAULT_BRIDGE_DEFAULTS } from '../../bridgeService.js'
 import { Logger } from '../../logger.js'
+import { User } from '../../user.js'
 import getVersion from '../../version.js'
 import { errorHandler } from '../errorHandler.js'
 import { MatterDeviceError } from '../types.js'
@@ -215,18 +216,28 @@ export class ServerLifecycle {
     const storagePath = resolve(config.storagePath)
     const normalizedPath = normalize(storagePath)
 
-    // Ensure path is within allowed directories
+    // Ensure path is within allowed directories. The instance's own configured
+    // storage path (the `-U` flag) is the authoritative base - the old list
+    // only guessed at three likely locations, so any custom storage path, and
+    // every Windows setup whose stored path differed from the guess by nothing
+    // more than letter case, crashed here at startup (#3987).
     const allowedBasePaths = [
+      resolve(User.storagePath()),
       resolve(homedir(), '.homebridge'),
       resolve(process.cwd()),
       '/var/lib/homebridge',
     ]
 
-    const isAllowed = allowedBasePaths.some(basePath =>
-      normalizedPath.startsWith(basePath),
-    )
+    // `relative` rather than a raw prefix: it compares Windows paths
+    // case-insensitively (`C:\` and `c:\` are the same directory), and a
+    // sibling that merely shares the prefix (`.homebridge-evil`) resolves to a
+    // `..` escape rather than passing as `startsWith` would have let it.
+    const isAllowed = allowedBasePaths.some((basePath) => {
+      const relativePath = relative(basePath, normalizedPath)
+      return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath))
+    })
 
-    if (!isAllowed || normalizedPath.includes('..')) {
+    if (!isAllowed) {
       throw new Error(`Storage path not allowed: ${normalizedPath}. Must be within homebridge directories.`)
     }
 

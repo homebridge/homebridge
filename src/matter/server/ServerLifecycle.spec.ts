@@ -2,7 +2,7 @@ import type { ServerLifecycleDeps } from './ServerLifecycle.js'
 
 import process from 'node:process'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Tests for the network.interface env-var handling added in
@@ -1095,5 +1095,63 @@ describe('serverLifecycle.createServerNodeWithRecovery — transient storage-loc
     ).rejects.toThrow('boom')
 
     expect(MatterServerNode.create).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * Regression cover for #3987: every Matter child bridge on Windows crashed at
+ * startup with "Storage path not allowed". The allowlist guessed at three
+ * likely storage locations instead of asking `User.storagePath()` - so any
+ * custom `-U` path failed outright, and a Windows path that differed from the
+ * guess by nothing more than letter case failed the raw `startsWith` check.
+ */
+describe('setupStorage path validation', () => {
+  let storageBase: string
+
+  beforeAll(async () => {
+    const { mkdtemp } = await import('node:fs/promises')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { User } = await import('../../user.js')
+    // A tmp dir is deliberately OUTSIDE every guessed base (homedir, cwd,
+    // /var/lib/homebridge), so only the configured-path entry can admit it
+    storageBase = await mkdtemp(join(tmpdir(), 'hb-matter-storage-'))
+    User.setStoragePath(storageBase)
+  })
+
+  afterAll(async () => {
+    const { rm } = await import('node:fs/promises')
+    await rm(storageBase, { recursive: true, force: true })
+  })
+
+  it('accepts the matter directory under the configured storage path', async () => {
+    const { join } = await import('node:path')
+    const lifecycle = new ServerLifecycle()
+
+    const cache = await lifecycle.setupStorage({
+      storagePath: join(storageBase, 'matter'),
+      uniqueId: 'TEST3987',
+    } as never)
+
+    expect(cache).toBeDefined()
+    expect(lifecycle.matterStoragePath).toBe(join(storageBase, 'matter', 'TEST3987'))
+  })
+
+  it('still rejects a sibling that merely shares the prefix', async () => {
+    const { join } = await import('node:path')
+    const lifecycle = new ServerLifecycle()
+
+    await expect(lifecycle.setupStorage({
+      storagePath: join(`${storageBase}-evil`, 'matter'),
+      uniqueId: 'TEST3987',
+    } as never)).rejects.toThrow('Storage path not allowed')
+  })
+
+  it('rests on relative() comparing windows paths case-insensitively', async () => {
+    // Pin the node behaviour the windows fix relies on, since this suite
+    // cannot run the win32 path rules natively
+    const { win32 } = await import('node:path')
+    expect(win32.relative('C:\\Users\\Ben\\.homebridge', 'c:\\users\\ben\\.homebridge\\matter')).toBe('matter')
+    expect(win32.relative('C:\\Users\\Ben\\.homebridge', 'C:\\Users\\Ben\\.homebridge-evil\\matter').startsWith('..')).toBe(true)
   })
 })

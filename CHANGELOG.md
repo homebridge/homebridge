@@ -2,6 +2,20 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.3.1 (Pending Release)
+
+### Changes
+
+- fix(matter): stop rejecting the bridge's own storage path on windows (#3987)
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.2.0`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.17.9`
+
 ## v2.3.0 (2026-08-08)
 
 ### Changes
