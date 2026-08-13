@@ -34,6 +34,7 @@ import {
   CharacteristicEventTypes,
   CharacteristicWarningType,
   HAPLibraryVersion,
+  HAPStorage,
   once,
   Service,
   uuid,
@@ -54,6 +55,17 @@ export const DEFAULT_BRIDGE_DEFAULTS = {
 } as const
 
 const log = Logger.internal
+
+/**
+ * HAP accessory configuration numbers (c#) above this value are reset to 1 before publishing.
+ *
+ * tvOS 26.x introduced a regression where Apple TV home hubs stop subscribing to HAP events on
+ * bridges whose advertised c# is unusually high (observed with c# ≈ 14 000+). The HAP spec
+ * allows c# to wrap from 65 535 back to 1, so treating a very high value as a wrap point is
+ * spec-compliant and causes connected clients to re-fetch /accessories and re-subscribe, which
+ * restores normal "No Response"-free behaviour.
+ */
+const MAX_SAFE_CONFIG_VERSION = 10000
 
 /**
  * HAP-specific configuration for a bridge. Mirrors the shape of `MatterConfig`
@@ -388,6 +400,14 @@ export class BridgeService {
     }
 
     log.debug('Publishing bridge accessory (name: %s, publishInfo: %o).', this.bridge.displayName, BridgeService.strippingPinCode(publishInfo))
+
+    // Reset an excessively high configuration number (c#) before publishing.
+    // tvOS 26.x home hubs stop subscribing to HAP events on bridges whose advertised
+    // c# is very high (reported at c# ≈ 14 000+). Wrapping it back to 1 is
+    // spec-compliant (the HAP spec explicitly allows c# to wrap from 65 535 to 1) and
+    // causes connected clients to re-fetch /accessories and re-subscribe normally.
+    BridgeService.capConfigVersionIfNeeded(bridgeConfig.username, bridgeConfig.name)
+
     // bridge.publish() returns a promise that can reject (e.g. mDNS
     // bring-up failure). Surface those rejections — fire-and-forget swallowed
     // them silently, so a failed publish only manifested as the bridge never
@@ -853,5 +873,35 @@ export class BridgeService {
     }
     info.pincode = '***-**-***'
     return info
+  }
+
+  /**
+   * Reset an excessively high HAP configuration number (c#) for a bridge before it is published.
+   *
+   * When c# grows beyond {@link MAX_SAFE_CONFIG_VERSION}, tvOS 26.x home hubs stop subscribing
+   * to HAP events on that bridge, causing all of its accessories to show "No Response" in Apple
+   * Home. The HAP specification allows c# to wrap from 65 535 back to 1, so resetting a very
+   * high value to 1 is spec-compliant and restores normal hub behaviour on the next connection.
+   */
+  private static capConfigVersionIfNeeded(username: string, bridgeName: string): void {
+    const key = `AccessoryInfo.${username.replace(/:/g, '').toUpperCase()}.json`
+    try {
+      const persistedInfo = HAPStorage.storage().getItem(key) as Record<string, unknown> | undefined
+      if (persistedInfo != null && typeof persistedInfo.configVersion === 'number' && persistedInfo.configVersion > MAX_SAFE_CONFIG_VERSION) {
+        log.warn(
+          'The HAP configuration number (c#) for bridge \'%s\' is very high (%d). '
+          + 'Resetting to 1 to restore compatibility with Apple Home hub firmware. '
+          + 'Connected HomeKit clients will re-fetch accessory information on their next connection.',
+          bridgeName,
+          persistedInfo.configVersion,
+        )
+        persistedInfo.configVersion = 1
+        HAPStorage.storage().setItemSync(key, persistedInfo)
+      }
+    } catch (error: unknown) {
+      // Non-fatal — if reading or writing the persist file fails, proceed with publishing as-is
+      // and let hap-nodejs surface any underlying storage errors through its own path.
+      log.debug('Failed to check/reset configVersion for bridge \'%s\': %s', bridgeName, error instanceof Error ? error.message : String(error))
+    }
   }
 }
