@@ -14,6 +14,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): expose the device type requirements, so a plugin can choose its own cluster features
 - feat(matter): send each cluster's feature map to the ui, so it can offer only the controls a device has
 - fix(matter): send the feature map for accessory parts too, not just the accessory
+- fix(matter): keep a whole matter message in the debug log, so a report's value is not cut off (#3958)
 
 ### Homebridge Dependencies
 

@@ -147,7 +147,7 @@ describe('logFormatter', () => {
 
     it('should trim long MessageChannel messages', () => {
       const formatter = createHomebridgeLogFormatter()
-      const longMessage = 'a'.repeat(300)
+      const longMessage = 'a'.repeat(2000)
 
       const diagnostic = {
         now: new Date(),
@@ -159,6 +159,29 @@ describe('logFormatter', () => {
       const result = formatter(diagnostic)
       expect(result).toContain('[trimmed...]')
       expect(result.length).toBeLessThan(longMessage.length + 100)
+    })
+
+    /**
+     * The trim used to cut at 200 characters, which is shorter than a single
+     * ReportData line - so the attribute path survived and the value byte did
+     * not. That made these logs useless for the one question they get read
+     * for: what the controller was actually sent (#3958).
+     */
+    it('should keep the payload of a ReportData message intact', () => {
+      const formatter = createHomebridgeLogFormatter()
+      const value = 'deadbeefcafe'
+      const reportData = `Message » for: I/ReportData sub#: c7273212 attr: 1  payload: ${'0'.repeat(400)}${value}`
+
+      const diagnostic = {
+        now: new Date(),
+        facility: 'MessageChannel',
+        values: [reportData],
+        level: 'debug',
+      }
+
+      const result = formatter(diagnostic)
+      expect(result).not.toContain('[trimmed...]')
+      expect(result).toContain(value)
     })
 
     it('should not trim messages from other facilities', () => {
