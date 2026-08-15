@@ -2,7 +2,7 @@ import type { MockInstance } from 'vitest'
 
 import type { BridgeConfiguration } from './bridgeService.js'
 
-import { Accessory, Categories, CharacteristicWarningType, uuid } from '@homebridge/hap-nodejs'
+import { Accessory, Categories, CharacteristicWarningType, HAPStorage, uuid } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
@@ -802,6 +802,92 @@ describe('bridgeService', () => {
         && call.some(arg => typeof arg === 'string' && arg.includes('mDNS port already in use')),
       )
       expect(loggedTheFailure).toBe(true)
+    })
+
+    describe('capConfigVersionIfNeeded (tvOS 26.x "No Response" regression)', () => {
+      // The MAC CC:22:3D:E3:CE:30 maps to the storage key CC223DE3CE30 (colons stripped, uppercased).
+      const username = 'CC:22:3D:E3:CE:30'
+      const storageKey = 'AccessoryInfo.CC223DE3CE30.json'
+
+      function stubHAPStorage(getItemReturn: unknown): { getItem: MockInstance, setItemSync: MockInstance } {
+        const getItem = vi.fn().mockReturnValue(getItemReturn)
+        const setItemSync = vi.fn()
+        vi.spyOn(HAPStorage, 'storage').mockReturnValue({ getItem, setItemSync } as any)
+        return { getItem, setItemSync }
+      }
+
+      it('resets configVersion to 1 and emits a warn log when c# exceeds 10 000', () => {
+        const persisted = { configVersion: 14718, displayName: 'Homebridge' }
+        const { setItemSync } = stubHAPStorage(persisted)
+        const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+        const config = makeBridgeConfig({ name: 'Homebridge', username })
+        const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), config)
+        vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+
+        service.publishBridge()
+
+        // configVersion must have been reset in the persisted object and written back.
+        expect(persisted.configVersion).toBe(1)
+        expect(setItemSync).toHaveBeenCalledWith(storageKey, expect.objectContaining({ configVersion: 1 }))
+
+        // A warn-level log must mention the original high value.
+        const warnArgs = warnSpy.mock.calls.flat().join(' ')
+        expect(warnArgs).toMatch(/14718/)
+        expect(warnArgs).toMatch(/c#|configuration number/i)
+      })
+
+      it('leaves configVersion unchanged when it is at or below 10 000', () => {
+        const persisted = { configVersion: 9999, displayName: 'Homebridge' }
+        const { setItemSync } = stubHAPStorage(persisted)
+        const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+        const config = makeBridgeConfig({ name: 'Homebridge', username })
+        const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), config)
+        vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+
+        service.publishBridge()
+
+        expect(persisted.configVersion).toBe(9999)
+        expect(setItemSync).not.toHaveBeenCalled()
+        expect(warnSpy).not.toHaveBeenCalled()
+      })
+
+      it('does nothing when no persisted AccessoryInfo exists (first run)', () => {
+        const { setItemSync } = stubHAPStorage(undefined)
+        const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+        const config = makeBridgeConfig({ name: 'Homebridge', username })
+        const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), config)
+        vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+
+        service.publishBridge()
+
+        expect(setItemSync).not.toHaveBeenCalled()
+        expect(warnSpy).not.toHaveBeenCalled()
+      })
+
+      it('proceeds with publishing without throwing when HAPStorage.storage().getItem throws', () => {
+        vi.spyOn(HAPStorage, 'storage').mockReturnValue({
+          getItem: vi.fn().mockImplementation(() => {
+            throw new Error('storage unavailable')
+          }),
+          setItemSync: vi.fn(),
+        } as any)
+        const debugSpy = vi.spyOn(Logger.internal, 'debug').mockImplementation(() => {})
+
+        const config = makeBridgeConfig({ name: 'Homebridge', username })
+        const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), config)
+        const publishSpy = vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+
+        // Must not throw.
+        expect(() => service.publishBridge()).not.toThrow()
+        // bridge.publish() must still be called despite the storage error.
+        expect(publishSpy).toHaveBeenCalledTimes(1)
+        // A debug-level log must mention the error.
+        const debugArgs = debugSpy.mock.calls.flat().join(' ')
+        expect(debugArgs).toMatch(/storage unavailable/)
+      })
     })
   })
 
