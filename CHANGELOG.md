@@ -18,14 +18,15 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): report a plugin's manufacturer and model on an external matter accessory
 - fix(matter): keep a restored accessory's owner, so the cache stops losing it on alternate restarts
 - fix(matter): re-arm state monitoring on child bridge start, so the ui keeps showing changes (#3993)
+- chore(deps): dependency updates
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.2.2`
+- `@homebridge/hap-nodejs` @ `v2.2.3`
 
 ### Matter Dependencies
 
-- `@matter/main` @ `v0.17.9`
+- `@matter/main` @ `v0.18.0-alpha`
 
 ## v2.4.0 (2026-08-16)
 
