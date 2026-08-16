@@ -227,55 +227,37 @@ describe('homebridgeLevelControlServer', () => {
       )
     })
 
-    it('should update onOff cluster state to true when level > 0', async () => {
-      const request = { level: 150, transitionTime: 5, optionsMask: {}, optionsOverride: {} }
+    /**
+     * ⚠️ #3993. This used to write the OnOff cluster itself, through
+     * `endpoint.set()`. That opens a second transaction, and the one running
+     * the command already holds the lock on `onOff.state` - so matter.js threw
+     * "Cannot lock <endpoint>.onOff.state synchronously" and the command
+     * failed AFTER the plugin's handler had already moved the real device.
+     *
+     * The coupling is matter.js's job and `super.moveToLevelWithOnOff()`
+     * already does it, inside this command's transaction.
+     */
+    it.each([
+      ['on', 150],
+      ['off', 0],
+    ])('does not write the onOff cluster itself when a level command turns a light %s', async (_, level) => {
+      const request = { level, transitionTime: 0, optionsMask: {}, optionsOverride: {} }
 
       await behavior.moveToLevelWithOnOff(request)
 
-      expect(mockEndpoint.set).toHaveBeenCalledWith({
-        onOff: {
-          onOff: true,
-        },
-      })
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
-        testEndpointId,
-        'onOff',
-        { onOff: true },
-      )
+      expect(mockEndpoint.set).not.toHaveBeenCalled()
     })
 
-    it('should update onOff cluster state to false when level is 0', async () => {
-      const request = { level: 0, transitionTime: 0, optionsMask: {}, optionsOverride: {} }
-
-      await behavior.moveToLevelWithOnOff(request)
-
-      expect(mockEndpoint.set).toHaveBeenCalledWith({
-        onOff: {
-          onOff: false,
-        },
-      })
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
-        testEndpointId,
-        'onOff',
-        { onOff: false },
-      )
-    })
-
-    it('should sync both levelControl and onOff clusters to cache', async () => {
+    it('syncs only its own cluster, leaving onOff to the cluster that owns it', async () => {
       const request = { level: 180, transitionTime: 10, optionsMask: {}, optionsOverride: {} }
 
       await behavior.moveToLevelWithOnOff(request)
 
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledTimes(2)
+      expect(mockRegistry.syncStateToCache).toHaveBeenCalledTimes(1)
       expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
         testEndpointId,
         'levelControl',
         { currentLevel: 180 },
-      )
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
-        testEndpointId,
-        'onOff',
-        { onOff: true },
       )
     })
 

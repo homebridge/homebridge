@@ -15,6 +15,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): send each cluster's feature map to the ui, so it can offer only the controls a device has
 - fix(matter): send the feature map for accessory parts too, not just the accessory
 - fix(matter): keep a whole matter message in the debug log, so a report's value is not cut off (#3958)
+- fix(matter): stop a brightness command failing on a dimmable light by writing the on/off state twice (#3993)
 
 ### Homebridge Dependencies
 

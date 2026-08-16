@@ -169,27 +169,24 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
         request,
       )
 
-      // Only reached if handler succeeded - update Matter state
+      // Only reached if handler succeeded - update Matter state.
+      //
+      // This also turns the OnOff cluster on or off where the device type
+      // couples them: matter.js does that itself, from inside this command's
+      // transaction, and its rule is `off` only when the target is minLevel
+      // (deferred to commit) rather than anything at or below zero.
+      //
+      // ⚠️ Do NOT write the OnOff cluster here as well. `endpoint.set()` opens
+      // a SECOND transaction, and the one running this command already holds
+      // the lock on `onOff.state` - matter.js then throws
+      // "Cannot lock <endpoint>.onOff.state synchronously" and the whole
+      // command fails, after the plugin's handler has already run (#3993).
+      // HomebridgeOnOffServer reports the coupled change to the cache instead.
       await super.moveToLevelWithOnOff(request)
 
       // Sync level state to cache
       registry.syncStateToCache(endpointId, 'levelControl', {
         currentLevel: request.level,
-      })
-
-      // Update OnOff cluster state through Matter.js to trigger subscription reports
-      const targetOnOff = (request.level ?? 0) > 0
-
-      // This is critical for the Home app to receive the state change
-      // Using 'as any' because endpoint.set() type doesn't know about dynamically added clusters
-      // The onOff cluster may be present on this endpoint at runtime but isn't in the compile-time type
-      await (this.endpoint as any).set({
-        onOff: {
-          onOff: targetOnOff,
-        },
-      })
-      registry.syncStateToCache(endpointId, 'onOff', {
-        onOff: targetOnOff,
       })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is

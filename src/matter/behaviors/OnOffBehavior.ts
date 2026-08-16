@@ -18,6 +18,26 @@ export class HomebridgeOnOffServer extends OnOffServer {
     return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
   }
 
+  override initialize(): void {
+    super.initialize()
+
+    // Report every change to this cluster, not only the ones its own on/off
+    // commands made. A brightness command can turn a light on or off through
+    // the LevelControl cluster's coupling, and that change is made by
+    // matter.js rather than by any handler here - so without this the cache
+    // and the UI would still show the old on/off state.
+    this.reactTo(this.events.onOff$Changed, this.syncOnOffToCache)
+  }
+
+  /**
+   * Mirror the cluster's own state into the accessory cache, whatever changed
+   * it. Reading the value from the event means the cache follows what matter
+   * actually committed, rather than a value predicted before the fact.
+   */
+  private syncOnOffToCache(onOff: boolean): void {
+    this.getRegistry().syncStateToCache(this.endpoint.id, 'onOff', { onOff })
+  }
+
   /**
    * Handle 'on' command
    */
