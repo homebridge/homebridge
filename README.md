@@ -11,6 +11,7 @@
 <a href="https://github.com/homebridge/homebridge/wiki/How-To-Change-Homebridge-Version#manage-beta-version"><img title="npm version" src="https://img.shields.io/npm/v/homebridge/alpha?label=alpha"></a><br>
 <a href="https://www.npmjs.com/package/homebridge"><img title="npm downloads" src="https://img.shields.io/npm/dt/homebridge"></a>
 <a href="https://github.com/homebridge/homebridge/actions/workflows/build.yml"><img title="Node Build" src="https://github.com/homebridge/homebridge/actions/workflows/build.yml/badge.svg"></a>
+<a href="https://inspect.software/software/homebridge/homebridge"><img src="https://raw.githubusercontent.com/inspect-software/badges/main/v1/h/homebridge/homebridge.svg" alt="inspect.software score badge for homebridge/homebridge" /></a>
 
 </span>
 
