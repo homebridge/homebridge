@@ -308,6 +308,23 @@ export class ServerLifecycle {
         ? [Number(versionMatch[1]) & 0xFF, Number(versionMatch[2]) & 0xFF, Number(versionMatch[3]) & 0xFF]
         : [1, 0, 0]
 
+      // An external accessory is a node in its own right, so this cluster is the
+      // only place the plugin's manufacturer and model can appear - a bridged
+      // accessory gets them on its own bridgedDeviceBasicInformation instead,
+      // which this node does not have. Without this the node reported
+      // "Homebridge" as the manufacturer and its own name as the model (#3996).
+      //
+      // ⚠️ Deliberately external-only. The main bridge and every child bridge
+      // pass a manufacturer and model into this same config too, but theirs are
+      // "homebridge.io" and "homebridge" - reading them here would rewrite the
+      // identity of every commissioned bridge as a side effect of this fix.
+      const isExternal = deps.config.externalAccessory === true
+      const vendorName = (isExternal ? deps.config.manufacturer : undefined) || DEFAULT_BRIDGE_DEFAULTS.vendorName
+      const productName = ((isExternal ? deps.config.model : undefined) || displayName).slice(0, 32)
+      // productLabel SHALL NOT include the vendor name per the Matter spec.
+      // Fall back when stripping the vendor consumes the whole display name.
+      const labelFallback = isExternal ? (deps.config.model || 'Device') : 'Bridge'
+
       const nodeOptions: Parameters<typeof MatterServerNode.create>[0] = {
         id: sanitizedId,
         network: {
@@ -317,13 +334,13 @@ export class ServerLifecycle {
         commissioning: commissioningOptions,
         basicInformation: {
           nodeLabel: displayName.slice(0, 32),
+          // vendorId stays as issued: an uncertified node cannot claim a real
+          // Matter vendor ID, and vendorName is free text unrelated to it
           vendorId: VendorId(deps.commissioningManager.vendorId),
-          vendorName: DEFAULT_BRIDGE_DEFAULTS.vendorName,
+          vendorName,
           productId: deps.commissioningManager.productId,
-          productName: displayName.slice(0, 32),
-          // productLabel SHALL NOT include the vendor name per the Matter spec.
-          // Fall back to "Bridge" when the display name is exactly the vendor.
-          productLabel: (stripVendorFromLabel(displayName, DEFAULT_BRIDGE_DEFAULTS.vendorName) || 'Bridge').slice(0, 64),
+          productName,
+          productLabel: (stripVendorFromLabel(displayName, vendorName) || labelFallback).slice(0, 64),
           serialNumber: deps.config.serialNumber || deps.config.uniqueId,
           hardwareVersion: 1,
           hardwareVersionString: release(),

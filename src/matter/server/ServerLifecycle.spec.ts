@@ -1155,3 +1155,115 @@ describe('setupStorage path validation', () => {
     expect(win32.relative('C:\\Users\\Ben\\.homebridge', 'C:\\Users\\Ben\\.homebridge-evil\\matter').startsWith('..')).toBe(true)
   })
 })
+
+/**
+ * #3996: a plugin's `manufacturer` and `model` were collected, validated and
+ * truncated to exactly the BasicInformation limits — and then never read, so
+ * an external Matter accessory reported "Homebridge" as its manufacturer and
+ * its own name as its model.
+ *
+ * The bridges pass a manufacturer and model into this same config too
+ * ("homebridge.io" / "homebridge"), so reading them unconditionally would have
+ * rewritten the identity of every commissioned bridge. Hence the split below.
+ */
+describe('serverLifecycle — BasicInformation identity (#3996)', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    // clearAllMocks resets calls, not implementations - an earlier block leaves
+    // create() permanently rejecting via mockRejectedValue, so put a working
+    // one back rather than inheriting it
+    vi.mocked(MatterServerNode.create).mockImplementation(async () => ({
+      run: vi.fn(() => Promise.resolve()),
+      add: vi.fn(),
+      close: vi.fn(),
+    }) as never)
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+    lifecycle = new ServerLifecycle()
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return { load: vi.fn(async () => new Map()) } as never
+    })
+    const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
+    vi.spyOn(proto, 'startServerNode').mockImplementation(async () => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function basicInformationFor(config: Record<string, unknown>) {
+    const deps = createMockDeps()
+    Object.assign(deps.config, config)
+    await lifecycle.start(deps)
+    const options = vi.mocked(MatterServerNode.create).mock.calls[0][0] as any
+    return options.basicInformation
+  }
+
+  it('reports the plugin manufacturer and model for an external accessory', async () => {
+    const basicInformation = await basicInformationFor({
+      externalAccessory: true,
+      displayName: 'Roborock S8',
+      manufacturer: 'Roborock',
+      model: 'S8 Pro Ultra',
+    })
+
+    expect(basicInformation.vendorName).toBe('Roborock')
+    expect(basicInformation.productName).toBe('S8 Pro Ultra')
+    // The node's own name is still the label the user sees
+    expect(basicInformation.nodeLabel).toBe('Roborock S8')
+    // productLabel SHALL NOT contain the vendor name
+    expect(basicInformation.productLabel).toBe('S8')
+  })
+
+  it('falls back to the model when stripping the vendor leaves nothing', async () => {
+    const basicInformation = await basicInformationFor({
+      externalAccessory: true,
+      displayName: 'Roborock',
+      manufacturer: 'Roborock',
+      model: 'S8 Pro Ultra',
+    })
+
+    expect(basicInformation.productLabel).toBe('S8 Pro Ultra')
+  })
+
+  it('leaves a bridge reporting Homebridge, whatever manufacturer it was given', async () => {
+    // The regression this fix must not cause: every bridge passes
+    // "homebridge.io" and "homebridge" in, and neither belongs here
+    const basicInformation = await basicInformationFor({
+      externalAccessory: false,
+      displayName: 'Homebridge ABCD',
+      manufacturer: 'homebridge.io',
+      model: 'homebridge',
+    })
+
+    expect(basicInformation.vendorName).toBe('Homebridge')
+    expect(basicInformation.productName).toBe('Homebridge ABCD')
+    expect(basicInformation.productLabel).toBe('ABCD')
+  })
+
+  it('still names itself after the accessory when a plugin gives no model', async () => {
+    const basicInformation = await basicInformationFor({
+      externalAccessory: true,
+      displayName: 'Front Door',
+      manufacturer: 'Acme',
+      model: undefined,
+    })
+
+    expect(basicInformation.vendorName).toBe('Acme')
+    expect(basicInformation.productName).toBe('Front Door')
+  })
+
+  it('caps the vendor and product names at the 32 characters the cluster allows', async () => {
+    const basicInformation = await basicInformationFor({
+      externalAccessory: true,
+      displayName: 'Device',
+      manufacturer: 'Acme',
+      model: 'M'.repeat(40),
+    })
+
+    expect(basicInformation.productName).toHaveLength(32)
+  })
+})
