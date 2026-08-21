@@ -2,6 +2,29 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.4.1 (Pending Release)
+
+### Changes
+
+- fix: guard child bridge shutdown before bridgeService is assigned (#3999) (@SAY-5)
+- perf: reduce plugin discovery filesystem calls (#4000) (@n0rt0nthec4t)
+- perf: index accessory operations (#4003) (@n0rt0nthec4t)
+- perf: remove shell from npm prefix lookup (#4004) (@n0rt0nthec4t)
+- test: restore and enforce type checking (#4005) (@n0rt0nthec4t)
+- feat: expose RVC direct mode change capability (#4001) (@jbwhy)
+- fix: validate stored Matter credentials (#4006) (@n0rt0nthec4t)
+- perf: cache Homebridge package metadata (#4007) (@n0rt0nthec4t)
+- fix: coalesce child bridge port requests (#4008) (@n0rt0nthec4t)
+- fix(matter): report a plugin's manufacturer and model on an external matter accessory
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.2.2`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.17.9`
+
 ## v2.4.0 (2026-08-16)
 
 ### Changes
