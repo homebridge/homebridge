@@ -182,4 +182,49 @@ describe('homebridgeOnOffServer', () => {
       await expect(behavior.toggle()).rejects.toThrow('Handler failed')
     })
   })
+
+  /**
+   * #3993: a brightness command can turn a light on or off through the
+   * LevelControl cluster's coupling, which matter.js applies to this cluster
+   * directly - no command handler here runs. Reporting from the cluster's own
+   * change event is what keeps the cache (and so the UI) truthful, whatever
+   * caused the change.
+   */
+  describe('reporting changes this cluster did not command', () => {
+    let onOffChanged: (value: boolean) => void
+
+    beforeEach(() => {
+      const onOffChangedEvent = Symbol('onOff$Changed')
+      Object.defineProperty(behavior, 'events', {
+        get: () => ({ onOff$Changed: onOffChangedEvent }),
+        configurable: true,
+      })
+      // capture what initialize() subscribes, so the change can be replayed
+      Object.defineProperty(behavior, 'reactTo', {
+        value: (event: symbol, handler: (value: boolean) => void) => {
+          if (event === onOffChangedEvent) {
+            onOffChanged = handler.bind(behavior)
+          }
+        },
+        configurable: true,
+      })
+      vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'initialize').mockReturnValue(undefined)
+
+      behavior.initialize()
+    })
+
+    it('subscribes to its own state changes on initialize', () => {
+      expect(onOffChanged).toBeTypeOf('function')
+    })
+
+    it.each([true, false])('syncs a coupled change to %s into the cache', (value) => {
+      onOffChanged(value)
+
+      expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
+        testEndpointId,
+        'onOff',
+        { onOff: value },
+      )
+    })
+  })
 })

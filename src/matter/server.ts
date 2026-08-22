@@ -212,7 +212,24 @@ export class MatterServer extends EventEmitter {
         continue
       }
 
-      this.accessories.set(accessory.UUID, internal)
+      // A plugin passes back the plain accessory object it holds - metadata and
+      // context only. The registered copy additionally carries the runtime state
+      // built during registration (the matter.js endpoint, the part endpoints,
+      // the event emitter). Overwriting the map entry with the plugin's object
+      // therefore threw all of that away, and every later updateAccessoryState
+      // for that accessory failed for good with "not registered or missing
+      // endpoint" (homebridge-plugins/homebridge-noip#190). Merge instead, so
+      // the plugin updates what it owns and the runtime state survives.
+      const existing = this.accessories.get(accessory.UUID)!
+      this.accessories.set(accessory.UUID, {
+        ...existing,
+        ...internal,
+        endpoint: existing.endpoint,
+        _parts: existing._parts,
+        _eventEmitter: existing._eventEmitter,
+        registered: existing.registered,
+        _restoredFromCache: existing._restoredFromCache,
+      })
       log.debug(`Updated Matter accessory ${accessory.UUID} (${accessory.displayName})`)
     }
 

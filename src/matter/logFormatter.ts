@@ -11,6 +11,19 @@ import chalk from 'chalk'
 import { Logger } from '../logger.js'
 
 /**
+ * How much of a `MessageChannel` message to keep before trimming it.
+ *
+ * That facility logs every frame on the wire, so it needs a bound or a debug
+ * session fills the log. It was 200, which is shorter than one `ReportData`:
+ * the line kept the attribute path and cut the value byte off the end, so the
+ * one question these logs get read for - what did the controller actually
+ * receive - was the one thing they could not answer (#3958).
+ *
+ * 1024 keeps a whole report while still bounding the pathological case.
+ */
+const MESSAGE_CHANNEL_MAX_LENGTH = 1024
+
+/**
  * Create a custom log formatter that matches the homebridge format.
  * Format: [timestamp] [Matter:Facility] message
  * Timestamp format matches system locale (via toLocaleString()).
@@ -49,8 +62,8 @@ export function createHomebridgeLogFormatter(): (diagnostic: unknown) => string 
         let messageText = LogFormat.formats.plain(msg.values)
 
         // Trim excessively long messages from verbose facilities like MessageChannel
-        if (msg.facility === 'MessageChannel' && messageText.length > 200) {
-          messageText = `${messageText.substring(0, 200)} [trimmed...]`
+        if (msg.facility === 'MessageChannel' && messageText.length > MESSAGE_CHANNEL_MAX_LENGTH) {
+          messageText = `${messageText.substring(0, MESSAGE_CHANNEL_MAX_LENGTH)} [trimmed...]`
         }
 
         // Apply color based on Matter log level

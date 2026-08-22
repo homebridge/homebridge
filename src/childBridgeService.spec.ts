@@ -371,6 +371,83 @@ describe('childBridgeService', () => {
       )
     })
 
+    // The outbound half of the same round trip. The Server spec asserts this
+    // was called, but against a MOCK child bridge - so nothing exercised the
+    // real method, and the correlationId could have been dropped on its way to
+    // the child without a single test noticing.
+    it('controlMatterAccessory forwards the whole request, correlationId included', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      service.controlMatterAccessory({
+        uuid: 'ctrl-uuid',
+        cluster: 'onOff',
+        attributes: { onOff: true },
+        partId: 'part-1',
+        correlationId: 'corr-out',
+      })
+
+      const sent = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL)
+      expect(sent).toBeDefined()
+      expect(sent.data).toEqual({
+        uuid: 'ctrl-uuid',
+        cluster: 'onOff',
+        attributes: { onOff: true },
+        partId: 'part-1',
+        correlationId: 'corr-out',
+      })
+    })
+
+    // ⚠️ This wiring is what cancels the parent's "no child claimed it"
+    // fallback. Without it the fallback still fires 2s after a SUCCESSFUL
+    // control and sends a bogus "Accessory not found" carrying the same
+    // correlationId - a worse failure than the silence it was added to fix.
+    // The Server spec calls cancelPendingMatterControlRequest directly, so it
+    // cannot catch a break here; only driving a real child message can.
+    it('on MATTER_EVENT accessoryControlResponse, calls onAccessoryControlResponse if set', () => {
+      const { service, ipcService } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.onAccessoryControlResponse = vi.fn()
+      service.start()
+      const child = childProcesses.list[0]
+      ipcService.sendMessage.mockClear()
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoryControlResponse',
+          correlationId: 'corr-child',
+          data: { success: true, uuid: 'abc' },
+        },
+      })
+
+      expect(service.onAccessoryControlResponse).toHaveBeenCalledWith('corr-child')
+      // and it is still forwarded to the UI
+      expect(ipcService.sendMessage).toHaveBeenCalled()
+    })
+
+    it('on MATTER_EVENT accessoryControlResponse without a correlationId, forwards but cancels nothing', () => {
+      const { service, ipcService } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.onAccessoryControlResponse = vi.fn()
+      service.start()
+      const child = childProcesses.list[0]
+      ipcService.sendMessage.mockClear()
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoryControlResponse',
+          data: { success: true, uuid: 'abc' },
+        },
+      })
+
+      expect(service.onAccessoryControlResponse).not.toHaveBeenCalled()
+      expect(ipcService.sendMessage).toHaveBeenCalled()
+    })
+
     it('mATTER_EVENT (other types) → forwards via ipcService.sendMessage', () => {
       const { service, ipcService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)

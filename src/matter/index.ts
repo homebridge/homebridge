@@ -33,6 +33,7 @@ export type { CommissioningSnapshot, FabricInfo } from './server/FabricManager.j
 export {
   clusterNames,
   clusters,
+  deviceRequirements,
   devices,
   deviceTypes,
   type InternalMatterAccessory,

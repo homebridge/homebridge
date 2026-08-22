@@ -2,6 +2,30 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.4.0 (2026-08-16)
+
+### Changes
+
+- chore(deps): dependency updates
+- fix(matter): echo the control correlationId so the ui stops retrying successful commands
+- refactor(matter): collapse the three identical rvc operational command handlers into one
+- fix(matter): keep a restored colour light's colour features, so it stops failing on every restart
+- fix(matter): only warn about a cluster the plugin actually supplies handlers for
+- feat(matter): expose the device type requirements, so a plugin can choose its own cluster features
+- feat(matter): send each cluster's feature map to the ui, so it can offer only the controls a device has
+- fix(matter): send the feature map for accessory parts too, not just the accessory
+- fix(matter): keep a whole matter message in the debug log, so a report's value is not cut off (#3958)
+- fix(matter): stop a brightness command failing on a dimmable light by writing the on/off state twice (#3993)
+- fix(matter): keep an accessory's endpoint when a plugin updates it, so state updates keep working
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.2.2`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.17.9`
+
 ## v2.3.1 (2026-08-10)
 
 ### Changes

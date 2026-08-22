@@ -15,7 +15,7 @@ import type { Behavior } from '@matter/node'
 import { describe, expect, it } from 'vitest'
 
 import { CORE_CLUSTER_BEHAVIOR_MAP } from './server/BehaviorMap.js'
-import { deviceTypes } from './types.js'
+import { deviceRequirements, deviceTypes } from './types.js'
 
 /** Read the supported behavior classes off a device type. */
 function supportedBehaviors(deviceType: unknown): Record<string, Behavior.Type> {
@@ -160,5 +160,55 @@ describe('genericSwitch switch features', () => {
     expect(features.momentarySwitchLongPress).toBe(true)
     expect(features.momentarySwitchMultiPress).toBe(true)
     expect(features.latchingSwitch).toBe(false)
+  })
+})
+
+describe('deviceRequirements', () => {
+  // Homebridge chooses a feature set from the state an accessory declares, which
+  // is right nearly always. When it is not - a thermostat that heats and cools
+  // but has no auto mode - the plugin has to compose the cluster itself, and it
+  // cannot do that without these. Reaching into `@matter/main` from a plugin is
+  // not an acceptable substitute.
+  it('exposes a requirements entry for every feature-gated device type', () => {
+    for (const name of ['MotionSensor', 'SmokeSensor', 'ElectricalSensor', 'Thermostat', 'Closure', 'RoboticVacuumCleaner', 'WaterValve', 'GenericSwitch', 'Pump', 'RoomAirConditioner', 'WindowCovering'] as const) {
+      expect(deviceRequirements[name], `deviceRequirements.${name}`).toBeDefined()
+      expect(deviceTypes[name], `deviceTypes.${name}`).toBeDefined()
+    }
+  })
+
+  // WindowCovering is feature-gated the same way, and its features are detected
+  // from the declared lift/tilt attributes. A blind that reports a lift position
+  // it cannot be commanded to had no way to say so without this.
+  it('lets a window covering be composed with lift only', () => {
+    const liftOnly = deviceTypes.WindowCovering.with(
+      (deviceRequirements.WindowCovering.WindowCoveringServer as any).with('Lift', 'PositionAwareLift'),
+    )
+    const features = enabledFeatures(supportedBehaviors(liftOnly).windowCovering)
+    expect(features.lift).toBe(true)
+    expect(features.positionAwareLift).toBe(true)
+    expect(features.tilt).toBe(false)
+    // AccessoryManager's skip check reads behaviors.windowCovering
+    expect(supportedBehaviors(liftOnly).windowCovering).toBeDefined()
+  })
+
+  // The case that prompted this: heat + cool WITHOUT auto is legal in the spec,
+  // but the detected feature set always adds AutoMode when both setpoints exist.
+  it('lets a thermostat be composed with heating and cooling but no auto mode', () => {
+    const noAuto = deviceTypes.Thermostat.with(
+      (deviceRequirements.Thermostat.ThermostatServer as any).with('Heating', 'Cooling'),
+    )
+    const features = enabledFeatures(supportedBehaviors(noAuto).thermostat)
+    expect(features.heating).toBe(true)
+    expect(features.cooling).toBe(true)
+    expect(features.autoMode).toBe(false)
+  })
+
+  // AccessoryManager skips its own detection when the plugin already composed
+  // the cluster - that check reads `behaviors.thermostat`, so it has to be set.
+  it('produces a device type that AccessoryManager will leave alone', () => {
+    const noAuto = deviceTypes.Thermostat.with(
+      (deviceRequirements.Thermostat.ThermostatServer as any).with('Heating', 'Cooling'),
+    )
+    expect(supportedBehaviors(noAuto).thermostat).toBeDefined()
   })
 })

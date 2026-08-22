@@ -1,7 +1,7 @@
 {
   "name": "homebridge",
   "type": "module",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "HomeKit support for the impatient",
   "author": "Nick Farina",
   "license": "Apache-2.0",
@@ -49,7 +49,7 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.2.0",
+    "@homebridge/hap-nodejs": "2.2.2",
     "@matter/main": "0.17.9",
     "chalk": "6.0.0",
     "commander": "15.0.0",

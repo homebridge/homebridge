@@ -5,13 +5,19 @@ import { DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
 import { PowerSourceServer } from '@matter/node/behaviors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Logger } from '../../logger.js'
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
   applyLevelControlLightingFloor,
   applyThermostatFeatures,
+  applyWindowCoveringFeatures,
+  detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
   detectThermostatFeatures,
+  detectWindowCoveringFeatures,
+  determineColorControlFeaturesFromClusters,
+  determineColorControlFeaturesFromHandlers,
 } from '../serverHelpers.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
@@ -87,6 +93,7 @@ vi.mock('../serverHelpers.js', () => ({
   extractThermostatFeatures: vi.fn(() => []),
   extractDeclaredFeatures: vi.fn(() => []),
   determineColorControlFeaturesFromHandlers: vi.fn(() => []),
+  determineColorControlFeaturesFromClusters: vi.fn(() => []),
   CLUSTER_IDS: {
     CLOSURE_CONTROL: 0x0104,
     COLOR_CONTROL: 0x0300,
@@ -375,6 +382,40 @@ describe('accessoryManager', () => {
         expect(deps.behaviorRegistry.registerHandler).toHaveBeenCalledWith('test-uuid-001', 'onOff', 'on', expect.any(Function))
       })
 
+      // ⚠️ The cache stores a device type as {name, code} only, so composed
+      // features do not survive it - a restore rebuilds the BASE type. A plugin
+      // that used api.matter.deviceRequirements to compose the cluster itself
+      // (say a thermostat that heats and cools but has no auto mode) hands back
+      // a type whose name is identical, so a name-only shape check attached in
+      // place and kept the restored endpoint - silently reverting to detected
+      // features on every restart. Compare what is composed, not just the name.
+      it('re-registers when the plugin composed a cluster the restored type lacks', async () => {
+        const deps = createMockDeps()
+        deps.accessories.set('test-uuid-001', {
+          ...createMockAccessory({
+            // what a restore rebuilds: deviceTypes.Thermostat, no thermostat behavior
+            deviceType: createChainableDeviceType({ deviceType: 0x0301, name: 'Thermostat' }),
+          }),
+          endpoint: { marker: 'restored-endpoint', close: vi.fn() },
+          registered: false,
+          _restoredFromCache: true,
+        } as any)
+
+        const pluginAccessory = createMockAccessory({
+          deviceType: createChainableDeviceType({
+            deviceType: 0x0301,
+            name: 'Thermostat',
+            behaviors: { thermostat: {} },
+          }),
+        })
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
+
+        const stored = deps.accessories.get('test-uuid-001') as any
+        expect(stored.endpoint).not.toEqual({ marker: 'restored-endpoint', close: expect.anything() })
+        expect(stored.registered).toBe(true)
+      })
+
       it('does not throw the duplicate-UUID error for a restored accessory', async () => {
         const deps = createMockDeps()
         deps.accessories.set('test-uuid-001', {
@@ -492,6 +533,150 @@ describe('accessoryManager', () => {
       // Cached state should have been merged (cache overrides plugin defaults)
       expect(accessory.clusters!.onOff!.onOff).toBe(true)
       expect(accessory.context).toEqual({ savedKey: 'savedValue' })
+    })
+  })
+
+  /**
+   * ⚠️ Handlers are functions, so they are not cached. The cache restore synthesizes
+   * empty stubs in their place, which meant ColorControl came back with no features
+   * at all — and a persisted colorTemperatureMireds or currentHue then failed Matter's
+   * conformance check ("Matter does not allow you to set this attribute"), taking the
+   * whole accessory registration down on every single restart.
+   */
+  describe('colorControl features on a cache restore', () => {
+    it('falls back to the cluster attributes when the handlers are empty stubs', async () => {
+      vi.mocked(detectBehaviorFeatures).mockReturnValueOnce(['ColorTemperature'])
+      vi.mocked(determineColorControlFeaturesFromHandlers).mockReturnValueOnce([])
+      vi.mocked(determineColorControlFeaturesFromClusters).mockReturnValueOnce(['ColorTemperature'])
+
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        // exactly what the restore builds: a stub per cached cluster, no logic names
+        handlers: { colorControl: {} },
+        clusters: { onOff: { onOff: false }, colorControl: { colorTemperatureMireds: 370 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(determineColorControlFeaturesFromClusters).toHaveBeenCalledWith(accessory.clusters)
+    })
+
+    it('prefers the handlers when the plugin has supplied real ones', async () => {
+      vi.mocked(detectBehaviorFeatures).mockReturnValueOnce(['ColorTemperature'])
+      vi.mocked(determineColorControlFeaturesFromHandlers).mockReturnValueOnce(['ColorTemperature'])
+
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        handlers: { colorControl: { moveToColorTemperatureLogic: vi.fn() } },
+        clusters: { onOff: { onOff: false }, colorControl: { colorTemperatureMireds: 370 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      // the handlers are the authority on what the plugin can actually do
+      expect(determineColorControlFeaturesFromClusters).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('windowCovering composed by the plugin', () => {
+    const wcClusters = {
+      windowCovering: {
+        currentPositionLiftPercent100ths: 0,
+        targetPositionLiftPercent100ths: 0,
+      },
+    }
+
+    it('still detects features for a plugin that did not compose the cluster', async () => {
+      vi.mocked(detectWindowCoveringFeatures).mockReturnValueOnce(['Lift'])
+
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: createChainableDeviceType({ deviceType: 0x0202, name: 'WindowCovering' }),
+        clusters: wcClusters,
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(applyWindowCoveringFeatures).toHaveBeenCalled()
+    })
+
+    it('leaves the plugin\'s own composition alone', async () => {
+      vi.mocked(detectWindowCoveringFeatures).mockReturnValueOnce(['Lift'])
+
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        // what a plugin gets from deviceTypes.WindowCovering.with(
+        //   deviceRequirements.WindowCovering.WindowCoveringServer.with('Lift'))
+        deviceType: createChainableDeviceType({
+          deviceType: 0x0202,
+          name: 'WindowCovering',
+          behaviors: { windowCovering: {} },
+        }),
+        clusters: wcClusters,
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(applyWindowCoveringFeatures).not.toHaveBeenCalled()
+    })
+
+    // ⚠️ The trap: applyWindowCoveringFeatures is also what sets this flag, and
+    // the flag is what stops the behavior loop layering the custom
+    // WindowCovering server (with NO features) over the plugin's composition.
+    // Skipping the call without setting the flag moves the bug rather than
+    // fixing it, so pin the flag, not just the skipped call.
+    it('still marks the custom behavior as handled, so nothing is layered on top', async () => {
+      vi.mocked(detectWindowCoveringFeatures).mockReturnValueOnce(['Lift'])
+
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: createChainableDeviceType({
+          deviceType: 0x0202,
+          name: 'WindowCovering',
+          behaviors: { windowCovering: {} },
+        }),
+        clusters: wcClusters,
+        handlers: { windowCovering: { upOrOpenLogic: vi.fn() } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect((accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior).toBe(true)
+    })
+  })
+
+  describe('warning about a cluster with no custom behavior', () => {
+    function warnings() {
+      return vi.mocked(Logger.withPrefix('Matter/Server')).warn.mock.calls.map((call: any[]) => String(call[0]))
+    }
+
+    // The cache restore synthesizes an empty handler stub per cached cluster, because
+    // functions cannot be cached. Warning on those meant complaining about clusters the
+    // plugin never intended to handle - nine lines on a restart for a plugin that had
+    // done nothing wrong.
+    it('stays quiet for a cluster whose handlers are an empty stub', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        handlers: { smokeCoAlarm: {}, temperatureMeasurement: {} },
+        clusters: { smokeCoAlarm: { smokeState: 0 }, temperatureMeasurement: { measuredValue: 2000 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(warnings().filter(message => message.includes('No custom behavior class'))).toEqual([])
+    })
+
+    // Still worth saying when it is real: a handler that can never be routed is a gap.
+    it('warns when the plugin really did supply a handler we cannot route', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        handlers: { smokeCoAlarm: { selfTestRequestLogic: vi.fn() } },
+        clusters: { smokeCoAlarm: { smokeState: 0 } },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(warnings().some(message => message.includes('smokeCoAlarm'))).toBe(true)
     })
   })
 

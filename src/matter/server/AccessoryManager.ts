@@ -45,6 +45,7 @@ import {
   detectSmokeCoAlarmFeatures,
   detectThermostatFeatures,
   detectWindowCoveringFeatures,
+  determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
   extractDeclaredFeatures,
@@ -130,8 +131,18 @@ export class AccessoryManager {
       // in place. Structural changes fall through to a fresh registration.
       if (existing?._restoredFromCache) {
         const partIds = (list?: { id: string }[]) => JSON.stringify((list ?? []).map(part => part.id).sort())
+        // ⚠️ The name is not enough. The cache stores a device type as
+        // {name, code}, so a restore rebuilds the BASE type - anything the
+        // plugin composed itself (via api.matter.deviceRequirements) is gone,
+        // while the name still matches. Attaching in place then kept the
+        // restored endpoint and silently reverted the plugin's own feature
+        // choice to the detected one on every restart, which is exactly the
+        // case deviceRequirements exists to serve. Compare what is composed.
+        const behaviorKeys = (deviceType: unknown) =>
+          Object.keys((deviceType as { behaviors?: Record<string, unknown> })?.behaviors ?? {}).sort().join(',')
         const sameShape = (existing.deviceType as { name?: string })?.name === (accessory.deviceType as { name?: string })?.name
           && partIds(existing._parts ?? existing.parts) === partIds(accessory.parts)
+          && behaviorKeys(existing.deviceType) === behaviorKeys(accessory.deviceType)
         if (sameShape) {
           log.info(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
           deps.accessories.set(accessory.UUID, {
@@ -389,8 +400,26 @@ export class AccessoryManager {
     accessory: MatterAccessory,
   ): Promise<{ deviceType: EndpointType, hasElectrical: boolean }> {
     let deviceType = accessory.deviceType
+    // WindowCovering is feature-gated too, and detection reads the declared
+    // lift/tilt attributes. A plugin that composed the cluster itself has
+    // already said what the device does, so leave its choice alone - matching
+    // SmokeCoAlarm and Thermostat below.
+    //
+    // ⚠️ The skip flag still has to be set. It is what stops the behavior loop
+    // adding the custom WindowCovering server *without* features on top; only
+    // skipping the call here would clobber the plugin's composition further
+    // down instead of here.
+    const hasWindowCovering = (deviceType as { behaviors?: Record<string, unknown> }).behaviors?.windowCovering !== undefined
     const windowCoveringFeatures = detectWindowCoveringFeatures(accessory)
-    if (windowCoveringFeatures.length > 0) {
+    if (hasWindowCovering) {
+      if (windowCoveringFeatures.length > 0) {
+        log.debug(`${accessory.displayName} composed its own WindowCovering cluster - keeping its features`)
+      }
+      if (!accessory.context) {
+        accessory.context = {}
+      }
+      (accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior = true
+    } else if (windowCoveringFeatures.length > 0) {
       deviceType = applyWindowCoveringFeatures(deviceType, accessory, windowCoveringFeatures)
     }
 
@@ -499,7 +528,15 @@ export class AccessoryManager {
         extractColorControlFeatures,
       )
       if (colorControlFeatures) {
-        colorControlFeatures = determineColorControlFeaturesFromHandlers(accessory.handlers.colorControl)
+        // Handlers first: they are the authority on what the plugin can actually do.
+        // On a cache restore they are empty stubs though (functions cannot be cached),
+        // so fall back to the cluster's own attributes - otherwise ColorControl is
+        // built with no features and the persisted colorTemperatureMireds/currentHue
+        // fail Matter's conformance check, taking the whole accessory down with them.
+        const fromHandlers = determineColorControlFeaturesFromHandlers(accessory.handlers.colorControl)
+        colorControlFeatures = fromHandlers.length > 0
+          ? fromHandlers
+          : determineColorControlFeaturesFromClusters(accessory.clusters)
       }
     }
 
@@ -754,6 +791,13 @@ export class AccessoryManager {
       if (behaviorClass) {
         customBehaviors.push(behaviorClass)
         log.info(`Will use ${behaviorClass.name} for ${accessory.displayName}`)
+      } else if (Object.keys(accessory.handlers?.[clusterName] ?? {}).length === 0) {
+        // No handlers, so there is nothing for a custom behavior to route and nothing
+        // to warn about. This is the normal shape for a read-only cluster the plugin
+        // only pushes state into, and it is every cluster on a cache restore: the
+        // restore synthesizes an empty stub per cached cluster, so warning here put a
+        // line in the log for clusters the plugin never intended to handle.
+        log.debug(`No handlers supplied for cluster '${clusterName}', no custom behavior needed`)
       } else {
         log.warn(`No custom behavior class available for cluster '${clusterName}' - handlers will be registered but may not be called`)
       }

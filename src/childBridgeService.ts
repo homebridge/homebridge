@@ -271,6 +271,8 @@ export class ChildBridgeService {
   // it fires a spurious "Timed out" event at the UI.
   public onAccessoryInfoResponse?: (uuid: string) => void
 
+  public onAccessoryControlResponse?: (correlationId: string) => void
+
   // Stored shutdown listener so it can be removed in teardown(),
   // matching the pattern used by MatterBridgeManager (#3915).
   private readonly _onApiShutdown = (): void => {
@@ -390,7 +392,10 @@ export class ChildBridgeService {
   /**
    * Control a Matter accessory on this child bridge
    */
-  public controlMatterAccessory(data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string }): void {
+  public controlMatterAccessory(data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, correlationId?: string }): void {
+    // The correlationId (when the UI sent one) rides through to the child,
+    // whose message handler echoes it on its accessoryControlResponse - that
+    // is what lets the UI match the response to its pending request.
     this.sendMessage(ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL, data)
   }
 
@@ -515,6 +520,14 @@ export class ChildBridgeService {
               const uuid = (matterEvent.data as { uuid?: string } | undefined)?.uuid
               if (uuid) {
                 this.onAccessoryInfoResponse(uuid)
+              }
+            }
+            // Same for a control response: this child owns the accessory, so
+            // cancel the parent's "no child claimed it" fallback before the
+            // response is forwarded.
+            if (matterEvent.type === 'accessoryControlResponse' && this.onAccessoryControlResponse) {
+              if (matterEvent.correlationId) {
+                this.onAccessoryControlResponse(matterEvent.correlationId)
               }
             }
             // Forward all other Matter events to main process IPC
