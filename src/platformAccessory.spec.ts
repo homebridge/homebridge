@@ -111,6 +111,15 @@ describe('platformAccessory', () => {
       expect(accessory.services).toHaveLength(2)
     })
 
+    it('does not serialize the accessory when no removable service is stale', () => {
+      const accessory = createAccessory()
+      const desired = accessory.addService(Service.Switch)
+      const serialize = vi.spyOn(Accessory, 'serialize')
+
+      expect(accessory.reconcileServices([desired])).toStrictEqual([])
+      expect(serialize).not.toHaveBeenCalled()
+    })
+
     it('preserves serialized accessory identity across restore, reconciliation, and restart', () => {
       const accessory = createAccessory('Serialized', Categories.SWITCH)
       accessory.context = { test: 'serialized-context', count: 3980 }
@@ -176,7 +185,7 @@ describe('platformAccessory', () => {
       const servicesBeforeReconciliation = [...accessory.services]
 
       expect(() => accessory.reconcileServices([detached]))
-        .toThrow('Cannot reconcile service that is not attached to this accessory')
+        .toThrowError(new TypeError('Cannot reconcile service that is not attached to this accessory'))
       expect(accessory.services).toStrictEqual(servicesBeforeReconciliation)
       expect(accessory.getService(Service.ContactSensor)).toBe(stale)
     })
@@ -199,6 +208,47 @@ describe('platformAccessory', () => {
       expect(restarted.getService(Service.ContactSensor)).toBeUndefined()
       expect(restarted.services.map(service => [service.UUID, service.subtype]))
         .toStrictEqual(desired.map(service => [service.UUID, service.subtype]))
+    })
+
+    it('rejects removing services owned by a configured controller', () => {
+      const accessory = createAccessory()
+      accessory.configureController(new RemoteController())
+      const desired = accessory.addService(Service.MotionSensor)
+      const servicesBeforeReconciliation = [...accessory.services]
+
+      expect(() => accessory.reconcileServices([desired]))
+        .toThrowError(new TypeError('Cannot reconcile a service managed by an accessory controller'))
+      expect(accessory.services).toStrictEqual(servicesBeforeReconciliation)
+
+      const restored = PlatformAccessory.deserialize(PlatformAccessory.serialize(accessory))
+      expect(() => restored.configureController(new RemoteController())).not.toThrow()
+    })
+
+    it('does not remove ordinary stale services when a controller service blocks reconciliation', () => {
+      const accessory = createAccessory()
+      const ordinaryStale = accessory.addService(Service.ContactSensor)
+      accessory.configureController(new RemoteController())
+      const desired = accessory.addService(Service.MotionSensor)
+      const servicesBeforeReconciliation = [...accessory.services]
+
+      expect(() => accessory.reconcileServices([desired]))
+        .toThrowError(new TypeError('Cannot reconcile a service managed by an accessory controller'))
+      expect(accessory.services).toStrictEqual(servicesBeforeReconciliation)
+      expect(accessory.getService(Service.ContactSensor)).toBe(ordinaryStale)
+    })
+
+    it('rejects removing services owned by a serialized controller before it is configured', () => {
+      const accessory = createAccessory()
+      accessory.configureController(new RemoteController())
+      accessory.addService(Service.MotionSensor)
+      const restored = PlatformAccessory.deserialize(PlatformAccessory.serialize(accessory))
+      const restoredDesired = restored.getService(Service.MotionSensor)!
+      const servicesBeforeReconciliation = [...restored.services]
+
+      expect(() => restored.reconcileServices([restoredDesired]))
+        .toThrowError(new TypeError('Cannot reconcile a service managed by an accessory controller'))
+      expect(restored.services).toStrictEqual(servicesBeforeReconciliation)
+      expect(() => restored.configureController(new RemoteController())).not.toThrow()
     })
   })
 

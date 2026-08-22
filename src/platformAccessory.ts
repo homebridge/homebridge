@@ -101,13 +101,14 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
    *
    * Call this after discovery and controller configuration, never during deserialization. Pass every
    * attached plugin, controller, linked, camera, and external-accessory service that should remain.
-   * Any omitted non-HAP-managed service is removed. Desired services are compared by instance, so
-   * services with the same UUID but different subtypes remain independent.
+   * Any omitted non-HAP-managed service is removed unless it belongs to a controller, in which case
+   * reconciliation throws before changing the accessory. Desired services are compared by instance,
+   * so services with the same UUID but different subtypes remain independent.
    *
    * HAP-managed {@link Service.AccessoryInformation | AccessoryInformation} and
    * {@link Service.ProtocolInformation | ProtocolInformation} services always remain. Passing an
-   * empty array removes every other service. This method does not persist changes or prune
-   * characteristics, context, or accessories.
+   * empty array removes every other service only when none belongs to a controller. This method does
+   * not persist changes or prune characteristics, context, or accessories.
    *
    * @example
    * ```ts
@@ -117,14 +118,16 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
    *
    * @param desiredServices The services retained after the current discovery.
    * @returns The stale services removed from this accessory.
-   * @throws {@link RangeError} When a desired service is not attached to this accessory.
+   * @throws {@link TypeError} When a desired service is not attached to this accessory or an omitted
+   * service belongs to an accessory controller.
    */
   public reconcileServices(desiredServices: readonly Service[]): Service[] {
     const desired = new Set(desiredServices)
+    const attached = new Set(this.services)
 
     for (const service of desired) {
-      if (!this.services.includes(service)) {
-        throw new RangeError('Cannot reconcile service that is not attached to this accessory')
+      if (!attached.has(service)) {
+        throw new TypeError('Cannot reconcile service that is not attached to this accessory')
       }
     }
 
@@ -133,6 +136,16 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
       && service.UUID !== Service.ProtocolInformation.UUID
       && !desired.has(service),
     )
+    if (staleServices.length === 0) {
+      return []
+    }
+
+    const serializedAccessory = Accessory.serialize(this._associatedHAPAccessory)
+    const controllerServiceIds = new Set(serializedAccessory.controllers
+      ?.flatMap(controller => Object.values(controller.services)) ?? [])
+    if (staleServices.some(service => controllerServiceIds.has(service.getServiceId()))) {
+      throw new TypeError('Cannot reconcile a service managed by an accessory controller')
+    }
 
     for (const service of staleServices) {
       this.removeService(service)

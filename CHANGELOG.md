@@ -6,6 +6,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Changes
 
+- feat: add a service reconciliation helper (#3990) (@danieloleary)
 - chore(deps): dependency updates
 - fix(matter): echo the control correlationId so the ui stops retrying successful commands
 - refactor(matter): collapse the three identical rvc operational command handlers into one
