@@ -99,8 +99,9 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
   /**
    * Removes services omitted from a platform's current discovery result.
    *
-   * Call this after discovery and controller configuration, never during deserialization. Pass every
-   * attached plugin, controller, linked, camera, and external-accessory service that should remain.
+   * Call this after discovery and controller configuration, never during deserialization. Build the
+   * desired list by filtering known stale plugin services out of this accessory's current services.
+   * This preserves controller services, which plugins cannot enumerate directly.
    * Any omitted non-HAP-managed service is removed unless it belongs to a controller, in which case
    * reconciliation throws before changing the accessory. Desired services are compared by instance,
    * so services with the same UUID but different subtypes remain independent.
@@ -112,7 +113,8 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
    *
    * @example
    * ```ts
-   * accessory.reconcileServices([switchService, contactSensorService])
+   * const desiredServices = accessory.services.filter(service => !staleServices.includes(service))
+   * accessory.reconcileServices(desiredServices)
    * api.updatePlatformAccessories([accessory])
    * ```
    *
@@ -127,7 +129,9 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
 
     for (const service of desired) {
       if (!attached.has(service)) {
-        throw new TypeError('Cannot reconcile service that is not attached to this accessory')
+        throw new TypeError(
+          `Cannot reconcile service ${service.UUID} (subtype: ${service.subtype ?? 'none'}): service is not attached to this accessory`,
+        )
       }
     }
 
@@ -143,8 +147,11 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
     const serializedAccessory = Accessory.serialize(this._associatedHAPAccessory)
     const controllerServiceIds = new Set(serializedAccessory.controllers
       ?.flatMap(controller => Object.values(controller.services)) ?? [])
-    if (staleServices.some(service => controllerServiceIds.has(service.getServiceId()))) {
-      throw new TypeError('Cannot reconcile a service managed by an accessory controller')
+    const controllerService = staleServices.find(service => controllerServiceIds.has(service.getServiceId()))
+    if (controllerService) {
+      throw new TypeError(
+        `Cannot reconcile service ${controllerService.UUID} (subtype: ${controllerService.subtype ?? 'none'}): service is managed by an accessory controller`,
+      )
     }
 
     for (const service of staleServices) {

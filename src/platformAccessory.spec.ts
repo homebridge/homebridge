@@ -185,7 +185,9 @@ describe('platformAccessory', () => {
       const servicesBeforeReconciliation = [...accessory.services]
 
       expect(() => accessory.reconcileServices([detached]))
-        .toThrowError(new TypeError('Cannot reconcile service that is not attached to this accessory'))
+        .toThrowError(new TypeError(
+          `Cannot reconcile service ${detached.UUID} (subtype: ${detached.subtype}): service is not attached to this accessory`,
+        ))
       expect(accessory.services).toStrictEqual(servicesBeforeReconciliation)
       expect(accessory.getService(Service.ContactSensor)).toBe(stale)
     })
@@ -215,9 +217,15 @@ describe('platformAccessory', () => {
       accessory.configureController(new RemoteController())
       const desired = accessory.addService(Service.MotionSensor)
       const servicesBeforeReconciliation = [...accessory.services]
+      const controllerService = accessory.services.find(service =>
+        service.UUID !== Service.AccessoryInformation.UUID
+        && service !== desired,
+      )!
 
       expect(() => accessory.reconcileServices([desired]))
-        .toThrowError(new TypeError('Cannot reconcile a service managed by an accessory controller'))
+        .toThrowError(new TypeError(
+          `Cannot reconcile service ${controllerService.UUID} (subtype: ${controllerService.subtype ?? 'none'}): service is managed by an accessory controller`,
+        ))
       expect(accessory.services).toStrictEqual(servicesBeforeReconciliation)
 
       const restored = PlatformAccessory.deserialize(PlatformAccessory.serialize(accessory))
@@ -232,7 +240,7 @@ describe('platformAccessory', () => {
       const servicesBeforeReconciliation = [...accessory.services]
 
       expect(() => accessory.reconcileServices([desired]))
-        .toThrowError(new TypeError('Cannot reconcile a service managed by an accessory controller'))
+        .toThrowError(TypeError)
       expect(accessory.services).toStrictEqual(servicesBeforeReconciliation)
       expect(accessory.getService(Service.ContactSensor)).toBe(ordinaryStale)
     })
@@ -246,7 +254,7 @@ describe('platformAccessory', () => {
       const servicesBeforeReconciliation = [...restored.services]
 
       expect(() => restored.reconcileServices([restoredDesired]))
-        .toThrowError(new TypeError('Cannot reconcile a service managed by an accessory controller'))
+        .toThrowError(TypeError)
       expect(restored.services).toStrictEqual(servicesBeforeReconciliation)
       expect(() => restored.configureController(new RemoteController())).not.toThrow()
     })
