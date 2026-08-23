@@ -16,6 +16,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - perf: cache Homebridge package metadata (#4007) (@n0rt0nthec4t)
 - fix: coalesce child bridge port requests (#4008) (@n0rt0nthec4t)
 - fix(matter): report a plugin's manufacturer and model on an external matter accessory
+- fix(matter): keep a restored accessory's owner, so the cache stops losing it on alternate restarts
 
 ### Homebridge Dependencies
 
