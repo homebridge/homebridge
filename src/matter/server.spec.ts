@@ -46,6 +46,47 @@ function registeredCopy(uuid: string): InternalMatterAccessory {
   } as unknown as InternalMatterAccessory
 }
 
+describe('matterServer restore-from-cache attribution', () => {
+  /**
+   * ⚠️ The oscillation behind homebridge-plugins/homebridge-updater#278. The
+   * pre-online restore built its map entry without `_associatedPlugin`
+   * (registerAccessory ignores its plugin/platform arguments), so the next
+   * cache save wrote blanks to disk. That start then warned "Failed to find
+   * plugin ... (plugin: , platform: )" and the plugin re-registered from
+   * scratch, which re-stamped the owner - so every OTHER restart healed and
+   * the one after blanked it again, for ever.
+   */
+  it('carries the cached owner onto the restored accessory', async () => {
+    const server = new MatterServer({ uniqueId: 'AA:BB:CC:DD:EE:FF' })
+    const registered: any[] = []
+    ;(server as any).accessoryManager = {
+      registerAccessory: vi.fn(async (_p: string, _n: string, accessory: any) => {
+        registered.push(accessory)
+      }),
+    }
+    ;(server as any).accessoryCache = {
+      load: async () => new Map([[
+        '48a2212f-8f39-4854-ac61-fa84b4113451',
+        {
+          uuid: '48a2212f-8f39-4854-ac61-fa84b4113451',
+          displayName: 'homebridge',
+          plugin: '@homebridge-plugins/homebridge-updater',
+          platform: 'Updater',
+          deviceType: { name: 'ContactSensor' },
+          serialNumber: 'ABC123',
+          clusters: { booleanState: { stateValue: false } },
+        },
+      ]]),
+    }
+
+    await (server as any).getLifecycleDeps().restoreAccessoriesFromCache()
+
+    expect(registered).toHaveLength(1)
+    expect(registered[0]._associatedPlugin).toBe('@homebridge-plugins/homebridge-updater')
+    expect(registered[0]._associatedPlatform).toBe('Updater')
+  })
+})
+
 describe('matterServer.updatePlatformAccessories', () => {
   const uuid = '48a2212f-8f39-4854-ac61-fa84b4113451'
   let server: MatterServer
