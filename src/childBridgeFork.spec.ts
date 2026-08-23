@@ -79,6 +79,13 @@ describe('childBridgeFork - Matter Accessory Guard', () => {
   })
 })
 
+describe('childBridgeFork - shutdown', () => {
+  it('does not throw when a signal arrives before bridgeService is assigned', () => {
+    const fork = new ChildBridgeFork()
+    expect(() => fork.shutdown()).not.toThrow()
+  })
+})
+
 describe('childBridgeFork - Matter Handlers', () => {
   let childBridgeFork: ChildBridgeFork
   let mockMatterManager: any

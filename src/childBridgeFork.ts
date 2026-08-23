@@ -460,7 +460,9 @@ export class ChildBridgeFork {
   }
 
   shutdown(): void {
-    this.bridgeService.teardown()
+    // bridgeService is only assigned once the bridge has started, and a signal
+    // can arrive before that.
+    this.bridgeService?.teardown()
 
     // Teardown Matter servers (main bridge and external accessories)
     if (this.matterManager) {
