@@ -1,3 +1,5 @@
+import type { Dirent } from 'node:fs'
+
 import type {
   AccessoryIdentifier,
   AccessoryName,
@@ -85,6 +87,30 @@ export class PluginManager {
   private readonly platformToPluginMap: Map<PlatformName, Plugin[]> = new Map()
 
   private currentInitializingPlugin?: Plugin // used to match registering plugins, see handleRegisterAccessory and handleRegisterPlatform
+
+  /**
+   * Determine whether a directory entry resolves to a directory. Dirent avoids
+   * an extra stat call for ordinary directories and files, while the fallback
+   * preserves discovery of npm-linked plugins and entries whose type is not
+   * reported by the underlying filesystem.
+   */
+  private static isDirectoryEntry(parentPath: string, entry: Dirent): boolean {
+    if (entry.isDirectory()) {
+      return true
+    }
+
+    if (entry.isFile()) {
+      return false
+    }
+
+    const absolutePath = resolve(parentPath, entry.name)
+    try {
+      return statSync(absolutePath).isDirectory()
+    } catch (error: any) {
+      log.debug(`Ignoring path ${absolutePath} - ${error.message}`)
+      return false
+    }
+  }
 
   constructor(api: HomebridgeAPI, options?: PluginManagerOptions) {
     this.api = api
@@ -380,15 +406,9 @@ export class PluginManager {
           log.warn(error.message)
         }
       } else { // read through each directory in this node_modules folder
-        let relativePluginPaths = readdirSync(searchPath) // search for directories only
-          .filter((relativePath) => {
-            try {
-              return statSync(resolve(searchPath, relativePath)).isDirectory()
-            } catch (error: any) {
-              log.debug(`Ignoring path ${resolve(searchPath, relativePath)} - ${error.message}`)
-              return false
-            }
-          })
+        let relativePluginPaths = readdirSync(searchPath, { withFileTypes: true })
+          .filter(entry => PluginManager.isDirectoryEntry(searchPath, entry))
+          .map(entry => entry.name)
 
         // expand out @scoped plugins
         const scopeDirectories = relativePluginPaths.filter(path => path.startsWith('@'))
@@ -396,17 +416,10 @@ export class PluginManager {
 
         for (const scopeDirectory of scopeDirectories) {
           const absolutePath = join(searchPath, scopeDirectory)
-          readdirSync(absolutePath)
-            .filter(name => PluginManager.isQualifiedPluginIdentifier(name))
-            .filter((name) => {
-              try {
-                return statSync(resolve(absolutePath, name)).isDirectory()
-              } catch (error: any) {
-                log.debug(`Ignoring path ${resolve(absolutePath, name)} - ${error.message}`)
-                return false
-              }
-            })
-            .forEach(name => relativePluginPaths.push(`${scopeDirectory}/${name}`))
+          readdirSync(absolutePath, { withFileTypes: true })
+            .filter(entry => PluginManager.isQualifiedPluginIdentifier(entry.name))
+            .filter(entry => PluginManager.isDirectoryEntry(absolutePath, entry))
+            .forEach(entry => relativePluginPaths.push(`${scopeDirectory}/${entry.name}`))
         }
 
         relativePluginPaths

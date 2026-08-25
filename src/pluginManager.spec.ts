@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI } from './api.js'
@@ -153,6 +157,39 @@ describe('pluginManager', () => {
       } finally {
         vi.doUnmock('node:child_process')
         vi.resetModules()
+      }
+    })
+  })
+
+  describe('plugin discovery', () => {
+    it('discovers direct, scoped, and linked plugin directories using directory entries', () => {
+      const searchPath = mkdtempSync(join(tmpdir(), 'homebridge-plugin-discovery-'))
+      const linkedPluginTarget = mkdtempSync(join(tmpdir(), 'homebridge-linked-plugin-'))
+
+      try {
+        mkdirSync(join(searchPath, 'homebridge-direct'))
+        mkdirSync(join(searchPath, '@example'))
+        mkdirSync(join(searchPath, '@example', 'homebridge-scoped'))
+        mkdirSync(join(searchPath, 'not-a-plugin'))
+        writeFileSync(join(searchPath, 'homebridge-file'), '')
+        symlinkSync(linkedPluginTarget, join(searchPath, 'homebridge-linked'), 'dir')
+
+        const manager = new PluginManager(new HomebridgeAPI(), {
+          customPluginPath: searchPath,
+          strictPluginResolution: true,
+        })
+        const loadPlugin = vi.spyOn(manager, 'loadPlugin').mockReturnValue({} as any)
+
+        ;(manager as any).loadInstalledPlugins()
+
+        expect(loadPlugin.mock.calls.map(([pluginPath]) => pluginPath)).toEqual([
+          join(searchPath, 'homebridge-direct'),
+          join(searchPath, 'homebridge-linked'),
+          join(searchPath, '@example', 'homebridge-scoped'),
+        ])
+      } finally {
+        rmSync(searchPath, { force: true, recursive: true })
+        rmSync(linkedPluginTarget, { force: true, recursive: true })
       }
     })
   })
