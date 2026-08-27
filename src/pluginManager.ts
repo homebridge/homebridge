@@ -12,7 +12,7 @@ import type {
   PluginName,
 } from './api.js'
 
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { delimiter, join, resolve } from 'node:path'
@@ -531,13 +531,15 @@ export class PluginManager {
       // Spread process.env first so our explicit silencing keys actually
       // override anything the user has exported (e.g. npm_config_loglevel=info)
       // — otherwise startup gets noisy npm output we tried to suppress.
-      this.searchPaths.add(execSync('/bin/echo -n "$(npm -g prefix)/lib/node_modules"', {
+      const npmPrefix = execFileSync('npm', ['-g', 'prefix'], {
+        encoding: 'utf8',
         env: {
           ...process.env,
           npm_config_loglevel: 'silent',
           npm_update_notifier: 'false',
         },
-      }).toString('utf8'))
+      }).trim()
+      this.searchPaths.add(join(npmPrefix, 'lib', 'node_modules'))
     }
   }
 }
