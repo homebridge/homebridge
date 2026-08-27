@@ -592,13 +592,19 @@ export class BridgeService {
       log.debug(`HAP externalsOnly mode: ${accessories.length} bridged accessor${accessories.length === 1 ? 'y' : 'ies'} registered to this bridge will not be advertised (only external accessories publish).`)
     }
 
-    const hapAccessories = accessories.map((accessory) => {
+    const cachedAccessories = new Map(
+      this.cachedPlatformAccessories.map(accessory => [accessory._associatedHAPAccessory.UUID, accessory]),
+    )
+    const bridgedAccessories = new Map(
+      this.bridge.bridgedAccessories.map(accessory => [accessory.UUID, accessory]),
+    )
+    const hapAccessories: Accessory[] = []
+
+    for (const accessory of accessories) {
       const newUUID = accessory._associatedHAPAccessory.UUID
 
       // Check for UUID collision against already-cached platform accessories.
-      const cachedCollision = this.cachedPlatformAccessories.find(
-        cached => cached._associatedHAPAccessory.UUID === newUUID,
-      )
+      const cachedCollision = cachedAccessories.get(newUUID)
       if (cachedCollision) {
         log.warn(
           'Accessory \'%s\' has the same UUID as existing accessory \'%s\' (UUID: %s). Skipping duplicate.',
@@ -606,7 +612,7 @@ export class BridgeService {
           cachedCollision.displayName,
           newUUID,
         )
-        return undefined
+        continue
       }
 
       // Also check against accessories that came in via the legacy
@@ -614,9 +620,7 @@ export class BridgeService {
       // bridge, not in cachedPlatformAccessories. Without this check the
       // collision would only surface as a hard throw deep inside HAP-NodeJS
       // at addBridgedAccessories time.
-      const bridgedCollision = this.bridge.bridgedAccessories.find(
-        bridged => bridged.UUID === newUUID,
-      )
+      const bridgedCollision = bridgedAccessories.get(newUUID)
       if (bridgedCollision) {
         log.warn(
           'Accessory \'%s\' has the same UUID as existing bridged accessory \'%s\' (UUID: %s). Skipping duplicate.',
@@ -624,10 +628,11 @@ export class BridgeService {
           bridgedCollision.displayName,
           newUUID,
         )
-        return undefined
+        continue
       }
 
       this.cachedPlatformAccessories.push(accessory)
+      cachedAccessories.set(newUUID, accessory)
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
       if (plugin) {
@@ -642,8 +647,8 @@ export class BridgeService {
         log.warn('A platform configured a new accessory under the plugin name \'%s\'. However no loaded plugin could be found for the name!', accessory._associatedPlugin)
       }
 
-      return accessory._associatedHAPAccessory
-    }).filter((hapAccessory): hapAccessory is Accessory => hapAccessory !== undefined)
+      hapAccessories.push(accessory._associatedHAPAccessory)
+    }
 
     this.bridge.addBridgedAccessories(hapAccessories)
     this.saveCachedPlatformAccessoriesOnDisk()
@@ -655,27 +660,22 @@ export class BridgeService {
       return
     }
 
-    const nonUpdatedPlugins = this.cachedPlatformAccessories.filter(
-      cachedPlatformAccessory => (
-        !accessories.some(accessory => accessory.UUID === cachedPlatformAccessory._associatedHAPAccessory.UUID)
-      ),
+    const updatedUUIDs = new Set(accessories.map(accessory => accessory.UUID))
+    this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(
+      accessory => !updatedUUIDs.has(accessory._associatedHAPAccessory.UUID),
     )
-
-    this.cachedPlatformAccessories = [...nonUpdatedPlugins, ...accessories]
+    this.cachedPlatformAccessories.push(...accessories)
 
     // Update persisted accessories
     this.saveCachedPlatformAccessoriesOnDisk()
   }
 
   handleUnregisterPlatformAccessories(accessories: PlatformAccessory[]): void {
-    const hapAccessories = accessories.map((accessory) => {
-      const index = this.cachedPlatformAccessories.indexOf(accessory)
-      if (index >= 0) {
-        this.cachedPlatformAccessories.splice(index, 1)
-      }
-
-      return accessory._associatedHAPAccessory
-    })
+    const removedAccessories = new Set(accessories)
+    this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(
+      accessory => !removedAccessories.has(accessory),
+    )
+    const hapAccessories = accessories.map(accessory => accessory._associatedHAPAccessory)
 
     this.bridge.removeBridgedAccessories(hapAccessories)
     this.saveCachedPlatformAccessoriesOnDisk()
