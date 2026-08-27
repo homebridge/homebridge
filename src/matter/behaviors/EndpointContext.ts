@@ -16,9 +16,9 @@ import type { RegistryManager } from './RegistryManager.js'
 const REGISTRY_MANAGER_KEY = Symbol('homebridgeRegistryManager')
 
 /**
- * Extended Endpoint interface with Homebridge context
+ * Minimal endpoint surface used to store Homebridge context.
  */
-export interface EndpointWithContext extends Endpoint {
+export type EndpointWithContext = Pick<Endpoint, 'id'> & {
   [REGISTRY_MANAGER_KEY]?: RegistryManager
 }
 
@@ -26,16 +26,16 @@ export interface EndpointWithContext extends Endpoint {
  * Attach a RegistryManager to an endpoint.
  * Behaviors can then access their registry via this endpoint context.
  */
-export function setRegistryManager(endpoint: Endpoint, registryManager: RegistryManager): void {
-  (endpoint as EndpointWithContext)[REGISTRY_MANAGER_KEY] = registryManager
+export function setRegistryManager(endpoint: EndpointWithContext, registryManager: RegistryManager): void {
+  endpoint[REGISTRY_MANAGER_KEY] = registryManager
 }
 
 /**
  * Get the RegistryManager attached to an endpoint
  * Throws if no RegistryManager is attached (programming error)
  */
-export function getRegistryManager(endpoint: Endpoint): RegistryManager {
-  const registryManager = (endpoint as EndpointWithContext)[REGISTRY_MANAGER_KEY]
+export function getRegistryManager(endpoint: EndpointWithContext): RegistryManager {
+  const registryManager = endpoint[REGISTRY_MANAGER_KEY]
   if (!registryManager) {
     throw new Error(`No RegistryManager attached to endpoint ${endpoint.id}. This is a programming error.`)
   }

@@ -43,6 +43,7 @@
     "lint-docs": "typedoc --emit none --treatWarningsAsErrors",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
+    "pretest": "npm run typecheck",
     "test": "vitest run",
     "test-coverage": "npm run test -- --coverage",
     "typecheck": "tsc -p tsconfig.typecheck.json",

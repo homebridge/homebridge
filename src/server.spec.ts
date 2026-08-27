@@ -711,10 +711,11 @@ describe('server', () => {
       }
 
       function notFoundResponses(sendSpy: ReturnType<typeof vi.spyOn>) {
-        return sendSpy.mock.calls.filter(([id, payload]) =>
+        interface MatterEventPayload { type?: string, data?: { error?: string } }
+        return (sendSpy.mock.calls as [string, MatterEventPayload][]).filter(([id, payload]) =>
           id === 'matterEvent'
-          && (payload as any)?.type === 'accessoryControlResponse'
-          && (payload as any)?.data?.error === 'Accessory not found',
+          && payload?.type === 'accessoryControlResponse'
+          && payload?.data?.error === 'Accessory not found',
         )
       }
 
