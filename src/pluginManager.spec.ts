@@ -107,15 +107,14 @@ describe('pluginManager', () => {
 
   describe('addNpmPrefixToSearchPaths env composition (POSIX)', () => {
     it('passes process.env first then overrides the silencing keys', async () => {
-      // Smoke through a fresh module import so we can intercept execSync.
+      // Smoke through a fresh module import so we can intercept execFileSync.
       vi.resetModules()
-      const { Buffer } = await import('node:buffer')
-      const execMock = vi.fn(() => Buffer.from('/usr/local/lib/node_modules', 'utf8'))
+      const execMock = vi.fn(() => '/usr/local\n')
       // The bare vi.fn() infers a zero-arg call signature, so mock.calls is
-      // typed as empty tuples. Cast to the (command, options) shape we actually
-      // invoke execSync with so the assertions below can read calls[0][1].env.
-      type ExecSyncCall = [command: string, options: { env: Record<string, string | undefined> }]
-      vi.doMock('node:child_process', () => ({ execSync: execMock }))
+      // typed as empty tuples. Cast to the (file, arguments, options) shape we actually
+      // invoke execFileSync with so the assertions below can inspect its environment.
+      type ExecFileSyncCall = [file: string, args: string[], options: { env: Record<string, string | undefined> }]
+      vi.doMock('node:child_process', () => ({ execFileSync: execMock }))
 
       try {
         const { PluginManager: FreshPM } = await import('./pluginManager.js')
@@ -131,8 +130,9 @@ describe('pluginManager', () => {
         }
         ;(manager as any).addNpmPrefixToSearchPaths()
 
-        expect(execMock).toHaveBeenCalled()
-        const env = (execMock.mock.calls as unknown as ExecSyncCall[])[0][1].env
+        expect(execMock).toHaveBeenCalledWith('npm', ['-g', 'prefix'], expect.objectContaining({ encoding: 'utf8' }))
+        expect((manager as any).searchPaths.has('/usr/local/lib/node_modules')).toBe(true)
+        const env = (execMock.mock.calls as unknown as ExecFileSyncCall[])[0][2].env
 
         // process.env values must come through, but the silencing keys must
         // win even when the user exported a noisy value.
@@ -148,7 +148,7 @@ describe('pluginManager', () => {
           process.env = { ...originalEnv, npm_config_loglevel: 'info', PATH: '/custom/path' } as any
           execMock.mockClear()
           ;(manager as any).addNpmPrefixToSearchPaths()
-          const env2 = (execMock.mock.calls as unknown as ExecSyncCall[])[0][1].env
+          const env2 = (execMock.mock.calls as unknown as ExecFileSyncCall[])[0][2].env
           expect(env2.PATH).toBe('/custom/path') // user value preserved
           expect(env2.npm_config_loglevel).toBe('silent') // user value overridden
         } finally {
