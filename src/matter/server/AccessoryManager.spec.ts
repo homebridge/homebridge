@@ -636,7 +636,7 @@ describe('accessoryManager', () => {
           behaviors: { windowCovering: {} },
         }),
         clusters: wcClusters,
-        handlers: { windowCovering: { upOrOpenLogic: vi.fn() } },
+        handlers: { windowCovering: { upOrOpen: vi.fn() } },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
