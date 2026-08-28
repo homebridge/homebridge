@@ -273,6 +273,11 @@ export class ChildBridgeService {
 
   public onAccessoryControlResponse?: (correlationId: string) => void
 
+  // Asks the parent server whether the UI has Matter state monitoring
+  // switched on, so the ONLINE handler can re-arm a child that (re)started
+  // after the one-shot enable broadcast.
+  public isMatterMonitoringActive?: () => boolean
+
   // Stored shutdown listener so it can be removed in teardown(),
   // matching the pattern used by MatterBridgeManager (#3915).
   private readonly _onApiShutdown = (): void => {
@@ -460,6 +465,17 @@ export class ChildBridgeService {
         case ChildProcessMessageEventType.ONLINE: {
           this.bridgeStatus = ChildBridgeStatus.OK
           this.childOnlineSince = Date.now()
+          // Re-arm Matter state monitoring on every (re)start. The UI's
+          // enable is a one-shot broadcast to the children running at that
+          // moment - a child still starting misses it (sendMessage drops the
+          // message when the process isn't connected, and the child drops it
+          // before its Matter server exists), and a child restarting later
+          // comes back with monitoring off - either way its accessoryUpdate
+          // events for the UI silently stop. ONLINE is sent after the
+          // child's Matter setup completes, so the enable lands here.
+          if (this.isMatterMonitoringActive?.()) {
+            this.startMatterMonitoring()
+          }
           break
         }
         case ChildProcessMessageEventType.PORT_REQUEST: {

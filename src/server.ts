@@ -529,6 +529,8 @@ export class Server {
           // Cancel the parent-side fallback timer when this child answers a lookup
           childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
           childBridge.onAccessoryControlResponse = this.cancelPendingMatterControlRequest.bind(this)
+          // Let the child's ONLINE handler re-arm Matter monitoring after a (re)start
+          childBridge.isMatterMonitoringActive = () => this.matterMonitoringActive
 
           this.childBridges.set(accessoryConfig._bridge.username, childBridge)
         }
@@ -631,6 +633,8 @@ export class Server {
         // Cancel the parent-side fallback timer when this child answers a lookup
         childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
         childBridge.onAccessoryControlResponse = this.cancelPendingMatterControlRequest.bind(this)
+        // Let the child's ONLINE handler re-arm Matter monitoring after a (re)start
+        childBridge.isMatterMonitoringActive = () => this.matterMonitoringActive
 
         this.childBridges.set(platformConfig._bridge.username, childBridge)
 
