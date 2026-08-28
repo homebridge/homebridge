@@ -162,6 +162,20 @@ describe('bridgeService', () => {
       expect(warnedAboutDuplicate).toBe(true)
     })
 
+    it('skips duplicate UUIDs within the same registration batch', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const addBridgedAccessoriesSpy = vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
+      const original = makePlatformAccessory('Original')
+      const duplicate = makePlatformAccessory('Duplicate')
+      ;(duplicate as any)._associatedHAPAccessory.UUID = original._associatedHAPAccessory.UUID
+      ;(duplicate as any).UUID = original._associatedHAPAccessory.UUID
+
+      service.handleRegisterPlatformAccessories([original, duplicate])
+
+      expect(addBridgedAccessoriesSpy.mock.calls[0][0]).toEqual([original._associatedHAPAccessory])
+      expect((service as any).cachedPlatformAccessories).toEqual([original])
+    })
+
     it('warns when the registering plugin is not loaded', () => {
       const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
       pluginManager.getPlugin.mockReturnValue(undefined)
