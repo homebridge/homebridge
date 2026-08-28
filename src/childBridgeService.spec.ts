@@ -274,6 +274,32 @@ describe('childBridgeService', () => {
       expect((service as any).lastBridgeStatus).toBe(ChildBridgeStatus.OK)
     })
 
+    it('on ONLINE, re-sends startMatterMonitoring when monitoring is active', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.isMatterMonitoringActive = () => true
+      service.start()
+      const child = childProcesses.list[0]
+
+      child.emit('message', { id: ChildProcessMessageEventType.ONLINE })
+
+      const monitorMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.START_MATTER_MONITORING)
+      expect(monitorMessage).toBeDefined()
+    })
+
+    it('on ONLINE, does NOT send startMatterMonitoring when monitoring is inactive', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.isMatterMonitoringActive = () => false
+      service.start()
+      const child = childProcesses.list[0]
+
+      child.emit('message', { id: ChildProcessMessageEventType.ONLINE })
+
+      const monitorMessage = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.START_MATTER_MONITORING)
+      expect(monitorMessage).toBeUndefined()
+    })
+
     it('on STATUS_UPDATE, records HAP and Matter status fields', () => {
       const { service, ipcService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
