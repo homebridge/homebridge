@@ -139,13 +139,24 @@ describe('commissioningManager', () => {
 
   describe('loadOrGenerateCredentials', () => {
     it('should load existing credentials from file', async () => {
-      const credentials = { passcode: 12345678, discriminator: 1234 }
+      const credentials = { passcode: 29384756, discriminator: 1234 }
       mockedReadFile.mockResolvedValue(JSON.stringify(credentials) as any)
 
       await manager.loadOrGenerateCredentials('/mock/storage')
 
-      expect(manager.passcode).toBe(12345678)
+      expect(manager.passcode).toBe(29384756)
       expect(manager.discriminator).toBe(1234)
+      expect(mockedWriteFile).not.toHaveBeenCalled()
+    })
+
+    it('should load a valid zero discriminator', async () => {
+      const credentials = { passcode: 29384756, discriminator: 0 }
+      mockedReadFile.mockResolvedValue(JSON.stringify(credentials) as any)
+
+      await manager.loadOrGenerateCredentials('/mock/storage')
+
+      expect(manager.passcode).toBe(29384756)
+      expect(manager.discriminator).toBe(0)
       expect(mockedWriteFile).not.toHaveBeenCalled()
     })
 
@@ -183,6 +194,27 @@ describe('commissioningManager', () => {
       await manager.loadOrGenerateCredentials('/mock/storage')
 
       // Should generate new because discriminator is missing
+      expect(mockedWriteFile).toHaveBeenCalled()
+    })
+
+    it.each([
+      ['an invalid passcode', { passcode: 12345678, discriminator: 1234 }],
+      ['a string passcode', { passcode: '29384756', discriminator: 1234 }],
+      ['a fractional passcode', { passcode: 29384756.5, discriminator: 1234 }],
+      ['a negative discriminator', { passcode: 29384756, discriminator: -1 }],
+      ['an oversized discriminator', { passcode: 29384756, discriminator: 4096 }],
+      ['a fractional discriminator', { passcode: 29384756, discriminator: 1.5 }],
+      ['a string discriminator', { passcode: 29384756, discriminator: '1234' }],
+    ])('should regenerate credentials containing %s', async (_description, credentials) => {
+      mockedReadFile.mockResolvedValue(JSON.stringify(credentials) as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      vi.spyOn(manager, 'generateSecurePasscode').mockReturnValue(50213467)
+      vi.spyOn(manager, 'generateRandomDiscriminator').mockReturnValue(432)
+
+      await manager.loadOrGenerateCredentials('/mock/storage')
+
+      expect(manager.passcode).toBe(50213467)
+      expect(manager.discriminator).toBe(432)
       expect(mockedWriteFile).toHaveBeenCalled()
     })
   })
