@@ -45,6 +45,11 @@ process.title = 'homebridge: child bridge'
 
 const matterLogger = Logger.withPrefix('Matter/ChildManager')
 
+interface PendingPortRequest {
+  promise: Promise<number | undefined>
+  complete: (port: number | undefined) => void
+}
+
 export class ChildBridgeFork {
   private bridgeService!: BridgeService
   private api!: HomebridgeAPI
@@ -64,7 +69,7 @@ export class ChildBridgeFork {
   private bridgeConfig!: BridgeConfiguration
   private bridgeOptions!: BridgeOptions
 
-  private portRequestCallback: Map<MacAddress, (port: number | undefined) => void> = new Map()
+  private pendingPortRequests = new Map<MacAddress, PendingPortRequest>()
 
   constructor() {
     // tell the parent process we are ready to accept plugin config
@@ -313,56 +318,45 @@ export class ChildBridgeFork {
    * Request the next available external HAP port from the parent process
    * @param username
    */
-  public async requestExternalPort(username: MacAddress): Promise<number | undefined> {
-    return new Promise((resolve) => {
-      const requestTimeout = setTimeout(() => {
-        Logger.internal.warn('Parent process did not respond to port allocation request within 5 seconds - assigning random port.')
-        this.portRequestCallback.delete(username)
-        resolve(undefined)
-      }, 5000)
-
-      // setup callback
-      const callback = (port: number | undefined) => {
-        clearTimeout(requestTimeout)
-        this.portRequestCallback.delete(username)
-        resolve(port)
-      }
-      this.portRequestCallback.set(username, callback)
-
-      // send port request
-      this.sendMessage<ChildProcessPortRequestEventData>(ChildProcessMessageEventType.PORT_REQUEST, { username })
-    })
+  public requestExternalPort(username: MacAddress): Promise<number | undefined> {
+    return this.requestPort({ username })
   }
 
   /**
    * Request the next available Matter port from the parent process
    * @param uniqueId - MAC-derived identifier (without colons)
    */
-  public async requestMatterPort(uniqueId: string): Promise<number | undefined> {
-    return new Promise((resolve) => {
-      // Use uniqueId as the key for the callback map
-      const mac = uniqueId as MacAddress
+  public requestMatterPort(uniqueId: string): Promise<number | undefined> {
+    return this.requestPort({ username: uniqueId as MacAddress, portType: 'matter' })
+  }
 
-      const requestTimeout = setTimeout(() => {
-        matterLogger.warn('Parent process did not respond to Matter port allocation request within 5 seconds - assigning random port.')
-        this.portRequestCallback.delete(mac)
-        resolve(undefined)
-      }, 5000)
+  private requestPort(request: ChildProcessPortRequestEventData): Promise<number | undefined> {
+    const existingRequest = this.pendingPortRequests.get(request.username)
+    if (existingRequest) {
+      return existingRequest.promise
+    }
 
-      // setup callback
-      const callback = (port: number | undefined) => {
-        clearTimeout(requestTimeout)
-        this.portRequestCallback.delete(mac)
-        resolve(port)
-      }
-      this.portRequestCallback.set(mac, callback)
-
-      // send Matter port request
-      this.sendMessage<ChildProcessPortRequestEventData>(ChildProcessMessageEventType.PORT_REQUEST, {
-        username: mac,
-        portType: 'matter',
-      })
+    let resolveRequest: (port: number | undefined) => void
+    const promise = new Promise<number | undefined>((resolve) => {
+      resolveRequest = resolve
     })
+    const requestTimeout = setTimeout(() => {
+      if (request.portType === 'matter') {
+        matterLogger.warn('Parent process did not respond to Matter port allocation request within 5 seconds - assigning random port.')
+      } else {
+        Logger.internal.warn('Parent process did not respond to port allocation request within 5 seconds - assigning random port.')
+      }
+      this.pendingPortRequests.get(request.username)?.complete(undefined)
+    }, 5000)
+    const complete = (port: number | undefined) => {
+      clearTimeout(requestTimeout)
+      this.pendingPortRequests.delete(request.username)
+      resolveRequest(port)
+    }
+
+    this.pendingPortRequests.set(request.username, { promise, complete })
+    this.sendMessage<ChildProcessPortRequestEventData>(ChildProcessMessageEventType.PORT_REQUEST, request)
+    return promise
   }
 
   /**
@@ -370,10 +364,7 @@ export class ChildBridgeFork {
    * @param data
    */
   public handleExternalResponse(data: ChildProcessPortAllocatedEventData): void {
-    const callback = this.portRequestCallback.get(data.username)
-    if (callback) {
-      callback(data.port)
-    }
+    this.pendingPortRequests.get(data.username)?.complete(data.port)
   }
 
   /**

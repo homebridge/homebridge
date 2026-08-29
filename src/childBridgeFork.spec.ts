@@ -79,6 +79,66 @@ describe('childBridgeFork - Matter Accessory Guard', () => {
   })
 })
 
+describe('childBridgeFork - port requests', () => {
+  it('coalesces concurrent requests for the same external port', async () => {
+    const fork = new ChildBridgeFork()
+    const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+    const username = 'AA:BB:CC:DD:EE:FF'
+
+    const firstRequest = fork.requestExternalPort(username)
+    const secondRequest = fork.requestExternalPort(username)
+
+    expect(sendMessage).toHaveBeenCalledTimes(1)
+    expect(sendMessage).toHaveBeenCalledWith(ChildProcessMessageEventType.PORT_REQUEST, { username })
+
+    fork.handleExternalResponse({ username, port: 51000 })
+
+    await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual([51000, 51000])
+    expect((fork as any).pendingPortRequests.size).toBe(0)
+  })
+
+  it('coalesces concurrent Matter port requests and preserves their type', async () => {
+    const fork = new ChildBridgeFork()
+    const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+    const uniqueId = 'AABBCCDDEEFF'
+
+    const firstRequest = fork.requestMatterPort(uniqueId)
+    const secondRequest = fork.requestMatterPort(uniqueId)
+
+    expect(sendMessage).toHaveBeenCalledTimes(1)
+    expect(sendMessage).toHaveBeenCalledWith(ChildProcessMessageEventType.PORT_REQUEST, {
+      username: uniqueId,
+      portType: 'matter',
+    })
+
+    fork.handleExternalResponse({ username: uniqueId, port: 5550 })
+
+    await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual([5550, 5550])
+  })
+
+  it('resolves every coalesced caller when the parent times out', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+    try {
+      const fork = new ChildBridgeFork()
+      const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+      const username = 'AA:BB:CC:DD:EE:FF'
+
+      const firstRequest = fork.requestExternalPort(username)
+      const secondRequest = fork.requestExternalPort(username)
+      await vi.advanceTimersByTimeAsync(5000)
+
+      await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual([undefined, undefined])
+      expect(sendMessage).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect((fork as any).pendingPortRequests.size).toBe(0)
+    } finally {
+      warn.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('childBridgeFork - shutdown', () => {
   it('does not throw when a signal arrives before bridgeService is assigned', () => {
     const fork = new ChildBridgeFork()
