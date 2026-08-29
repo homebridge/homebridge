@@ -5,15 +5,20 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-function loadPackageJson(): any {
-  const packageJSONPath = join(__dirname, '../package.json')
-  return JSON.parse(readFileSync(packageJSONPath, { encoding: 'utf8' }))
+interface PackageMetadata {
+  version: string
+  engines: {
+    node: string
+  }
 }
 
+const packageJSONPath = join(__dirname, '../package.json')
+const packageMetadata = JSON.parse(readFileSync(packageJSONPath, 'utf8')) as PackageMetadata
+
 export default function getVersion(): string {
-  return loadPackageJson().version
+  return packageMetadata.version
 }
 
 export function getRequiredNodeVersion(): string {
-  return loadPackageJson().engines.node
+  return packageMetadata.engines.node
 }
