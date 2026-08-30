@@ -314,6 +314,7 @@ describe('matterAccessoryCache', () => {
         UUID: 'test-uuid',
         displayName: 'Test Device',
         deviceType: { name: 'Aggregator', code: 14 } as any,
+        features: { rvcCleanMode: { directModeChange: true } },
         serialNumber: 'SN-001',
         manufacturer: 'Test',
         model: 'Test',
@@ -323,6 +324,7 @@ describe('matterAccessoryCache', () => {
             id: 'part-1',
             displayName: 'Part 1',
             deviceType: { name: 'OnOffLight', code: 256 } as any,
+            features: { rvcCleanMode: { directModeChange: true } },
             clusters: { onOff: { onOff: true } },
           },
         ],
@@ -334,8 +336,14 @@ describe('matterAccessoryCache', () => {
 
       const savedJson = mockedWriteFile.mock.calls[0][1] as string
       const savedData = JSON.parse(savedJson) as SerializedMatterAccessory[]
+      expect(savedData[0].features).toEqual({
+        rvcCleanMode: { directModeChange: true },
+      })
       expect(savedData[0].parts).toBeDefined()
       expect(savedData[0].parts![0].id).toBe('part-1')
+      expect(savedData[0].parts![0].features).toEqual({
+        rvcCleanMode: { directModeChange: true },
+      })
     })
 
     it('should ensure directory exists on first save', async () => {

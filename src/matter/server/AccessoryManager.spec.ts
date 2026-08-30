@@ -6,6 +6,7 @@ import { PowerSourceServer } from '@matter/node/behaviors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../../logger.js'
+import { HomebridgeRvcCleanModeServer } from '../behaviors/RvcCleanModeBehavior.js'
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
@@ -67,7 +68,10 @@ vi.mock('../behaviors/EndpointContext.js', () => ({
   setRegistryManager: vi.fn(),
 }))
 vi.mock('../behaviors/RvcCleanModeBehavior.js', () => ({
-  HomebridgeRvcCleanModeServer: { name: 'HomebridgeRvcCleanModeServer' },
+  HomebridgeRvcCleanModeServer: {
+    name: 'HomebridgeRvcCleanModeServer',
+    with: vi.fn((...args: any[]) => ({ name: `HomebridgeRvcCleanModeServer.with(${args.join(',')})` })),
+  },
 }))
 vi.mock('../behaviors/ServiceAreaBehavior.js', () => ({
   HomebridgeServiceAreaServer: {
@@ -117,7 +121,10 @@ vi.mock('../types.js', () => {
       ThermostatDevice: { deviceType: 0x0301 },
       ElectricalSensorEndpoint: { deviceType: 0x0510 },
       RoboticVacuumCleanerRequirements: {
-        RvcCleanModeServer: { name: 'RvcCleanModeServer' },
+        RvcCleanModeServer: {
+          name: 'RvcCleanModeServer',
+          with: vi.fn((...args: any[]) => ({ name: `RvcCleanModeServer.with(${args.join(',')})` })),
+        },
         ServiceAreaServer: {
           name: 'ServiceAreaServer',
           with: vi.fn((...args: any[]) => ({ name: `ServiceAreaServer.with(${args.join(',')})` })),
@@ -266,6 +273,110 @@ describe('accessoryManager', () => {
       expect(deps.accessories.has('test-uuid-001')).toBe(true)
     })
 
+    it('advertises direct clean-mode changes only when the plugin opts in', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        displayName: 'Test Vacuum',
+        deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
+        clusters: {
+          rvcCleanMode: {
+            supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+            currentMode: 0,
+          },
+        },
+        handlers: {
+          rvcCleanMode: { changeToMode: vi.fn() },
+        },
+        features: {
+          rvcCleanMode: { directModeChange: true },
+        },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect((HomebridgeRvcCleanModeServer as any).with).toHaveBeenCalledWith('DirectModeChange')
+      expect(Logger.withPrefix('Matter/Server').warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('rvcCleanMode.directModeChange is declared'),
+      )
+    })
+
+    it('warns when direct clean-mode changes are declared without a change handler', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        displayName: 'Test Vacuum',
+        deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
+        clusters: {
+          rvcCleanMode: {
+            supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+            currentMode: 0,
+          },
+        },
+        handlers: {
+          rvcCleanMode: {},
+        },
+        features: {
+          rvcCleanMode: { directModeChange: true },
+        },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect(Logger.withPrefix('Matter/Server').warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'rvcCleanMode.directModeChange is declared but there is no changeToMode handler',
+        ),
+      )
+      expect((HomebridgeRvcCleanModeServer as any).with).toHaveBeenCalledWith('DirectModeChange')
+    })
+
+    it('leaves direct clean-mode changes disabled unless the plugin opts in', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        displayName: 'Test Vacuum',
+        deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
+        clusters: {
+          rvcCleanMode: {
+            supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+            currentMode: 0,
+          },
+        },
+        handlers: {
+          rvcCleanMode: { changeToMode: vi.fn() },
+        },
+        features: {
+          rvcCleanMode: { directModeChange: false },
+        },
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect((HomebridgeRvcCleanModeServer as any).with).not.toHaveBeenCalled()
+    })
+
+    it('does not treat a truthy non-boolean feature value as an opt-in', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        displayName: 'Test Vacuum',
+        deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
+        clusters: {
+          rvcCleanMode: {
+            supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+            currentMode: 0,
+          },
+        },
+        handlers: {
+          rvcCleanMode: { changeToMode: vi.fn() },
+        },
+        features: {
+          rvcCleanMode: { directModeChange: 'true' },
+        } as any,
+      })
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      expect((HomebridgeRvcCleanModeServer as any).with).not.toHaveBeenCalled()
+    })
+
     it('should bump the bridge configuration version when commissioned', async () => {
       const increaseConfigurationVersion = vi.fn()
       const deps = createMockDeps({ isCommissioned: () => true })
@@ -382,6 +493,27 @@ describe('accessoryManager', () => {
         expect(deps.behaviorRegistry.registerHandler).toHaveBeenCalledWith('test-uuid-001', 'onOff', 'on', expect.any(Function))
       })
 
+      it('treats an omitted feature and an explicit false value as the same shape', async () => {
+        const deps = createMockDeps()
+        const restored = {
+          ...createMockAccessory({
+            features: {
+              rvcCleanMode: { directModeChange: false },
+            },
+          }),
+          endpoint: { marker: 'restored-endpoint' },
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set('test-uuid-001', restored)
+        const unregisterSpy = vi.spyOn(manager, 'unregisterAccessory')
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)
+
+        expect(unregisterSpy).not.toHaveBeenCalled()
+        expect((deps.accessories.get('test-uuid-001') as any).endpoint).toBe(restored.endpoint)
+      })
+
       // ⚠️ The cache stores a device type as {name, code} only, so composed
       // features do not survive it - a restore rebuilds the BASE type. A plugin
       // that used api.matter.deviceRequirements to compose the cluster itself
@@ -414,6 +546,69 @@ describe('accessoryManager', () => {
         const stored = deps.accessories.get('test-uuid-001') as any
         expect(stored.endpoint).not.toEqual({ marker: 'restored-endpoint', close: expect.anything() })
         expect(stored.registered).toBe(true)
+      })
+
+      it('re-registers when an explicit endpoint feature changes after cache restore', async () => {
+        const deps = createMockDeps()
+        const restored = {
+          ...createMockAccessory(),
+          endpoint: { marker: 'restored-endpoint', close: vi.fn() },
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set('test-uuid-001', restored)
+        const unregisterSpy = vi.spyOn(manager, 'unregisterAccessory')
+
+        const pluginAccessory = createMockAccessory({
+          features: {
+            rvcCleanMode: { directModeChange: true },
+          },
+        })
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
+
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toBe(restored.endpoint)
+      })
+
+      it('re-registers when a composed part feature changes after cache restore', async () => {
+        const deps = createMockDeps()
+        const part = (directModeChange?: boolean) => ({
+          id: 'vacuum-part',
+          displayName: 'Vacuum Part',
+          deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
+          features: directModeChange === undefined
+            ? undefined
+            : { rvcCleanMode: { directModeChange } },
+          clusters: {
+            rvcCleanMode: {
+              supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+              currentMode: 0,
+            },
+          },
+          handlers: {
+            rvcCleanMode: { changeToMode: vi.fn() },
+          },
+        })
+        const restoredPart = part()
+        const restored = {
+          ...createMockAccessory({ parts: [restoredPart] }),
+          endpoint: { marker: 'restored-endpoint', close: vi.fn() },
+          _parts: [restoredPart],
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set('test-uuid-001', restored)
+        const unregisterSpy = vi.spyOn(manager, 'unregisterAccessory')
+
+        const pluginAccessory = createMockAccessory({
+          parts: [part(true)],
+        } as any)
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
+
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toBe(restored.endpoint)
       })
 
       it('does not throw the duplicate-UUID error for a restored accessory', async () => {

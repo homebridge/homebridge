@@ -93,6 +93,19 @@ type BehaviorType = Behavior.Type
 export type { EndpointType }
 
 /**
+ * Optional Matter cluster features a plugin can explicitly advertise.
+ *
+ * Features are capabilities, not cluster state. Only enable a feature when the
+ * physical device and the plugin handler implement the corresponding behavior.
+ */
+export interface MatterAccessoryFeatures {
+  rvcCleanMode?: {
+    /** Allow clean-mode changes while the RVC is not idle. */
+    directModeChange?: boolean
+  }
+}
+
+/**
  * Handler context information
  * Provides information about which part of a composed device triggered the handler
  */
@@ -143,6 +156,9 @@ export interface MatterAccessoryPart {
   /** Matter device type for this part */
   deviceType: EndpointType
 
+  /** Optional Matter cluster features implemented by this endpoint. */
+  features?: MatterAccessoryFeatures
+
   /**
    * Initial cluster states for this part
    * Same format as `MatterAccessory.clusters`
@@ -186,6 +202,9 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
 
   /** Matter device type (e.g., OnOffLightDevice, DimmableLightDevice, etc.) */
   deviceType: EndpointType
+
+  /** Optional Matter cluster features implemented by this endpoint. */
+  features?: MatterAccessoryFeatures
 
   /** Serial number for the device */
   serialNumber: string
