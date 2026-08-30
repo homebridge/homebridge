@@ -188,7 +188,13 @@ export class CommissioningManager {
     try {
       const { readFile } = await import('node:fs/promises')
       const data = JSON.parse(await readFile(credentialsPath, 'utf-8'))
-      if (data.passcode && data.discriminator) {
+      if (
+        Number.isInteger(data.passcode)
+        && this.isValidPasscode(data.passcode)
+        && Number.isInteger(data.discriminator)
+        && data.discriminator >= 0
+        && data.discriminator <= 4095
+      ) {
         log.info('Loading existing commissioning credentials from storage')
         this.passcode = data.passcode
         this.discriminator = data.discriminator
