@@ -2,7 +2,6 @@ import type {
   Controller,
   ControllerConstructor,
   SerializedAccessory,
-  Service,
   VoidCallback,
   WithUUID,
 } from '@homebridge/hap-nodejs'
@@ -12,7 +11,7 @@ import type { PlatformName, PluginIdentifier, PluginName } from './api.js'
 
 import { EventEmitter } from 'node:events'
 
-import { Accessory, AccessoryEventTypes, Categories } from '@homebridge/hap-nodejs'
+import { Accessory, AccessoryEventTypes, Categories, Service } from '@homebridge/hap-nodejs'
 
 export type UnknownContext = Record<string, any>
 
@@ -95,6 +94,71 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
 
   public removeService(service: Service): void {
     this._associatedHAPAccessory.removeService(service)
+  }
+
+  /**
+   * Removes services omitted from a platform's current discovery result.
+   *
+   * Call this after discovery and controller configuration, never during deserialization. Build the
+   * desired list by filtering known stale plugin services out of this accessory's current services.
+   * This preserves controller services, which plugins cannot enumerate directly.
+   * Any omitted non-HAP-managed service is removed unless it belongs to a controller, in which case
+   * reconciliation throws before changing the accessory. Desired services are compared by instance,
+   * so services with the same UUID but different subtypes remain independent.
+   *
+   * HAP-managed {@link Service.AccessoryInformation | AccessoryInformation} and
+   * {@link Service.ProtocolInformation | ProtocolInformation} services always remain. Passing an
+   * empty array removes every other service only when none belongs to a controller. This method does
+   * not persist changes or prune characteristics, context, or accessories.
+   *
+   * @example
+   * ```ts
+   * const desiredServices = accessory.services.filter(service => !staleServices.includes(service))
+   * accessory.reconcileServices(desiredServices)
+   * api.updatePlatformAccessories([accessory])
+   * ```
+   *
+   * @param desiredServices The services retained after the current discovery.
+   * @returns The stale services removed from this accessory.
+   * @throws {@link TypeError} When a desired service is not attached to this accessory or an omitted
+   * service belongs to an accessory controller.
+   */
+  public reconcileServices(desiredServices: readonly Service[]): Service[] {
+    const desired = new Set(desiredServices)
+    const attached = new Set(this.services)
+
+    for (const service of desired) {
+      if (!attached.has(service)) {
+        throw new TypeError(
+          `Cannot reconcile service ${service.UUID} (subtype: ${service.subtype ?? 'none'}): service is not attached to this accessory`,
+        )
+      }
+    }
+
+    const staleServices = this.services.filter(service =>
+      service.UUID !== Service.AccessoryInformation.UUID
+      && service.UUID !== Service.ProtocolInformation.UUID
+      && !desired.has(service),
+    )
+    if (staleServices.length === 0) {
+      return []
+    }
+
+    const serializedAccessory = Accessory.serialize(this._associatedHAPAccessory)
+    const controllerServiceIds = new Set(serializedAccessory.controllers
+      ?.flatMap(controller => Object.values(controller.services)) ?? [])
+    const controllerService = staleServices.find(service => controllerServiceIds.has(service.getServiceId()))
+    if (controllerService) {
+      throw new TypeError(
+        `Cannot reconcile service ${controllerService.UUID} (subtype: ${controllerService.subtype ?? 'none'}): service is managed by an accessory controller`,
+      )
+    }
+
+    for (const service of staleServices) {
+      this.removeService(service)
+    }
+
+    return staleServices
   }
 
   public getService<T extends WithUUID<typeof Service>>(name: string | T): Service | undefined {
