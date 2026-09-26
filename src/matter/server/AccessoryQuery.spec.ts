@@ -126,3 +126,37 @@ describe('featureMap enrichment for the UI payload', () => {
     expect(clusters.thermostat.featureMap).toBeUndefined()
   })
 })
+
+describe('accessory information for the UI payload', () => {
+  const identity = {
+    manufacturer: 'Qingping Technology (Beijing) Co., Ltd.',
+    model: 'CGG1H',
+    serialNumber: 'SN-1234',
+    firmwareRevision: '1.2.3',
+  }
+
+  it('includes the plugin-provided identity in collectAccessories()', () => {
+    const accessory = makeAccessory(identity)
+    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+
+    const [entry] = query.collectAccessories('user', 'child', 'Bridge')
+
+    expect(entry).toMatchObject(identity)
+  })
+
+  it('includes the plugin-provided identity in getAccessoryInfo()', () => {
+    const accessory = makeAccessory(identity)
+    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+
+    expect(query.getAccessoryInfo(accessory.UUID)).toMatchObject(identity)
+  })
+
+  it('leaves firmwareRevision undefined when the plugin did not provide one', () => {
+    const accessory = makeAccessory()
+    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+
+    const [entry] = query.collectAccessories('user', 'child', 'Bridge')
+
+    expect(entry.firmwareRevision).toBeUndefined()
+  })
+})
