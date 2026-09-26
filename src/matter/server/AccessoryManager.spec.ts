@@ -646,6 +646,78 @@ describe('accessoryManager', () => {
         expect((stored.deviceType as any).name).toBe('OnOffLight')
         expect(stored._restoredFromCache).toBeFalsy()
       })
+
+      // A composed device type never matches the base type the cache restores,
+      // so it takes the re-register path on every start. The new endpoint must
+      // keep the old uniqueId, or controllers may see a new device (#4018).
+      it('keeps the uniqueId of the replaced endpoint when re-registering', async () => {
+        const deps = createMockDeps()
+        deps.accessories.set('test-uuid-001', {
+          ...createMockAccessory({
+            deviceType: createChainableDeviceType({ deviceType: 0x0302, name: 'TemperatureSensor' }),
+          }),
+          endpoint: {
+            state: { bridgedDeviceBasicInformation: { uniqueId: 'restored-unique-id' } },
+            close: vi.fn(),
+          },
+          registered: false,
+          _restoredFromCache: true,
+        } as any)
+
+        const pluginAccessory = createMockAccessory({
+          deviceType: createChainableDeviceType({
+            deviceType: 0x0302,
+            name: 'TemperatureSensor',
+            behaviors: { relativeHumidityMeasurement: {} },
+          }),
+        })
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
+
+        const stored = deps.accessories.get('test-uuid-001') as any
+        expect(stored.endpoint.options.bridgedDeviceBasicInformation.uniqueId).toBe('restored-unique-id')
+      })
+
+      it('lets matter.js generate a uniqueId when the replaced endpoint state cannot be read', async () => {
+        const deps = createMockDeps()
+        const endpoint = { close: vi.fn() }
+        Object.defineProperty(endpoint, 'state', {
+          get() {
+            throw new Error('behaviors not initialized')
+          },
+        })
+        deps.accessories.set('test-uuid-001', {
+          ...createMockAccessory({
+            deviceType: createChainableDeviceType({ deviceType: 0x0302, name: 'TemperatureSensor' }),
+          }),
+          endpoint,
+          registered: false,
+          _restoredFromCache: true,
+        } as any)
+
+        const pluginAccessory = createMockAccessory({
+          deviceType: createChainableDeviceType({
+            deviceType: 0x0302,
+            name: 'TemperatureSensor',
+            behaviors: { relativeHumidityMeasurement: {} },
+          }),
+        })
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
+
+        const stored = deps.accessories.get('test-uuid-001') as any
+        expect(stored.registered).toBe(true)
+        expect(stored.endpoint.options.bridgedDeviceBasicInformation).not.toHaveProperty('uniqueId')
+      })
+    })
+
+    it('does not set a uniqueId for a fresh registration', async () => {
+      const deps = createMockDeps()
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)
+
+      const stored = deps.accessories.get('test-uuid-001') as any
+      expect(stored.endpoint.options.bridgedDeviceBasicInformation).not.toHaveProperty('uniqueId')
     })
 
     it('should throw when server is not started', async () => {

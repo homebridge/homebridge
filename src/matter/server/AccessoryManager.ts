@@ -124,6 +124,8 @@ export class AccessoryManager {
 
     validateAccessoryRequiredFields(accessory)
 
+    let preservedUniqueId: string | undefined
+
     if (deps.accessories.has(accessory.UUID)) {
       const existing = deps.accessories.get(accessory.UUID)
       // A cache-restored accessory keeps its endpoint (so the parts list never
@@ -188,6 +190,10 @@ export class AccessoryManager {
           }
           return
         }
+        // Keep the bridged device's identity across the re-registration. The
+        // new endpoint would otherwise get a fresh random uniqueId, and a
+        // controller may treat it as a new device (#4018).
+        preservedUniqueId = this.readUniqueId(existing.endpoint)
         log.info(`Restored accessory ${accessory.displayName} changed structure - re-registering`)
         await this.unregisterAccessory(accessory.UUID, deps)
       } else {
@@ -225,7 +231,7 @@ export class AccessoryManager {
         }
       }
 
-      const endpointOptions = this.createEndpointOptions(accessory, deps.config)
+      const endpointOptions = this.createEndpointOptions(accessory, deps.config, preservedUniqueId)
 
       // Composed parents carry a FixedLabel marking the composition, matching
       // known-good bridges - Apple's controller needs it to bind child endpoints
@@ -834,9 +840,24 @@ export class AccessoryManager {
   }
 
   /**
+   * Read the BridgedDeviceBasicInformation uniqueId of an endpoint, if it has one
+   */
+  private readUniqueId(endpoint: unknown): string | undefined {
+    try {
+      const uniqueId = (endpoint as { state?: { bridgedDeviceBasicInformation?: { uniqueId?: unknown } } } | undefined)
+        ?.state
+        ?.bridgedDeviceBasicInformation
+        ?.uniqueId
+      return typeof uniqueId === 'string' && uniqueId.length > 0 ? uniqueId : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
    * Create endpoint options for an accessory
    */
-  private createEndpointOptions(accessory: MatterAccessory, config: MatterServerConfig): any {
+  private createEndpointOptions(accessory: MatterAccessory, config: MatterServerConfig, uniqueId?: string): any {
     const endpointOptions: any = {
       id: accessory.UUID,
       ...accessory.clusters,
@@ -853,6 +874,7 @@ export class AccessoryManager {
           || accessory.model || 'Device',
         serialNumber: accessory.serialNumber,
         reachable: true,
+        ...(uniqueId ? { uniqueId } : {}),
       }
       // Surface the device's firmware version to controllers (shown in the
       // accessory details of e.g. Apple Home). The numeric companion is
