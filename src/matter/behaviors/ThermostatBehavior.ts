@@ -6,6 +6,7 @@
 
 import type { Thermostat } from '@matter/main/clusters'
 
+import { Node } from '@matter/main'
 import { ThermostatServer } from '@matter/main/behaviors/thermostat'
 import { Status, StatusResponseError } from '@matter/main/types'
 
@@ -41,6 +42,64 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     if (events.occupiedCoolingSetpoint$Changing) {
       this.reactTo(events.occupiedCoolingSetpoint$Changing, this.#handleOccupiedCoolingSetpointChanging, { offline: true })
     }
+
+    // matter.js links the temperature and occupancy that controllers read to
+    // the state a plugin sets only at the moment the node comes online. A
+    // thermostat registered after that never gets linked, and Home shows 0
+    // degrees for good. That is any thermostat on the main bridge (it goes
+    // online before plugins register) and any plugin slow enough to miss a
+    // child bridge's start - on a Pi Zero, a plugin that connects to its
+    // device first (homebridge-matter#9). So link them here when the node is
+    // already online; otherwise matter.js does it itself.
+    if (this.nodeIsOnline()) {
+      this.linkExternalReadings()
+    }
+  }
+
+  /** Whether this endpoint's node has already come online. */
+  protected nodeIsOnline(): boolean {
+    return Node.forEndpoint(this.endpoint).lifecycle.isOnline
+  }
+
+  /**
+   * What matter.js does for a thermostat when its node comes online, for the
+   * state a plugin sets: copy externalMeasuredIndoorTemperature (calibrated)
+   * into localTemperature and externallyMeasuredOccupancy into occupancy, and
+   * keep them in step. A plugin cannot point at a separate measurement
+   * endpoint through Homebridge, so that path is not needed here.
+   *
+   * ⚠️ The handlers are methods, not arrow functions: matter.js re-resolves a
+   * method against the live behavior each time, and a captured arrow function
+   * fails with an expired-reference error.
+   */
+  protected linkExternalReadings(): void {
+    const features = this.features as { localTemperatureNotExposed?: boolean, occupancy?: boolean }
+    const state = this.state as { externalMeasuredIndoorTemperature?: number | null, externallyMeasuredOccupancy?: boolean }
+    const events = this.events as any
+
+    if (!features.localTemperatureNotExposed && state.externalMeasuredIndoorTemperature !== undefined) {
+      this.mirrorTemperature(state.externalMeasuredIndoorTemperature)
+      this.reactTo(events.externalMeasuredIndoorTemperature$Changed, this.mirrorTemperature)
+    }
+
+    if (features.occupancy && state.externallyMeasuredOccupancy !== undefined) {
+      this.mirrorOccupancy(state.externallyMeasuredOccupancy)
+      this.reactTo(events.externallyMeasuredOccupancy$Changed, this.mirrorOccupancy)
+    }
+  }
+
+  protected mirrorTemperature(value: unknown): void {
+    const state = this.state as { localTemperature?: number | null, localTemperatureCalibration?: number }
+    let temperature = value as number | null
+    if (temperature !== null && state.localTemperatureCalibration !== undefined) {
+      // calibration is in tenths of a degree, temperatures in hundredths
+      temperature += state.localTemperatureCalibration * 10
+    }
+    state.localTemperature = temperature
+  }
+
+  protected mirrorOccupancy(occupied: unknown): void {
+    (this.state as { occupancy?: { occupied: boolean } }).occupancy = { occupied: occupied as boolean }
   }
 
   async #handleSystemModeChange(value: number, oldValue: number): Promise<void> {
