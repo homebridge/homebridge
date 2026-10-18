@@ -21,6 +21,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - chore(deps): dependency updates
 - fix(matter): keep the cluster features a plugin chose when homebridge attaches its handlers
 - fix(matter): restore a cached accessory with the cluster features the plugin composed
+- fix(matter): show a thermostat's temperature when it registers after the bridge is online
 
 ### Homebridge Dependencies
 
