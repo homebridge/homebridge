@@ -76,6 +76,7 @@ import { SmokeCoAlarmDevice, SmokeCoAlarmRequirements } from '@matter/main/devic
 import { SpeakerDevice } from '@matter/main/devices/speaker'
 import { TemperatureSensorDevice } from '@matter/main/devices/temperature-sensor'
 import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/thermostat'
+import { WaterHeaterDevice, WaterHeaterRequirements } from '@matter/main/devices/water-heater'
 import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detector'
 import { WaterValveDevice, WaterValveRequirements } from '@matter/main/devices/water-valve'
 import { WindowCoveringDevice, WindowCoveringRequirements } from '@matter/main/devices/window-covering'
@@ -86,6 +87,7 @@ import { DefaultClosureControlServer } from './behaviors/ClosureControlBehavior.
 import { DefaultKeypadInputServer } from './behaviors/KeypadInputBehavior.js'
 import { DefaultMediaPlaybackServer } from './behaviors/MediaPlaybackBehavior.js'
 import { DefaultValveConfigurationAndControlServer } from './behaviors/ValveConfigurationAndControlBehavior.js'
+import { DefaultWaterHeaterManagementServer } from './behaviors/WaterHeaterBehavior.js'
 
 type BehaviorType = Behavior.Type
 
@@ -564,6 +566,8 @@ const devices = {
   ThermostatRequirements,
   WaterLeakDetectorDevice,
   SpeakerDevice,
+  WaterHeaterDevice,
+  WaterHeaterRequirements,
   WaterValveDevice,
   WaterValveRequirements,
   WindowCoveringDevice,
@@ -722,6 +726,24 @@ export const deviceTypes = {
   // (which extends the default) applied at registration.
   WaterValve: devices.WaterValveDevice.with(DefaultValveConfigurationAndControlServer),
 
+  // Water Heater
+  // A hot water tank or boiler. Its thermostat is feature-gated like every
+  // other, and a water heater only heats, so it carries Heating alone. Declare
+  // the water temperature as the thermostat's externalMeasuredIndoorTemperature
+  // and the target as occupiedHeatingSetpoint. waterHeaterMode needs its
+  // supportedModes and currentMode, and waterHeaterManagement its heaterTypes,
+  // heatDemand and boostState - matter.js will not build the endpoint without
+  // them. matter.js leaves boost unimplemented, so the default server below
+  // records it; supply waterHeaterMode/waterHeaterManagement handlers to act
+  // on mode changes and boosts.
+  //
+  // ⚠️ It is not yet known how Apple Home presents this type. Test it there
+  // before swapping out a heating-only Thermostat that already works.
+  WaterHeater: devices.WaterHeaterDevice.with(
+    devices.WaterHeaterRequirements.ThermostatServer.with('Heating'),
+    DefaultWaterHeaterManagementServer,
+  ),
+
   // Other
   // Switch is not part of the base device type — matter.js requires latching vs
   // momentary to be chosen. The momentary feature set matches the press/release
@@ -784,6 +806,7 @@ export const deviceRequirements = {
   Pump: devices.PumpRequirements,
   RoomAirConditioner: devices.RoomAirConditionerRequirements,
   WindowCovering: devices.WindowCoveringRequirements,
+  WaterHeater: devices.WaterHeaterRequirements,
 } as const
 
 /**
@@ -836,6 +859,10 @@ export const clusterNames = {
 
   // Valve
   ValveConfigurationAndControl: 'valveConfigurationAndControl',
+
+  // Water heater
+  WaterHeaterMode: 'waterHeaterMode',
+  WaterHeaterManagement: 'waterHeaterManagement',
 
   // Closures — garage doors, gates and similar
   ClosureControl: 'closureControl',
