@@ -71,19 +71,29 @@ describe('features a plugin chose survive the handler swap', () => {
 })
 
 /**
- * Lights and outlets declare Lighting on OnOff, and the swap has always built
- * OnOff without it. Carrying it across would change every paired light, so it
- * is held back on purpose until that is decided separately.
+ * Lights and outlets declare Lighting on OnOff, and a room air conditioner
+ * DeadFrontBehavior - both required by their device types. The handler swap
+ * used to drop them, so every light with handlers was built without Lighting.
  */
-describe('features the carry-across leaves alone', () => {
-  it('leaves a light\'s OnOff as it was', async () => {
+describe('the features OnOff is required to have', () => {
+  it('keeps a light\'s Lighting', async () => {
     const deviceType = await prepare({
       deviceType: devices.OnOffLightDevice,
       clusters: { onOff: { onOff: false } },
       handlers: { onOff: {} },
     })
 
-    expect(enabledFeatures(deviceType, 'onOff')).toEqual([])
+    expect(enabledFeatures(deviceType, 'onOff')).toEqual(['lighting'])
+  })
+
+  it('keeps an air conditioner\'s DeadFrontBehavior', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.RoomAirConditioner,
+      clusters: { onOff: { onOff: true }, thermostat: { occupiedHeatingSetpoint: 2000, occupiedCoolingSetpoint: 2400, systemMode: 3, controlSequenceOfOperation: 4 } },
+      handlers: { onOff: {} },
+    })
+
+    expect(enabledFeatures(deviceType, 'onOff')).toEqual(['deadFrontBehavior'])
   })
 })
 
