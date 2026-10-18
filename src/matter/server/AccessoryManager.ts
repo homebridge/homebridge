@@ -36,6 +36,7 @@ import { declaredClusterFeatures } from '../clusterFeatures.js'
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
+  applyFanAutoFeature,
   applyLevelControlLightingFloor,
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
@@ -485,6 +486,10 @@ export class AccessoryManager {
     if (deviceType.deviceType === devices.ThermostatDevice?.deviceType && !hasThermostat) {
       deviceType = applyThermostatFeatures(deviceType, accessory, detectThermostatFeatures(accessory))
     }
+
+    // FanControl's Auto mode is feature-gated too. Turn it on for a fan that
+    // declares a sequence offering Auto, keeping any features already chosen.
+    deviceType = applyFanAutoFeature(deviceType, accessory)
 
     // Electrical measurement clusters (power/energy metering) are feature-gated
     // in matter.js and not part of any base device type. Detect them from the

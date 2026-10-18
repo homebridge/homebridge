@@ -16,6 +16,7 @@ import {
   HomebridgeWindowCoveringServer,
 } from './behaviors/index.js'
 // Direct matter.js .with() API used instead of typeHelpers wrappers
+import { extractDeclaredFeatures } from './clusterFeatures.js'
 import { clusters, devices, MatterDeviceError } from './types.js'
 
 /**
@@ -619,6 +620,35 @@ export function applyThermostatFeatures(
 
   const thermostatWithFeatures = (devices.ThermostatRequirements.ThermostatServer as any).with(...features)
   return (deviceType as any).with(thermostatWithFeatures)
+}
+
+/**
+ * FanModeSequence values that include Auto: OffLowMedHighAuto (2),
+ * OffLowHighAuto (3) and OffHighAuto (4).
+ */
+const FAN_SEQUENCES_WITH_AUTO = new Set([2, 3, 4])
+
+/**
+ * Turn on FanControl's Auto feature for a fan that declares an Auto sequence.
+ *
+ * Auto, and every sequence that offers it, is gated behind the cluster's Auto
+ * feature, and the base Fan device type carries FanControl without it - so a
+ * fan declaring `fanModeSequence: OffLowHighAuto` failed to register, and a
+ * plugin had no way to turn the feature on through Homebridge
+ * (homebridge-matter#8). Whatever features the cluster already has are kept.
+ */
+export function applyFanAutoFeature(deviceType: EndpointType, accessory: MatterAccessory): EndpointType {
+  const sequence = (accessory.clusters?.fanControl as { fanModeSequence?: number } | undefined)?.fanModeSequence
+  if (sequence === undefined || !FAN_SEQUENCES_WITH_AUTO.has(sequence)) {
+    return deviceType
+  }
+  const fanControl = (deviceType as { behaviors?: Record<string, any> }).behaviors?.fanControl
+  if (!fanControl || typeof fanControl.with !== 'function' || fanControl.features?.auto) {
+    return deviceType
+  }
+  const features = [...extractDeclaredFeatures(fanControl.features ?? {}), 'Auto']
+  log.info(`Auto-detected FanControl features for ${accessory.displayName}: ${features.join(', ')}`)
+  return (deviceType as any).with(fanControl.with(...features))
 }
 
 /**
