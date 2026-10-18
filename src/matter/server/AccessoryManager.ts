@@ -104,6 +104,27 @@ export interface AccessoryManagerDeps {
   isCommissioned: () => boolean
 }
 
+/**
+ * Clusters the general feature carry-across in
+ * {@link AccessoryManager.buildCustomBehaviors} leaves alone.
+ *
+ * Most work out their features for themselves further up. OnOff is the
+ * exception: every light and outlet declares the Lighting feature on it, and
+ * the swap has always dropped it, so carrying it across would change the
+ * endpoint of every Matter light and outlet already paired. That needs its own
+ * decision rather than riding along with this.
+ */
+const FEATURE_AWARE_CLUSTERS = new Set([
+  'closureControl',
+  'colorControl',
+  'levelControl',
+  'mediaPlayback',
+  'onOff',
+  'serviceArea',
+  'thermostat',
+  'windowCovering',
+])
+
 export class AccessoryManager {
   /**
    * Register a single Matter accessory
@@ -812,6 +833,21 @@ export class AccessoryManager {
           log.debug(`WindowCovering custom behavior will have features: ${features.windowCoveringFeatures.join(', ')}`)
         } else {
           log.debug(`Skipping WindowCovering feature application: behaviorClass=${!!behaviorClass}, features=${features.windowCoveringFeatures}`)
+        }
+      }
+
+      // Every other cluster: carry across whatever features the device type
+      // already chose. Replacing the base behavior with the handler-calling one
+      // otherwise resets the cluster to its featureless form - a fan composed
+      // with Auto lost it, and so did an air quality sensor composed for the
+      // levels beyond Good and Poor. On a cache restore every cached cluster
+      // gets an empty handler stub, so it happened to every such accessory on
+      // every restart, plugin handlers or not.
+      if (behaviorClass && !FEATURE_AWARE_CLUSTERS.has(clusterName)) {
+        const declared = detectBehaviorFeatures(deviceType, clusterName, extractDeclaredFeatures)
+        if (declared && declared.length > 0) {
+          behaviorClass = (behaviorClass as any).with(...declared)
+          log.info(`${clusterName} custom behavior will preserve features: ${declared.join(', ')}`)
         }
       }
 

@@ -19,6 +19,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): keep a restored accessory's owner, so the cache stops losing it on alternate restarts
 - fix(matter): re-arm state monitoring on child bridge start, so the ui keeps showing changes (#3993)
 - chore(deps): dependency updates
+- fix(matter): keep the cluster features a plugin chose when homebridge attaches its handlers
 
 ### Homebridge Dependencies
 
