@@ -158,3 +158,16 @@ describe('a room air conditioner that asks for Auto', () => {
     expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['cooling'])
   })
 })
+
+/**
+ * A plain AirQuality cluster only allows Unknown, Good and Poor; the other
+ * four levels each need a feature, and matter.js refused them
+ * (homebridge-matter#7). The stock type now carries all four.
+ */
+describe('an air quality sensor', () => {
+  it('offers every level', async () => {
+    const deviceType = await prepare({ deviceType: deviceTypes.AirQualitySensor, clusters: { airQuality: { airQuality: 2 } } })
+
+    expect(enabledFeatures(deviceType, 'airQuality')).toEqual(['extremelyPoor', 'fair', 'moderate', 'veryPoor'])
+  })
+})
