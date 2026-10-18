@@ -6,7 +6,7 @@ import { FanRequirements } from '@matter/main/devices/fan'
 import { describe, expect, it } from 'vitest'
 
 import { HomebridgeFanControlServer } from '../behaviors/FanControlBehavior.js'
-import { devices } from '../types.js'
+import { devices, deviceTypes } from '../types.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
 /**
@@ -114,5 +114,47 @@ describe('a fan that declares an Auto sequence', () => {
     })
 
     expect(enabledFeatures(deviceType, 'fanControl')).toEqual(['auto', 'multiSpeed'])
+  })
+})
+
+/**
+ * The stock Room Air Conditioner composes its thermostat with Heating and
+ * Cooling only, so one starting in Auto failed, and a cached Auto state could
+ * not be restored (homebridge-matter#6). It gets AutoMode when it asks for it.
+ */
+describe('a room air conditioner that asks for Auto', () => {
+  const setpoints = {
+    occupiedHeatingSetpoint: 2000,
+    occupiedCoolingSetpoint: 2400,
+    minHeatSetpointLimit: 700,
+    maxHeatSetpointLimit: 3000,
+    minCoolSetpointLimit: 1600,
+    maxCoolSetpointLimit: 3200,
+    controlSequenceOfOperation: 4,
+  }
+
+  it('gets AutoMode when it starts in Auto', async () => {
+    const deviceType = await prepare({ deviceType: deviceTypes.RoomAirConditioner, clusters: { onOff: { onOff: true }, thermostat: { ...setpoints, systemMode: 1 } } })
+
+    expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['autoMode', 'cooling', 'heating'])
+  })
+
+  it('gets AutoMode when it declares the Auto-only deadband', async () => {
+    const deviceType = await prepare({ deviceType: deviceTypes.RoomAirConditioner, clusters: { onOff: { onOff: true }, thermostat: { ...setpoints, systemMode: 3, minSetpointDeadBand: 20 } } })
+
+    expect(enabledFeatures(deviceType, 'thermostat')).toContain('autoMode')
+  })
+
+  it('stays as it was when it does not ask', async () => {
+    const deviceType = await prepare({ deviceType: deviceTypes.RoomAirConditioner, clusters: { onOff: { onOff: true }, thermostat: { ...setpoints, systemMode: 3 } } })
+
+    expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['cooling', 'heating'])
+  })
+
+  it('leaves a plugin\'s own composition alone', async () => {
+    const composed = devices.RoomAirConditionerDevice.with(devices.RoomAirConditionerRequirements.ThermostatServer.with('Cooling'))
+    const deviceType = await prepare({ deviceType: composed, clusters: { onOff: { onOff: true }, thermostat: { occupiedCoolingSetpoint: 2400, controlSequenceOfOperation: 0, systemMode: 3, minSetpointDeadBand: 20 } } })
+
+    expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['cooling'])
   })
 })
