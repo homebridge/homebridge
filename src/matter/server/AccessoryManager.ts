@@ -110,20 +110,20 @@ export interface AccessoryManagerDeps {
 
 /**
  * Clusters the general feature carry-across in
- * {@link AccessoryManager.buildCustomBehaviors} leaves alone.
+ * {@link AccessoryManager.buildCustomBehaviors} leaves alone, because they work
+ * out their features for themselves further up.
  *
- * Most work out their features for themselves further up. OnOff is the
- * exception: every light and outlet declares the Lighting feature on it, and
- * the swap has always dropped it, so carrying it across would change the
- * endpoint of every Matter light and outlet already paired. That needs its own
- * decision rather than riding along with this.
+ * OnOff is not one of them. Every light and outlet declares Lighting on it,
+ * and a room air conditioner DeadFrontBehavior - both required by their device
+ * types - and the swap used to drop them. matter.js implements the Lighting
+ * commands (OffWithEffect, OnWithTimedOff and the rest) through on() and off(),
+ * which the Homebridge behavior overrides, so they still reach the plugin.
  */
 const FEATURE_AWARE_CLUSTERS = new Set([
   'closureControl',
   'colorControl',
   'levelControl',
   'mediaPlayback',
-  'onOff',
   'serviceArea',
   'thermostat',
   'windowCovering',
