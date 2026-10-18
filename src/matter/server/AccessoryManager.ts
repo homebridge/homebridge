@@ -32,6 +32,7 @@ import { IpcOutgoingEvent } from '../../ipcService.js'
 import { Logger } from '../../logger.js'
 import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
+import { declaredClusterFeatures } from '../clusterFeatures.js'
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
@@ -177,10 +178,16 @@ export class AccessoryManager {
         // case deviceRequirements exists to serve. Compare what is composed.
         const behaviorKeys = (deviceType: unknown) =>
           Object.keys((deviceType as { behaviors?: Record<string, unknown> })?.behaviors ?? {}).sort().join(',')
+        // The cluster features too: the restore puts the cached ones back, so
+        // these only differ when the plugin has changed its mind since.
+        const clusterFeatureShape = (deviceType: unknown) => JSON.stringify(
+          Object.entries(declaredClusterFeatures(deviceType) ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+        )
         const sameShape = (existing.deviceType as { name?: string })?.name === (accessory.deviceType as { name?: string })?.name
           && partShape(existing._parts ?? existing.parts) === partShape(accessory.parts)
           && featureShape(existing.features) === featureShape(accessory.features)
           && behaviorKeys(existing.deviceType) === behaviorKeys(accessory.deviceType)
+          && clusterFeatureShape(existing.deviceType) === clusterFeatureShape(accessory.deviceType)
         if (sameShape) {
           log.info(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
           deps.accessories.set(accessory.UUID, {
