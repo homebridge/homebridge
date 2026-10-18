@@ -698,9 +698,10 @@ export const deviceTypes = {
   Closure: devices.ClosureDevice.with(DefaultClosureControlServer.with('Positioning')),
 
   // Media — the name says video, but nothing in the device type is video-only:
-  // it carries MediaPlayback (play/pause/stop), MediaInput and AudioOutput
-  // (source selection), Channel, TargetNavigator and KeypadInput. An audio-only
-  // device is a legitimate use of it.
+  // it carries OnOff (power), MediaPlayback (play/pause/stop) and KeypadInput.
+  // An audio-only device is a legitimate use of it. MediaInput, AudioOutput,
+  // Channel and TargetNavigator are optional in the spec and NOT included -
+  // compose them with `.with(...)` if a player needs source selection.
   //
   // Volume and mute are NOT here. In Matter those live on a separate Speaker
   // endpoint (LevelControl + OnOff), composed alongside this one under a
