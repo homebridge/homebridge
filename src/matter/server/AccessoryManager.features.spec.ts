@@ -86,3 +86,33 @@ describe('features the carry-across leaves alone', () => {
     expect(enabledFeatures(deviceType, 'onOff')).toEqual([])
   })
 })
+
+/**
+ * Auto, and every fan mode sequence that offers it, needs FanControl's Auto
+ * feature, which the base Fan type does not carry. A fan declaring an Auto
+ * sequence failed to register (homebridge-matter#8).
+ */
+describe('a fan that declares an Auto sequence', () => {
+  const fan = (fanModeSequence: number) => ({ fanMode: 0, fanModeSequence, percentSetting: 0, percentCurrent: 0 })
+
+  it.each([2, 3, 4])('gets Auto for sequence %s', async (sequence) => {
+    const deviceType = await prepare({ deviceType: devices.FanDevice, clusters: { fanControl: fan(sequence) }, handlers: { fanControl: {} } })
+
+    expect(enabledFeatures(deviceType, 'fanControl')).toContain('auto')
+  })
+
+  it.each([0, 1, 5])('does not get Auto for sequence %s', async (sequence) => {
+    const deviceType = await prepare({ deviceType: devices.FanDevice, clusters: { fanControl: fan(sequence) } })
+
+    expect(enabledFeatures(deviceType, 'fanControl')).not.toContain('auto')
+  })
+
+  it('keeps the other features the plugin chose', async () => {
+    const deviceType = await prepare({
+      deviceType: devices.FanDevice.with(FanRequirements.FanControlServer.with('MultiSpeed')),
+      clusters: { fanControl: { ...fan(2), speedMax: 3, speedSetting: 0, speedCurrent: 0 } },
+    })
+
+    expect(enabledFeatures(deviceType, 'fanControl')).toEqual(['auto', 'multiSpeed'])
+  })
+})
