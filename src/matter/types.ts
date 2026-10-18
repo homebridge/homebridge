@@ -52,7 +52,7 @@ import { Thermostat } from '@matter/main/clusters/thermostat'
 import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
 import { WindowCovering } from '@matter/main/clusters/window-covering'
 // Direct imports from individual device files
-import { AirQualitySensorDevice } from '@matter/main/devices/air-quality-sensor'
+import { AirQualitySensorDevice, AirQualitySensorRequirements } from '@matter/main/devices/air-quality-sensor'
 import { BasicVideoPlayerDevice } from '@matter/main/devices/basic-video-player'
 import { ClosureDevice, ClosureRequirements } from '@matter/main/devices/closure'
 import { ColorTemperatureLightDevice } from '@matter/main/devices/color-temperature-light'
@@ -532,6 +532,7 @@ export {
  */
 const devices = {
   AirQualitySensorDevice,
+  AirQualitySensorRequirements,
   ColorTemperatureLightDevice,
   ContactSensorDevice,
   DimmableLightDevice,
@@ -624,7 +625,14 @@ export const deviceTypes = {
   DimmableOutlet: devices.DimmablePlugInUnitDevice,
 
   // Sensors
-  AirQualitySensor: devices.AirQualitySensorDevice,
+  // Only Unknown, Good and Poor are allowed by a plain AirQuality cluster - Fair,
+  // Moderate, Very Poor and Extremely Poor each need their own feature, and
+  // without them matter.js refuses the value (homebridge-matter#7). A sensor
+  // only ever reports one level at a time, so offering all of them costs
+  // nothing.
+  AirQualitySensor: devices.AirQualitySensorDevice.with(
+    devices.AirQualitySensorRequirements.AirQualityServer.with('Fair', 'Moderate', 'VeryPoor', 'ExtremelyPoor'),
+  ),
   TemperatureSensor: devices.TemperatureSensorDevice,
   HumiditySensor: devices.HumiditySensorDevice,
   LightSensor: devices.LightSensorDevice,
