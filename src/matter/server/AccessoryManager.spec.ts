@@ -88,6 +88,7 @@ vi.mock('../serverHelpers.js', () => ({
   detectThermostatFeatures: vi.fn(() => ['Heating']),
   applyThermostatFeatures: vi.fn((dt: any) => dt),
   applyFanAutoFeature: vi.fn((dt: any) => dt),
+  applyRoomAirConditionerAutoMode: vi.fn((dt: any) => dt),
   detectElectricalMeasurementClusters: vi.fn(() => ({ hasPowerMeasurement: false, energyFeatures: [] })),
   applyElectricalMeasurementDefaults: vi.fn(),
   applyLevelControlLightingFloor: vi.fn(),
@@ -116,6 +117,7 @@ vi.mock('../types.js', () => {
   }
   return {
     MatterDeviceError,
+    deviceTypes: { RoomAirConditioner: { deviceType: 0x0072, name: 'RoomAirConditioner' } },
     devices: {
       RoboticVacuumCleanerDevice: { deviceType: 0x0074 },
       SmokeCoAlarmDevice: { deviceType: 0x0076 },

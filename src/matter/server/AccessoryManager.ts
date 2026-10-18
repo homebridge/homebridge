@@ -38,6 +38,7 @@ import {
   applyElectricalMeasurementDefaults,
   applyFanAutoFeature,
   applyLevelControlLightingFloor,
+  applyRoomAirConditionerAutoMode,
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
   applyWindowCoveringFeatures,
@@ -57,6 +58,7 @@ import {
 } from '../serverHelpers.js'
 import {
   devices,
+  deviceTypes,
   MatterDeviceError,
 } from '../types.js'
 import { stripVendorFromLabel } from '../utils.js'
@@ -486,6 +488,10 @@ export class AccessoryManager {
     if (deviceType.deviceType === devices.ThermostatDevice?.deviceType && !hasThermostat) {
       deviceType = applyThermostatFeatures(deviceType, accessory, detectThermostatFeatures(accessory))
     }
+
+    // The stock Room Air Conditioner carries Heating and Cooling only. Add
+    // AutoMode when the accessory asks for it, see applyRoomAirConditionerAutoMode
+    deviceType = applyRoomAirConditionerAutoMode(deviceType, deviceTypes.RoomAirConditioner, accessory)
 
     // FanControl's Auto mode is feature-gated too. Turn it on for a fan that
     // declares a sequence offering Auto, keeping any features already chosen.

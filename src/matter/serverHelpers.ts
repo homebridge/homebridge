@@ -623,6 +623,38 @@ export function applyThermostatFeatures(
 }
 
 /**
+ * Add AutoMode to the stock Room Air Conditioner when the accessory asks for it.
+ *
+ * The stock type composes its thermostat with Heating and Cooling only, so an
+ * air conditioner that starts in Auto, or declares the Auto-only deadband,
+ * failed - and a cached Auto state could not be restored at all
+ * (homebridge-matter#6). The ask has to be explicit: declaring both setpoints
+ * is not enough, as it is for the plain Thermostat, because every air
+ * conditioner already does that and AutoMode brings the deadband rule with it,
+ * which could start rejecting setpoints that work today.
+ *
+ * Only the stock type from `deviceTypes` is touched. A plugin that composed the
+ * cluster itself has already said what the device does.
+ */
+export function applyRoomAirConditionerAutoMode(deviceType: EndpointType, stockType: EndpointType, accessory: MatterAccessory): EndpointType {
+  if (deviceType !== stockType) {
+    return deviceType
+  }
+  const thermostat = accessory.clusters?.thermostat as Record<string, unknown> | undefined
+  const asksForAuto = thermostat !== undefined && (thermostat.minSetpointDeadBand !== undefined || thermostat.systemMode === 1)
+  if (!asksForAuto) {
+    return deviceType
+  }
+  const features = ['Heating', 'Cooling', 'AutoMode']
+  log.info(`Auto-detected Thermostat features for ${accessory.displayName}: ${features.join(', ')}`)
+  const limitProblem = checkThermostatSetpointLimits(accessory, features)
+  if (limitProblem) {
+    log.warn(limitProblem)
+  }
+  return (deviceType as any).with((devices.RoomAirConditionerRequirements.ThermostatServer as any).with(...features))
+}
+
+/**
  * FanModeSequence values that include Auto: OffLowMedHighAuto (2),
  * OffLowHighAuto (3) and OffHighAuto (4).
  */

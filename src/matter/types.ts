@@ -729,6 +729,9 @@ export const deviceTypes = {
   // Heating/Cooling features to be chosen. Both are enabled (like the Thermostat
   // device type above) so heat-capable air conditioners work and cooling-only
   // accessories simply leave the heating attributes at their defaults.
+  // AutoMode is added at registration when the accessory asks for it - it
+  // starts in Auto (systemMode 1) or declares minSetpointDeadBand (see
+  // applyRoomAirConditionerAutoMode in serverHelpers.ts).
   RoomAirConditioner: devices.RoomAirConditionerDevice.with(devices.RoomAirConditionerRequirements.ThermostatServer.with('Heating', 'Cooling')),
 
   // Composed device container — use as parent for accessories with parts.

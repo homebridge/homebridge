@@ -23,6 +23,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): restore a cached accessory with the cluster features the plugin composed
 - fix(matter): show a thermostat's temperature when it registers after the bridge is online
 - feat(matter): turn on fan auto mode when a fan declares a sequence that offers it
+- feat(matter): add auto mode to a room air conditioner that starts in auto or declares a deadband
 
 ### Homebridge Dependencies
 
