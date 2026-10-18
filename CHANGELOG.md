@@ -20,6 +20,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): re-arm state monitoring on child bridge start, so the ui keeps showing changes (#3993)
 - chore(deps): dependency updates
 - fix(matter): keep the cluster features a plugin chose when homebridge attaches its handlers
+- fix(matter): restore a cached accessory with the cluster features the plugin composed
 
 ### Homebridge Dependencies
 

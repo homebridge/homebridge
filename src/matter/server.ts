@@ -19,6 +19,7 @@ import { Endpoint,
 import { Logger } from '../logger.js'
 import { MatterAccessoryCache } from './accessoryCache.js'
 import { BehaviorRegistry, RegistryManager } from './behaviors/index.js'
+import { applyDeclaredClusterFeatures } from './clusterFeatures.js'
 import { createHomebridgeLogFormatter } from './logFormatter.js'
 import {
   AccessoryManager,
@@ -457,20 +458,26 @@ export class MatterServer extends EventEmitter {
         let restored = 0
         for (const serialized of cached.values()) {
           try {
-            const deviceType = typeByName.get(serialized.deviceType?.name ?? '')
+            const baseType = typeByName.get(serialized.deviceType?.name ?? '')
+            // The cache names the type; the plugin's own feature choices are
+            // put back on top, or the cached state may not fit the endpoint
+            const deviceType = baseType && applyDeclaredClusterFeatures(baseType, serialized.deviceType?.clusterFeatures)
             if (!deviceType) {
               log.warn(`Cannot restore cached Matter accessory ${serialized.displayName}: unknown device type "${serialized.deviceType?.name}"`)
               continue
             }
             const parts = (serialized.parts ?? [])
-              .map(part => ({
-                id: part.id,
-                displayName: part.displayName,
-                deviceType: typeByName.get(part.deviceType?.name ?? ''),
-                features: part.features,
-                clusters: part.clusters ?? {},
-                handlers: stubHandlers(part.clusters),
-              }))
+              .map((part) => {
+                const partType = typeByName.get(part.deviceType?.name ?? '')
+                return {
+                  id: part.id,
+                  displayName: part.displayName,
+                  deviceType: partType && applyDeclaredClusterFeatures(partType, part.deviceType?.clusterFeatures),
+                  features: part.features,
+                  clusters: part.clusters ?? {},
+                  handlers: stubHandlers(part.clusters),
+                }
+              })
               .filter((part): part is typeof part & { deviceType: EndpointType } => part.deviceType !== undefined)
 
             const accessory: InternalMatterAccessory = {

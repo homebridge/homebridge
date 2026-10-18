@@ -548,6 +548,58 @@ describe('accessoryManager', () => {
         expect(stored.registered).toBe(true)
       })
 
+      // The restore now puts the cached cluster features back, so the shape
+      // check compares them too - otherwise a plugin that changed its mind (a
+      // fan that gained Auto) would keep the restored endpoint with the old ones.
+      it('re-registers when the plugin now composes a cluster with different features', async () => {
+        const deps = createMockDeps()
+        deps.accessories.set('test-uuid-001', {
+          ...createMockAccessory({
+            deviceType: createChainableDeviceType({
+              deviceType: 0x002B,
+              name: 'Fan',
+              behaviors: { fanControl: { features: { auto: false } } },
+            }),
+          }),
+          endpoint: { marker: 'restored-endpoint', close: vi.fn() },
+          registered: false,
+          _restoredFromCache: true,
+        } as any)
+
+        const pluginAccessory = createMockAccessory({
+          deviceType: createChainableDeviceType({
+            deviceType: 0x002B,
+            name: 'Fan',
+            behaviors: { fanControl: { features: { auto: true } } },
+          }),
+        })
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
+
+        const stored = deps.accessories.get('test-uuid-001') as any
+        expect(stored.endpoint).not.toEqual({ marker: 'restored-endpoint', close: expect.anything() })
+        expect(stored.registered).toBe(true)
+      })
+
+      it('attaches in place when the restored features match the plugin\'s', async () => {
+        const deps = createMockDeps()
+        const fan = () => createChainableDeviceType({
+          deviceType: 0x002B,
+          name: 'Fan',
+          behaviors: { fanControl: { features: { auto: true } } },
+        })
+        deps.accessories.set('test-uuid-001', {
+          ...createMockAccessory({ deviceType: fan() }),
+          endpoint: { marker: 'restored-endpoint' },
+          registered: false,
+          _restoredFromCache: true,
+        } as any)
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory({ deviceType: fan() }), deps)
+
+        expect((deps.accessories.get('test-uuid-001') as any).endpoint).toEqual({ marker: 'restored-endpoint' })
+      })
+
       it('re-registers when an explicit endpoint feature changes after cache restore', async () => {
         const deps = createMockDeps()
         const restored = {

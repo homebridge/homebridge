@@ -25,6 +25,8 @@ type BehaviorType = Behavior.Type
 
 const log = Logger.withPrefix('Matter/Server')
 
+export { applyDeclaredClusterFeatures, declaredClusterFeatures, extractDeclaredFeatures } from './clusterFeatures.js'
+
 /**
  * Cluster IDs from Matter specification
  * Using Matter.js Cluster references instead of magic numbers
@@ -222,24 +224,6 @@ export function detectBehaviorFeatures(
   }
 
   return featureExtractor(supportedFeatures)
-}
-
-/**
- * Extract whatever features a behavior already declares, whatever the cluster.
- *
- * matter.js records a composed behavior's features as camelCase booleans and
- * `.with(...)` takes the PascalCase names, so carrying a feature set across is
- * just a capitalise - the same mapping the per-cluster extractors below do by
- * hand (`hueSaturation` to `HueSaturation`, `xy` to `Xy`).
- *
- * Used for clusters whose features we have no reason to reason about. We only
- * need them preserved when a Homebridge behavior replaces the base one, and a
- * hand-written list would silently drop any feature matter.js adds later.
- */
-export function extractDeclaredFeatures(supportedFeatures: Record<string, boolean>): string[] {
-  return Object.entries(supportedFeatures)
-    .filter(([, enabled]) => enabled)
-    .map(([name]) => name.charAt(0).toUpperCase() + name.slice(1))
 }
 
 /**

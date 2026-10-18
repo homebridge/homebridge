@@ -13,6 +13,7 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { Logger } from '../logger.js'
+import { declaredClusterFeatures } from './clusterFeatures.js'
 
 const log = Logger.withPrefix('Matter/Accessories')
 
@@ -25,6 +26,8 @@ export interface SerializedMatterAccessoryPart {
   deviceType: {
     name?: string
     code?: number
+    /** The features the plugin composed each cluster with, see declaredClusterFeatures */
+    clusterFeatures?: Record<string, string[]>
   }
   features?: InternalMatterAccessory['features']
   clusters: {
@@ -46,6 +49,8 @@ export interface SerializedMatterAccessory {
   deviceType: {
     name?: string
     code?: number
+    /** The features the plugin composed each cluster with, see declaredClusterFeatures */
+    clusterFeatures?: Record<string, string[]>
   }
   features?: InternalMatterAccessory['features']
   serialNumber: string
@@ -277,6 +282,7 @@ export class MatterAccessoryCache {
     const deviceTypeInfo = {
       name: deviceType?.name,
       code: deviceType?.code,
+      clusterFeatures: declaredClusterFeatures(accessory.deviceType),
     }
 
     // Serialize parts if present (excluding handlers which are functions)
@@ -290,6 +296,7 @@ export class MatterAccessoryCache {
           deviceType: {
             name: partDeviceType?.name,
             code: partDeviceType?.code,
+            clusterFeatures: declaredClusterFeatures(part.deviceType),
           },
           features: structuredClone(part.features),
           clusters: structuredClone(part.clusters),
