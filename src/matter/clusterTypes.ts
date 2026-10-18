@@ -285,6 +285,32 @@ export interface RvcCleanModeState {
 }
 
 /**
+ * Water Heater Mode state
+ */
+export interface WaterHeaterModeState {
+  supportedModes?: Array<{
+    label: string
+    mode: number
+    modeTags?: Array<{ value: number }>
+  }>
+  currentMode?: number
+  startUpMode?: number | null
+  onMode?: number | null
+}
+
+/**
+ * Water Heater Management state
+ */
+export interface WaterHeaterManagementState {
+  heaterTypes?: { immersionElement1?: boolean, immersionElement2?: boolean, heatPump?: boolean, boiler?: boolean, other?: boolean }
+  heatDemand?: { immersionElement1?: boolean, immersionElement2?: boolean, heatPump?: boolean, boiler?: boolean, other?: boolean }
+  boostState?: number
+  tankVolume?: number
+  estimatedHeatRequired?: number | bigint
+  tankPercentage?: number
+}
+
+/**
  * ValveConfigurationAndControl cluster state
  */
 export interface ValveConfigurationAndControlState {

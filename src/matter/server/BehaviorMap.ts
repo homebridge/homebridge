@@ -29,6 +29,8 @@ import {
   HomebridgeServiceAreaServer,
   HomebridgeThermostatServer,
   HomebridgeValveConfigurationAndControlServer,
+  HomebridgeWaterHeaterManagementServer,
+  HomebridgeWaterHeaterModeServer,
   HomebridgeWindowCoveringServer,
 } from '../behaviors/index.js'
 
@@ -73,6 +75,10 @@ export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
 
   // Valve
   valveConfigurationAndControl: HomebridgeValveConfigurationAndControlServer,
+
+  // Water heater
+  waterHeaterMode: HomebridgeWaterHeaterModeServer,
+  waterHeaterManagement: HomebridgeWaterHeaterManagementServer,
 } as const
 
 /**

@@ -25,6 +25,8 @@ import type {
   ServiceAreaState,
   ThermostatState,
   ValveConfigurationAndControlState,
+  WaterHeaterManagementState,
+  WaterHeaterModeState,
   WindowCoveringState,
 } from './clusterTypes.js'
 
@@ -72,6 +74,10 @@ export interface ClusterStateMap {
 
   // Valve clusters
   valveConfigurationAndControl: ValveConfigurationAndControlState
+
+  // Water heater clusters
+  waterHeaterMode: WaterHeaterModeState
+  waterHeaterManagement: WaterHeaterManagementState
 
   // Air quality clusters
   airQuality: { airQuality: number }

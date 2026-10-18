@@ -9,7 +9,7 @@
  * so they automatically update when matter.js is bumped.
  */
 
-import type { ClosureControl, ColorControl, DoorLock, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WindowCovering } from '@matter/main/clusters'
+import type { ClosureControl, ColorControl, DoorLock, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WaterHeaterManagement, WindowCovering } from '@matter/main/clusters'
 
 import type { MatterCommandHandler } from './types.js'
 
@@ -202,6 +202,21 @@ export interface ValveConfigurationAndControlHandlers {
 }
 
 /**
+ * WaterHeaterMode cluster handler methods
+ */
+export interface WaterHeaterModeHandlers {
+  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+}
+
+/**
+ * WaterHeaterManagement cluster handler methods
+ */
+export interface WaterHeaterManagementHandlers {
+  boost?: MatterCommandHandler<WaterHeaterManagement.BoostRequest>
+  cancelBoost?: MatterCommandHandler
+}
+
+/**
  * Maps known cluster names to their typed handler interfaces.
  *
  * Plugin developers get autocomplete for handler methods within each cluster.
@@ -244,4 +259,6 @@ export interface ClusterHandlerMap {
   closureControl: ClosureControlHandlers
   mediaPlayback: MediaPlaybackHandlers
   keypadInput: KeypadInputHandlers
+  waterHeaterMode: WaterHeaterModeHandlers
+  waterHeaterManagement: WaterHeaterManagementHandlers
 }
