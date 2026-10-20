@@ -183,7 +183,10 @@ export class AccessoryManager {
         )
         const partShape = (list?: { id: string, features?: MatterAccessory['features'] }[]) => JSON.stringify(
           (list ?? [])
-            .map(part => ({ id: part.id, features: featureShape(part.features) }))
+            .map(part => ({
+              id: part.id,
+              features: featureShape(part.features),
+            }))
             .sort((left, right) => left.id.localeCompare(right.id)),
         )
         // ⚠️ The name is not enough. The cache stores a device type as
@@ -285,7 +288,9 @@ export class AccessoryManager {
         if ((deviceType as { behaviors?: Record<string, unknown> }).behaviors?.fixedLabel === undefined) {
           deviceType = (deviceType as any).with(FixedLabelServer)
           endpointOptions.fixedLabel = {
-            labelList: [{ label: 'composed', value: 'true' }],
+            labelList: [
+              { label: 'composed', value: 'true' },
+            ],
           }
         }
 
@@ -914,7 +919,9 @@ export class AccessoryManager {
         ?.state
         ?.bridgedDeviceBasicInformation
         ?.uniqueId
-      return typeof uniqueId === 'string' && uniqueId.length > 0 ? uniqueId : undefined
+      return typeof uniqueId === 'string' && uniqueId.length > 0
+        ? uniqueId
+        : undefined
     } catch {
       return undefined
     }
@@ -953,7 +960,9 @@ export class AccessoryManager {
           || accessory.model || 'Device', 64, 'displayName (as the product label)'),
         serialNumber: fit(accessory.serialNumber, 32, 'serialNumber'),
         reachable: true,
-        ...(uniqueId ? { uniqueId } : {}),
+        ...(uniqueId
+          ? { uniqueId }
+          : {}),
       }
       // Surface the device's firmware version to controllers (shown in the
       // accessory details of e.g. Apple Home). The numeric companion is
@@ -966,7 +975,11 @@ export class AccessoryManager {
         endpointOptions.bridgedDeviceBasicInformation.softwareVersionString = accessory.firmwareRevision.slice(0, 64)
         const semver = accessory.firmwareRevision.match(/^(\d+)\.(\d+)\.(\d+)/)
         if (semver) {
-          const [major, minor, patch] = [Number(semver[1]), Number(semver[2]), Number(semver[3])]
+          const [major, minor, patch] = [
+            Number(semver[1]),
+            Number(semver[2]),
+            Number(semver[3]),
+          ]
           if (major <= 0xFFFF && minor <= 0xFF && patch <= 0xFF) {
             // >>> 0 keeps the value unsigned - a signed << would go negative
             // for majors >= 0x8000 and fail matter.js's uint32 validation.
@@ -1042,12 +1055,14 @@ export class AccessoryManager {
       const partEndpointOptions: any = {
         id: partEndpointId,
         descriptor: {
-          tagList: [{
-            mfgCode: null,
-            namespaceId: 7, // Number namespace
-            tag: partIndex,
-            label: (part.displayName || part.id).slice(0, 64),
-          }],
+          tagList: [
+            {
+              mfgCode: null,
+              namespaceId: 7, // Number namespace
+              tag: partIndex,
+              label: (part.displayName || part.id).slice(0, 64),
+            },
+          ],
         },
         ...part.clusters,
       }
@@ -1121,7 +1136,9 @@ export class AccessoryManager {
       ...accessory,
       endpoint,
       registered: true,
-      _parts: internalParts.length > 0 ? internalParts : undefined,
+      _parts: internalParts.length > 0
+        ? internalParts
+        : undefined,
       _eventEmitter: new EventEmitter() as MatterAccessoryEventEmitter,
     }
     deps.accessories.set(accessory.UUID, internalAccessory)
@@ -1164,7 +1181,9 @@ export class AccessoryManager {
         await this.applyPartsListNotification(aggregator, deps)
         return
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage = error instanceof Error
+          ? error.message
+          : String(error)
 
         // matter.js reports synchronous lock contention with "Cannot lock ...
         // synchronously" / "acquire locks asynchronously". The blocking

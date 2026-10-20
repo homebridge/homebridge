@@ -87,7 +87,9 @@ describe('matterAccessoryCache', () => {
           serialNumber: 'SN-001',
           manufacturer: 'Test Mfg',
           model: 'Test Model',
-          clusters: { onOff: { onOff: false } },
+          clusters: {
+            onOff: { onOff: false },
+          },
           context: {},
         },
         {
@@ -99,7 +101,9 @@ describe('matterAccessoryCache', () => {
           serialNumber: 'SN-002',
           manufacturer: 'Test Mfg',
           model: 'Test Model',
-          clusters: { onOff: { onOff: true } },
+          clusters: {
+            onOff: { onOff: true },
+          },
           context: {},
         },
       ]
@@ -176,7 +180,10 @@ describe('matterAccessoryCache', () => {
     })
 
     it('retries a failed read and allows saves after successfully loading', async () => {
-      const cached = { uuid: 'restored-uuid', context: { deviceId: 'keep-me' } }
+      const cached = {
+        uuid: 'restored-uuid',
+        context: { deviceId: 'keep-me' },
+      }
       mockedReadFile
         .mockRejectedValueOnce(Object.assign(new Error('Read failed'), { code: 'EIO' }))
         .mockResolvedValueOnce(JSON.stringify([cached]))
@@ -214,8 +221,14 @@ describe('matterAccessoryCache', () => {
 
     it.each([0, 1, 2])('preserves valid entries around a null at index %i without deleting the file', async (index) => {
       const valid = [
-        { uuid: 'uuid-1', context: { retained: 1 } },
-        { uuid: 'uuid-2', context: { retained: 2 } },
+        {
+          uuid: 'uuid-1',
+          context: { retained: 1 },
+        },
+        {
+          uuid: 'uuid-2',
+          context: { retained: 2 },
+        },
       ]
       const entries: unknown[] = [...valid]
       entries.splice(index, 0, null)
@@ -223,7 +236,9 @@ describe('matterAccessoryCache', () => {
 
       const result = await cache.load()
 
-      expect([...result.values()]).toEqual(valid)
+      expect([
+        ...result.values(),
+      ]).toEqual(valid)
       expect(mockedRm).not.toHaveBeenCalled()
       expect(logErrorSpy).not.toHaveBeenCalled()
       expect(await cache.load()).toBe(result)
@@ -231,14 +246,29 @@ describe('matterAccessoryCache', () => {
     })
 
     it('skips malformed entries and non-string UUIDs in a parseable array', async () => {
-      const valid = { uuid: 'uuid-valid', context: { retained: true } }
+      const valid = {
+        uuid: 'uuid-valid',
+        context: { retained: true },
+      }
       mockedReadFile.mockResolvedValue(JSON.stringify([
-        false, 42, 'entry', [], {}, { uuid: '' }, { uuid: 42 }, { uuid: {} }, valid,
+        false,
+        42,
+        'entry',
+        [],
+        {},
+        { uuid: '' },
+        { uuid: 42 },
+        { uuid: {} },
+        valid,
       ]))
 
       const result = await cache.load()
 
-      expect([...result.entries()]).toEqual([['uuid-valid', valid]])
+      expect([
+        ...result.entries(),
+      ]).toEqual([
+        ['uuid-valid', valid],
+      ])
       expect(mockedRm).not.toHaveBeenCalled()
     })
 
@@ -372,14 +402,30 @@ describe('matterAccessoryCache', () => {
         UUID: uuid,
         displayName: uuid,
         deviceType: { name: 'OnOffLight', code: 256 } as any,
-        clusters: { onOff: { onOff: false } },
+        clusters: {
+          onOff: { onOff: false },
+        },
       }) as any as InternalMatterAccessory
 
-      await cache.save(new Map([['old-uuid', accessory('old-uuid')], ['new-uuid', accessory('new-uuid')]]))
+      await cache.save(new Map([
+        [
+          'old-uuid',
+          accessory('old-uuid'),
+        ],
+        [
+          'new-uuid',
+          accessory('new-uuid'),
+        ],
+      ]))
       expect(cache.getAllCached().map(entry => entry.uuid)).toEqual(['old-uuid', 'new-uuid'])
       expect(cache.getCached('new-uuid')?.displayName).toBe('new-uuid')
 
-      await cache.save(new Map([['new-uuid', accessory('new-uuid')]]))
+      await cache.save(new Map([
+        [
+          'new-uuid',
+          accessory('new-uuid'),
+        ],
+      ]))
       expect(cache.getAllCached().map(entry => entry.uuid)).toEqual(['new-uuid'])
       expect(cache.hasCached('old-uuid')).toBe(false)
     })
@@ -400,7 +446,9 @@ describe('matterAccessoryCache', () => {
         manufacturer: 'Test Mfg',
         model: 'Test Model',
         firmwareRevision: '1.0.0',
-        clusters: { onOff: { onOff: false } },
+        clusters: {
+          onOff: { onOff: false },
+        },
       } as any
 
       accessories.set('test-uuid', mockAccessory)
@@ -428,7 +476,9 @@ describe('matterAccessoryCache', () => {
         UUID: 'test-uuid',
         displayName: 'Test Device',
         deviceType: { name: 'Aggregator', code: 14 } as any,
-        features: { rvcCleanMode: { directModeChange: true } },
+        features: {
+          rvcCleanMode: { directModeChange: true },
+        },
         serialNumber: 'SN-001',
         manufacturer: 'Test',
         model: 'Test',
@@ -438,8 +488,12 @@ describe('matterAccessoryCache', () => {
             id: 'part-1',
             displayName: 'Part 1',
             deviceType: { name: 'OnOffLight', code: 256 } as any,
-            features: { rvcCleanMode: { directModeChange: true } },
-            clusters: { onOff: { onOff: true } },
+            features: {
+              rvcCleanMode: { directModeChange: true },
+            },
+            clusters: {
+              onOff: { onOff: true },
+            },
           },
         ],
       } as any
@@ -542,13 +596,23 @@ describe('matterAccessoryCache', () => {
       mockedWriteFile.mockResolvedValue(undefined)
       mockedRename.mockResolvedValue(undefined)
       mockedRm.mockResolvedValue(undefined)
-      const failingOperation = operation === 'mkdir' ? mockedMkdir : operation === 'write' ? mockedWriteFile : mockedRename
+      const failingOperation = operation === 'mkdir'
+        ? mockedMkdir
+        : operation === 'write'
+          ? mockedWriteFile
+          : mockedRename
       failingOperation.mockRejectedValueOnce(failure)
       const accessories = new Map<string, InternalMatterAccessory>()
 
-      const outcomes = await Promise.allSettled([cache.save(accessories), cache.save(accessories)])
+      const outcomes = await Promise.allSettled([
+        cache.save(accessories),
+        cache.save(accessories),
+      ])
 
-      expect(outcomes).toEqual([{ status: 'rejected', reason: failure }, { status: 'fulfilled', value: undefined }])
+      expect(outcomes).toEqual([
+        { status: 'rejected', reason: failure },
+        { status: 'fulfilled', value: undefined },
+      ])
       expect(mockedRename).toHaveBeenCalledWith(expect.stringContaining('.tmp'), expect.stringContaining('accessories.json'))
       expect(logDebugSpy.mock.calls.filter((call: string[]) => call[0] === 'Saved 0 Matter accessories to cache')).toHaveLength(1)
     })

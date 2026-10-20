@@ -139,7 +139,14 @@ function buildService(overrides: { type?: PluginType, identifier?: string, bridg
     externalPortService,
   )
 
-  return { service, api, ipcService, pluginManager, externalPortService, plugin }
+  return {
+    service,
+    api,
+    ipcService,
+    pluginManager,
+    externalPortService,
+    plugin,
+  }
 }
 
 describe('childBridgeService', () => {
@@ -191,21 +198,27 @@ describe('childBridgeService', () => {
 
   describe('start (process flag derivation)', () => {
     it('passes -D when bridgeConfig.debugModeEnabled is true', () => {
-      const { service } = buildService({ bridgeConfig: makeBridgeConfig({ debugModeEnabled: true }) })
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({ debugModeEnabled: true }),
+      })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
       expect((service as any).args).toContain('-D')
     })
 
     it('does NOT pass -D when bridgeConfig.debugModeEnabled is undefined', () => {
-      const { service } = buildService({ bridgeConfig: makeBridgeConfig() })
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig(),
+      })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
       expect((service as any).args).not.toContain('-D')
     })
 
     it('passes -K when keepOrphanedCachedAccessories is true', () => {
-      const { service } = buildService({ homebridgeOptions: makeHomebridgeOptions({ keepOrphanedCachedAccessories: true }) })
+      const { service } = buildService({
+        homebridgeOptions: makeHomebridgeOptions({ keepOrphanedCachedAccessories: true }),
+      })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
       expect((service as any).args).toContain('-K')
@@ -317,7 +330,15 @@ describe('childBridgeService', () => {
             serialNumber: 'SN-1',
             commissioned: true,
             fabricCount: 1,
-            fabrics: [{ fabricIndex: 1, fabricId: '1', nodeId: '10', rootVendorId: 0x1349, label: 'My Home' }],
+            fabrics: [
+              {
+                fabricIndex: 1,
+                fabricId: '1',
+                nodeId: '10',
+                rootVendorId: 0x1349,
+                label: 'My Home',
+              },
+            ],
           },
         },
       })
@@ -328,7 +349,9 @@ describe('childBridgeService', () => {
         qrCode: 'MT:ABCD',
         commissioned: true,
         fabricCount: 1,
-        fabrics: [{ fabricIndex: 1, rootVendorId: 0x1349, label: 'My Home' }],
+        fabrics: [
+          { fabricIndex: 1, rootVendorId: 0x1349, label: 'My Home' },
+        ],
       })
       // sendStatusUpdate called as part of handler
       expect(ipcService.sendMessage).toHaveBeenCalled()
@@ -336,7 +359,15 @@ describe('childBridgeService', () => {
       // The fabric list flows on into the metadata the UI consumes
       const metadata = service.getMetadata()
       expect(metadata.matterFabricCount).toBe(1)
-      expect(metadata.matterFabrics).toEqual([{ fabricIndex: 1, fabricId: '1', nodeId: '10', rootVendorId: 0x1349, label: 'My Home' }])
+      expect(metadata.matterFabrics).toEqual([
+        {
+          fabricIndex: 1,
+          fabricId: '1',
+          nodeId: '10',
+          rootVendorId: 0x1349,
+          label: 'My Home',
+        },
+      ])
     })
 
     it('on PORT_REQUEST, forwards to externalPortService and replies with PORT_ALLOCATED', async () => {
@@ -487,7 +518,11 @@ describe('childBridgeService', () => {
         id: ChildProcessMessageEventType.MATTER_EVENT,
         data: {
           type: 'accessoryUpdate',
-          data: { uuid: 'abc', cluster: 'onOff', state: { onOff: true } },
+          data: {
+            uuid: 'abc',
+            cluster: 'onOff',
+            state: { onOff: true },
+          },
         },
       })
 
@@ -794,7 +829,10 @@ describe('childBridgeService', () => {
 
   describe('refreshConfig', () => {
     it('updates pluginConfig from the on-disk config when entries match', async () => {
-      const { service } = buildService({ identifier: 'TestPlatform', bridgeConfig: makeBridgeConfig({ username: '0E:DC:5D:BE:D6:75' }) })
+      const { service } = buildService({
+        identifier: 'TestPlatform',
+        bridgeConfig: makeBridgeConfig({ username: '0E:DC:5D:BE:D6:75' }),
+      })
       const updated = {
         platform: 'TestPlatform',
         name: 'Updated',
@@ -815,7 +853,14 @@ describe('childBridgeService', () => {
       service.addConfig({ platform: 'TestPlatform', name: 'Original' } as any)
       // Replace the prefixed logger with a captured mock — the service uses
       // `this.log.warn`, not `Logger.internal.warn`.
-      const mockLog = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn(), log: vi.fn() }
+      const mockLog = {
+        warn: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+        success: vi.fn(),
+        log: vi.fn(),
+      }
       ;(service as any).log = Object.assign(vi.fn(), mockLog)
       ;(fs.readJson as any).mockResolvedValueOnce({
         platforms: [],
@@ -830,7 +875,14 @@ describe('childBridgeService', () => {
 
     it('logs and recovers when readJson rejects', async () => {
       const { service } = buildService()
-      const mockLog = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn(), log: vi.fn() }
+      const mockLog = {
+        warn: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+        success: vi.fn(),
+        log: vi.fn(),
+      }
       ;(service as any).log = Object.assign(vi.fn(), mockLog)
       ;(fs.readJson as any).mockRejectedValueOnce(new Error('Disk full'))
 
@@ -842,12 +894,21 @@ describe('childBridgeService', () => {
     it('tolerates a config file with no platforms key (PLATFORM type)', async () => {
       const { service } = buildService({ identifier: 'TestPlatform' })
       service.addConfig({ platform: 'TestPlatform', name: 'Original' } as any)
-      const mockLog = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn(), log: vi.fn() }
+      const mockLog = {
+        warn: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+        success: vi.fn(),
+        log: vi.fn(),
+      }
       ;(service as any).log = Object.assign(vi.fn(), mockLog)
       // Minimal config with no platforms or accessories at all — used to throw
       // "Cannot read properties of undefined (reading 'length')" via the
       // optional-chained filter.
-      ;(fs.readJson as any).mockResolvedValueOnce({ bridge: { username: '00:00:00:00:00:00' } })
+      ;(fs.readJson as any).mockResolvedValueOnce({
+        bridge: { username: '00:00:00:00:00:00' },
+      })
 
       await service.refreshConfig()
 
@@ -859,9 +920,18 @@ describe('childBridgeService', () => {
     it('tolerates a config file with no accessories key (ACCESSORY type)', async () => {
       const { service } = buildService({ type: PluginType.ACCESSORY, identifier: 'TestAccessory' })
       service.addConfig({ accessory: 'TestAccessory', name: 'Original' } as any)
-      const mockLog = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn(), log: vi.fn() }
+      const mockLog = {
+        warn: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+        success: vi.fn(),
+        log: vi.fn(),
+      }
       ;(service as any).log = Object.assign(vi.fn(), mockLog)
-      ;(fs.readJson as any).mockResolvedValueOnce({ bridge: { username: '00:00:00:00:00:00' } })
+      ;(fs.readJson as any).mockResolvedValueOnce({
+        bridge: { username: '00:00:00:00:00:00' },
+      })
 
       await service.refreshConfig()
 
@@ -884,12 +954,19 @@ describe('childBridgeService', () => {
         id: ChildProcessMessageEventType.MATTER_EVENT,
         data: {
           type: 'accessoriesData',
-          data: { accessories: [{ uuid: 'abc' }], bridgeUsername: 'X' },
+          data: {
+            accessories: [
+              { uuid: 'abc' },
+            ],
+            bridgeUsername: 'X',
+          },
         },
       })
 
       await expect(promise).resolves.toMatchObject({
-        accessories: [{ uuid: 'abc' }],
+        accessories: [
+          { uuid: 'abc' },
+        ],
       })
     })
 
@@ -935,14 +1012,27 @@ describe('childBridgeService', () => {
         id: ChildProcessMessageEventType.MATTER_EVENT,
         data: {
           type: 'accessoriesData',
-          data: { accessories: [{ uuid: 'abc' }], bridgeUsername: 'X' },
+          data: {
+            accessories: [
+              { uuid: 'abc' },
+            ],
+            bridgeUsername: 'X',
+          },
         },
       })
 
       const [firstResult, secondResult] = await Promise.all([first, second])
       // Both callers now get the same data on a single response.
-      expect(firstResult).toMatchObject({ accessories: [{ uuid: 'abc' }] })
-      expect(secondResult).toMatchObject({ accessories: [{ uuid: 'abc' }] })
+      expect(firstResult).toMatchObject({
+        accessories: [
+          { uuid: 'abc' },
+        ],
+      })
+      expect(secondResult).toMatchObject({
+        accessories: [
+          { uuid: 'abc' },
+        ],
+      })
       // Identity-equal — they really are sharing the same promise resolution.
       expect(firstResult).toBe(secondResult)
     })
@@ -978,10 +1068,19 @@ describe('childBridgeService', () => {
         id: ChildProcessMessageEventType.MATTER_EVENT,
         data: {
           type: 'accessoriesData',
-          data: { accessories: [{ uuid: 'one' }], bridgeUsername: 'X' },
+          data: {
+            accessories: [
+              { uuid: 'one' },
+            ],
+            bridgeUsername: 'X',
+          },
         },
       })
-      await expect(first).resolves.toMatchObject({ accessories: [{ uuid: 'one' }] })
+      await expect(first).resolves.toMatchObject({
+        accessories: [
+          { uuid: 'one' },
+        ],
+      })
 
       // Second call, AFTER the first settled, must send a fresh IPC and
       // be able to receive a different response. Coalescing must not stick.
@@ -990,10 +1089,19 @@ describe('childBridgeService', () => {
         id: ChildProcessMessageEventType.MATTER_EVENT,
         data: {
           type: 'accessoriesData',
-          data: { accessories: [{ uuid: 'two' }], bridgeUsername: 'X' },
+          data: {
+            accessories: [
+              { uuid: 'two' },
+            ],
+            bridgeUsername: 'X',
+          },
         },
       })
-      await expect(second).resolves.toMatchObject({ accessories: [{ uuid: 'two' }] })
+      await expect(second).resolves.toMatchObject({
+        accessories: [
+          { uuid: 'two' },
+        ],
+      })
 
       const matterAccessoryRequests = sendSpy.mock.calls.filter(
         ([id]) => id === ChildProcessMessageEventType.GET_MATTER_ACCESSORIES,
@@ -1005,7 +1113,9 @@ describe('childBridgeService', () => {
   describe('getMetadata', () => {
     it('includes Matter fields when bridgeConfig.matter is configured', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ matter: { port: 5540, name: 'TestMatter' } }),
+        bridgeConfig: makeBridgeConfig({
+          matter: { port: 5540, name: 'TestMatter' },
+        }),
       })
       const metadata = service.getMetadata()
       expect(metadata.matterConfig).toBeDefined()
@@ -1021,7 +1131,10 @@ describe('childBridgeService', () => {
 
     it('reflects hap.enabled:false in metadata when HAP is disabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({
+          hap: { enabled: false },
+          matter: { port: 5540 },
+        }),
       })
       const metadata = service.getMetadata()
       expect(metadata.hap).toEqual({ enabled: false })
@@ -1029,7 +1142,9 @@ describe('childBridgeService', () => {
 
     it('reflects hap.enabled:true in metadata when HAP is explicitly enabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: { enabled: true } }),
+        bridgeConfig: makeBridgeConfig({
+          hap: { enabled: true },
+        }),
       })
       const metadata = service.getMetadata()
       expect(metadata.hap).toEqual({ enabled: true })
@@ -1056,7 +1171,10 @@ describe('childBridgeService', () => {
   describe('loadPlugin — hap property forwarded in LOAD message', () => {
     it('includes hap.enabled:false in LOAD bridgeConfig when HAP is disabled', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({
+          hap: { enabled: false },
+          matter: { port: 5540 },
+        }),
       })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
@@ -1071,7 +1189,9 @@ describe('childBridgeService', () => {
 
     it('includes hap.disableIdentifyingMaterial in LOAD bridgeConfig', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: { disableIdentifyingMaterial: true } }),
+        bridgeConfig: makeBridgeConfig({
+          hap: { disableIdentifyingMaterial: true },
+        }),
       })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()
@@ -1085,7 +1205,10 @@ describe('childBridgeService', () => {
 
     it('includes hap.enabled:false alongside matter config in LOAD bridgeConfig', () => {
       const { service } = buildService({
-        bridgeConfig: makeBridgeConfig({ hap: { enabled: false }, matter: { port: 5540 } }),
+        bridgeConfig: makeBridgeConfig({
+          hap: { enabled: false },
+          matter: { port: 5540 },
+        }),
       })
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
       service.start()

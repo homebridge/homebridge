@@ -8,7 +8,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('./index.js', () => ({
   clusterNames: {},
   clusters: {},
-  deviceTypes: { RoboticVacuumCleaner: { deviceType: 0x74 } },
+  deviceTypes: {
+    RoboticVacuumCleaner: { deviceType: 0x74 },
+  },
   MatterStatus: { Busy: class Busy extends Error {} },
   MatterTypes: {},
 }))
@@ -18,8 +20,18 @@ vi.mock('./SwitchAPI.js', () => ({
 }))
 
 vi.mock('../logger.js', () => {
-  const mockLogger = { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn(), log: vi.fn() }
-  return { Logger: { withPrefix: vi.fn(() => mockLogger) } }
+  const mockLogger = {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    log: vi.fn(),
+  }
+  return {
+    Logger: {
+      withPrefix: vi.fn(() => mockLogger),
+    },
+  }
 })
 
 // Import after mocks are registered so the module binds to the mocked symbols.
@@ -64,7 +76,11 @@ describe('matterAPIImpl.registerPlatformAccessories — guard before the manager
   })
 
   it('proceeds past the guard once the manager is attached and Matter is active', async () => {
-    const impl = new MatterAPIImpl(makeApi({ _matterManager: { hasActiveMatter: () => true } }))
+    const impl = new MatterAPIImpl(makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+      },
+    }))
     // Short-circuit after the guard so the test isolates guard behaviour from
     // full validation/emit machinery.
     vi.spyOn(impl as any, 'validateAccessories').mockReturnValue([])
@@ -79,7 +95,11 @@ describe('matterAPIImpl.registerPlatformAccessories — guard before the manager
     // because a child bridge uses Matter — so _matterManager is set yet attached
     // no listeners. Without this guard the emit would drop (bridged) or hang
     // (external) the call. hasActiveMatter() === false must reject instead.
-    const api = makeApi({ _matterManager: { hasActiveMatter: () => false } })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => false,
+      },
+    })
     const impl = new MatterAPIImpl(api)
 
     await expect(
@@ -115,12 +135,18 @@ describe('matterAPIImpl update methods — guard before the manager is ready', (
   it('updatePlatformAccessories rejects when no Matter manager is attached yet', async () => {
     const impl = new MatterAPIImpl(makeApi({ _matterManager: undefined }))
     await expect(
-      impl.updatePlatformAccessories([{ UUID: 'uuid-1' } as any]),
+      impl.updatePlatformAccessories([
+        { UUID: 'uuid-1' } as any,
+      ]),
     ).rejects.toThrow(/before Homebridge has finished launching/)
   })
 
   it('updateAccessoryState emits once the manager is attached and Matter is active', async () => {
-    const api = makeApi({ _matterManager: { hasActiveMatter: () => true } })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+      },
+    })
     const impl = new MatterAPIImpl(api)
 
     await impl.updateAccessoryState('uuid-1', 'OnOff', { on: true })
@@ -129,7 +155,11 @@ describe('matterAPIImpl update methods — guard before the manager is ready', (
   })
 
   it('updateAccessoryState rejects when Matter is not active on this bridge (#3944)', async () => {
-    const api = makeApi({ _matterManager: { hasActiveMatter: () => false } })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => false,
+      },
+    })
     const impl = new MatterAPIImpl(api)
 
     await expect(
@@ -139,11 +169,17 @@ describe('matterAPIImpl update methods — guard before the manager is ready', (
   })
 
   it('updatePlatformAccessories rejects when Matter is not active on this bridge (#3944)', async () => {
-    const api = makeApi({ _matterManager: { hasActiveMatter: () => false } })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => false,
+      },
+    })
     const impl = new MatterAPIImpl(api)
 
     await expect(
-      impl.updatePlatformAccessories([{ UUID: 'uuid-1' } as any]),
+      impl.updatePlatformAccessories([
+        { UUID: 'uuid-1' } as any,
+      ]),
     ).rejects.toThrow(/Matter is not enabled for this bridge/)
     expect(api.emit).not.toHaveBeenCalled()
   })
@@ -159,17 +195,25 @@ describe('matterAPIImpl.unregisterPlatformAccessories — guard before the manag
     const impl = new MatterAPIImpl(api)
 
     await expect(
-      impl.unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [{ UUID: 'uuid-1' } as any]),
+      impl.unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [
+        { UUID: 'uuid-1' } as any,
+      ]),
     ).rejects.toThrow(/before Homebridge has finished launching/)
     expect(api.emit).not.toHaveBeenCalled()
   })
 
   it('rejects when the manager is attached but Matter is not active on this bridge', async () => {
-    const api = makeApi({ _matterManager: { hasActiveMatter: () => false } })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => false,
+      },
+    })
     const impl = new MatterAPIImpl(api)
 
     await expect(
-      impl.unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [{ UUID: 'uuid-1' } as any]),
+      impl.unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [
+        { UUID: 'uuid-1' } as any,
+      ]),
     ).rejects.toThrow(/Matter is not enabled for this bridge/)
     expect(api.emit).not.toHaveBeenCalled()
   })
@@ -183,11 +227,17 @@ describe('matterAPIImpl.unregisterPlatformAccessories — guard before the manag
   })
 
   it('emits once the manager is attached and Matter is active', async () => {
-    const api = makeApi({ _matterManager: { hasActiveMatter: () => true } })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+      },
+    })
     const impl = new MatterAPIImpl(api)
 
     // A normal (bridged) accessory — deviceType not in the external list.
-    await impl.unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [{ UUID: 'uuid-1', deviceType: 'OnOff' } as any])
+    await impl.unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [
+      { UUID: 'uuid-1', deviceType: 'OnOff' } as any,
+    ])
 
     expect(api.emit).toHaveBeenCalled()
   })
@@ -238,7 +288,12 @@ describe('matterAPIImpl.registerPlatformAccessories — bridged registration bef
   it('rejects and does not emit when the bridge server is still starting', async () => {
     // hasActiveMatter() is true (server constructed) but the node has not started
     // yet — the previously silent-drop window.
-    const api = makeApi({ _matterManager: { hasActiveMatter: () => true, isBridgeServerStarting: () => true } })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        isBridgeServerStarting: () => true,
+      },
+    })
     const impl = new MatterAPIImpl(api)
     vi.spyOn(impl as any, 'validateAccessories').mockReturnValue([bridgedAccessory])
 
@@ -251,7 +306,12 @@ describe('matterAPIImpl.registerPlatformAccessories — bridged registration bef
   })
 
   it('emits the registration once the bridge server is running', async () => {
-    const api = makeApi({ _matterManager: { hasActiveMatter: () => true, isBridgeServerStarting: () => false } })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        isBridgeServerStarting: () => false,
+      },
+    })
     const impl = new MatterAPIImpl(api)
     vi.spyOn(impl as any, 'validateAccessories').mockReturnValue([bridgedAccessory])
 

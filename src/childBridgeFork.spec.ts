@@ -302,7 +302,10 @@ describe('childBridgeFork - Matter Handlers', () => {
     })
 
     it('publishes the bridge when hap.enabled is explicitly true', () => {
-      ;(childBridgeFork as any).bridgeConfig = { username: '0E:DC:5D:BE:D6:75', hap: { enabled: true } }
+      ;(childBridgeFork as any).bridgeConfig = {
+        username: '0E:DC:5D:BE:D6:75',
+        hap: { enabled: true },
+      }
 
       childBridgeFork.publishHapIfEnabled()
 

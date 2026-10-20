@@ -188,8 +188,12 @@ export class Server {
 
     const statusUpdate: ServerStatusUpdate = {
       status: this.serverStatus,
-      paired: isPublished ? (bridge?._accessoryInfo?.paired() ?? null) : null,
-      setupUri: isPublished ? (bridge?.setupURI() ?? null) : null,
+      paired: isPublished
+        ? (bridge?._accessoryInfo?.paired() ?? null)
+        : null,
+      setupUri: isPublished
+        ? (bridge?.setupURI() ?? null)
+        : null,
       name: this.config.bridge.name,
       username: this.config.bridge.username,
       pin: this.config.bridge.pin,
@@ -990,7 +994,9 @@ export class Server {
         correlationId,
         data: {
           bridgeUsername,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error
+            ? error.message
+            : 'Unknown error',
         },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -1080,7 +1086,9 @@ export class Server {
       const event: MatterEvent = {
         type: 'accessoryInfoData',
         data: {
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error
+            ? error.message
+            : 'Unknown error',
         },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -1207,7 +1215,9 @@ export class Server {
       // so forwarding a control request to it would just be dropped. Gate on
       // isMatterActive (enabled or externalsOnly) — the same condition under
       // which the child creates its Matter handler.
-      const matterChildBridges = [...this.childBridges.values()].filter(
+      const matterChildBridges = [
+        ...this.childBridges.values(),
+      ].filter(
         bridge => isMatterActive(bridge.getMetadata().matterConfig),
       )
 

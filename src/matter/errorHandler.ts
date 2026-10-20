@@ -56,7 +56,9 @@ export class MatterErrorHandler {
     }
 
     const errorMessage = error.message.toLowerCase()
-    const errorCode = 'code' in error ? (error as NodeJS.ErrnoException).code : undefined
+    const errorCode = 'code' in error
+      ? (error as NodeJS.ErrnoException).code
+      : undefined
 
     // Network errors — prefer error.code for Node.js system errors, fallback to string matching
     if (errorCode === 'EADDRINUSE' || errorMessage.includes('eaddrinuse')) {

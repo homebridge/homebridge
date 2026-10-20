@@ -131,7 +131,9 @@ export class FabricManager {
           const data = JSON.parse(fs.readFileSync(file, 'utf-8'))
 
           // Check for fabrics data in various storage key formats
-          const fabricsData = Array.isArray(data) ? data : (data?.['fabrics.fabrics'] || data?.fabrics?.fabrics)
+          const fabricsData = Array.isArray(data)
+            ? data
+            : (data?.['fabrics.fabrics'] || data?.fabrics?.fabrics)
           if (Array.isArray(fabricsData) && fabricsData.length > 0) {
             return fabricsData.map((fabric: any) => ({
               fabricIndex: fabric.fabricIndex || 0,
@@ -257,10 +259,14 @@ export class FabricManager {
       await removeFabric(fabricIndex)
       log.info(`Fabric ${fabricIndex} removed successfully`)
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error)
       log.error(`Failed to remove fabric ${fabricIndex}:`, error)
       throw new MatterDeviceError(`Failed to remove fabric: ${errorMessage}`, {
-        originalError: error instanceof Error ? error : undefined,
+        originalError: error instanceof Error
+          ? error
+          : undefined,
       })
     }
   }

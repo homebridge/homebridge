@@ -339,7 +339,9 @@ export class MatterAPIImpl implements MatterAPI {
       })
 
       log.debug(
-        `${pluginIdentifier}: Registering ${normalAccessories.length} Matter accessor${normalAccessories.length === 1 ? 'y' : 'ies'} for platform '${platformName}'`,
+        `${pluginIdentifier}: Registering ${normalAccessories.length} Matter accessor${normalAccessories.length === 1
+          ? 'y'
+          : 'ies'} for platform '${platformName}'`,
       )
 
       this.api.emit(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier, platformName, normalAccessories)
@@ -354,7 +356,9 @@ export class MatterAPIImpl implements MatterAPI {
       })
 
       log.debug(
-        `${pluginIdentifier}: Publishing ${externalAccessories.length} external Matter accessor${externalAccessories.length === 1 ? 'y' : 'ies'} (${externalAccessories.map(a => a.displayName).join(', ')})`,
+        `${pluginIdentifier}: Publishing ${externalAccessories.length} external Matter accessor${externalAccessories.length === 1
+          ? 'y'
+          : 'ies'} (${externalAccessories.map(a => a.displayName).join(', ')})`,
       )
 
       // Create a promise to track when external publishing completes
@@ -389,7 +393,9 @@ export class MatterAPIImpl implements MatterAPI {
 
     this.assertMatterReady('Cannot update Matter accessories')
 
-    log.debug(`Updating ${accessories.length} Matter platform accessor${accessories.length === 1 ? 'y' : 'ies'} in cache`)
+    log.debug(`Updating ${accessories.length} Matter platform accessor${accessories.length === 1
+      ? 'y'
+      : 'ies'} in cache`)
 
     // Emit event for Server/ChildBridgeFork to handle
     this.api.emit(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, accessories)
@@ -426,7 +432,9 @@ export class MatterAPIImpl implements MatterAPI {
     // Handle normal accessories (on bridge)
     if (normalAccessories.length > 0) {
       log.debug(
-        `${pluginIdentifier}: Unregistering ${normalAccessories.length} Matter accessor${normalAccessories.length === 1 ? 'y' : 'ies'} from platform '${platformName}'`,
+        `${pluginIdentifier}: Unregistering ${normalAccessories.length} Matter accessor${normalAccessories.length === 1
+          ? 'y'
+          : 'ies'} from platform '${platformName}'`,
       )
       this.api.emit(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier, platformName, normalAccessories)
     }
@@ -434,7 +442,9 @@ export class MatterAPIImpl implements MatterAPI {
     // Handle external accessories (standalone bridges)
     if (externalAccessories.length > 0) {
       log.debug(
-        `${pluginIdentifier}: Unregistering ${externalAccessories.length} external Matter accessor${externalAccessories.length === 1 ? 'y' : 'ies'} (${externalAccessories.map(a => a.displayName).join(', ')})`,
+        `${pluginIdentifier}: Unregistering ${externalAccessories.length} external Matter accessor${externalAccessories.length === 1
+          ? 'y'
+          : 'ies'} (${externalAccessories.map(a => a.displayName).join(', ')})`,
       )
       this.api.emit(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, externalAccessories)
     }
@@ -472,7 +482,9 @@ export class MatterAPIImpl implements MatterAPI {
     this.assertMatterReady(`Cannot update Matter accessory ${uuid}`)
 
     log.debug(
-      `Updating Matter accessory state: uuid=${uuid}, cluster=${cluster}, attributes=${Object.keys(attributes).join(', ')}${partId ? `, partId=${partId}` : ''}`,
+      `Updating Matter accessory state: uuid=${uuid}, cluster=${cluster}, attributes=${Object.keys(attributes).join(', ')}${partId
+        ? `, partId=${partId}`
+        : ''}`,
     )
 
     // Emit the event (listeners will be called synchronously by EventEmitter)
@@ -504,7 +516,9 @@ export class MatterAPIImpl implements MatterAPI {
     this.validateClusterName(cluster, `getAccessoryState (${uuid})`)
 
     log.debug(
-      `Getting Matter accessory state: uuid=${uuid}, cluster=${cluster}${partId ? `, partId=${partId}` : ''}`,
+      `Getting Matter accessory state: uuid=${uuid}, cluster=${cluster}${partId
+        ? `, partId=${partId}`
+        : ''}`,
     )
 
     // Check external servers first (for accessories like robot vacuums)

@@ -8,9 +8,15 @@ vi.mock('node:fs/promises', () => ({
   writeFile: vi.fn(),
 }))
 vi.mock('@matter/types/schema', () => ({
-  ManualPairingCodeCodec: { encode: vi.fn(() => '12345678901') },
-  QrPairingCodeCodec: { encode: vi.fn(() => 'MT:Y.K9042C00KA0648G00') },
-  QrCode: { get: vi.fn(() => '(QR code)') },
+  ManualPairingCodeCodec: {
+    encode: vi.fn(() => '12345678901'),
+  },
+  QrPairingCodeCodec: {
+    encode: vi.fn(() => 'MT:Y.K9042C00KA0648G00'),
+  },
+  QrCode: {
+    get: vi.fn(() => '(QR code)'),
+  },
 }))
 vi.mock('../../logger.js', () => {
   const mockLogger = {
@@ -20,7 +26,11 @@ vi.mock('../../logger.js', () => {
     debug: vi.fn(),
     log: vi.fn(),
   }
-  return { Logger: { withPrefix: vi.fn(() => mockLogger) } }
+  return {
+    Logger: {
+      withPrefix: vi.fn(() => mockLogger),
+    },
+  }
 })
 
 const { readFile, writeFile } = await import('node:fs/promises')
@@ -102,7 +112,18 @@ describe('commissioningManager', () => {
     })
 
     it('should not generate invalid passcodes (all zeros, all same digit, etc.)', () => {
-      const invalidPasscodes = [0, 11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999]
+      const invalidPasscodes = [
+        0,
+        11111111,
+        22222222,
+        33333333,
+        44444444,
+        55555555,
+        66666666,
+        77777777,
+        88888888,
+        99999999,
+      ]
 
       // Generate many passcodes and verify none are invalid
       for (let i = 0; i < 100; i++) {
@@ -198,13 +219,34 @@ describe('commissioningManager', () => {
     })
 
     it.each([
-      ['an invalid passcode', { passcode: 12345678, discriminator: 1234 }],
-      ['a string passcode', { passcode: '29384756', discriminator: 1234 }],
-      ['a fractional passcode', { passcode: 29384756.5, discriminator: 1234 }],
-      ['a negative discriminator', { passcode: 29384756, discriminator: -1 }],
-      ['an oversized discriminator', { passcode: 29384756, discriminator: 4096 }],
-      ['a fractional discriminator', { passcode: 29384756, discriminator: 1.5 }],
-      ['a string discriminator', { passcode: 29384756, discriminator: '1234' }],
+      [
+        'an invalid passcode',
+        { passcode: 12345678, discriminator: 1234 },
+      ],
+      [
+        'a string passcode',
+        { passcode: '29384756', discriminator: 1234 },
+      ],
+      [
+        'a fractional passcode',
+        { passcode: 29384756.5, discriminator: 1234 },
+      ],
+      [
+        'a negative discriminator',
+        { passcode: 29384756, discriminator: -1 },
+      ],
+      [
+        'an oversized discriminator',
+        { passcode: 29384756, discriminator: 4096 },
+      ],
+      [
+        'a fractional discriminator',
+        { passcode: 29384756, discriminator: 1.5 },
+      ],
+      [
+        'a string discriminator',
+        { passcode: 29384756, discriminator: '1234' },
+      ],
     ])('should regenerate credentials containing %s', async (_description, credentials) => {
       mockedReadFile.mockResolvedValue(JSON.stringify(credentials) as any)
       mockedWriteFile.mockResolvedValue(undefined)
@@ -243,7 +285,13 @@ describe('commissioningManager', () => {
         matterStoragePath: '/mock/storage',
         serialNumber: 'SN-001',
         fabricManager: {
-          getCommissioningSnapshot: vi.fn(() => ({ commissioned: true, fabricCount: 1, fabrics: [{ fabricId: 1 }] })),
+          getCommissioningSnapshot: vi.fn(() => ({
+            commissioned: true,
+            fabricCount: 1,
+            fabrics: [
+              { fabricId: 1 },
+            ],
+          })),
         },
       } as any
 
@@ -272,7 +320,14 @@ describe('commissioningManager', () => {
 
       mockedWriteFile.mockResolvedValue(undefined)
 
-      const snapshot = { commissioned: true, fabricCount: 2, fabrics: [{ fabricId: 1 }, { fabricId: 2 }] } as any
+      const snapshot = {
+        commissioned: true,
+        fabricCount: 2,
+        fabrics: [
+          { fabricId: 1 },
+          { fabricId: 2 },
+        ],
+      } as any
       await manager.updateCommissioningFile(deps, snapshot)
 
       expect(getCommissioningSnapshot).not.toHaveBeenCalled()
@@ -301,27 +356,51 @@ describe('commissioningManager', () => {
 
   describe('purgeSubscriptionsForFabric', () => {
     function serverNodeWith(subs: any[]) {
-      const subscriptions = { state: { subscriptions: subs } }
+      const subscriptions = {
+        state: { subscriptions: subs },
+      }
       return {
-        node: { act: async (cb: any) => cb({ get: () => subscriptions }) },
+        node: {
+          act: async (cb: any) => cb({
+            get: () => subscriptions,
+          }),
+        },
         subscriptions,
       }
     }
 
     it('removes only the persisted subscriptions of the deleted fabric', async () => {
       const { node, subscriptions } = serverNodeWith([
-        { peerAddress: { fabricIndex: 1 } },
-        { peerAddress: { fabricIndex: 2 } },
-        { peerAddress: { fabricIndex: 1 } },
+        {
+          peerAddress: { fabricIndex: 1 },
+        },
+        {
+          peerAddress: { fabricIndex: 2 },
+        },
+        {
+          peerAddress: { fabricIndex: 1 },
+        },
       ])
       await (manager as any).purgeSubscriptionsForFabric(node, 1)
-      expect(subscriptions.state.subscriptions).toEqual([{ peerAddress: { fabricIndex: 2 } }])
+      expect(subscriptions.state.subscriptions).toEqual([
+        {
+          peerAddress: { fabricIndex: 2 },
+        },
+      ])
     })
 
     it('leaves subscriptions untouched when none belong to the fabric', async () => {
-      const { node, subscriptions } = serverNodeWith([{ peerAddress: { fabricIndex: 2 } }])
+      const { node, subscriptions } = serverNodeWith([
+        {
+          peerAddress: { fabricIndex: 2 },
+        },
+      ])
       await (manager as any).purgeSubscriptionsForFabric(node, 1)
-      expect(subscriptions.state.subscriptions).toEqual([{ peerAddress: { fabricIndex: 2 } }])
+      expect(subscriptions.state.subscriptions).toEqual([
+        {
+          peerAddress: { fabricIndex: 2 },
+        },
+      ])
     })
 
     it('is a no-op when there is no server node', async () => {

@@ -238,15 +238,17 @@ export class CommissioningManager {
 
     log.info(`Encoding QR code with: passcode=${this.passcode}, discriminator=${discriminator}, vendorId=${vendorId}, productId=${productId}`)
 
-    const qrCodePayload = QrPairingCodeCodec.encode([{
-      version: 0,
-      vendorId,
-      productId,
-      flowType: 0, // Standard commissioning flow
-      discoveryCapabilities: 4, // OnNetwork=4
-      discriminator,
-      passcode: this.passcode,
-    }])
+    const qrCodePayload = QrPairingCodeCodec.encode([
+      {
+        version: 0,
+        vendorId,
+        productId,
+        flowType: 0, // Standard commissioning flow
+        discoveryCapabilities: 4, // OnNetwork=4
+        discriminator,
+        passcode: this.passcode,
+      },
+    ])
 
     log.info(`Generated QR code: ${qrCodePayload}`)
     log.info(`Generated manual code: ${manualPairingCode}`)
@@ -274,7 +276,9 @@ export class CommissioningManager {
       await writeFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2), 'utf-8')
       log.debug(`Saved commissioning info to ${commissioningFilePath}`)
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error)
       log.warn(`Failed to save commissioning info to disk: ${errorMessage}`)
     }
 
@@ -457,7 +461,9 @@ export class CommissioningManager {
       await writeFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2), 'utf-8')
       log.debug('Updated commissioning info file')
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error)
       log.debug(`Failed to update commissioning info file: ${errorMessage}`)
     }
   }
