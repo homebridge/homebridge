@@ -630,6 +630,37 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     }
   })
 
+  it.each([false, true])('continues shutdown after cache rejection (close also fails: %s)', async (closeFails) => {
+    const close = vi.fn(async () => {
+      if (closeFails) {
+        throw new Error('close failed')
+      }
+    })
+    const save = vi.fn().mockRejectedValue(new Error('disk full'))
+    const cancelPendingSave = vi.fn()
+    const cleanupHandler = vi.fn(async () => {})
+    const setServerNode = vi.fn()
+    const deps = createMockDeps({
+      getServerNode: vi.fn(() => ({ close }) as never),
+      setServerNode,
+      getIsRunning: vi.fn(() => true),
+      getAccessoryCache: vi.fn(() => ({ save, cancelPendingSave }) as never),
+      cleanupHandlers: [cleanupHandler],
+    })
+    const accessories = new Map<string, any>([['uuid-1', { UUID: 'uuid-1' }]])
+    const { Logger } = await import('../../logger.js')
+    const log = Logger.withPrefix('test')
+
+    const error = await lifecycle.stop(deps, accessories as never).then(() => undefined, error => error)
+    expect(error?.message).toBe(closeFails ? 'close failed' : undefined)
+    expect(accessories.size).toBe(closeFails ? 1 : 0)
+    expect(setServerNode.mock.calls).toEqual(closeFails ? [] : [[null]])
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(cleanupHandler).toHaveBeenCalledTimes(1)
+    expect(log.debug).not.toHaveBeenCalledWith('Saved accessory cache before shutdown')
+    expect(log.error).toHaveBeenCalledWith('Failed to save accessory cache before shutdown:', expect.any(Error))
+  })
+
   it('cancels a pending debounced cache save before clearing the map (#3944)', async () => {
     // A debounced save armed during registration captures the live accessory
     // map by reference. If stop() clears the map without cancelling it first,

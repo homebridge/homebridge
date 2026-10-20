@@ -198,7 +198,8 @@ export class MatterAccessoryCache {
   /**
    * Save accessories to cache immediately (serialized to prevent concurrent write conflicts)
    * Uses a queue pattern to ensure saves are truly serialized even when called concurrently
-   * Use this for shutdown/critical operations that need immediate persistence
+   * Use this for shutdown/critical operations that need immediate persistence.
+   * Rejects on failure; subsequent queued saves can still proceed.
    */
   async save(accessories: Map<string, InternalMatterAccessory>): Promise<void> {
     // Clear any pending debounced save since we're saving now
@@ -209,10 +210,12 @@ export class MatterAccessoryCache {
 
     // Chain this save to the end of the queue
     // This ensures all saves run sequentially without race conditions
-    this.saveQueue = this.saveQueue.then(() => this.performSave(accessories))
+    const save = this.saveQueue.then(() => this.performSave(accessories))
+    // Keep the queue usable after a failure while returning this save's error.
+    this.saveQueue = save.catch(() => {})
 
     // Wait for this save to complete
-    await this.saveQueue
+    await save
   }
 
   /**
@@ -259,6 +262,7 @@ export class MatterAccessoryCache {
         // non-fatal: couldn't clean up temp file
         log.debug('Could not clean up temporary cache file:', cleanupError)
       }
+      throw error
     }
   }
 

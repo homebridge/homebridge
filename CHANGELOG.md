@@ -33,6 +33,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: read matter.js native fabric storage to report commissioned state (#4021) (@AxelDreemurr)
 - fix(matter): preserve accessory cache on read errors (#4023) (@ethanjnrg)
 - fix(matter): skip malformed accessory cache entries (#4024) (@ethanjnrg)
+- fix(matter): report cache save failures without blocking shutdown (#4025) (@ethanjnrg)
 
 ### Homebridge Dependencies
 

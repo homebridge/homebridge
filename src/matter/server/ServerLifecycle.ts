@@ -635,8 +635,14 @@ export class ServerLifecycle {
       if (isRunning) {
         const cache = deps.getAccessoryCache()
         if (cache && accessories.size > 0) {
-          await cache.save(accessories)
-          log.debug('Saved accessory cache before shutdown')
+          try {
+            await cache.save(accessories)
+            log.debug('Saved accessory cache before shutdown')
+          } catch (error) {
+            // Persistence is best-effort during teardown. Still close the node
+            // and run cleanup if storage is unavailable.
+            log.error('Failed to save accessory cache before shutdown:', error)
+          }
         }
       }
 

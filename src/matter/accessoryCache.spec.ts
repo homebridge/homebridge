@@ -459,7 +459,7 @@ describe('matterAccessoryCache', () => {
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
-      await cache.save(accessories)
+      await expect(cache.save(accessories)).rejects.toThrow('Write failed')
 
       expect(logErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to save'))
     })
@@ -494,7 +494,7 @@ describe('matterAccessoryCache', () => {
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
-      await cache.save(accessories)
+      await expect(cache.save(accessories)).rejects.toThrow('Write failed')
 
       expect(logErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to save'))
       expect(mockedRm).toHaveBeenCalledWith(expect.stringContaining('.tmp'), { force: true })
@@ -507,9 +507,45 @@ describe('matterAccessoryCache', () => {
 
       const accessories = new Map<string, InternalMatterAccessory>()
 
-      await cache.save(accessories)
+      await expect(cache.save(accessories)).rejects.toThrow('Write failed')
 
       expect(logDebugSpy).toHaveBeenCalledWith('Could not clean up temporary cache file:', expect.anything())
+    })
+
+    it.each(['mkdir', 'write', 'rename'])('rejects a failed %s and lets the next queued save succeed', async (operation) => {
+      const failure = new Error(`${operation} failed`)
+      mockedMkdir.mockResolvedValue(undefined)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+      mockedRm.mockResolvedValue(undefined)
+      const failingOperation = operation === 'mkdir' ? mockedMkdir : operation === 'write' ? mockedWriteFile : mockedRename
+      failingOperation.mockRejectedValueOnce(failure)
+      const accessories = new Map<string, InternalMatterAccessory>()
+
+      const outcomes = await Promise.allSettled([cache.save(accessories), cache.save(accessories)])
+
+      expect(outcomes).toEqual([{ status: 'rejected', reason: failure }, { status: 'fulfilled', value: undefined }])
+      expect(mockedRename).toHaveBeenCalledWith(expect.stringContaining('.tmp'), expect.stringContaining('accessories.json'))
+      expect(logDebugSpy.mock.calls.filter((call: string[]) => call[0] === 'Saved 0 Matter accessories to cache')).toHaveLength(1)
+    })
+
+    it('reports a debounced save failure and permits a later retry', async () => {
+      vi.useFakeTimers()
+      try {
+        const failure = new Error('disk full')
+        mockedMkdir.mockResolvedValue(undefined)
+        mockedWriteFile.mockReset().mockRejectedValueOnce(failure).mockResolvedValue(undefined)
+        mockedRename.mockResolvedValue(undefined)
+        mockedRm.mockResolvedValue(undefined)
+        const accessories = new Map<string, InternalMatterAccessory>()
+        cache.requestSave(accessories)
+        await vi.runAllTimersAsync()
+        expect(logErrorSpy).toHaveBeenCalledWith('Debounced cache save failed:', failure)
+        await expect(cache.save(accessories)).resolves.toBeUndefined()
+        expect(mockedRename).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('should serialize multiple accessories', async () => {
