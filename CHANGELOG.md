@@ -31,6 +31,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): pass accessory information to the UI (#4019) (@thecloudseeker)
 - fix(matter): keep uniqueId when re-registering a restored accessory (#4020) (@thecloudseeker)
 - fix: read matter.js native fabric storage to report commissioned state (#4021) (@AxelDreemurr)
+- fix(matter): preserve accessory cache on read errors (#4023) (@ethanjnrg)
 
 ### Homebridge Dependencies
 

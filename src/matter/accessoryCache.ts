@@ -9,7 +9,7 @@
 
 import type { InternalMatterAccessory } from './types.js'
 
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { Logger } from '../logger.js'
@@ -75,6 +75,7 @@ export class MatterAccessoryCache {
   private readonly cacheFilePath: string
   private cachedAccessories: Map<string, SerializedMatterAccessory> = new Map()
   private cacheLoaded = false
+  private cacheReadFailed = false
   private saveQueue: Promise<void> = Promise.resolve()
   private directoryEnsured = false
   private saveDebounceTimer: NodeJS.Timeout | null = null
@@ -86,25 +87,37 @@ export class MatterAccessoryCache {
 
   /**
    * Load cached accessories from disk
-   * Returns a map of cached accessories keyed by UUID
+   * Returns a map of cached accessories keyed by UUID.
+   * I/O failures preserve the file and suspend saves until a later load succeeds.
    */
   async load(): Promise<Map<string, SerializedMatterAccessory>> {
     if (this.cacheLoaded) {
       return this.cachedAccessories
     }
 
+    let cacheContents: string
     try {
-      // Check if cache file exists
-      try {
-        await stat(this.cacheFilePath)
-      } catch {
+      cacheContents = await readFile(this.cacheFilePath, 'utf-8')
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         log.info('No cached Matter accessories found (first run)')
+        this.cacheReadFailed = false
         this.cacheLoaded = true
         return this.cachedAccessories
       }
 
-      // Read and parse cache file
-      const cacheData = JSON.parse(await readFile(this.cacheFilePath, 'utf-8'))
+      // An unreadable file is not necessarily corrupt. Keep it intact and
+      // prevent later registration/shutdown saves from replacing unread data.
+      this.cacheReadFailed = true
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      log.error(`Failed to read Matter accessory cache from ${this.cacheFilePath}: ${errorMessage}`)
+      log.warn('Preserving unread Matter accessory cache; saves are disabled until the cache can be loaded. Check storage access and restart Homebridge.')
+      return this.cachedAccessories
+    }
+
+    this.cacheReadFailed = false
+    try {
+      const cacheData = JSON.parse(cacheContents)
 
       if (!Array.isArray(cacheData)) {
         throw new TypeError('Cache file does not contain an array')
@@ -206,6 +219,13 @@ export class MatterAccessoryCache {
    * Performs atomic write to prevent cache corruption on system crashes
    */
   private async performSave(accessories: Map<string, InternalMatterAccessory>): Promise<void> {
+    // Check inside the queue so a read failure also protects against saves
+    // that were enqueued before the failed load completed.
+    if (this.cacheReadFailed) {
+      log.warn('Skipping Matter accessory cache save to preserve unread data')
+      return
+    }
+
     const tempFilePath = `${this.cacheFilePath}.tmp`
 
     try {
