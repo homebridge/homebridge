@@ -1624,3 +1624,33 @@ describe('accessoryManager', () => {
     })
   })
 })
+
+describe('accessory information longer than Matter allows (#4016)', () => {
+  it('is shortened to fit, rather than failing registration under a matter.js attribute name', () => {
+    const manager = new AccessoryManager()
+    const accessory = createMockAccessory({
+      displayName: 'Switch',
+      manufacturer: 'Virtual Matter Accessories Incorporated',
+      model: 'Virtual Accessory - OnOffLightSwitch',
+      serialNumber: 'SN-0123456789-0123456789-0123456789',
+    })
+
+    const info = (manager as any).createEndpointOptions(accessory, {}).bridgedDeviceBasicInformation
+
+    expect(info.vendorName).toBe('Virtual Matter Accessories Incor')
+    expect(info.productName).toBe('Virtual Accessory - OnOffLightSw')
+    expect(info.serialNumber).toBe('SN-0123456789-0123456789-0123456')
+    for (const value of [info.vendorName, info.productName, info.serialNumber, info.nodeLabel]) {
+      expect(value.length).toBeLessThanOrEqual(32)
+    }
+  })
+
+  it('leaves values that already fit alone', () => {
+    const manager = new AccessoryManager()
+    const accessory = createMockAccessory({ manufacturer: 'Acme', model: 'Switch One', serialNumber: 'SN1' })
+
+    const info = (manager as any).createEndpointOptions(accessory, {}).bridgedDeviceBasicInformation
+
+    expect(info).toMatchObject({ vendorName: 'Acme', productName: 'Switch One', serialNumber: 'SN1' })
+  })
+})
