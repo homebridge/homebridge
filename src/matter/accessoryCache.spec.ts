@@ -210,6 +210,35 @@ describe('matterAccessoryCache', () => {
       expect(result.size).toBe(0)
       expect(mockedWriteFile).toHaveBeenCalledTimes(1)
       expect(mockedRename).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([0, 1, 2])('preserves valid entries around a null at index %i without deleting the file', async (index) => {
+      const valid = [
+        { uuid: 'uuid-1', context: { retained: 1 } },
+        { uuid: 'uuid-2', context: { retained: 2 } },
+      ]
+      const entries: unknown[] = [...valid]
+      entries.splice(index, 0, null)
+      mockedReadFile.mockResolvedValue(JSON.stringify(entries))
+
+      const result = await cache.load()
+
+      expect([...result.values()]).toEqual(valid)
+      expect(mockedRm).not.toHaveBeenCalled()
+      expect(logErrorSpy).not.toHaveBeenCalled()
+      expect(await cache.load()).toBe(result)
+      expect(mockedReadFile).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips malformed entries and non-string UUIDs in a parseable array', async () => {
+      const valid = { uuid: 'uuid-valid', context: { retained: true } }
+      mockedReadFile.mockResolvedValue(JSON.stringify([
+        false, 42, 'entry', [], {}, { uuid: '' }, { uuid: 42 }, { uuid: {} }, valid,
+      ]))
+
+      const result = await cache.load()
+
+      expect([...result.entries()]).toEqual([['uuid-valid', valid]])
       expect(mockedRm).not.toHaveBeenCalled()
     })
 
