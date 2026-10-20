@@ -56,7 +56,9 @@ export class HomebridgeRvcRunModeServer extends RvcRunModeServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to change run mode: ${message}`, Status.Failure)
     }
   }

@@ -19,7 +19,9 @@ vi.mock('../configValidator.js', () => ({
   })),
   truncateString: vi.fn((value: string, maxLength: number) => ({
     value: value.slice(0, maxLength),
-    warnings: value.length > maxLength ? [`Truncated to ${maxLength} characters`] : [],
+    warnings: value.length > maxLength
+      ? [`Truncated to ${maxLength} characters`]
+      : [],
   })),
 }))
 vi.mock('../types.js', async () => {
@@ -128,7 +130,10 @@ describe('serverConfig', () => {
     })
 
     it('should pass through networkInterfaces', () => {
-      const result = validateAndSanitizeConfig({ ...validConfig, networkInterfaces: ['eth0', 'wlan0'] })
+      const result = validateAndSanitizeConfig({
+        ...validConfig,
+        networkInterfaces: ['eth0', 'wlan0'],
+      })
       expect(result.networkInterfaces).toEqual(['eth0', 'wlan0'])
     })
 

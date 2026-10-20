@@ -38,7 +38,9 @@ export function isNodeError(error: unknown): error is NodeError {
  * @returns Error code string if present, undefined otherwise
  */
 export function getErrorCode(error: unknown): string | undefined {
-  return isNodeError(error) ? error.code : undefined
+  return isNodeError(error)
+    ? error.code
+    : undefined
 }
 
 /**
@@ -61,7 +63,9 @@ export function normalizeBindConfig(bind: string | string[] | undefined): string
   if (!bind) {
     return undefined
   }
-  return Array.isArray(bind) ? bind : [bind]
+  return Array.isArray(bind)
+    ? bind
+    : [bind]
 }
 
 /**

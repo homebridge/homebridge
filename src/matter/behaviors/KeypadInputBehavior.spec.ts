@@ -10,7 +10,10 @@ import { RegistryManager } from './RegistryManager.js'
 function makeBehavior<T>(prototype: object, endpoint?: unknown): T {
   const behavior = Object.create(prototype)
   if (endpoint) {
-    Object.defineProperty(behavior, 'endpoint', { get: () => endpoint, configurable: true })
+    Object.defineProperty(behavior, 'endpoint', {
+      get: () => endpoint,
+      configurable: true,
+    })
   }
   return behavior as T
 }

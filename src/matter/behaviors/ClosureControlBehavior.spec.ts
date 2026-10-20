@@ -14,9 +14,15 @@ interface ClosureState {
 
 function makeBehavior<T>(prototype: object, state: ClosureState, endpoint?: unknown): T {
   const behavior = Object.create(prototype)
-  Object.defineProperty(behavior, 'state', { get: () => state, configurable: true })
+  Object.defineProperty(behavior, 'state', {
+    get: () => state,
+    configurable: true,
+  })
   if (endpoint) {
-    Object.defineProperty(behavior, 'endpoint', { get: () => endpoint, configurable: true })
+    Object.defineProperty(behavior, 'endpoint', {
+      get: () => endpoint,
+      configurable: true,
+    })
   }
   return behavior as T
 }
@@ -99,7 +105,9 @@ describe('homebridgeClosureControlServer', () => {
     expect(registry.syncStateToCache).toHaveBeenCalledWith(
       endpointId,
       'closureControl',
-      expect.objectContaining({ overallTargetState: { position: 1 } }),
+      expect.objectContaining({
+        overallTargetState: { position: 1 },
+      }),
     )
   })
 

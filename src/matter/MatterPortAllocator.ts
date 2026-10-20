@@ -68,7 +68,9 @@ export class MatterPortAllocator {
 
     const allocatedPortValues = new Set([
       ...this.configuredPorts,
-      ...[...this.allocatedPorts.values()].filter((p): p is number => p !== undefined),
+      ...[
+        ...this.allocatedPorts.values(),
+      ].filter((p): p is number => p !== undefined),
     ])
 
     // Find first unallocated port in preferred range

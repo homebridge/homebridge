@@ -146,7 +146,9 @@ describe('serverHelpers', () => {
           {
             id: 'part1',
             deviceType: { name: 'OnOffLight' },
-            clusters: { onOff: { onOff: false } },
+            clusters: {
+              onOff: { onOff: false },
+            },
           },
         ],
       } as any
@@ -165,7 +167,9 @@ describe('serverHelpers', () => {
         parts: [
           {
             deviceType: { name: 'OnOffLight' },
-            clusters: { onOff: { onOff: false } },
+            clusters: {
+              onOff: { onOff: false },
+            },
           },
         ],
       } as any
@@ -184,7 +188,9 @@ describe('serverHelpers', () => {
         parts: [
           {
             id: 'part1',
-            clusters: { onOff: { onOff: false } },
+            clusters: {
+              onOff: { onOff: false },
+            },
           },
         ],
       } as any
@@ -271,7 +277,12 @@ describe('serverHelpers', () => {
         occupancy: true,
         autoMode: true,
       })
-      expect(features).toEqual(['Heating', 'Cooling', 'Occupancy', 'AutoMode'])
+      expect(features).toEqual([
+        'Heating',
+        'Cooling',
+        'Occupancy',
+        'AutoMode',
+      ])
     })
 
     it('should return empty array when no features are enabled', () => {
@@ -410,7 +421,9 @@ describe('serverHelpers', () => {
     })
 
     it('should return empty when there is no colorControl cluster', () => {
-      expect(determineColorControlFeaturesFromClusters({ onOff: { onOff: true } })).toEqual([])
+      expect(determineColorControlFeaturesFromClusters({
+        onOff: { onOff: true },
+      })).toEqual([])
       expect(determineColorControlFeaturesFromClusters(undefined)).toEqual([])
     })
   })
@@ -622,7 +635,9 @@ describe('serverHelpers', () => {
     it('should raise a minLevel of 0 to 1 when Lighting is active', () => {
       const accessory = {
         displayName: 'Dimmable Light',
-        clusters: { levelControl: { currentLevel: 0, minLevel: 0, maxLevel: 254 } },
+        clusters: {
+          levelControl: { currentLevel: 0, minLevel: 0, maxLevel: 254 },
+        },
       } as any
 
       applyLevelControlLightingFloor(accessory, ['OnOff', 'Lighting'])
@@ -634,7 +649,9 @@ describe('serverHelpers', () => {
     it('should leave levels alone when Lighting is not active', () => {
       const accessory = {
         displayName: 'Pump',
-        clusters: { levelControl: { currentLevel: 0, minLevel: 0, maxLevel: 254 } },
+        clusters: {
+          levelControl: { currentLevel: 0, minLevel: 0, maxLevel: 254 },
+        },
       } as any
 
       applyLevelControlLightingFloor(accessory, [])
@@ -646,7 +663,9 @@ describe('serverHelpers', () => {
     it('should leave already-valid levels untouched', () => {
       const accessory = {
         displayName: 'Dimmable Light',
-        clusters: { levelControl: { currentLevel: 127, minLevel: 1, maxLevel: 254 } },
+        clusters: {
+          levelControl: { currentLevel: 127, minLevel: 1, maxLevel: 254 },
+        },
       } as any
 
       applyLevelControlLightingFloor(accessory, ['OnOff', 'Lighting'])
@@ -656,7 +675,12 @@ describe('serverHelpers', () => {
     })
 
     it('should do nothing when there is no levelControl cluster', () => {
-      const accessory = { displayName: 'Switch', clusters: { onOff: { onOff: true } } } as any
+      const accessory = {
+        displayName: 'Switch',
+        clusters: {
+          onOff: { onOff: true },
+        },
+      } as any
 
       expect(() => applyLevelControlLightingFloor(accessory, ['Lighting'])).not.toThrow()
     })
@@ -664,7 +688,9 @@ describe('serverHelpers', () => {
     it('should do nothing when features could not be detected', () => {
       const accessory = {
         displayName: 'Unknown',
-        clusters: { levelControl: { minLevel: 0 } },
+        clusters: {
+          levelControl: { minLevel: 0 },
+        },
       } as any
 
       applyLevelControlLightingFloor(accessory, null)
@@ -677,7 +703,9 @@ describe('serverHelpers', () => {
     it('should detect Heating alone for a heating-only thermostat', () => {
       const accessory = {
         displayName: 'Spa Heater',
-        clusters: { thermostat: { occupiedHeatingSetpoint: 3800, systemMode: 4 } },
+        clusters: {
+          thermostat: { occupiedHeatingSetpoint: 3800, systemMode: 4 },
+        },
       } as any
 
       expect(detectThermostatFeatures(accessory)).toEqual(['Heating'])
@@ -686,7 +714,9 @@ describe('serverHelpers', () => {
     it('should detect Cooling alone for a cooling-only thermostat', () => {
       const accessory = {
         displayName: 'Cooler',
-        clusters: { thermostat: { occupiedCoolingSetpoint: 2400 } },
+        clusters: {
+          thermostat: { occupiedCoolingSetpoint: 2400 },
+        },
       } as any
 
       expect(detectThermostatFeatures(accessory)).toEqual(['Cooling'])
@@ -695,7 +725,9 @@ describe('serverHelpers', () => {
     it('should add AutoMode only when the thermostat can both heat and cool', () => {
       const accessory = {
         displayName: 'Heat Pump',
-        clusters: { thermostat: { occupiedHeatingSetpoint: 2000, occupiedCoolingSetpoint: 2400 } },
+        clusters: {
+          thermostat: { occupiedHeatingSetpoint: 2000, occupiedCoolingSetpoint: 2400 },
+        },
       } as any
 
       expect(detectThermostatFeatures(accessory)).toEqual(['Heating', 'Cooling', 'AutoMode'])
@@ -714,13 +746,20 @@ describe('serverHelpers', () => {
         },
       } as any
 
-      expect(detectThermostatFeatures(accessory)).toEqual(['Heating', 'Cooling', 'AutoMode', 'Occupancy'])
+      expect(detectThermostatFeatures(accessory)).toEqual([
+        'Heating',
+        'Cooling',
+        'AutoMode',
+        'Occupancy',
+      ])
     })
 
     it('should fall back to Heating when no setpoints are declared', () => {
       const accessory = {
         displayName: 'Bare Thermostat',
-        clusters: { thermostat: { localTemperature: 2100 } },
+        clusters: {
+          thermostat: { localTemperature: 2100 },
+        },
       } as any
 
       expect(detectThermostatFeatures(accessory)).toEqual(['Heating'])
@@ -834,7 +873,9 @@ describe('serverHelpers', () => {
       // exactly 200 apart at the top - fine at the default 2.0°C deadband.
       const accessory = {
         displayName: 'Bare Thermostat',
-        clusters: { thermostat: { occupiedHeatingSetpoint: 2000, occupiedCoolingSetpoint: 2400 } },
+        clusters: {
+          thermostat: { occupiedHeatingSetpoint: 2000, occupiedCoolingSetpoint: 2400 },
+        },
       } as any
 
       expect(checkThermostatSetpointLimits(accessory, autoMode)).toBeUndefined()
@@ -925,7 +966,9 @@ describe('serverHelpers', () => {
     it('should detect SmokeAlarm from smokeState attribute', () => {
       const accessory = {
         displayName: 'Smoke Detector',
-        clusters: { smokeCoAlarm: { smokeState: 0, expressedState: 0 } },
+        clusters: {
+          smokeCoAlarm: { smokeState: 0, expressedState: 0 },
+        },
       } as any
 
       expect(detectSmokeCoAlarmFeatures(accessory)).toEqual(['SmokeAlarm'])
@@ -934,7 +977,9 @@ describe('serverHelpers', () => {
     it('should detect CoAlarm from coState attribute', () => {
       const accessory = {
         displayName: 'CO Detector',
-        clusters: { smokeCoAlarm: { coState: 0, expressedState: 0 } },
+        clusters: {
+          smokeCoAlarm: { coState: 0, expressedState: 0 },
+        },
       } as any
 
       expect(detectSmokeCoAlarmFeatures(accessory)).toEqual(['CoAlarm'])
@@ -943,7 +988,9 @@ describe('serverHelpers', () => {
     it('should detect both features from combined smoke/CO accessory', () => {
       const accessory = {
         displayName: 'Combo Detector',
-        clusters: { smokeCoAlarm: { smokeState: 0, coState: 0, expressedState: 0 } },
+        clusters: {
+          smokeCoAlarm: { smokeState: 0, coState: 0, expressedState: 0 },
+        },
       } as any
 
       expect(detectSmokeCoAlarmFeatures(accessory)).toEqual(['SmokeAlarm', 'CoAlarm'])
@@ -952,7 +999,9 @@ describe('serverHelpers', () => {
     it('should fall back to SmokeAlarm when neither state attribute is declared', () => {
       const accessory = {
         displayName: 'Bare Detector',
-        clusters: { smokeCoAlarm: { expressedState: 0 } },
+        clusters: {
+          smokeCoAlarm: { expressedState: 0 },
+        },
       } as any
 
       expect(detectSmokeCoAlarmFeatures(accessory)).toEqual(['SmokeAlarm'])
@@ -973,7 +1022,12 @@ describe('serverHelpers', () => {
 
   describe('detectElectricalMeasurementClusters', () => {
     it('should detect nothing when no electrical clusters are declared', () => {
-      const accessory = { displayName: 'Plain Outlet', clusters: { onOff: { onOff: false } } } as any
+      const accessory = {
+        displayName: 'Plain Outlet',
+        clusters: {
+          onOff: { onOff: false },
+        },
+      } as any
 
       expect(detectElectricalMeasurementClusters(accessory)).toEqual({
         hasPowerMeasurement: false,
@@ -984,7 +1038,9 @@ describe('serverHelpers', () => {
     it('should detect power measurement from electricalPowerMeasurement state', () => {
       const accessory = {
         displayName: 'Metered Outlet',
-        clusters: { electricalPowerMeasurement: { activePower: 5_000_000 } },
+        clusters: {
+          electricalPowerMeasurement: { activePower: 5_000_000 },
+        },
       } as any
 
       expect(detectElectricalMeasurementClusters(accessory)).toEqual({
@@ -996,7 +1052,11 @@ describe('serverHelpers', () => {
     it('should derive imported cumulative energy features from the declared attribute', () => {
       const accessory = {
         displayName: 'Metered Outlet',
-        clusters: { electricalEnergyMeasurement: { cumulativeEnergyImported: { energy: 1000 } } },
+        clusters: {
+          electricalEnergyMeasurement: {
+            cumulativeEnergyImported: { energy: 1000 },
+          },
+        },
       } as any
 
       expect(detectElectricalMeasurementClusters(accessory).energyFeatures)
@@ -1006,7 +1066,11 @@ describe('serverHelpers', () => {
     it('should derive exported periodic energy features from the declared attribute', () => {
       const accessory = {
         displayName: 'Solar Meter',
-        clusters: { electricalEnergyMeasurement: { periodicEnergyExported: { energy: 1000 } } },
+        clusters: {
+          electricalEnergyMeasurement: {
+            periodicEnergyExported: { energy: 1000 },
+          },
+        },
       } as any
 
       expect(detectElectricalMeasurementClusters(accessory).energyFeatures)
@@ -1028,7 +1092,9 @@ describe('serverHelpers', () => {
     it('should fill the mandatory power measurement attributes', () => {
       const accessory = {
         displayName: 'Metered Outlet',
-        clusters: { electricalPowerMeasurement: { activePower: 5_000_000, voltage: 230_000 } },
+        clusters: {
+          electricalPowerMeasurement: { activePower: 5_000_000, voltage: 230_000 },
+        },
       } as any
 
       applyElectricalMeasurementDefaults(accessory, detectElectricalMeasurementClusters(accessory))
@@ -1044,7 +1110,9 @@ describe('serverHelpers', () => {
     it('should default activePower to null when not declared', () => {
       const accessory = {
         displayName: 'Metered Outlet',
-        clusters: { electricalPowerMeasurement: { voltage: 230_000 } },
+        clusters: {
+          electricalPowerMeasurement: { voltage: 230_000 },
+        },
       } as any
 
       applyElectricalMeasurementDefaults(accessory, detectElectricalMeasurementClusters(accessory))
@@ -1053,10 +1121,27 @@ describe('serverHelpers', () => {
     })
 
     it('should respect plugin-provided values', () => {
-      const pluginAccuracy = [{ measurementType: 5, measured: false, minMeasuredValue: 0, maxMeasuredValue: 1, accuracyRanges: [{ rangeMin: 0, rangeMax: 1, fixedMax: 1 }] }]
+      const pluginAccuracy = [
+        {
+          measurementType: 5,
+          measured: false,
+          minMeasuredValue: 0,
+          maxMeasuredValue: 1,
+          accuracyRanges: [
+            { rangeMin: 0, rangeMax: 1, fixedMax: 1 },
+          ],
+        },
+      ]
       const accessory = {
         displayName: 'Custom Meter',
-        clusters: { electricalPowerMeasurement: { activePower: 0, powerMode: 1, accuracy: pluginAccuracy, numberOfMeasurementTypes: 1 } },
+        clusters: {
+          electricalPowerMeasurement: {
+            activePower: 0,
+            powerMode: 1,
+            accuracy: pluginAccuracy,
+            numberOfMeasurementTypes: 1,
+          },
+        },
       } as any
 
       applyElectricalMeasurementDefaults(accessory, detectElectricalMeasurementClusters(accessory))
@@ -1070,7 +1155,11 @@ describe('serverHelpers', () => {
     it('should synthesize the mandatory energy accuracy struct', () => {
       const accessory = {
         displayName: 'Metered Outlet',
-        clusters: { electricalEnergyMeasurement: { cumulativeEnergyImported: { energy: 1000 } } },
+        clusters: {
+          electricalEnergyMeasurement: {
+            cumulativeEnergyImported: { energy: 1000 },
+          },
+        },
       } as any
 
       applyElectricalMeasurementDefaults(accessory, detectElectricalMeasurementClusters(accessory))
@@ -1085,7 +1174,10 @@ describe('serverHelpers', () => {
   describe('applyElectricalMeasurementClusters', () => {
     it('should add power topology, power and energy servers to a real outlet device type', () => {
       const accessory = { displayName: 'Metered Outlet' } as any
-      const detection = { hasPowerMeasurement: true, energyFeatures: ['ImportedEnergy', 'CumulativeEnergy'] }
+      const detection = {
+        hasPowerMeasurement: true,
+        energyFeatures: ['ImportedEnergy', 'CumulativeEnergy'],
+      }
 
       const result = applyElectricalMeasurementClusters(devices.OnOffPlugInUnitDevice, accessory, detection) as any
 
@@ -1102,7 +1194,9 @@ describe('serverHelpers', () => {
     it('should declare DirectCurrent instead of AlternatingCurrent when the accessory declares DC powerMode', () => {
       const accessory = {
         displayName: 'USB Meter',
-        clusters: { electricalPowerMeasurement: { activePower: 0, powerMode: 1 } },
+        clusters: {
+          electricalPowerMeasurement: { activePower: 0, powerMode: 1 },
+        },
       } as any
       const detection = { hasPowerMeasurement: true, energyFeatures: [] }
 
@@ -1171,7 +1265,10 @@ describe('serverHelpers', () => {
     it('should return null when cluster not found in behaviors', () => {
       const deviceType = {
         behaviors: [
-          { id: 'otherCluster', cluster: { id: 999 } },
+          {
+            id: 'otherCluster',
+            cluster: { id: 999 },
+          },
         ],
       } as any
 
@@ -1183,7 +1280,10 @@ describe('serverHelpers', () => {
     it('should return null when cluster has no supportedFeatures', () => {
       const deviceType = {
         behaviors: [
-          { id: 'colorControl', cluster: { id: 768 } },
+          {
+            id: 'colorControl',
+            cluster: { id: 768 },
+          },
         ],
       } as any
 

@@ -20,8 +20,12 @@ function pluginCopy(uuid: string): MatterAccessory {
     serialNumber: 'new-serial',
     manufacturer: 'No-IP',
     model: 'DUC',
-    context: { device: { hostname: 'example.ddns.net' } },
-    clusters: { booleanState: { stateValue: true } },
+    context: {
+      device: { hostname: 'example.ddns.net' },
+    },
+    clusters: {
+      booleanState: { stateValue: true },
+    },
   } as unknown as MatterAccessory
 }
 
@@ -33,10 +37,17 @@ function registeredCopy(uuid: string): InternalMatterAccessory {
     deviceType: { name: 'ContactSensor' } as any,
     serialNumber: 'old-serial',
     context: {},
-    clusters: { booleanState: { stateValue: false } },
-    endpoint: { id: uuid, set: vi.fn() } as any,
+    clusters: {
+      booleanState: { stateValue: false },
+    },
+    endpoint: {
+      id: uuid,
+      set: vi.fn(),
+    } as any,
     registered: true,
-    _parts: [{ id: 'part-1' }] as any,
+    _parts: [
+      { id: 'part-1' },
+    ] as any,
     _eventEmitter: new EventEmitter() as any,
     _restoredFromCache: true,
     // Stamped by registerPlatformAccessories (MatterAPIImpl) and by nothing
@@ -65,18 +76,22 @@ describe('matterServer restore-from-cache attribution', () => {
       }),
     }
     ;(server as any).accessoryCache = {
-      load: async () => new Map([[
-        '48a2212f-8f39-4854-ac61-fa84b4113451',
-        {
-          uuid: '48a2212f-8f39-4854-ac61-fa84b4113451',
-          displayName: 'homebridge',
-          plugin: '@homebridge-plugins/homebridge-updater',
-          platform: 'Updater',
-          deviceType: { name: 'ContactSensor' },
-          serialNumber: 'ABC123',
-          clusters: { booleanState: { stateValue: false } },
-        },
-      ]]),
+      load: async () => new Map([
+        [
+          '48a2212f-8f39-4854-ac61-fa84b4113451',
+          {
+            uuid: '48a2212f-8f39-4854-ac61-fa84b4113451',
+            displayName: 'homebridge',
+            plugin: '@homebridge-plugins/homebridge-updater',
+            platform: 'Updater',
+            deviceType: { name: 'ContactSensor' },
+            serialNumber: 'ABC123',
+            clusters: {
+              booleanState: { stateValue: false },
+            },
+          },
+        ],
+      ]),
     }
 
     await (server as any).getLifecycleDeps().restoreAccessoriesFromCache()
@@ -108,7 +123,9 @@ describe('matterServer.updatePlatformAccessories', () => {
   it('keeps the runtime state that registration built', async () => {
     const before = accessories.get(uuid)!
 
-    await server.updatePlatformAccessories([pluginCopy(uuid)])
+    await server.updatePlatformAccessories([
+      pluginCopy(uuid),
+    ])
 
     const after = accessories.get(uuid)!
     expect(after.endpoint).toBe(before.endpoint)
@@ -131,7 +148,9 @@ describe('matterServer.updatePlatformAccessories', () => {
       saved.push(new Map(map))
     }
 
-    await server.updatePlatformAccessories([pluginCopy(uuid)])
+    await server.updatePlatformAccessories([
+      pluginCopy(uuid),
+    ])
 
     const after = accessories.get(uuid)!
     expect(after._associatedPlugin).toBe('@homebridge-plugins/homebridge-noip')
@@ -141,17 +160,23 @@ describe('matterServer.updatePlatformAccessories', () => {
   })
 
   it('still applies the metadata and context the plugin passed', async () => {
-    await server.updatePlatformAccessories([pluginCopy(uuid)])
+    await server.updatePlatformAccessories([
+      pluginCopy(uuid),
+    ])
 
     const after = accessories.get(uuid)!
     expect(after.displayName).toBe('Renamed By Plugin')
     expect(after.serialNumber).toBe('new-serial')
     expect(after.manufacturer).toBe('No-IP')
-    expect(after.context).toEqual({ device: { hostname: 'example.ddns.net' } })
+    expect(after.context).toEqual({
+      device: { hostname: 'example.ddns.net' },
+    })
   })
 
   it('leaves an accessory that was never registered alone', async () => {
-    await server.updatePlatformAccessories([pluginCopy('not-registered')])
+    await server.updatePlatformAccessories([
+      pluginCopy('not-registered'),
+    ])
 
     expect(accessories.has('not-registered')).toBe(false)
     expect(accessories.size).toBe(1)
@@ -161,7 +186,9 @@ describe('matterServer.updatePlatformAccessories', () => {
     ;(server as any).accessoryCache.hasCached = () => false
     const before = accessories.get(uuid)!
 
-    await server.updatePlatformAccessories([pluginCopy(uuid)])
+    await server.updatePlatformAccessories([
+      pluginCopy(uuid),
+    ])
 
     expect(accessories.get(uuid)).toBe(before)
   })
