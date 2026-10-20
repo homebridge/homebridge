@@ -250,6 +250,11 @@ export class MatterAccessoryCache {
       // Atomically move temp file to final location
       await rename(tempFilePath, this.cacheFilePath)
 
+      // Keep the in-memory copy in step with the file. The UI lists accessories
+      // from it, so an accessory registered after startup was missing until a
+      // restart reloaded the file, and a removed one stayed listed (#4013)
+      this.cachedAccessories = new Map(serialized.map(entry => [entry.uuid, entry]))
+
       log.debug(`Saved ${serialized.length} Matter accessor${serialized.length === 1 ? 'y' : 'ies'} to cache`)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
