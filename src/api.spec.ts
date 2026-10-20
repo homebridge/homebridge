@@ -11,7 +11,9 @@ const emitSpy = vi.spyOn(api, 'emit')
 
 class ExampleAccessory implements AccessoryPlugin {
   getServices(): Service[] {
-    return [new Service.Switch('TestSwitch')]
+    return [
+      new Service.Switch('TestSwitch'),
+    ]
   }
 }
 
@@ -72,7 +74,11 @@ describe('homebridgeAPI', () => {
       // API directly, so stand in a manager stub to satisfy that precondition.
       // getExternalServer is included because getAccessoryState consults it;
       // hasActiveMatter returns true so the register/update guards pass.
-      ;(api as any)._matterManager = { getExternalServer: () => undefined, hasActiveMatter: () => true, isBridgeServerStarting: () => false }
+      ;(api as any)._matterManager = {
+        getExternalServer: () => undefined,
+        hasActiveMatter: () => true,
+        isBridgeServerStarting: () => false,
+      }
     })
 
     describe('loadMatterAPI lifecycle', () => {
@@ -211,7 +217,9 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-001',
             manufacturer: 'Test',
             model: 'Test',
-            clusters: { onOff: { onOff: false } },
+            clusters: {
+              onOff: { onOff: false },
+            },
             context: {},
           },
           {
@@ -251,7 +259,9 @@ describe('homebridgeAPI', () => {
             manufacturer: 'Updated Manufacturer',
             model: 'Updated Model',
             firmwareRevision: '2.0.0',
-            clusters: { onOff: { onOff: true } },
+            clusters: {
+              onOff: { onOff: true },
+            },
             context: {},
           },
         ]

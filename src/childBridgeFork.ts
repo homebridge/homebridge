@@ -384,8 +384,12 @@ export class ChildBridgeFork {
     const isPublished = !!this.bridgeService?.bridge?._accessoryInfo
 
     this.sendMessage<ChildBridgePairedStatusEventData>(ChildProcessMessageEventType.STATUS_UPDATE, {
-      paired: isPublished ? (this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null) : null,
-      setupUri: isPublished ? (this.bridgeService?.bridge?.setupURI() ?? null) : null,
+      paired: isPublished
+        ? (this.bridgeService?.bridge?._accessoryInfo?.paired() ?? null)
+        : null,
+      setupUri: isPublished
+        ? (this.bridgeService?.bridge?.setupURI() ?? null)
+        : null,
       // Include Matter commissioning info in unified message
       ...(matterInfo && { matter: matterInfo }),
     })

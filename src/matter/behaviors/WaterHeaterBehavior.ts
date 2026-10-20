@@ -25,7 +25,9 @@ function asStatusError(error: unknown, action: string): unknown {
   if (MatterStatus.isMatterProtocolError(error)) {
     return error
   }
-  const message = error instanceof Error ? error.message : String(error)
+  const message = error instanceof Error
+    ? error.message
+    : String(error)
   return new StatusResponseError(`Failed to ${action}: ${message}`, Status.Failure)
 }
 

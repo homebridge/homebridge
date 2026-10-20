@@ -56,7 +56,9 @@ export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to change clean mode: ${message}`, Status.Failure)
     }
   }

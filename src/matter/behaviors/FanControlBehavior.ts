@@ -62,7 +62,9 @@ export class HomebridgeFanControlServer extends FanControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to change fan mode: ${message}`, Status.Failure)
     }
   }
@@ -99,7 +101,9 @@ export class HomebridgeFanControlServer extends FanControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to change fan speed: ${message}`, Status.Failure)
     }
   }

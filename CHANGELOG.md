@@ -43,7 +43,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.2.3`
+- `@homebridge/hap-nodejs` @ `v2.2.4-beta`
 
 ### Matter Dependencies
 

@@ -52,7 +52,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set level: ${message}`, Status.Failure)
     }
   }
@@ -84,7 +86,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to move level: ${message}`, Status.Failure)
     }
   }
@@ -116,7 +120,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to step level: ${message}`, Status.Failure)
     }
   }
@@ -148,7 +154,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to stop level change: ${message}`, Status.Failure)
     }
   }
@@ -197,7 +205,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set level with on/off: ${message}`, Status.Failure)
     }
   }

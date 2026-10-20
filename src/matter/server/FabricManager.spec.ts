@@ -16,7 +16,11 @@ vi.mock('../../logger.js', () => {
     debug: vi.fn(),
     log: vi.fn(),
   }
-  return { Logger: { withPrefix: vi.fn(() => mockLogger) } }
+  return {
+    Logger: {
+      withPrefix: vi.fn(() => mockLogger),
+    },
+  }
 })
 
 function makeFabricManager(serverNode: unknown, storagePath?: string): FabricManager {
@@ -46,14 +50,33 @@ describe('fabricManager', () => {
         fs.writeFileSync(path.join(dir, 'commissioning.json'), JSON.stringify({ commissioned: false }))
         fs.writeFileSync(
           path.join(nodeDir, 'fabrics.fabrics'),
-          JSON.stringify([{ fabricIndex: 3, fabricId: '100', nodeId: '200', rootVendorId: 0x1349, label: 'AppleHome' }]),
+          JSON.stringify([
+            {
+              fabricIndex: 3,
+              fabricId: '100',
+              nodeId: '200',
+              rootVendorId: 0x1349,
+              label: 'AppleHome',
+            },
+          ]),
         )
 
         // Node built but not yet online: the live fabric list is still empty
-        const manager = makeFabricManager({ env: {}, state: { operationalCredentials: { fabrics: [] } } }, dir)
+        const manager = makeFabricManager({
+          env: {},
+          state: {
+            operationalCredentials: { fabrics: [] },
+          },
+        }, dir)
         expect(manager.isCommissioned()).toBe(true)
         expect(manager.getFabricInfo()).toEqual([
-          { fabricIndex: 3, fabricId: '100', nodeId: '200', rootVendorId: 0x1349, label: 'AppleHome' },
+          {
+            fabricIndex: 3,
+            fabricId: '100',
+            nodeId: '200',
+            rootVendorId: 0x1349,
+            label: 'AppleHome',
+          },
         ])
       } finally {
         fs.rmSync(dir, { recursive: true, force: true })
@@ -64,7 +87,12 @@ describe('fabricManager', () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-manager-'))
       try {
         fs.mkdirSync(path.join(dir, 'B8653CFC01E7'))
-        expect(makeFabricManager({ env: {}, state: { operationalCredentials: { fabrics: [] } } }, dir).isCommissioned()).toBe(false)
+        expect(makeFabricManager({
+          env: {},
+          state: {
+            operationalCredentials: { fabrics: [] },
+          },
+        }, dir).isCommissioned()).toBe(false)
       } finally {
         fs.rmSync(dir, { recursive: true, force: true })
       }
@@ -76,31 +104,74 @@ describe('fabricManager', () => {
       // The operational credentials cluster names the vendor field `vendorId`
       // (per the Matter spec) - there is no `rootVendorId` on this shape
       const manager = makeFabricManager(makeServerNode([
-        { fabricIndex: 1, fabricId: 100n, nodeId: 200n, vendorId: 0x1349, label: 'AppleHome' },
-        { fabricIndex: 2, fabricId: 101n, nodeId: 201n, vendorId: 0x1384, label: '' },
+        {
+          fabricIndex: 1,
+          fabricId: 100n,
+          nodeId: 200n,
+          vendorId: 0x1349,
+          label: 'AppleHome',
+        },
+        {
+          fabricIndex: 2,
+          fabricId: 101n,
+          nodeId: 201n,
+          vendorId: 0x1384,
+          label: '',
+        },
       ]))
 
       const fabrics = manager.getFabricInfo()
       expect(fabrics).toEqual([
-        { fabricIndex: 1, fabricId: '100', nodeId: '200', rootVendorId: 0x1349, label: 'AppleHome' },
-        { fabricIndex: 2, fabricId: '101', nodeId: '201', rootVendorId: 0x1384, label: '' },
+        {
+          fabricIndex: 1,
+          fabricId: '100',
+          nodeId: '200',
+          rootVendorId: 0x1349,
+          label: 'AppleHome',
+        },
+        {
+          fabricIndex: 2,
+          fabricId: '101',
+          nodeId: '201',
+          rootVendorId: 0x1384,
+          label: '',
+        },
       ])
     })
 
     it('maps rootVendorId from internal matter.js Fabric-shaped entries', () => {
       const manager = makeFabricManager(makeServerNode([
-        { fabricIndex: 1, fabricId: 100n, nodeId: 200n, rootVendorId: 0x6006, label: 'Google' },
+        {
+          fabricIndex: 1,
+          fabricId: 100n,
+          nodeId: 200n,
+          rootVendorId: 0x6006,
+          label: 'Google',
+        },
       ]))
 
       const fabrics = manager.getFabricInfo()
       expect(fabrics).toEqual([
-        { fabricIndex: 1, fabricId: '100', nodeId: '200', rootVendorId: 0x6006, label: 'Google' },
+        {
+          fabricIndex: 1,
+          fabricId: '100',
+          nodeId: '200',
+          rootVendorId: 0x6006,
+          label: 'Google',
+        },
       ])
     })
 
     it('prefers rootVendorId when both vendor fields are present', () => {
       const manager = makeFabricManager(makeServerNode([
-        { fabricIndex: 1, fabricId: 100n, nodeId: 200n, rootVendorId: 0x1217, vendorId: 0x1049, label: '' },
+        {
+          fabricIndex: 1,
+          fabricId: 100n,
+          nodeId: 200n,
+          rootVendorId: 0x1217,
+          vendorId: 0x1049,
+          label: '',
+        },
       ]))
 
       expect(manager.getFabricInfo()[0].rootVendorId).toBe(0x1217)
@@ -108,7 +179,12 @@ describe('fabricManager', () => {
 
     it('defaults the vendor to 0 when neither field is present', () => {
       const manager = makeFabricManager(makeServerNode([
-        { fabricIndex: 1, fabricId: 100n, nodeId: 200n, label: '' },
+        {
+          fabricIndex: 1,
+          fabricId: 100n,
+          nodeId: 200n,
+          label: '',
+        },
       ]))
 
       expect(manager.getFabricInfo()[0].rootVendorId).toBe(0)
@@ -123,7 +199,13 @@ describe('fabricManager', () => {
   describe('getCommissioningSnapshot', () => {
     it('reports commissioned with the mapped fabrics from cluster-shaped entries', () => {
       const manager = makeFabricManager(makeServerNode([
-        { fabricIndex: 1, fabricId: 100n, nodeId: 200n, vendorId: 0x1349, label: 'AppleHome' },
+        {
+          fabricIndex: 1,
+          fabricId: 100n,
+          nodeId: 200n,
+          vendorId: 0x1349,
+          label: 'AppleHome',
+        },
       ]))
 
       const snapshot = manager.getCommissioningSnapshot()
@@ -150,7 +232,12 @@ describe('fabricManager', () => {
     it('still trusts the commissioning flag when the fabric list cannot be read at all', () => {
       // No operationalCredentials means we do not know, rather than know there
       // is nothing - so the flag stays the tie-breaker for that one case.
-      const manager = makeFabricManager({ env: {}, state: { commissioning: { commissioned: true } } })
+      const manager = makeFabricManager({
+        env: {},
+        state: {
+          commissioning: { commissioned: true },
+        },
+      })
 
       expect(manager.getCommissioningSnapshot()).toEqual({ commissioned: true, fabricCount: 0, fabrics: [] })
     })

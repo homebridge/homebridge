@@ -63,7 +63,9 @@ export class HomebridgeOnOffServer extends OnOffServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to turn on: ${message}`, Status.Failure)
     }
   }
@@ -93,7 +95,9 @@ export class HomebridgeOnOffServer extends OnOffServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to turn off: ${message}`, Status.Failure)
     }
   }
@@ -123,7 +127,9 @@ export class HomebridgeOnOffServer extends OnOffServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to toggle: ${message}`, Status.Failure)
     }
   }
