@@ -37,6 +37,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): fall back to matter.js when a ColorControl handler is missing (#4028) (@cestercian)
 - fix(matter): stop the ui's light commands failing when sent together or without options (#4029)
 - fix(matter): show a newly registered accessory in the ui without a restart (#4013)
+- docs(matter): say a restored accessory needs registering again, and keeps its cached state (#4015)
 
 ### Homebridge Dependencies
 
