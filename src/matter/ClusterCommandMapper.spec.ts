@@ -16,11 +16,19 @@ describe('clusterCommandMapper', () => {
   })
 
   describe('levelControl cluster', () => {
+    // matter.js reads optionsMask.executeIfOff, so a level command sent without
+    // the options bitmap failed outright from the UI tile (#4029)
+    it('sends the options as a bitmap object, which matter.js reads by name', () => {
+      const result = mapAttributesToCommand('levelControl', { currentLevel: 127 })
+      expect(result?.args?.optionsMask).toEqual({ executeIfOff: true })
+      expect(result?.args?.optionsOverride).toEqual({ executeIfOff: true })
+    })
+
     it('should map currentLevel to "moveToLevelWithOnOff" command', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: 128 })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: 128 },
+        args: { level: 128, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
       })
     })
 
@@ -28,7 +36,7 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: 0 })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: 0 },
+        args: { level: 0, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
       })
     })
 
@@ -36,7 +44,7 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: 254 })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: 254 },
+        args: { level: 254, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
       })
     })
 
@@ -55,8 +63,8 @@ describe('clusterCommandMapper', () => {
           args: {
             colorTemperatureMireds: 250,
             transitionTime: 0,
-            optionsMask: 1,
-            optionsOverride: 1,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
           },
         })
       })
@@ -71,16 +79,16 @@ describe('clusterCommandMapper', () => {
           args: {
             colorTemperatureMireds: 250,
             transitionTime: 10,
-            optionsMask: 1,
-            optionsOverride: 1,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
           },
         })
       })
 
       it('should include optionsMask and optionsOverride for ExecuteIfOff', () => {
         const result = mapAttributesToCommand('colorControl', { colorTemperatureMireds: 300 })
-        expect(result?.args).toHaveProperty('optionsMask', 1)
-        expect(result?.args).toHaveProperty('optionsOverride', 1)
+        expect(result?.args).toHaveProperty('optionsMask', { executeIfOff: true })
+        expect(result?.args).toHaveProperty('optionsOverride', { executeIfOff: true })
       })
     })
 
@@ -96,8 +104,8 @@ describe('clusterCommandMapper', () => {
             colorX: 0.3,
             colorY: 0.4,
             transitionTime: 0,
-            optionsMask: 1,
-            optionsOverride: 1,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
           },
         })
       })
@@ -114,8 +122,8 @@ describe('clusterCommandMapper', () => {
             colorX: 0.3,
             colorY: 0.4,
             transitionTime: 20,
-            optionsMask: 1,
-            optionsOverride: 1,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
           },
         })
       })
@@ -125,8 +133,8 @@ describe('clusterCommandMapper', () => {
           colorX: 0.5,
           colorY: 0.5,
         })
-        expect(result?.args).toHaveProperty('optionsMask', 1)
-        expect(result?.args).toHaveProperty('optionsOverride', 1)
+        expect(result?.args).toHaveProperty('optionsMask', { executeIfOff: true })
+        expect(result?.args).toHaveProperty('optionsOverride', { executeIfOff: true })
       })
     })
 
@@ -142,8 +150,8 @@ describe('clusterCommandMapper', () => {
             hue: 120,
             saturation: 200,
             transitionTime: 0,
-            optionsMask: 1,
-            optionsOverride: 1,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
           },
         })
       })
@@ -158,8 +166,8 @@ describe('clusterCommandMapper', () => {
             hue: 100,
             saturation: 0,
             transitionTime: 0,
-            optionsMask: 1,
-            optionsOverride: 1,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
           },
         })
       })
@@ -176,8 +184,8 @@ describe('clusterCommandMapper', () => {
             hue: 120,
             saturation: 200,
             transitionTime: 15,
-            optionsMask: 1,
-            optionsOverride: 1,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
           },
         })
       })
@@ -187,8 +195,8 @@ describe('clusterCommandMapper', () => {
           currentHue: 180,
           currentSaturation: 254,
         })
-        expect(result?.args).toHaveProperty('optionsMask', 1)
-        expect(result?.args).toHaveProperty('optionsOverride', 1)
+        expect(result?.args).toHaveProperty('optionsMask', { executeIfOff: true })
+        expect(result?.args).toHaveProperty('optionsOverride', { executeIfOff: true })
       })
     })
 
@@ -406,7 +414,7 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: null })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: null },
+        args: { level: null, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
       })
     })
 
@@ -414,7 +422,7 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: undefined })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: undefined },
+        args: { level: undefined, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
       })
     })
   })

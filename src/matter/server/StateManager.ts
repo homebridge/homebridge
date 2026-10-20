@@ -62,6 +62,15 @@ const ENERGY_ATTRIBUTE_MAP: Record<string, { period: 'cumulativeEnergy' | 'perio
 }
 
 export class StateManager {
+  /**
+   * The last command started on each endpoint. Each command runs in its own
+   * transaction, and the UI sends some in pairs without waiting - a dimmable
+   * light's tile sends the level, then "on". The second then reached the onOff
+   * state while the first still held it, and failed with "Cannot lock ...
+   * synchronously" (#4029). So commands for one endpoint run one at a time.
+   */
+  private readonly commandQueues = new WeakMap<object, Promise<unknown>>()
+
   constructor(
     private readonly accessories: Map<string, InternalMatterAccessory>,
     private readonly emitter: EventEmitter,
@@ -301,7 +310,8 @@ export class StateManager {
       const partInfo = partId ? ` (part: ${partId})` : ''
       log.debug(`Triggering command ${cluster}.${command} for ${displayName}${partInfo}`, args)
 
-      await targetEndpoint.act((agent: any) => {
+      const previous = this.commandQueues.get(targetEndpoint) ?? Promise.resolve()
+      const run = previous.catch(() => {}).then(() => targetEndpoint.act((agent: any) => {
         const clusterBehavior = agent[cluster]
         if (!clusterBehavior) {
           throw new Error(`Cluster '${cluster}' not found on endpoint`)
@@ -315,7 +325,15 @@ export class StateManager {
         } else {
           return clusterBehavior[command]()
         }
-      })
+      }))
+      this.commandQueues.set(targetEndpoint, run)
+      try {
+        await run
+      } finally {
+        if (this.commandQueues.get(targetEndpoint) === run) {
+          this.commandQueues.delete(targetEndpoint)
+        }
+      }
 
       log.debug(`Command ${cluster}.${command} succeeded for ${displayName}${partInfo}`)
     } catch (error) {

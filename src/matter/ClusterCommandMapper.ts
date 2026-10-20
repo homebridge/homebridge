@@ -20,6 +20,14 @@ interface AttributeToCommandMapping {
 }
 
 /**
+ * The options bitmap matter.js expects on level and colour commands. It is an
+ * object of named bits, not a number: `optionsMask: 1` read as no bits at all,
+ * so the "execute even if off" request was ignored, and a level command with no
+ * options at all failed outright reading `optionsMask.executeIfOff` (#4029)
+ */
+const EXECUTE_IF_OFF = { executeIfOff: true }
+
+/**
  * Central registry of attribute-to-command mappings for each cluster
  */
 const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
@@ -45,7 +53,11 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
       if ('currentLevel' in attributes) {
         return {
           command: 'moveToLevelWithOnOff',
-          args: { level: attributes.currentLevel },
+          args: {
+            level: attributes.currentLevel,
+            optionsMask: EXECUTE_IF_OFF,
+            optionsOverride: EXECUTE_IF_OFF,
+          },
         }
       }
       return null
@@ -66,8 +78,8 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
           args: {
             colorTemperatureMireds: attributes.colorTemperatureMireds,
             transitionTime: attributes.transitionTime ?? 0,
-            optionsMask: 1, // Bit 0 = ExecuteIfOff
-            optionsOverride: 1, // Execute even if light is off
+            optionsMask: EXECUTE_IF_OFF,
+            optionsOverride: EXECUTE_IF_OFF, // Execute even if light is off
           },
         }
       }
@@ -80,8 +92,8 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
             colorX: attributes.colorX,
             colorY: attributes.colorY,
             transitionTime: attributes.transitionTime ?? 0,
-            optionsMask: 1, // Bit 0 = ExecuteIfOff
-            optionsOverride: 1, // Execute even if light is off
+            optionsMask: EXECUTE_IF_OFF,
+            optionsOverride: EXECUTE_IF_OFF, // Execute even if light is off
           },
         }
       }
@@ -94,8 +106,8 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
             hue: attributes.currentHue ?? 0,
             saturation: attributes.currentSaturation ?? 0,
             transitionTime: attributes.transitionTime ?? 0,
-            optionsMask: 1, // Bit 0 = ExecuteIfOff
-            optionsOverride: 1, // Execute even if light is off
+            optionsMask: EXECUTE_IF_OFF,
+            optionsOverride: EXECUTE_IF_OFF, // Execute even if light is off
           },
         }
       }
