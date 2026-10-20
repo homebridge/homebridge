@@ -8,7 +8,6 @@ import { MatterAccessoryCache } from './accessoryCache.js'
 
 // Mock dependencies
 vi.mock('node:fs/promises', () => ({
-  stat: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
   rename: vi.fn(),
@@ -31,8 +30,7 @@ vi.mock('../logger.js', () => {
 })
 
 // Import mocked fs functions
-const { stat, readFile, writeFile, rename, mkdir, rm } = await import('node:fs/promises')
-const mockedStat = vi.mocked(stat)
+const { readFile, writeFile, rename, mkdir, rm } = await import('node:fs/promises')
 const mockedReadFile = vi.mocked(readFile)
 const mockedWriteFile = vi.mocked(writeFile)
 const mockedRename = vi.mocked(rename)
@@ -48,6 +46,7 @@ describe('matterAccessoryCache', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockedReadFile.mockReset()
 
     // Get logger spies
     const logger = vi.mocked(Logger).withPrefix('test')
@@ -69,7 +68,7 @@ describe('matterAccessoryCache', () => {
 
   describe('load', () => {
     it('should return empty map on first run (file does not exist)', async () => {
-      mockedStat.mockRejectedValue(new Error('ENOENT'))
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('File not found'), { code: 'ENOENT' }))
 
       const result = await cache.load()
 
@@ -105,7 +104,6 @@ describe('matterAccessoryCache', () => {
         },
       ]
 
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       const result = await cache.load()
@@ -140,7 +138,6 @@ describe('matterAccessoryCache', () => {
         },
       ]
 
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       const result = await cache.load()
@@ -149,8 +146,74 @@ describe('matterAccessoryCache', () => {
       expect(result.has('uuid-1')).toBe(true)
     })
 
+    it.each(['EACCES', 'EIO', 'EMFILE'])('preserves the cache on a %s read failure', async (code) => {
+      mockedReadFile.mockRejectedValueOnce(Object.assign(new Error('Read failed'), { code }))
+
+      const result = await cache.load()
+
+      expect(result.size).toBe(0)
+      expect(mockedRm).not.toHaveBeenCalled()
+      expect(logWarnSpy).not.toHaveBeenCalledWith('Deleting corrupted cache file and starting fresh')
+      expect(logErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Read failed'))
+    })
+
+    it('does not overwrite an unread cache through immediate or debounced saves', async () => {
+      vi.useFakeTimers()
+      try {
+        mockedReadFile.mockRejectedValueOnce(Object.assign(new Error('Read failed'), { code: 'EIO' }))
+        await cache.load()
+
+        await cache.save(new Map())
+        cache.requestSave(new Map())
+        await vi.runAllTimersAsync()
+
+        expect(mockedWriteFile).not.toHaveBeenCalled()
+        expect(mockedRename).not.toHaveBeenCalled()
+        expect(mockedRm).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('retries a failed read and allows saves after successfully loading', async () => {
+      const cached = { uuid: 'restored-uuid', context: { deviceId: 'keep-me' } }
+      mockedReadFile
+        .mockRejectedValueOnce(Object.assign(new Error('Read failed'), { code: 'EIO' }))
+        .mockResolvedValueOnce(JSON.stringify([cached]))
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+
+      await cache.load()
+      const result = await cache.load()
+      await cache.save(new Map())
+
+      expect(mockedReadFile).toHaveBeenCalledTimes(2)
+      expect(result.get(cached.uuid)).toEqual(cached)
+      expect(mockedWriteFile).toHaveBeenCalledTimes(1)
+      expect(mockedRename).toHaveBeenCalledTimes(1)
+      expect(mockedRm).not.toHaveBeenCalled()
+    })
+
+    it('allows first-run saves if an unread cache is removed before retrying', async () => {
+      mockedReadFile
+        .mockRejectedValueOnce(Object.assign(new Error('Read failed'), { code: 'EIO' }))
+        .mockRejectedValueOnce(Object.assign(new Error('File not found'), { code: 'ENOENT' }))
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+
+      await cache.load()
+      const result = await cache.load()
+      await cache.save(new Map())
+
+      expect(result.size).toBe(0)
+      expect(mockedWriteFile).toHaveBeenCalledTimes(1)
+      expect(mockedRename).toHaveBeenCalledTimes(1)
+      expect(mockedRm).not.toHaveBeenCalled()
+    })
+
     it('should handle non-array cache data', async () => {
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue(JSON.stringify({ notAnArray: true }) as any)
 
       const result = await cache.load()
@@ -162,7 +225,6 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should handle corrupted JSON file', async () => {
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue('not valid json{{{' as any)
 
       const result = await cache.load()
@@ -174,7 +236,6 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should handle error when deleting corrupted file', async () => {
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue('invalid json' as any)
       mockedRm.mockRejectedValue(new Error('Cannot delete'))
 
@@ -185,13 +246,13 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should not load twice (cacheLoaded flag)', async () => {
-      mockedStat.mockRejectedValue(new Error('ENOENT'))
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('File not found'), { code: 'ENOENT' }))
 
       await cache.load()
       await cache.load() // second load
 
-      // stat should only be called once
-      expect(mockedStat).toHaveBeenCalledTimes(1)
+      // readFile should only be called once
+      expect(mockedReadFile).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -483,7 +544,6 @@ describe('matterAccessoryCache', () => {
         },
       ]
 
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       await cache.load()
@@ -493,7 +553,7 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should return undefined for non-existent UUID', async () => {
-      mockedStat.mockRejectedValue(new Error('ENOENT'))
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('File not found'), { code: 'ENOENT' }))
       await cache.load()
 
       const result = cache.getCached('non-existent')
@@ -517,7 +577,6 @@ describe('matterAccessoryCache', () => {
         },
       ]
 
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       await cache.load()
@@ -526,7 +585,7 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should return false for non-existent accessory', async () => {
-      mockedStat.mockRejectedValue(new Error('ENOENT'))
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('File not found'), { code: 'ENOENT' }))
       await cache.load()
 
       expect(cache.hasCached('non-existent')).toBe(false)
@@ -549,7 +608,6 @@ describe('matterAccessoryCache', () => {
         },
       ]
 
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       await cache.load()
@@ -587,7 +645,6 @@ describe('matterAccessoryCache', () => {
         },
       ]
 
-      mockedStat.mockResolvedValue({} as any)
       mockedReadFile.mockResolvedValue(JSON.stringify(mockData) as any)
 
       await cache.load()
@@ -599,7 +656,7 @@ describe('matterAccessoryCache', () => {
     })
 
     it('should return a fresh array on each call (mutating it does not affect the cache)', async () => {
-      mockedStat.mockRejectedValue(new Error('ENOENT'))
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('File not found'), { code: 'ENOENT' }))
       await cache.load()
 
       const all = cache.getAllCached()
