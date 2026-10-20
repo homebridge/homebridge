@@ -129,6 +129,18 @@ const FEATURE_AWARE_CLUSTERS = new Set([
   'windowCovering',
 ])
 
+/**
+ * The colour light device types require ColorControl's RemainingTime, which the
+ * cluster itself leaves optional. matter.js 0.18 checks endpoints against their
+ * device type and flagged every colour light without it, and a value is what
+ * turns an optional attribute on.
+ */
+function withColorRemainingTime(endpointOptions: Record<string, any>): void {
+  if (endpointOptions.colorControl && endpointOptions.colorControl.remainingTime === undefined) {
+    endpointOptions.colorControl = { ...endpointOptions.colorControl, remainingTime: 0 }
+  }
+}
+
 export class AccessoryManager {
   /**
    * Register a single Matter accessory
@@ -916,6 +928,7 @@ export class AccessoryManager {
       id: accessory.UUID,
       ...accessory.clusters,
     }
+    withColorRemainingTime(endpointOptions)
 
     if (!config.externalAccessory) {
       // matter.js rejects an over-long string with its own attribute name, so a
@@ -1038,6 +1051,7 @@ export class AccessoryManager {
         },
         ...part.clusters,
       }
+      withColorRemainingTime(partEndpointOptions)
 
       const partEndpoint = new Endpoint(partDeviceType, partEndpointOptions)
       setRegistryManager(partEndpoint, deps.registryManager)

@@ -14,7 +14,10 @@ import { getRegistryManager } from './EndpointContext.js'
 /**
  * Custom RvcOperationalState Server that calls plugin handlers
  */
-export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServer {
+// The Robotic Vacuum Cleaner device type requires the OperationCompletion event,
+// which the cluster itself leaves optional - matter.js 0.18 checks endpoints
+// against their device type and flagged every vacuum without it
+export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServer.enable({ events: { operationCompletion: true } }) {
   /**
    * Get the registry for this behavior's endpoint
    */

@@ -39,6 +39,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): show a newly registered accessory in the ui without a restart (#4013)
 - docs(matter): say a restored accessory needs registering again, and keeps its cached state (#4015)
 - fix(matter): shorten an accessory's over-long name, model or serial and say which (#4016)
+- chore(deps): update matter.js to v0.18.0, with the changes its new checks need
 
 ### Homebridge Dependencies
 
@@ -46,7 +47,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Matter Dependencies
 
-- `@matter/main` @ `v0.18.0-alpha`
+- `@matter/main` @ `v0.18.0`
 
 ## v2.4.0 (2026-08-16)
 
