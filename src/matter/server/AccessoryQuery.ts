@@ -42,7 +42,9 @@ function withFeatureMaps(
   for (const [clusterName, state] of Object.entries(clusters)) {
     try {
       const featureMap = endpointState[clusterName]?.featureMap
-      enriched[clusterName] = featureMap !== undefined ? { featureMap, ...state } : state
+      enriched[clusterName] = featureMap !== undefined
+        ? { featureMap, ...state }
+        : state
     } catch {
       // Reading a behavior's state can throw while the endpoint is still
       // initialising - the declared state alone is still correct
@@ -128,7 +130,9 @@ export class AccessoryQuery {
       // A part carries its own endpoint, so its clusters are enriched the same
       // way - a thermostat exposed as a part needs the features just as much
       const part = accessory._parts?.find(p => p.id === partId)
-      return part ? withFeatureMaps(part.clusters || {}, part.endpoint) : {}
+      return part
+        ? withFeatureMaps(part.clusters || {}, part.endpoint)
+        : {}
     }
 
     return withFeatureMaps(accessory.clusters || {}, accessory.endpoint)

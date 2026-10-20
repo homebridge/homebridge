@@ -64,20 +64,43 @@ describe('matterConfigCollector', () => {
     })
 
     it('returns true when the main bridge has Matter configured', () => {
-      const config = { ...mockConfig, bridge: { ...mockConfig.bridge, matter: { port: 5540 } } } as HomebridgeConfig
+      const config = {
+        ...mockConfig,
+        bridge: {
+          ...mockConfig.bridge,
+          matter: { port: 5540 },
+        },
+      } as HomebridgeConfig
       expect(MatterConfigCollector.hasMatterConfig(config)).toBe(true)
     })
 
     it('returns false when the only Matter config is explicitly disabled', () => {
-      const config = { ...mockConfig, bridge: { ...mockConfig.bridge, matter: { port: 5540, enabled: false } } } as HomebridgeConfig
+      const config = {
+        ...mockConfig,
+        bridge: {
+          ...mockConfig.bridge,
+          matter: { port: 5540, enabled: false },
+        },
+      } as HomebridgeConfig
       expect(MatterConfigCollector.hasMatterConfig(config)).toBe(false)
     })
 
     it('returns true when a child bridge has Matter enabled even if the main bridge disabled it', () => {
       const config = {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, matter: { port: 5540, enabled: false } },
-        platforms: [{ platform: 'X', _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } } }],
+        bridge: {
+          ...mockConfig.bridge,
+          matter: { port: 5540, enabled: false },
+        },
+        platforms: [
+          {
+            platform: 'X',
+            _bridge: {
+              username: 'AA:BB:CC:DD:EE:01',
+              matter: { port: 5541 },
+            },
+          },
+        ],
       } as unknown as HomebridgeConfig
       expect(MatterConfigCollector.hasMatterConfig(config)).toBe(true)
     })
@@ -149,10 +172,23 @@ describe('matterConfigCollector', () => {
     it('collects the main bridge and child bridge ports', () => {
       mockConfig.bridge.matter = { port: 5540 }
       mockConfig.platforms = [
-        { platform: 'P', _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } } } as any,
+        {
+          platform: 'P',
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5541 },
+          },
+        } as any,
       ]
       mockConfig.accessories = [
-        { accessory: 'A', name: 'A', _bridge: { username: 'AA:BB:CC:DD:EE:02', matter: { port: 5542 } } } as any,
+        {
+          accessory: 'A',
+          name: 'A',
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:02',
+            matter: { port: 5542 },
+          },
+        } as any,
       ]
 
       expect(MatterConfigCollector.collectConfiguredMatterPorts(mockConfig)).toEqual([5540, 5541, 5542])
@@ -222,7 +258,10 @@ describe('matterConfigCollector', () => {
       mockConfig.platforms = [
         {
           platform: 'TestPlatform',
-          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } },
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5541 },
+          },
         } as any,
       ]
 
@@ -239,7 +278,10 @@ describe('matterConfigCollector', () => {
       mockConfig.platforms = [
         {
           platform: 'TestPlatform',
-          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 999 } },
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 999 },
+          },
         } as any,
       ]
       vi.mocked(MatterConfigValidator.validateAllChildMatterConfigs).mockReturnValue({
@@ -259,7 +301,10 @@ describe('matterConfigCollector', () => {
       mockConfig.platforms = [
         {
           platform: 'TestPlatform',
-          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } },
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5541 },
+          },
         } as any,
       ]
       vi.mocked(MatterConfigValidator.validateAllChildMatterConfigs).mockReturnValue({
@@ -280,7 +325,10 @@ describe('matterConfigCollector', () => {
       mockConfig.platforms = [
         {
           platform: 'TestPlatform',
-          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } },
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5541 },
+          },
         } as any,
       ]
       vi.mocked(MatterConfigValidator.validateAllChildMatterConfigs).mockReturnValue({
@@ -301,7 +349,10 @@ describe('matterConfigCollector', () => {
       mockConfig.platforms = [
         {
           platform: 'TestPlatform',
-          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } },
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5541 },
+          },
         } as any,
       ]
 
@@ -318,7 +369,10 @@ describe('matterConfigCollector', () => {
       mockConfig.platforms = [
         {
           platform: 'TestPlatform',
-          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5540 } },
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5540 },
+          },
         } as any,
       ]
 
@@ -335,7 +389,10 @@ describe('matterConfigCollector', () => {
       mockConfig.platforms = [
         {
           platform: 'TestPlatform',
-          _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { port: 5541 } },
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5541 },
+          },
         } as any,
       ]
 
@@ -358,7 +415,10 @@ describe('matterConfigCollector', () => {
       mockConfig.platforms = [
         {
           platform: 'TestPlatform',
-          _bridge: { username: 'AA:BB:CC:DD:EE:09', matter: { port: 5550 } },
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:09',
+            matter: { port: 5550 },
+          },
         } as any,
       ]
 
@@ -406,7 +466,10 @@ describe('matterConfigCollector', () => {
         mockConfig.platforms = [
           {
             platform: 'TestPlatform',
-            _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { externalsOnly: true } },
+            _bridge: {
+              username: 'AA:BB:CC:DD:EE:01',
+              matter: { externalsOnly: true },
+            },
           } as any,
         ]
 
@@ -424,7 +487,10 @@ describe('matterConfigCollector', () => {
           {
             accessory: 'TestAccessory',
             name: 'Test',
-            _bridge: { username: 'AA:BB:CC:DD:EE:02', matter: { enabled: false, externalsOnly: true } },
+            _bridge: {
+              username: 'AA:BB:CC:DD:EE:02',
+              matter: { enabled: false, externalsOnly: true },
+            },
           } as any,
         ]
 
@@ -571,7 +637,12 @@ describe('matterConfigCollector', () => {
     })
 
     it('leaves other matter fields untouched', () => {
-      const matter = { enabled: true, externalsOnly: true, port: 5540, name: 'X' } as any
+      const matter = {
+        enabled: true,
+        externalsOnly: true,
+        port: 5540,
+        name: 'X',
+      } as any
 
       stripMatterExternalsOnlyForAccessory(matter, 'accessory child')
 
@@ -586,7 +657,10 @@ describe('matterConfigCollector', () => {
     it('returns true when main bridge is in externalsOnly mode', () => {
       const config = {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, matter: { enabled: false, externalsOnly: true } },
+        bridge: {
+          ...mockConfig.bridge,
+          matter: { enabled: false, externalsOnly: true },
+        },
       } as HomebridgeConfig
       expect(MatterConfigCollector.hasMatterConfig(config)).toBe(true)
     })
@@ -597,7 +671,10 @@ describe('matterConfigCollector', () => {
         platforms: [
           {
             platform: 'X',
-            _bridge: { username: 'AA:BB:CC:DD:EE:01', matter: { enabled: false, externalsOnly: true } },
+            _bridge: {
+              username: 'AA:BB:CC:DD:EE:01',
+              matter: { enabled: false, externalsOnly: true },
+            },
           },
         ],
       } as unknown as HomebridgeConfig

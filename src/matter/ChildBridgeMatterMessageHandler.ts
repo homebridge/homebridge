@@ -88,7 +88,9 @@ export class ChildBridgeMatterMessageHandler {
         correlationId,
         data: {
           bridgeUsername: this.bridgeUsername,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error
+            ? error.message
+            : 'Unknown error',
         },
       }
       this.sendMessage('matterEvent', event)
@@ -127,7 +129,9 @@ export class ChildBridgeMatterMessageHandler {
         correlationId,
         data: {
           uuid: data?.uuid,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error
+            ? error.message
+            : 'Unknown error',
         },
       }
       this.sendMessage('matterEvent', event)
@@ -183,7 +187,9 @@ export class ChildBridgeMatterMessageHandler {
           correlationId,
           data: {
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: error instanceof Error
+              ? error.message
+              : 'Unknown error',
             uuid: data.uuid,
           },
         }

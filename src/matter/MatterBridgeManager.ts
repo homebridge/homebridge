@@ -111,11 +111,15 @@ export class MatterBridgeManager extends BaseMatterManager {
   // log when registering bridged accessories that would otherwise have been
   // hosted on the bridge node.
   private readonly _onRegisterMatterPlatformAccessoriesDropped = (pluginIdentifier: string, _platformName: string, accessories: MatterAccessory[]): void => {
-    log.debug(`Main bridge externalsOnly mode: dropping ${accessories.length} bridged Matter accessor${accessories.length === 1 ? 'y' : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
+    log.debug(`Main bridge externalsOnly mode: dropping ${accessories.length} bridged Matter accessor${accessories.length === 1
+      ? 'y'
+      : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
   }
 
   private readonly _onUnregisterMatterPlatformAccessoriesDropped = (pluginIdentifier: string, _platformName: string, accessories: MatterAccessory[]): void => {
-    log.debug(`Main bridge externalsOnly mode: dropping unregistration for ${accessories.length} bridged Matter accessor${accessories.length === 1 ? 'y' : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
+    log.debug(`Main bridge externalsOnly mode: dropping unregistration for ${accessories.length} bridged Matter accessor${accessories.length === 1
+      ? 'y'
+      : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
   }
 
   // True when this manager was initialised in externalsOnly mode.
@@ -282,7 +286,9 @@ export class MatterBridgeManager extends BaseMatterManager {
       log.error('Failed to initialize Matter server for main bridge:', error)
 
       // Provide user-friendly guidance for common errors
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error)
       const errorCode = getErrorCode(error)
 
       if (errorMessage.includes('corrupted')) {
@@ -328,7 +334,9 @@ export class MatterBridgeManager extends BaseMatterManager {
    * requires to be on their own bridge.
    */
   async handlePublishExternalAccessories(accessories: InternalMatterAccessory[], registrationId: string): Promise<void> {
-    log.info(`Publishing ${accessories.length} external Matter accessor${accessories.length === 1 ? 'y' : 'ies'}`)
+    log.info(`Publishing ${accessories.length} external Matter accessor${accessories.length === 1
+      ? 'y'
+      : 'ies'}`)
 
     // Normalize bind config to array format (inherit from main bridge)
     const networkInterfaces = normalizeBindConfig(this.config.bridge.bind)

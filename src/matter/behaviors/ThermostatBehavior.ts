@@ -126,7 +126,9 @@ export class HomebridgeThermostatServer extends ThermostatServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to change system mode: ${message}`, Status.Failure)
     }
   }
@@ -157,7 +159,9 @@ export class HomebridgeThermostatServer extends ThermostatServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to change heating setpoint: ${message}`, Status.Failure)
     }
   }
@@ -188,7 +192,9 @@ export class HomebridgeThermostatServer extends ThermostatServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to change cooling setpoint: ${message}`, Status.Failure)
     }
   }
@@ -225,7 +231,9 @@ export class HomebridgeThermostatServer extends ThermostatServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to adjust setpoint: ${message}`, Status.Failure)
     }
   }

@@ -56,8 +56,14 @@ describe('homebridgeColorControlServer', () => {
       registryManager.registerEndpoint(testEndpointId, mockRegistry)
 
       behavior = Object.create(HomebridgeColorControlServer.prototype)
-      Object.defineProperty(behavior, 'endpoint', { get: () => mockEndpoint, configurable: true })
-      Object.defineProperty(behavior, 'state', { get: () => ({}), configurable: true })
+      Object.defineProperty(behavior, 'endpoint', {
+        get: () => mockEndpoint,
+        configurable: true,
+      })
+      Object.defineProperty(behavior, 'state', {
+        get: () => ({}),
+        configurable: true,
+      })
 
       // Mirror what matter.js does internally, without its state machine
       vi.spyOn(superProto, 'moveToHueAndSaturationLogic').mockImplementation(async function (this: any, hue: any, saturation: any, transitionTime: any) {

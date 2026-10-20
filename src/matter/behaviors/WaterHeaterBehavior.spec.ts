@@ -15,17 +15,38 @@ interface ManagementState {
 
 function makeBehavior<T>(prototype: object, state: ManagementState, extras: Record<string, unknown> = {}): T {
   const behavior = Object.create(prototype)
-  Object.defineProperty(behavior, 'state', { get: () => state, configurable: true })
-  const events = { boostStarted: { emit: vi.fn() }, boostEnded: { emit: vi.fn() } }
-  Object.defineProperty(behavior, 'events', { get: () => events, configurable: true })
-  Object.defineProperty(behavior, 'context', { get: () => ({}), configurable: true })
+  Object.defineProperty(behavior, 'state', {
+    get: () => state,
+    configurable: true,
+  })
+  const events = {
+    boostStarted: {
+      emit: vi.fn(),
+    },
+    boostEnded: {
+      emit: vi.fn(),
+    },
+  }
+  Object.defineProperty(behavior, 'events', {
+    get: () => events,
+    configurable: true,
+  })
+  Object.defineProperty(behavior, 'context', {
+    get: () => ({}),
+    configurable: true,
+  })
   for (const [key, value] of Object.entries(extras)) {
-    Object.defineProperty(behavior, key, { get: () => value, configurable: true })
+    Object.defineProperty(behavior, key, {
+      get: () => value,
+      configurable: true,
+    })
   }
   return behavior as T
 }
 
-const boostRequest = { boostInfo: { duration: 1800 } } as any
+const boostRequest = {
+  boostInfo: { duration: 1800 },
+} as any
 
 /**
  * matter.js's base WaterHeaterManagement server leaves boost and cancelBoost

@@ -448,7 +448,9 @@ export class ChildBridgeService {
 
       switch (message.id) {
         case ChildProcessMessageEventType.READY: {
-          this.log(`Child bridge starting${this.child?.pid ? ` (pid ${this.child.pid})` : ''}...`)
+          this.log(`Child bridge starting${this.child?.pid
+            ? ` (pid ${this.child.pid})`
+            : ''}...`)
           this.loadPlugin()
           break
         }

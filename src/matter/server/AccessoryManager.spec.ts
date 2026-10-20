@@ -47,7 +47,10 @@ vi.mock('@matter/main', () => {
       this.id = options?.id
     }
   }
-  return { Endpoint: MockEndpoint, VendorId: vi.fn((id: number) => id) }
+  return {
+    Endpoint: MockEndpoint,
+    VendorId: vi.fn((id: number) => id),
+  }
 })
 vi.mock('@matter/main/behaviors', () => ({
   BasicInformationServer: { name: 'BasicInformationServer' },
@@ -62,7 +65,10 @@ vi.mock('@matter/main/behaviors', () => ({
   FixedLabelServer: { name: 'FixedLabelServer' },
 }))
 vi.mock('@matter/node/behaviors', () => ({
-  PowerSourceServer: { name: 'PowerSourceServer', with: vi.fn((...args: any[]) => ({ name: `PowerSourceServer.with(${args.join(',')})` })) },
+  PowerSourceServer: {
+    name: 'PowerSourceServer',
+    with: vi.fn((...args: any[]) => ({ name: `PowerSourceServer.with(${args.join(',')})` })),
+  },
 }))
 vi.mock('../behaviors/EndpointContext.js', () => ({
   setRegistryManager: vi.fn(),
@@ -117,7 +123,9 @@ vi.mock('../types.js', () => {
   }
   return {
     MatterDeviceError,
-    deviceTypes: { RoomAirConditioner: { deviceType: 0x0072, name: 'RoomAirConditioner' } },
+    deviceTypes: {
+      RoomAirConditioner: { deviceType: 0x0072, name: 'RoomAirConditioner' },
+    },
     devices: {
       RoboticVacuumCleanerDevice: { deviceType: 0x0074 },
       SmokeCoAlarmDevice: { deviceType: 0x0076 },
@@ -170,7 +178,11 @@ vi.mock('../../logger.js', () => {
     debug: vi.fn(),
     log: vi.fn(),
   }
-  return { Logger: { withPrefix: vi.fn(() => mockLogger) } }
+  return {
+    Logger: {
+      withPrefix: vi.fn(() => mockLogger),
+    },
+  }
 })
 vi.mock('../../ipcService.js', () => ({
   IpcOutgoingEvent: { MATTER_EVENT: 'matterEvent' },
@@ -179,12 +191,18 @@ vi.mock('../../ipcService.js', () => ({
 function createMockDeps(overrides: Partial<AccessoryManagerDeps> = {}): AccessoryManagerDeps {
   const mockServerNode = {
     add: vi.fn(),
-    act: vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ increaseConfigurationVersion: vi.fn() })) })),
+    act: vi.fn(async (fn: any) => fn({
+      get: vi.fn(() => ({
+        increaseConfigurationVersion: vi.fn(),
+      })),
+    })),
   }
   const mockAggregator = {
     add: vi.fn(),
     set: vi.fn(),
-    state: { descriptor: { partsList: [] } },
+    state: {
+      descriptor: { partsList: [] },
+    },
   }
 
   return {
@@ -218,7 +236,10 @@ function createMockDeps(overrides: Partial<AccessoryManagerDeps> = {}): Accessor
 // parent device type (BridgedDeviceBasicInformation, FixedLabel, PowerSource),
 // so the mock must stay chainable at any depth.
 function createChainableDeviceType(props: Record<string, unknown>): any {
-  return { ...props, with: vi.fn(() => createChainableDeviceType(props)) }
+  return {
+    ...props,
+    with: vi.fn(() => createChainableDeviceType(props)),
+  }
 }
 
 // A parent device type whose `.with()` is a single self-returning spy, so a
@@ -237,7 +258,9 @@ function createComposedPart(id = 'part-1'): any {
     id,
     displayName: `Part ${id}`,
     deviceType: createChainableDeviceType({ deviceType: 0x0100, name: 'OnOffLight' }),
-    clusters: { onOff: { onOff: false } },
+    clusters: {
+      onOff: { onOff: false },
+    },
   }
 }
 
@@ -283,12 +306,22 @@ describe('accessoryManager', () => {
         deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
         clusters: {
           rvcCleanMode: {
-            supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+            supportedModes: [
+              {
+                label: 'Vacuum',
+                mode: 0,
+                modeTags: [
+                  { value: 0x4000 },
+                ],
+              },
+            ],
             currentMode: 0,
           },
         },
         handlers: {
-          rvcCleanMode: { changeToMode: vi.fn() },
+          rvcCleanMode: {
+            changeToMode: vi.fn(),
+          },
         },
         features: {
           rvcCleanMode: { directModeChange: true },
@@ -310,7 +343,15 @@ describe('accessoryManager', () => {
         deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
         clusters: {
           rvcCleanMode: {
-            supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+            supportedModes: [
+              {
+                label: 'Vacuum',
+                mode: 0,
+                modeTags: [
+                  { value: 0x4000 },
+                ],
+              },
+            ],
             currentMode: 0,
           },
         },
@@ -339,12 +380,22 @@ describe('accessoryManager', () => {
         deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
         clusters: {
           rvcCleanMode: {
-            supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+            supportedModes: [
+              {
+                label: 'Vacuum',
+                mode: 0,
+                modeTags: [
+                  { value: 0x4000 },
+                ],
+              },
+            ],
             currentMode: 0,
           },
         },
         handlers: {
-          rvcCleanMode: { changeToMode: vi.fn() },
+          rvcCleanMode: {
+            changeToMode: vi.fn(),
+          },
         },
         features: {
           rvcCleanMode: { directModeChange: false },
@@ -363,12 +414,22 @@ describe('accessoryManager', () => {
         deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
         clusters: {
           rvcCleanMode: {
-            supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+            supportedModes: [
+              {
+                label: 'Vacuum',
+                mode: 0,
+                modeTags: [
+                  { value: 0x4000 },
+                ],
+              },
+            ],
             currentMode: 0,
           },
         },
         handlers: {
-          rvcCleanMode: { changeToMode: vi.fn() },
+          rvcCleanMode: {
+            changeToMode: vi.fn(),
+          },
         },
         features: {
           rvcCleanMode: { directModeChange: 'true' },
@@ -382,9 +443,13 @@ describe('accessoryManager', () => {
 
     it('should bump the bridge configuration version when commissioned', async () => {
       const increaseConfigurationVersion = vi.fn()
-      const deps = createMockDeps({ isCommissioned: () => true })
+      const deps = createMockDeps({
+        isCommissioned: () => true,
+      })
       const serverNode = deps.getServerNode() as any
-      serverNode.act = vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ increaseConfigurationVersion })) }))
+      serverNode.act = vi.fn(async (fn: any) => fn({
+        get: vi.fn(() => ({ increaseConfigurationVersion })),
+      }))
       const accessory = createMockAccessory()
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -404,13 +469,17 @@ describe('accessoryManager', () => {
 
     it('retries the parts-list notification when the config-version bump hits a synchronous lock (#3970)', async () => {
       const increaseConfigurationVersion = vi.fn()
-      const deps = createMockDeps({ isCommissioned: () => true })
+      const deps = createMockDeps({
+        isCommissioned: () => true,
+      })
       const serverNode = deps.getServerNode() as any
       // First act() loses the lock race (matter.js-internal offline transaction),
       // then the lock clears and it succeeds.
       serverNode.act = vi.fn()
         .mockRejectedValueOnce(new Error('Cannot lock test-bridge.basicInformation.state synchronously'))
-        .mockImplementation(async (fn: any) => fn({ get: vi.fn(() => ({ increaseConfigurationVersion })) }))
+        .mockImplementation(async (fn: any) => fn({
+          get: vi.fn(() => ({ increaseConfigurationVersion })),
+        }))
       const accessory = createMockAccessory()
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -420,7 +489,9 @@ describe('accessoryManager', () => {
     })
 
     it('gives up without throwing when the lock never clears (#3970)', async () => {
-      const deps = createMockDeps({ isCommissioned: () => true })
+      const deps = createMockDeps({
+        isCommissioned: () => true,
+      })
       const serverNode = deps.getServerNode() as any
       serverNode.act = vi.fn().mockRejectedValue(
         new Error('Cannot lock test-bridge.basicInformation.state synchronously'),
@@ -439,7 +510,9 @@ describe('accessoryManager', () => {
     })
 
     it('does not retry a non-lock notification error (#3970)', async () => {
-      const deps = createMockDeps({ isCommissioned: () => true })
+      const deps = createMockDeps({
+        isCommissioned: () => true,
+      })
       const serverNode = deps.getServerNode() as any
       serverNode.act = vi.fn().mockRejectedValue(new Error('some other failure'))
       const accessory = createMockAccessory()
@@ -481,7 +554,12 @@ describe('accessoryManager', () => {
 
         // Same UUID, same device type, now carrying the plugin's real handlers.
         const pluginAccessory = createMockAccessory({
-          handlers: { onOff: { on: vi.fn(), off: vi.fn() } },
+          handlers: {
+            onOff: {
+              on: vi.fn(),
+              off: vi.fn(),
+            },
+          },
         } as any)
 
         await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
@@ -531,7 +609,10 @@ describe('accessoryManager', () => {
             // what a restore rebuilds: deviceTypes.Thermostat, no thermostat behavior
             deviceType: createChainableDeviceType({ deviceType: 0x0301, name: 'Thermostat' }),
           }),
-          endpoint: { marker: 'restored-endpoint', close: vi.fn() },
+          endpoint: {
+            marker: 'restored-endpoint',
+            close: vi.fn(),
+          },
           registered: false,
           _restoredFromCache: true,
         } as any)
@@ -547,7 +628,10 @@ describe('accessoryManager', () => {
         await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
 
         const stored = deps.accessories.get('test-uuid-001') as any
-        expect(stored.endpoint).not.toEqual({ marker: 'restored-endpoint', close: expect.anything() })
+        expect(stored.endpoint).not.toEqual({
+          marker: 'restored-endpoint',
+          close: expect.anything(),
+        })
         expect(stored.registered).toBe(true)
       })
 
@@ -561,10 +645,17 @@ describe('accessoryManager', () => {
             deviceType: createChainableDeviceType({
               deviceType: 0x002B,
               name: 'Fan',
-              behaviors: { fanControl: { features: { auto: false } } },
+              behaviors: {
+                fanControl: {
+                  features: { auto: false },
+                },
+              },
             }),
           }),
-          endpoint: { marker: 'restored-endpoint', close: vi.fn() },
+          endpoint: {
+            marker: 'restored-endpoint',
+            close: vi.fn(),
+          },
           registered: false,
           _restoredFromCache: true,
         } as any)
@@ -573,14 +664,21 @@ describe('accessoryManager', () => {
           deviceType: createChainableDeviceType({
             deviceType: 0x002B,
             name: 'Fan',
-            behaviors: { fanControl: { features: { auto: true } } },
+            behaviors: {
+              fanControl: {
+                features: { auto: true },
+              },
+            },
           }),
         })
 
         await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
 
         const stored = deps.accessories.get('test-uuid-001') as any
-        expect(stored.endpoint).not.toEqual({ marker: 'restored-endpoint', close: expect.anything() })
+        expect(stored.endpoint).not.toEqual({
+          marker: 'restored-endpoint',
+          close: expect.anything(),
+        })
         expect(stored.registered).toBe(true)
       })
 
@@ -589,16 +687,24 @@ describe('accessoryManager', () => {
         const fan = () => createChainableDeviceType({
           deviceType: 0x002B,
           name: 'Fan',
-          behaviors: { fanControl: { features: { auto: true } } },
+          behaviors: {
+            fanControl: {
+              features: { auto: true },
+            },
+          },
         })
         deps.accessories.set('test-uuid-001', {
-          ...createMockAccessory({ deviceType: fan() }),
+          ...createMockAccessory({
+            deviceType: fan(),
+          }),
           endpoint: { marker: 'restored-endpoint' },
           registered: false,
           _restoredFromCache: true,
         } as any)
 
-        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory({ deviceType: fan() }), deps)
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory({
+          deviceType: fan(),
+        }), deps)
 
         expect((deps.accessories.get('test-uuid-001') as any).endpoint).toEqual({ marker: 'restored-endpoint' })
       })
@@ -607,7 +713,10 @@ describe('accessoryManager', () => {
         const deps = createMockDeps()
         const restored = {
           ...createMockAccessory(),
-          endpoint: { marker: 'restored-endpoint', close: vi.fn() },
+          endpoint: {
+            marker: 'restored-endpoint',
+            close: vi.fn(),
+          },
           registered: false,
           _restoredFromCache: true,
         } as any
@@ -634,21 +743,38 @@ describe('accessoryManager', () => {
           deviceType: createChainableDeviceType({ deviceType: 0x0074, name: 'RoboticVacuumCleaner' }),
           features: directModeChange === undefined
             ? undefined
-            : { rvcCleanMode: { directModeChange } },
+            : {
+                rvcCleanMode: { directModeChange },
+              },
           clusters: {
             rvcCleanMode: {
-              supportedModes: [{ label: 'Vacuum', mode: 0, modeTags: [{ value: 0x4000 }] }],
+              supportedModes: [
+                {
+                  label: 'Vacuum',
+                  mode: 0,
+                  modeTags: [
+                    { value: 0x4000 },
+                  ],
+                },
+              ],
               currentMode: 0,
             },
           },
           handlers: {
-            rvcCleanMode: { changeToMode: vi.fn() },
+            rvcCleanMode: {
+              changeToMode: vi.fn(),
+            },
           },
         })
         const restoredPart = part()
         const restored = {
-          ...createMockAccessory({ parts: [restoredPart] }),
-          endpoint: { marker: 'restored-endpoint', close: vi.fn() },
+          ...createMockAccessory({
+            parts: [restoredPart],
+          }),
+          endpoint: {
+            marker: 'restored-endpoint',
+            close: vi.fn(),
+          },
           _parts: [restoredPart],
           registered: false,
           _restoredFromCache: true,
@@ -657,7 +783,9 @@ describe('accessoryManager', () => {
         const unregisterSpy = vi.spyOn(manager, 'unregisterAccessory')
 
         const pluginAccessory = createMockAccessory({
-          parts: [part(true)],
+          parts: [
+            part(true),
+          ],
         } as any)
 
         await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
@@ -670,7 +798,9 @@ describe('accessoryManager', () => {
         const deps = createMockDeps()
         deps.accessories.set('test-uuid-001', {
           ...createMockAccessory(),
-          endpoint: { close: vi.fn() },
+          endpoint: {
+            close: vi.fn(),
+          },
           registered: false,
           _restoredFromCache: true,
         } as any)
@@ -684,8 +814,17 @@ describe('accessoryManager', () => {
         const deps = createMockDeps()
         const restored = {
           ...createMockAccessory(),
-          deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) },
-          endpoint: { close: vi.fn() },
+          deviceType: {
+            deviceType: 0x000A,
+            name: 'DoorLock',
+            with: vi.fn(() => ({
+              deviceType: 0x000A,
+              with: vi.fn(),
+            })),
+          },
+          endpoint: {
+            close: vi.fn(),
+          },
           registered: false,
           _restoredFromCache: true,
         } as any
@@ -712,7 +851,9 @@ describe('accessoryManager', () => {
             deviceType: createChainableDeviceType({ deviceType: 0x0302, name: 'TemperatureSensor' }),
           }),
           endpoint: {
-            state: { bridgedDeviceBasicInformation: { uniqueId: 'restored-unique-id' } },
+            state: {
+              bridgedDeviceBasicInformation: { uniqueId: 'restored-unique-id' },
+            },
             close: vi.fn(),
           },
           registered: false,
@@ -735,7 +876,9 @@ describe('accessoryManager', () => {
 
       it('lets matter.js generate a uniqueId when the replaced endpoint state cannot be read', async () => {
         const deps = createMockDeps()
-        const endpoint = { close: vi.fn() }
+        const endpoint = {
+          close: vi.fn(),
+        }
         Object.defineProperty(endpoint, 'state', {
           get() {
             throw new Error('behaviors not initialized')
@@ -847,7 +990,9 @@ describe('accessoryManager', () => {
       }
       const deps = createMockDeps({ accessoryCache: mockCache as any })
       const accessory = createMockAccessory({
-        clusters: { onOff: { onOff: false } }, // plugin says "off"
+        clusters: {
+          onOff: { onOff: false },
+        }, // plugin says "off"
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -875,7 +1020,10 @@ describe('accessoryManager', () => {
       const accessory = createMockAccessory({
         // exactly what the restore builds: a stub per cached cluster, no logic names
         handlers: { colorControl: {} },
-        clusters: { onOff: { onOff: false }, colorControl: { colorTemperatureMireds: 370 } },
+        clusters: {
+          onOff: { onOff: false },
+          colorControl: { colorTemperatureMireds: 370 },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -889,8 +1037,15 @@ describe('accessoryManager', () => {
 
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        handlers: { colorControl: { moveToColorTemperatureLogic: vi.fn() } },
-        clusters: { onOff: { onOff: false }, colorControl: { colorTemperatureMireds: 370 } },
+        handlers: {
+          colorControl: {
+            moveToColorTemperatureLogic: vi.fn(),
+          },
+        },
+        clusters: {
+          onOff: { onOff: false },
+          colorControl: { colorTemperatureMireds: 370 },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -958,7 +1113,11 @@ describe('accessoryManager', () => {
           behaviors: { windowCovering: {} },
         }),
         clusters: wcClusters,
-        handlers: { windowCovering: { upOrOpen: vi.fn() } },
+        handlers: {
+          windowCovering: {
+            upOrOpen: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -980,7 +1139,10 @@ describe('accessoryManager', () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
         handlers: { smokeCoAlarm: {}, temperatureMeasurement: {} },
-        clusters: { smokeCoAlarm: { smokeState: 0 }, temperatureMeasurement: { measuredValue: 2000 } },
+        clusters: {
+          smokeCoAlarm: { smokeState: 0 },
+          temperatureMeasurement: { measuredValue: 2000 },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -992,8 +1154,14 @@ describe('accessoryManager', () => {
     it('warns when the plugin really did supply a handler we cannot route', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        handlers: { smokeCoAlarm: { selfTestRequestLogic: vi.fn() } },
-        clusters: { smokeCoAlarm: { smokeState: 0 } },
+        handlers: {
+          smokeCoAlarm: {
+            selfTestRequestLogic: vi.fn(),
+          },
+        },
+        clusters: {
+          smokeCoAlarm: { smokeState: 0 },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1010,7 +1178,10 @@ describe('accessoryManager', () => {
       })
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        clusters: { onOff: { onOff: false }, electricalPowerMeasurement: { activePower: 0 } },
+        clusters: {
+          onOff: { onOff: false },
+          electricalPowerMeasurement: { activePower: 0 },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1050,7 +1221,10 @@ describe('accessoryManager', () => {
     it('advertises PowerSource for a non-battery power source too', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        clusters: { onOff: { onOff: false }, powerSource: { status: 1, order: 0, description: 'AC Power' } },
+        clusters: {
+          onOff: { onOff: false },
+          powerSource: { status: 1, order: 0, description: 'AC Power' },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1076,12 +1250,23 @@ describe('accessoryManager', () => {
         .mockReturnValueOnce({ hasPowerMeasurement: true, energyFeatures: [] })
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        parts: [{
-          id: 'outlet-1',
-          displayName: 'Metered Outlet 1',
-          deviceType: { deviceType: 0x010A, with: vi.fn(() => ({ deviceType: 0x010A, with: vi.fn() })) } as any,
-          clusters: { onOff: { onOff: false }, electricalPowerMeasurement: { activePower: 0 } },
-        }],
+        parts: [
+          {
+            id: 'outlet-1',
+            displayName: 'Metered Outlet 1',
+            deviceType: {
+              deviceType: 0x010A,
+              with: vi.fn(() => ({
+                deviceType: 0x010A,
+                with: vi.fn(),
+              })),
+            } as any,
+            clusters: {
+              onOff: { onOff: false },
+              electricalPowerMeasurement: { activePower: 0 },
+            },
+          },
+        ],
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1121,12 +1306,24 @@ describe('accessoryManager', () => {
     it('composes PowerSource for a non-RVC device type that has handlers (e.g. a lock)', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x000A,
+          name: 'DoorLock',
+          with: vi.fn(() => ({
+            deviceType: 0x000A,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           doorLock: { lockState: 1 },
           powerSource: { batPercentRemaining: 200, batChargeLevel: 0 },
         },
-        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+        handlers: {
+          doorLock: {
+            lockDoor: vi.fn(),
+            unlockDoor: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1140,7 +1337,14 @@ describe('accessoryManager', () => {
     it('composes PowerSource for a non-RVC device with no handlers (e.g. a battery-powered sensor)', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x0015, name: 'ContactSensor', with: vi.fn(() => ({ deviceType: 0x0015, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x0015,
+          name: 'ContactSensor',
+          with: vi.fn(() => ({
+            deviceType: 0x0015,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           // read-only sensor: a battery, and no handlers at all
           powerSource: { batPercentRemaining: 200, batChargeLevel: 0 },
@@ -1158,12 +1362,24 @@ describe('accessoryManager', () => {
     it('composes the Rechargeable feature when a charge state is declared', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x000A,
+          name: 'DoorLock',
+          with: vi.fn(() => ({
+            deviceType: 0x000A,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           doorLock: { lockState: 1 },
           powerSource: { batPercentRemaining: 200, batChargeLevel: 0, batChargeState: 0 },
         },
-        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+        handlers: {
+          doorLock: {
+            lockDoor: vi.fn(),
+            unlockDoor: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1174,13 +1390,25 @@ describe('accessoryManager', () => {
     it('seeds batChargeState to Unknown for a battery that has not reported one yet (#3982)', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x000A,
+          name: 'DoorLock',
+          with: vi.fn(() => ({
+            deviceType: 0x000A,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           doorLock: { lockState: 1 },
           // asleep at startup: a battery, but no charge state reported yet
           powerSource: { batPercentRemaining: 180, batChargeLevel: 0 },
         },
-        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+        handlers: {
+          doorLock: {
+            lockDoor: vi.fn(),
+            unlockDoor: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1196,12 +1424,24 @@ describe('accessoryManager', () => {
     it('keeps a plugin-reported batChargeState instead of overwriting it with the seed', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x000A,
+          name: 'DoorLock',
+          with: vi.fn(() => ({
+            deviceType: 0x000A,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           doorLock: { lockState: 1 },
           powerSource: { batPercentRemaining: 180, batChargeLevel: 0, batChargeState: 1 },
         },
-        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+        handlers: {
+          doorLock: {
+            lockDoor: vi.fn(),
+            unlockDoor: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1213,12 +1453,24 @@ describe('accessoryManager', () => {
     it('seeds batFunctionalWhileCharging, which Rechargeable also requires (#3982)', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x000A,
+          name: 'DoorLock',
+          with: vi.fn(() => ({
+            deviceType: 0x000A,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           doorLock: { lockState: 1 },
           powerSource: { batPercentRemaining: 180, batChargeLevel: 0 },
         },
-        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+        handlers: {
+          doorLock: {
+            lockDoor: vi.fn(),
+            unlockDoor: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1233,12 +1485,24 @@ describe('accessoryManager', () => {
     it('keeps a plugin-reported batFunctionalWhileCharging', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x000A,
+          name: 'DoorLock',
+          with: vi.fn(() => ({
+            deviceType: 0x000A,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           doorLock: { lockState: 1 },
           powerSource: { batPercentRemaining: 180, batFunctionalWhileCharging: true },
         },
-        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+        handlers: {
+          doorLock: {
+            lockDoor: vi.fn(),
+            unlockDoor: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1250,16 +1514,34 @@ describe('accessoryManager', () => {
     it('composes Battery from static battery facts alone, before any reading arrives (#3982)', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x000A,
+          name: 'DoorLock',
+          with: vi.fn(() => ({
+            deviceType: 0x000A,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           doorLock: { lockState: 1 },
           // a sleeping device: the plugin knows the battery facts but has no
           // level or percentage yet. Gating on the live values would compose no
           // Battery feature, and the first real reading would then be rejected
           // for the life of the process - #3982 one level up.
-          powerSource: { status: 0, order: 0, description: 'Battery', batReplaceability: 2, batPresent: true },
+          powerSource: {
+            status: 0,
+            order: 0,
+            description: 'Battery',
+            batReplaceability: 2,
+            batPresent: true,
+          },
         },
-        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+        handlers: {
+          doorLock: {
+            lockDoor: vi.fn(),
+            unlockDoor: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1270,13 +1552,25 @@ describe('accessoryManager', () => {
     it('leaves a power source with no battery attributes as a plain PowerSource', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
-        deviceType: { deviceType: 0x000A, name: 'DoorLock', with: vi.fn(() => ({ deviceType: 0x000A, with: vi.fn() })) } as any,
+        deviceType: {
+          deviceType: 0x000A,
+          name: 'DoorLock',
+          with: vi.fn(() => ({
+            deviceType: 0x000A,
+            with: vi.fn(),
+          })),
+        } as any,
         clusters: {
           doorLock: { lockState: 1 },
           // indistinguishable from a wired source - do not guess a battery
           powerSource: { status: 0, order: 0, description: 'AC Power' },
         },
-        handlers: { doorLock: { lockDoor: vi.fn(), unlockDoor: vi.fn() } },
+        handlers: {
+          doorLock: {
+            lockDoor: vi.fn(),
+            unlockDoor: vi.fn(),
+          },
+        },
       })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1296,12 +1590,14 @@ describe('accessoryManager', () => {
       return createMockAccessory({
         deviceType: createChainableDeviceType({ deviceType: 0x000E, name: 'Aggregator' }),
         clusters: {},
-        parts: [{
-          id: 'child-1',
-          displayName: 'Child One',
-          deviceType: createChainableDeviceType({ deviceType: 0x0101, name: 'DimmableLight' }),
-          ...part,
-        }],
+        parts: [
+          {
+            id: 'child-1',
+            displayName: 'Child One',
+            deviceType: createChainableDeviceType({ deviceType: 0x0101, name: 'DimmableLight' }),
+            ...part,
+          },
+        ],
       } as any)
     }
 
@@ -1311,7 +1607,12 @@ describe('accessoryManager', () => {
       await manager.registerAccessory(
         'homebridge-test',
         'TestPlatform',
-        partsAccessory({ clusters: { onOff: { onOff: false }, powerSource: { batPercentRemaining: 150 } } }),
+        partsAccessory({
+          clusters: {
+            onOff: { onOff: false },
+            powerSource: { batPercentRemaining: 150 },
+          },
+        }),
         deps,
       )
 
@@ -1324,7 +1625,12 @@ describe('accessoryManager', () => {
       await manager.registerAccessory(
         'homebridge-test',
         'TestPlatform',
-        partsAccessory({ clusters: { onOff: { onOff: false }, powerSource: { batPercentRemaining: 150 } } }),
+        partsAccessory({
+          clusters: {
+            onOff: { onOff: false },
+            powerSource: { batPercentRemaining: 150 },
+          },
+        }),
         deps,
       )
 
@@ -1336,7 +1642,11 @@ describe('accessoryManager', () => {
 
     it('seeds the batChargeState of a part battery, as it does for the parent', async () => {
       const deps = createMockDeps()
-      const accessory = partsAccessory({ clusters: { powerSource: { batPercentRemaining: 150 } } })
+      const accessory = partsAccessory({
+        clusters: {
+          powerSource: { batPercentRemaining: 150 },
+        },
+      })
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
@@ -1351,7 +1661,9 @@ describe('accessoryManager', () => {
         'TestPlatform',
         partsAccessory({
           deviceType: createChainableDeviceType({ deviceType: 0x0301, name: 'Thermostat' }),
-          clusters: { thermostat: { occupiedHeatingSetpoint: 2000 } },
+          clusters: {
+            thermostat: { occupiedHeatingSetpoint: 2000 },
+          },
         }),
         deps,
       )
@@ -1369,8 +1681,14 @@ describe('accessoryManager', () => {
         'homebridge-test',
         'TestPlatform',
         partsAccessory({
-          clusters: { levelControl: { currentLevel: 0, minLevel: 0 } },
-          handlers: { levelControl: { moveToLevel: vi.fn() } },
+          clusters: {
+            levelControl: { currentLevel: 0, minLevel: 0 },
+          },
+          handlers: {
+            levelControl: {
+              moveToLevel: vi.fn(),
+            },
+          },
         }),
         deps,
       )
@@ -1391,7 +1709,9 @@ describe('accessoryManager', () => {
       const deviceType = createSpyDeviceType({ deviceType: 0x0100, name: 'OnOffLight' })
       const accessory = createMockAccessory({
         deviceType,
-        parts: [createComposedPart()],
+        parts: [
+          createComposedPart(),
+        ],
       } as any)
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1403,7 +1723,9 @@ describe('accessoryManager', () => {
 
       const internal = deps.accessories.get('test-uuid-001') as any
       expect(internal.endpoint.options.fixedLabel).toEqual({
-        labelList: [{ label: 'composed', value: 'true' }],
+        labelList: [
+          { label: 'composed', value: 'true' },
+        ],
       })
       // wiredCurrentType 0 = AC.
       expect(internal.endpoint.options.powerSource.wiredCurrentType).toBe(0)
@@ -1417,7 +1739,9 @@ describe('accessoryManager', () => {
           onOff: { onOff: false },
           powerSource: { batPercentRemaining: 200, batChargeLevel: 0 },
         },
-        parts: [createComposedPart()],
+        parts: [
+          createComposedPart(),
+        ],
       } as any)
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1450,7 +1774,9 @@ describe('accessoryManager', () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
         deviceType: createSpyDeviceType({ deviceType: 0x0100, name: 'OnOffLight' }),
-        parts: [createComposedPart('outlet-1')],
+        parts: [
+          createComposedPart('outlet-1'),
+        ],
       } as any)
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1459,12 +1785,14 @@ describe('accessoryManager', () => {
       expect(DescriptorServer.with).toHaveBeenCalledWith('TagList')
       // ...and the part endpoint carries a Number-namespace (7) tag per part index.
       const internal = deps.accessories.get('test-uuid-001') as any
-      expect(internal._parts[0].endpoint.options.descriptor.tagList).toEqual([{
-        mfgCode: null,
-        namespaceId: 7,
-        tag: 0,
-        label: 'Part outlet-1',
-      }])
+      expect(internal._parts[0].endpoint.options.descriptor.tagList).toEqual([
+        {
+          mfgCode: null,
+          namespaceId: 7,
+          tag: 0,
+          label: 'Part outlet-1',
+        },
+      ])
     })
   })
 
@@ -1571,9 +1899,13 @@ describe('accessoryManager', () => {
 
     it('should bump the bridge configuration version when commissioned', async () => {
       const increaseConfigurationVersion = vi.fn()
-      const deps = createMockDeps({ isCommissioned: () => true })
+      const deps = createMockDeps({
+        isCommissioned: () => true,
+      })
       const serverNode = deps.getServerNode() as any
-      serverNode.act = vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ increaseConfigurationVersion })) }))
+      serverNode.act = vi.fn(async (fn: any) => fn({
+        get: vi.fn(() => ({ increaseConfigurationVersion })),
+      }))
       const accessory = createMockAccessory()
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
@@ -1640,7 +1972,12 @@ describe('accessory information longer than Matter allows (#4016)', () => {
     expect(info.vendorName).toBe('Virtual Matter Accessories Incor')
     expect(info.productName).toBe('Virtual Accessory - OnOffLightSw')
     expect(info.serialNumber).toBe('SN-0123456789-0123456789-0123456')
-    for (const value of [info.vendorName, info.productName, info.serialNumber, info.nodeLabel]) {
+    for (const value of [
+      info.vendorName,
+      info.productName,
+      info.serialNumber,
+      info.nodeLabel,
+    ]) {
       expect(value.length).toBeLessThanOrEqual(32)
     }
   })
@@ -1660,7 +1997,11 @@ describe('colour lights on matter.js 0.18', () => {
   // matter.js 0.18 flags an endpoint that leaves it out
   it('gives ColorControl a RemainingTime when the plugin did not set one', () => {
     const manager = new AccessoryManager()
-    const accessory = createMockAccessory({ clusters: { colorControl: { colorTemperatureMireds: 250 } } as any })
+    const accessory = createMockAccessory({
+      clusters: {
+        colorControl: { colorTemperatureMireds: 250 },
+      } as any,
+    })
 
     const options = (manager as any).createEndpointOptions(accessory, {})
 
@@ -1671,8 +2012,16 @@ describe('colour lights on matter.js 0.18', () => {
   it('keeps a RemainingTime the plugin set, and adds nothing to an accessory without colour', () => {
     const manager = new AccessoryManager()
 
-    const withColour = (manager as any).createEndpointOptions(createMockAccessory({ clusters: { colorControl: { remainingTime: 5 } } as any }), {})
-    const withoutColour = (manager as any).createEndpointOptions(createMockAccessory({ clusters: { onOff: { onOff: true } } as any }), {})
+    const withColour = (manager as any).createEndpointOptions(createMockAccessory({
+      clusters: {
+        colorControl: { remainingTime: 5 },
+      } as any,
+    }), {})
+    const withoutColour = (manager as any).createEndpointOptions(createMockAccessory({
+      clusters: {
+        onOff: { onOff: true },
+      } as any,
+    }), {})
 
     expect(withColour.colorControl.remainingTime).toBe(5)
     expect(withoutColour.colorControl).toBeUndefined()

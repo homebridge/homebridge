@@ -49,7 +49,9 @@ describe('homebridgeServiceAreaServer', () => {
 
   describe('selectAreas', () => {
     it('should execute handler with request', async () => {
-      const request = { newAreas: [0, 1, 2] }
+      const request = {
+        newAreas: [0, 1, 2],
+      }
 
       await behavior.selectAreas(request)
 
@@ -76,7 +78,9 @@ describe('homebridgeServiceAreaServer', () => {
 
     it('should handle handler execution errors gracefully', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
-      const request = { newAreas: [0, 1] }
+      const request = {
+        newAreas: [0, 1],
+      }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
       await expect(behavior.selectAreas(request)).rejects.toThrow('Failed to select areas: Handler failed')

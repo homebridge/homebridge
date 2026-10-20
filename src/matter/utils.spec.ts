@@ -59,7 +59,12 @@ describe('matter utilities', () => {
     })
 
     it('should handle various error codes', () => {
-      const codes = ['ENOENT', 'EACCES', 'EADDRINUSE', 'ECONNREFUSED']
+      const codes = [
+        'ENOENT',
+        'EACCES',
+        'EADDRINUSE',
+        'ECONNREFUSED',
+      ]
 
       for (const code of codes) {
         const error = new Error('Test')

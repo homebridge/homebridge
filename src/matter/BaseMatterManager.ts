@@ -119,7 +119,9 @@ export abstract class BaseMatterManager {
     if (this.externalMatterServers.size > 0) {
       // Pass the keys iterator as a %j arg so the spread+join only runs once
       // util.format is reached (i.e. when debug is enabled).
-      log.debug('External server UUIDs: %j', [...this.externalMatterServers.keys()])
+      log.debug('External server UUIDs: %j', [
+        ...this.externalMatterServers.keys(),
+      ])
     }
 
     // Check if this is an external accessory first
@@ -241,7 +243,9 @@ export abstract class BaseMatterManager {
                 plugin.getPluginIdentifier()}'. Plugin association is now being transformed!`)
           }
         } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage = error instanceof Error
+            ? error.message
+            : String(error)
           log.warn(`Could not find the associated plugin for the Matter accessory '${cachedAccessory.displayName}'. `
             + `Tried to find the plugin by the platform name but ${errorMessage}`)
         }
@@ -327,7 +331,9 @@ export abstract class BaseMatterManager {
    * Stops dedicated servers and cleans up storage
    */
   async handleUnregisterExternalAccessories(accessories: InternalMatterAccessory[]): Promise<void> {
-    log.info(`Unregistering ${accessories.length} external Matter accessor${accessories.length === 1 ? 'y' : 'ies'}`)
+    log.info(`Unregistering ${accessories.length} external Matter accessor${accessories.length === 1
+      ? 'y'
+      : 'ies'}`)
 
     for (const accessory of accessories) {
       try {

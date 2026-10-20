@@ -35,7 +35,9 @@ export class RegistryManager {
   getRegistry(endpointId: string): BehaviorRegistry {
     const registry = this.endpointToRegistry.get(endpointId)
     if (!registry) {
-      throw new Error(`No registry found for endpoint ${endpointId}. Available endpoints: ${[...this.endpointToRegistry.keys()].join(', ')}`)
+      throw new Error(`No registry found for endpoint ${endpointId}. Available endpoints: ${[
+        ...this.endpointToRegistry.keys(),
+      ].join(', ')}`)
     }
     return registry
   }
@@ -61,7 +63,9 @@ export class RegistryManager {
   getStats(): { endpointCount: number, endpoints: string[] } {
     return {
       endpointCount: this.endpointToRegistry.size,
-      endpoints: [...this.endpointToRegistry.keys()],
+      endpoints: [
+        ...this.endpointToRegistry.keys(),
+      ],
     }
   }
 }

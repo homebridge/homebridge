@@ -341,9 +341,21 @@ describe('childBridgeMatterMessageHandler', () => {
       mockMatterManager.hasActiveMatter.mockReturnValue(true)
       mockMatterManager.handleTriggerCommand.mockResolvedValue(undefined)
 
-      const data1 = { uuid: 'uuid-1', cluster: 'onOff', attributes: { onOff: true } }
-      const data2 = { uuid: 'uuid-2', cluster: 'levelControl', attributes: { currentLevel: 100 } }
-      const data3 = { uuid: 'uuid-3', cluster: 'colorControl', attributes: { hue: 200 } }
+      const data1 = {
+        uuid: 'uuid-1',
+        cluster: 'onOff',
+        attributes: { onOff: true },
+      }
+      const data2 = {
+        uuid: 'uuid-2',
+        cluster: 'levelControl',
+        attributes: { currentLevel: 100 },
+      }
+      const data3 = {
+        uuid: 'uuid-3',
+        cluster: 'colorControl',
+        attributes: { hue: 200 },
+      }
 
       handler.handleMatterAccessoryControl(data1)
       handler.handleMatterAccessoryControl(data2)

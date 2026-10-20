@@ -41,19 +41,27 @@ describe('reading a device type\'s cluster features', () => {
 
   it('gives nothing when there is nothing to read', () => {
     expect(declaredClusterFeatures(undefined)).toBeUndefined()
-    expect(declaredClusterFeatures({ behaviors: { identify: { features: {} } } })).toBeUndefined()
+    expect(declaredClusterFeatures({
+      behaviors: {
+        identify: { features: {} },
+      },
+    })).toBeUndefined()
   })
 })
 
 describe('putting the features back on a restored device type', () => {
   it('composes a cluster the base type carries with the saved features', () => {
-    const restored = applyDeclaredClusterFeatures(devices.FanDevice, { fanControl: ['Auto'] })
+    const restored = applyDeclaredClusterFeatures(devices.FanDevice, {
+      fanControl: ['Auto'],
+    })
 
     expect(enabled(restored, 'fanControl')).toEqual(['auto'])
   })
 
   it('adds a feature-gated cluster the base type leaves out', () => {
-    const restored = applyDeclaredClusterFeatures(devices.ThermostatDevice, { thermostat: ['AutoMode', 'Cooling', 'Heating'] })
+    const restored = applyDeclaredClusterFeatures(devices.ThermostatDevice, {
+      thermostat: ['AutoMode', 'Cooling', 'Heating'],
+    })
 
     expect(enabled(restored, 'thermostat')).toEqual(['autoMode', 'cooling', 'heating'])
   })
@@ -63,7 +71,9 @@ describe('putting the features back on a restored device type', () => {
   })
 
   it('skips a cluster it cannot compose rather than failing the restore', () => {
-    const restored = applyDeclaredClusterFeatures(devices.FanDevice, { notACluster: ['Whatever'] })
+    const restored = applyDeclaredClusterFeatures(devices.FanDevice, {
+      notACluster: ['Whatever'],
+    })
 
     expect(restored).toBe(devices.FanDevice)
   })
@@ -94,7 +104,9 @@ describe('the cache records the features', () => {
   })
 
   it('saves a part\'s features too', () => {
-    const serialized = serialize(devices.FanDevice, [{ id: 'fan', deviceType: fanWithAuto, clusters: {} }])
+    const serialized = serialize(devices.FanDevice, [
+      { id: 'fan', deviceType: fanWithAuto, clusters: {} },
+    ])
 
     expect(serialized.parts[0].deviceType.clusterFeatures.fanControl).toEqual(['Auto'])
   })

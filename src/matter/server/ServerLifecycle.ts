@@ -91,7 +91,9 @@ export class ServerLifecycle {
    * deliberately not treated as transient.
    */
   private isTransientStorageLock(error: unknown): boolean {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = error instanceof Error
+      ? error.message
+      : String(error)
     return message.includes('locked by another process')
   }
 
@@ -132,8 +134,12 @@ export class ServerLifecycle {
     try {
       return await this.createServerNode(nodeOptions)
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : ''
-      const causeMessage = error instanceof Error && error.cause instanceof Error ? error.cause.message : ''
+      const errorMessage = error instanceof Error
+        ? error.message
+        : ''
+      const causeMessage = error instanceof Error && error.cause instanceof Error
+        ? error.cause.message
+        : ''
       const isStorageError = errorMessage.includes('Invalid public key encoding')
         || errorMessage.includes('FabricManager unavailable')
         || errorMessage.includes('key-input')
@@ -166,7 +172,9 @@ export class ServerLifecycle {
           await rm(serverNodeStorePath, { recursive: true, force: true })
           removedSomething = true
         } catch (err: unknown) {
-          const code = err instanceof Error && 'code' in err ? (err as any).code : undefined
+          const code = err instanceof Error && 'code' in err
+            ? (err as any).code
+            : undefined
           if (code !== 'ENOENT') {
             throw err
           }
@@ -179,7 +187,9 @@ export class ServerLifecycle {
           await rm(serverNodeStoreJsonFile, { force: true })
           removedSomething = true
         } catch (err: unknown) {
-          const code = err instanceof Error && 'code' in err ? (err as any).code : undefined
+          const code = err instanceof Error && 'code' in err
+            ? (err as any).code
+            : undefined
           if (code !== 'ENOENT') {
             throw err
           }
@@ -323,7 +333,9 @@ export class ServerLifecycle {
       const productName = ((isExternal ? deps.config.model : undefined) || displayName).slice(0, 32)
       // productLabel SHALL NOT include the vendor name per the Matter spec.
       // Fall back when stripping the vendor consumes the whole display name.
-      const labelFallback = isExternal ? (deps.config.model || 'Device') : 'Bridge'
+      const labelFallback = isExternal
+        ? (deps.config.model || 'Device')
+        : 'Bridge'
 
       const nodeOptions: Parameters<typeof MatterServerNode.create>[0] = {
         id: sanitizedId,

@@ -89,7 +89,9 @@ export class MatterServer extends EventEmitter {
     // Initialize bridge identification properties
     const cleanId = this.config.uniqueId.replace(NON_HEX_RE, '')
     this.username = cleanId.match(HEX_PAIR_RE)?.slice(0, 6).join(':').toUpperCase() || this.config.uniqueId
-    this.bridgeName = this.config.serialNumber ? `Matter Bridge ${this.config.serialNumber}` : 'Matter Bridge'
+    this.bridgeName = this.config.serialNumber
+      ? `Matter Bridge ${this.config.serialNumber}`
+      : 'Matter Bridge'
 
     // Configure Matter.js library logging
     if (this.config.debugModeEnabled) {
@@ -452,7 +454,9 @@ export class MatterServer extends EventEmitter {
           for (const clusterName of Object.keys(clusters ?? {})) {
             handlers[clusterName] = {}
           }
-          return Object.keys(handlers).length > 0 ? handlers : undefined
+          return Object.keys(handlers).length > 0
+            ? handlers
+            : undefined
         }
 
         let restored = 0

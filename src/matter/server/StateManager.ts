@@ -145,13 +145,17 @@ export class StateManager {
             }
           }
 
-          const partInfo = partId ? ` (part: ${partId})` : ''
+          const partInfo = partId
+            ? ` (part: ${partId})`
+            : ''
           log.debug(`Updated ${cluster} state for ${displayName}${partInfo}:`, attributes)
 
           this.notifyStateChange(uuid, cluster, attributes, partId)
           resolve()
         } catch (error) {
-          const partInfo = partId ? ` part ${partId}` : ''
+          const partInfo = partId
+            ? ` part ${partId}`
+            : ''
           log.error(`Failed to update state for accessory ${uuid}${partInfo}:`, error)
           reject(new MatterDeviceError(`Failed to update accessory state: ${error}`))
         }
@@ -307,7 +311,9 @@ export class StateManager {
     }
 
     try {
-      const partInfo = partId ? ` (part: ${partId})` : ''
+      const partInfo = partId
+        ? ` (part: ${partId})`
+        : ''
       log.debug(`Triggering command ${cluster}.${command} for ${displayName}${partInfo}`, args)
 
       const previous = this.commandQueues.get(targetEndpoint) ?? Promise.resolve()
@@ -337,7 +343,9 @@ export class StateManager {
 
       log.debug(`Command ${cluster}.${command} succeeded for ${displayName}${partInfo}`)
     } catch (error) {
-      const partInfo = partId ? ` part ${partId}` : ''
+      const partInfo = partId
+        ? ` part ${partId}`
+        : ''
       log.error(`Failed to trigger command for accessory ${uuid}${partInfo}:`, error)
       throw new MatterDeviceError(`Failed to trigger command: ${error}`)
     }

@@ -222,8 +222,20 @@ describe('childBridgeMatterManager', () => {
       )
 
       const fabrics = [
-        { fabricIndex: 1, fabricId: '1', nodeId: '10', rootVendorId: 0x1349, label: 'My Home' },
-        { fabricIndex: 2, fabricId: '2', nodeId: '11', rootVendorId: 0x1384, label: '' },
+        {
+          fabricIndex: 1,
+          fabricId: '1',
+          nodeId: '10',
+          rootVendorId: 0x1349,
+          label: 'My Home',
+        },
+        {
+          fabricIndex: 2,
+          fabricId: '2',
+          nodeId: '11',
+          rootVendorId: 0x1384,
+          label: '',
+        },
       ]
 
       const mockMatterServer = {
@@ -234,7 +246,9 @@ describe('childBridgeMatterManager', () => {
           commissioned: true,
         }),
         getCommissioningSnapshot: vi.fn().mockReturnValue({ commissioned: true, fabricCount: 2, fabrics }),
-        getAccessories: vi.fn().mockReturnValue([{ UUID: 'test' }]),
+        getAccessories: vi.fn().mockReturnValue([
+          { UUID: 'test' },
+        ]),
       } as any
 
       ;(manager as any).matterServer = mockMatterServer
@@ -459,7 +473,9 @@ describe('childBridgeMatterManager', () => {
       const handleRegisterSpy = vi.spyOn(m as any, 'handleRegisterPlatformAccessories')
 
       // Directly invoke the drop stub (would normally be wired up by setupBridgedDropStubs).
-      ;(m as any)._onRegisterMatterPlatformAccessoriesDropped('homebridge-test', 'TestPlatform', [{ displayName: 'x' }])
+      ;(m as any)._onRegisterMatterPlatformAccessoriesDropped('homebridge-test', 'TestPlatform', [
+        { displayName: 'x' },
+      ])
 
       // The base handler must NOT be called — drop stub logs only.
       expect(handleRegisterSpy).not.toHaveBeenCalled()
@@ -470,9 +486,13 @@ describe('childBridgeMatterManager', () => {
       const handlePublishSpy = vi.spyOn(m as any, 'handlePublishExternalAccessories').mockResolvedValue(undefined)
 
       // Invoke the external publish handler directly.
-      ;(m as any)._onPublishExternalMatterAccessories([{ displayName: 'x' }], 'reg-1')
+      ;(m as any)._onPublishExternalMatterAccessories([
+        { displayName: 'x' },
+      ], 'reg-1')
 
-      expect(handlePublishSpy).toHaveBeenCalledWith([{ displayName: 'x' }], 'reg-1')
+      expect(handlePublishSpy).toHaveBeenCalledWith([
+        { displayName: 'x' },
+      ], 'reg-1')
     })
 
     it('externalsOnly mode: routes accessory state updates to external servers (not dropped)', async () => {
@@ -480,7 +500,9 @@ describe('childBridgeMatterManager', () => {
       await m.initialize()
 
       // A published external accessory in externalsOnly mode.
-      const extServer = { updateAccessoryState: vi.fn().mockResolvedValue(undefined) }
+      const extServer = {
+        updateAccessoryState: vi.fn().mockResolvedValue(undefined),
+      }
       ;(m as any).externalMatterServers.set('ext-uuid', extServer)
 
       // The UPDATE_MATTER_ACCESSORY_STATE listener must be the real handler, not a
@@ -495,13 +517,19 @@ describe('childBridgeMatterManager', () => {
       const m = createManager({ enabled: false, externalsOnly: true } as MatterConfig)
       await m.initialize()
 
-      const extServer = { updatePlatformAccessories: vi.fn().mockResolvedValue(undefined) }
+      const extServer = {
+        updatePlatformAccessories: vi.fn().mockResolvedValue(undefined),
+      }
       ;(m as any).externalMatterServers.set('ext-uuid', extServer)
 
-      ;(m as any)._onUpdateMatterPlatformAccessories([{ UUID: 'ext-uuid', displayName: 'Vac' }])
+      ;(m as any)._onUpdateMatterPlatformAccessories([
+        { UUID: 'ext-uuid', displayName: 'Vac' },
+      ])
       await Promise.resolve()
 
-      expect(extServer.updatePlatformAccessories).toHaveBeenCalledWith([{ UUID: 'ext-uuid', displayName: 'Vac' }])
+      expect(extServer.updatePlatformAccessories).toHaveBeenCalledWith([
+        { UUID: 'ext-uuid', displayName: 'Vac' },
+      ])
     })
 
     it('hasActiveMatter() is true in externalsOnly mode even though the bridge server never starts', async () => {
@@ -603,7 +631,10 @@ describe('childBridgeMatterManager', () => {
 
     function makeManager(): ChildBridgeMatterManager {
       return new ChildBridgeMatterManager(
-        { ...mockBridgeConfig, matter: { enabled: true } } as any,
+        {
+          ...mockBridgeConfig,
+          matter: { enabled: true },
+        } as any,
         mockBridgeOptions,
         mockApi,
         mockExternalPortService,
@@ -629,7 +660,9 @@ describe('childBridgeMatterManager', () => {
 
     it('brings the node online once registrations settle', async () => {
       const manager = makeManager()
-      const server = makeServer({ lastRegistrationAt: Date.now() })
+      const server = makeServer({
+        lastRegistrationAt: Date.now(),
+      })
       ;(manager as any).matterServer = server
       ;(manager as any).runServerWhenSettled(server)
 
@@ -656,7 +689,10 @@ describe('childBridgeMatterManager', () => {
 
     it('does not go online while a registration is still in flight', async () => {
       const manager = makeManager()
-      const server = makeServer({ inFlight: 1, lastRegistrationAt: Date.now() })
+      const server = makeServer({
+        inFlight: 1,
+        lastRegistrationAt: Date.now(),
+      })
       ;(manager as any).matterServer = server
       ;(manager as any).runServerWhenSettled(server)
 
@@ -684,7 +720,10 @@ describe('childBridgeMatterManager', () => {
 
     it('goes online at the cap if registrations never drain', async () => {
       const manager = makeManager()
-      const server = makeServer({ inFlight: 1, lastRegistrationAt: Date.now() })
+      const server = makeServer({
+        inFlight: 1,
+        lastRegistrationAt: Date.now(),
+      })
       ;(manager as any).matterServer = server
       ;(manager as any).runServerWhenSettled(server)
 

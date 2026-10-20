@@ -49,7 +49,14 @@ describe('features a plugin chose survive the handler swap', () => {
   it('keeps a fan\'s Auto mode', async () => {
     const deviceType = await prepare({
       deviceType: devices.FanDevice.with(FanRequirements.FanControlServer.with('Auto')),
-      clusters: { fanControl: { fanMode: 0, fanModeSequence: 2, percentSetting: 0, percentCurrent: 0 } },
+      clusters: {
+        fanControl: {
+          fanMode: 0,
+          fanModeSequence: 2,
+          percentSetting: 0,
+          percentCurrent: 0,
+        },
+      },
       handlers: { fanControl: {} },
     })
 
@@ -59,7 +66,14 @@ describe('features a plugin chose survive the handler swap', () => {
   it('still swaps in the handler-calling behavior', async () => {
     const deviceType = await prepare({
       deviceType: devices.FanDevice.with(FanRequirements.FanControlServer.with('Auto')),
-      clusters: { fanControl: { fanMode: 0, fanModeSequence: 2, percentSetting: 0, percentCurrent: 0 } },
+      clusters: {
+        fanControl: {
+          fanMode: 0,
+          fanModeSequence: 2,
+          percentSetting: 0,
+          percentCurrent: 0,
+        },
+      },
       handlers: { fanControl: {} },
     })
 
@@ -79,7 +93,9 @@ describe('the features OnOff is required to have', () => {
   it('keeps a light\'s Lighting', async () => {
     const deviceType = await prepare({
       deviceType: devices.OnOffLightDevice,
-      clusters: { onOff: { onOff: false } },
+      clusters: {
+        onOff: { onOff: false },
+      },
       handlers: { onOff: {} },
     })
 
@@ -89,7 +105,15 @@ describe('the features OnOff is required to have', () => {
   it('keeps an air conditioner\'s DeadFrontBehavior', async () => {
     const deviceType = await prepare({
       deviceType: deviceTypes.RoomAirConditioner,
-      clusters: { onOff: { onOff: true }, thermostat: { occupiedHeatingSetpoint: 2000, occupiedCoolingSetpoint: 2400, systemMode: 3, controlSequenceOfOperation: 4 } },
+      clusters: {
+        onOff: { onOff: true },
+        thermostat: {
+          occupiedHeatingSetpoint: 2000,
+          occupiedCoolingSetpoint: 2400,
+          systemMode: 3,
+          controlSequenceOfOperation: 4,
+        },
+      },
       handlers: { onOff: {} },
     })
 
@@ -103,16 +127,32 @@ describe('the features OnOff is required to have', () => {
  * sequence failed to register (homebridge-matter#8).
  */
 describe('a fan that declares an Auto sequence', () => {
-  const fan = (fanModeSequence: number) => ({ fanMode: 0, fanModeSequence, percentSetting: 0, percentCurrent: 0 })
+  const fan = (fanModeSequence: number) => ({
+    fanMode: 0,
+    fanModeSequence,
+    percentSetting: 0,
+    percentCurrent: 0,
+  })
 
   it.each([2, 3, 4])('gets Auto for sequence %s', async (sequence) => {
-    const deviceType = await prepare({ deviceType: devices.FanDevice, clusters: { fanControl: fan(sequence) }, handlers: { fanControl: {} } })
+    const deviceType = await prepare({
+      deviceType: devices.FanDevice,
+      clusters: {
+        fanControl: fan(sequence),
+      },
+      handlers: { fanControl: {} },
+    })
 
     expect(enabledFeatures(deviceType, 'fanControl')).toContain('auto')
   })
 
   it.each([0, 1, 5])('does not get Auto for sequence %s', async (sequence) => {
-    const deviceType = await prepare({ deviceType: devices.FanDevice, clusters: { fanControl: fan(sequence) } })
+    const deviceType = await prepare({
+      deviceType: devices.FanDevice,
+      clusters: {
+        fanControl: fan(sequence),
+      },
+    })
 
     expect(enabledFeatures(deviceType, 'fanControl')).not.toContain('auto')
   })
@@ -120,7 +160,14 @@ describe('a fan that declares an Auto sequence', () => {
   it('keeps the other features the plugin chose', async () => {
     const deviceType = await prepare({
       deviceType: devices.FanDevice.with(FanRequirements.FanControlServer.with('MultiSpeed')),
-      clusters: { fanControl: { ...fan(2), speedMax: 3, speedSetting: 0, speedCurrent: 0 } },
+      clusters: {
+        fanControl: {
+          ...fan(2),
+          speedMax: 3,
+          speedSetting: 0,
+          speedCurrent: 0,
+        },
+      },
     })
 
     expect(enabledFeatures(deviceType, 'fanControl')).toEqual(['auto', 'multiSpeed'])
@@ -144,26 +191,55 @@ describe('a room air conditioner that asks for Auto', () => {
   }
 
   it('gets AutoMode when it starts in Auto', async () => {
-    const deviceType = await prepare({ deviceType: deviceTypes.RoomAirConditioner, clusters: { onOff: { onOff: true }, thermostat: { ...setpoints, systemMode: 1 } } })
+    const deviceType = await prepare({
+      deviceType: deviceTypes.RoomAirConditioner,
+      clusters: {
+        onOff: { onOff: true },
+        thermostat: { ...setpoints, systemMode: 1 },
+      },
+    })
 
     expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['autoMode', 'cooling', 'heating'])
   })
 
   it('gets AutoMode when it declares the Auto-only deadband', async () => {
-    const deviceType = await prepare({ deviceType: deviceTypes.RoomAirConditioner, clusters: { onOff: { onOff: true }, thermostat: { ...setpoints, systemMode: 3, minSetpointDeadBand: 20 } } })
+    const deviceType = await prepare({
+      deviceType: deviceTypes.RoomAirConditioner,
+      clusters: {
+        onOff: { onOff: true },
+        thermostat: { ...setpoints, systemMode: 3, minSetpointDeadBand: 20 },
+      },
+    })
 
     expect(enabledFeatures(deviceType, 'thermostat')).toContain('autoMode')
   })
 
   it('stays as it was when it does not ask', async () => {
-    const deviceType = await prepare({ deviceType: deviceTypes.RoomAirConditioner, clusters: { onOff: { onOff: true }, thermostat: { ...setpoints, systemMode: 3 } } })
+    const deviceType = await prepare({
+      deviceType: deviceTypes.RoomAirConditioner,
+      clusters: {
+        onOff: { onOff: true },
+        thermostat: { ...setpoints, systemMode: 3 },
+      },
+    })
 
     expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['cooling', 'heating'])
   })
 
   it('leaves a plugin\'s own composition alone', async () => {
     const composed = devices.RoomAirConditionerDevice.with(devices.RoomAirConditionerRequirements.ThermostatServer.with('Cooling'))
-    const deviceType = await prepare({ deviceType: composed, clusters: { onOff: { onOff: true }, thermostat: { occupiedCoolingSetpoint: 2400, controlSequenceOfOperation: 0, systemMode: 3, minSetpointDeadBand: 20 } } })
+    const deviceType = await prepare({
+      deviceType: composed,
+      clusters: {
+        onOff: { onOff: true },
+        thermostat: {
+          occupiedCoolingSetpoint: 2400,
+          controlSequenceOfOperation: 0,
+          systemMode: 3,
+          minSetpointDeadBand: 20,
+        },
+      },
+    })
 
     expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['cooling'])
   })
@@ -176,8 +252,18 @@ describe('a room air conditioner that asks for Auto', () => {
  */
 describe('an air quality sensor', () => {
   it('offers every level', async () => {
-    const deviceType = await prepare({ deviceType: deviceTypes.AirQualitySensor, clusters: { airQuality: { airQuality: 2 } } })
+    const deviceType = await prepare({
+      deviceType: deviceTypes.AirQualitySensor,
+      clusters: {
+        airQuality: { airQuality: 2 },
+      },
+    })
 
-    expect(enabledFeatures(deviceType, 'airQuality')).toEqual(['extremelyPoor', 'fair', 'moderate', 'veryPoor'])
+    expect(enabledFeatures(deviceType, 'airQuality')).toEqual([
+      'extremelyPoor',
+      'fair',
+      'moderate',
+      'veryPoor',
+    ])
   })
 })

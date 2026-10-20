@@ -27,7 +27,9 @@ export class User {
   static storagePath(): string {
     User.storageAccessed = true
 
-    return User.customStoragePath ? User.customStoragePath : join(homedir(), '.homebridge')
+    return User.customStoragePath
+      ? User.customStoragePath
+      : join(homedir(), '.homebridge')
   }
 
   public static setStoragePath(...storagePathSegments: string[]): void {

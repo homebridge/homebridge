@@ -137,7 +137,11 @@ vi.mock('../../logger.js', () => {
     debug: vi.fn(),
     log: vi.fn(),
   }
-  return { Logger: { withPrefix: vi.fn(() => mockLogger) } }
+  return {
+    Logger: {
+      withPrefix: vi.fn(() => mockLogger),
+    },
+  }
 })
 
 vi.mock('../../version.js', () => ({
@@ -197,7 +201,10 @@ function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLif
     } as unknown as ServerLifecycleDeps['commissioningManager'],
     fabricManager: {} as ServerLifecycleDeps['fabricManager'],
     getCommissioningDeps: vi.fn(() => ({}) as ReturnType<ServerLifecycleDeps['getCommissioningDeps']>),
-    getAccessoryCache: vi.fn(() => ({ load: vi.fn(async () => new Map()), cancelPendingSave: vi.fn() }) as unknown as ReturnType<ServerLifecycleDeps['getAccessoryCache']>),
+    getAccessoryCache: vi.fn(() => ({
+      load: vi.fn(async () => new Map()),
+      cancelPendingSave: vi.fn(),
+    }) as unknown as ReturnType<ServerLifecycleDeps['getAccessoryCache']>),
     setAccessoryCache: vi.fn(),
     setServerNode: vi.fn((n) => {
       serverNode = n
@@ -240,7 +247,9 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     // Bypass storage setup (path validation, mkdir, etc) — not under test here.
     vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
       lifecycle.matterStoragePath = '/fake/storage/TEST0001'
-      return { load: vi.fn(async () => new Map()) } as never
+      return {
+        load: vi.fn(async () => new Map()),
+      } as never
     })
 
     // startServerNode awaits serverReady and calls run() — out of scope for these tests.
@@ -255,7 +264,11 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
   describe('clearing network.interface before ServerNode creation', () => {
     it('deletes a pre-existing network.interface before MatterServerNode.create is called', async () => {
       // Simulate a prior server having set network.interface on the singleton.
-      sharedVarsState.store.network = { interface: { eno1: { type: 2 } } }
+      sharedVarsState.store.network = {
+        interface: {
+          eno1: { type: 2 },
+        },
+      }
 
       await lifecycle.start(createMockDeps())
 
@@ -265,7 +278,9 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
 
     it('leaves the network vars object in place (only removes the interface key)', async () => {
       sharedVarsState.store.network = {
-        interface: { eno1: { type: 2 } },
+        interface: {
+          eno1: { type: 2 },
+        },
         someOtherKey: 'preserved',
       }
 
@@ -400,7 +415,9 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
 
       // After start() completes, interface is present with the expected shape.
       expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({ eno1: { type: 2 } })
+        .toEqual({
+          eno1: { type: 2 },
+        })
     })
 
     it('encodes each configured interface with type=2', async () => {
@@ -414,7 +431,10 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
       await lifecycle.start(deps)
 
       expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({ eno1: { type: 2 }, wlan0: { type: 2 } })
+        .toEqual({
+          eno1: { type: 2 },
+          wlan0: { type: 2 },
+        })
     })
 
     it('does not set network.interface when no networkInterfaces are configured', async () => {
@@ -451,14 +471,18 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
       })
       await lifecycle.start(firstDeps)
       expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({ eno1: { type: 2 } })
+        .toEqual({
+          eno1: { type: 2 },
+        })
 
       // Second lifecycle (e.g. external accessory / RoboticVacuumCleaner) starts
       // against the same Environment.default.
       const secondLifecycle = new ServerLifecycle()
       vi.spyOn(secondLifecycle, 'setupStorage').mockImplementation(async () => {
         secondLifecycle.matterStoragePath = '/fake/storage/TEST0002'
-        return { load: vi.fn(async () => new Map()) } as never
+        return {
+          load: vi.fn(async () => new Map()),
+        } as never
       })
       const secondProto = Object.getPrototypeOf(secondLifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
       vi.spyOn(secondProto, 'startServerNode').mockImplementation(async () => {})
@@ -481,7 +505,9 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
 
       // After the second start completes, interface is reapplied for the runtime.
       expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({ eno1: { type: 2 } })
+        .toEqual({
+          eno1: { type: 2 },
+        })
     })
 
     it('a second start with no networkInterfaces leaves the first start\'s interface cleared', async () => {
@@ -496,7 +522,9 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
       const secondLifecycle = new ServerLifecycle()
       vi.spyOn(secondLifecycle, 'setupStorage').mockImplementation(async () => {
         secondLifecycle.matterStoragePath = '/fake/storage/TEST0002'
-        return { load: vi.fn(async () => new Map()) } as never
+        return {
+          load: vi.fn(async () => new Map()),
+        } as never
       })
       const secondProto = Object.getPrototypeOf(secondLifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
       vi.spyOn(secondProto, 'startServerNode').mockImplementation(async () => {})
@@ -660,14 +688,23 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       getAccessoryCache: vi.fn(() => ({ save, cancelPendingSave }) as never),
       cleanupHandlers: [cleanupHandler],
     })
-    const accessories = new Map<string, any>([['uuid-1', { UUID: 'uuid-1' }]])
+    const accessories = new Map<string, any>([
+      [
+        'uuid-1',
+        { UUID: 'uuid-1' },
+      ],
+    ])
     const { Logger } = await import('../../logger.js')
     const log = Logger.withPrefix('test')
 
     const error = await lifecycle.stop(deps, accessories as never).then(() => undefined, error => error)
     expect(error?.message).toBe(closeFails ? 'close failed' : undefined)
     expect(accessories.size).toBe(closeFails ? 1 : 0)
-    expect(setServerNode.mock.calls).toEqual(closeFails ? [] : [[null]])
+    expect(setServerNode.mock.calls).toEqual(closeFails
+      ? []
+      : [
+          [null],
+        ])
     expect(close).toHaveBeenCalledTimes(1)
     expect(cleanupHandler).toHaveBeenCalledTimes(1)
     expect(log.debug).not.toHaveBeenCalledWith('Saved accessory cache before shutdown')
@@ -686,7 +723,12 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       getIsRunning: vi.fn(() => false), // init-but-never-ran external server
       getAccessoryCache: vi.fn(() => ({ cancelPendingSave }) as never),
     })
-    const accessories = new Map<string, any>([['uuid-1', { UUID: 'uuid-1' }]])
+    const accessories = new Map<string, any>([
+      [
+        'uuid-1',
+        { UUID: 'uuid-1' },
+      ],
+    ])
 
     await lifecycle.stop(deps, accessories as never)
 
@@ -704,7 +746,12 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       getServerNode: vi.fn(() => ({ close }) as never),
       getIsRunning: vi.fn(() => false),
     })
-    const accessories = new Map<string, any>([['uuid-1', { UUID: 'uuid-1' }]])
+    const accessories = new Map<string, any>([
+      [
+        'uuid-1',
+        { UUID: 'uuid-1' },
+      ],
+    ])
 
     await expect(lifecycle.stop(deps, accessories as never)).rejects.toThrow('close failed')
 
@@ -717,7 +764,12 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       getServerNode: vi.fn(() => ({ close }) as never),
       getIsRunning: vi.fn(() => false),
     })
-    const accessories = new Map<string, any>([['uuid-1', { UUID: 'uuid-1' }]])
+    const accessories = new Map<string, any>([
+      [
+        'uuid-1',
+        { UUID: 'uuid-1' },
+      ],
+    ])
 
     await lifecycle.stop(deps, accessories as never)
 
@@ -797,7 +849,9 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
 
     vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
       lifecycle.matterStoragePath = '/fake/storage/TEST0001'
-      return { load: vi.fn(async () => new Map()) } as never
+      return {
+        load: vi.fn(async () => new Map()),
+      } as never
     })
   })
 
@@ -1025,7 +1079,9 @@ describe('serverLifecycle.start — port-binding signal when the half-built node
     lifecycle = new ServerLifecycle()
     vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
       lifecycle.matterStoragePath = '/fake/storage/TEST0001'
-      return { load: vi.fn(async () => new Map()) } as never
+      return {
+        load: vi.fn(async () => new Map()),
+      } as never
     })
     const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
     vi.spyOn(proto, 'startServerNode').mockImplementation(async () => {})
@@ -1040,7 +1096,11 @@ describe('serverLifecycle.start — port-binding signal when the half-built node
   // given. Overriding getServerNode keeps the close behaviour fully controlled
   // and avoids leaking a once-mock on the shared ServerNode.create.
   function depsThatFailAfterNodeCreation(close: () => Promise<void>): ServerLifecycleDeps {
-    const partialNode = { run: vi.fn(() => Promise.resolve()), add: vi.fn(), close: vi.fn(close) }
+    const partialNode = {
+      run: vi.fn(() => Promise.resolve()),
+      add: vi.fn(),
+      close: vi.fn(close),
+    }
     return createMockDeps({
       getServerNode: vi.fn(() => partialNode as never),
       commissioningManager: {
@@ -1228,7 +1288,9 @@ describe('serverLifecycle — BasicInformation identity (#3996)', () => {
     lifecycle = new ServerLifecycle()
     vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
       lifecycle.matterStoragePath = '/fake/storage/TEST0001'
-      return { load: vi.fn(async () => new Map()) } as never
+      return {
+        load: vi.fn(async () => new Map()),
+      } as never
     })
     const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
     vi.spyOn(proto, 'startServerNode').mockImplementation(async () => {})

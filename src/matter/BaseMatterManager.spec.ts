@@ -95,12 +95,18 @@ describe('baseMatterManager', () => {
     })
 
     it('is false once the server is running', () => {
-      manager.setMatterServer({ isServerRunning: () => true, isDeferredPreOnline: () => false } as any)
+      manager.setMatterServer({
+        isServerRunning: () => true,
+        isDeferredPreOnline: () => false,
+      } as any)
       expect(manager.isBridgeServerStarting()).toBe(false)
     })
 
     it('is true while the server is still starting (not running, not deferred)', () => {
-      manager.setMatterServer({ isServerRunning: () => false, isDeferredPreOnline: () => false } as any)
+      manager.setMatterServer({
+        isServerRunning: () => false,
+        isDeferredPreOnline: () => false,
+      } as any)
       expect(manager.isBridgeServerStarting()).toBe(true)
     })
 
@@ -108,7 +114,10 @@ describe('baseMatterManager', () => {
       // The deadlock this guards against: if registrations were rejected while
       // the deferred node is offline, the settle signal would never fire and
       // the node would come online with no accessories.
-      manager.setMatterServer({ isServerRunning: () => false, isDeferredPreOnline: () => true } as any)
+      manager.setMatterServer({
+        isServerRunning: () => false,
+        isDeferredPreOnline: () => true,
+      } as any)
       expect(manager.isBridgeServerStarting()).toBe(false)
     })
 
@@ -297,7 +306,9 @@ describe('baseMatterManager', () => {
     })
 
     it('should log warning if server not running', async () => {
-      const accessories: InternalMatterAccessory[] = [{ UUID: 'test-1', displayName: 'Test 1' } as any]
+      const accessories: InternalMatterAccessory[] = [
+        { UUID: 'test-1', displayName: 'Test 1' } as any,
+      ]
       // No matterServer set: resolves without throwing (just logs a warning).
       await expect(manager.handleRegisterPlatformAccessories('test-plugin', 'TestPlatform', accessories)).resolves.toBeUndefined()
     })

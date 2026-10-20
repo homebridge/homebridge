@@ -83,7 +83,9 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to select areas: ${message}`, Status.Failure)
     }
   }
@@ -119,7 +121,9 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to skip area: ${message}`, Status.Failure)
     }
   }

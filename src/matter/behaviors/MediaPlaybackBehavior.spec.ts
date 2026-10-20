@@ -9,9 +9,15 @@ import { RegistryManager } from './RegistryManager.js'
 
 function makeBehavior<T>(prototype: object, state: { currentState?: number }, endpoint?: unknown): T {
   const behavior = Object.create(prototype)
-  Object.defineProperty(behavior, 'state', { get: () => state, configurable: true })
+  Object.defineProperty(behavior, 'state', {
+    get: () => state,
+    configurable: true,
+  })
   if (endpoint) {
-    Object.defineProperty(behavior, 'endpoint', { get: () => endpoint, configurable: true })
+    Object.defineProperty(behavior, 'endpoint', {
+      get: () => endpoint,
+      configurable: true,
+    })
   }
   return behavior as T
 }
@@ -73,7 +79,14 @@ describe('homebridgeMediaPlaybackServer', () => {
     behavior = makeBehavior(HomebridgeMediaPlaybackServer.prototype, state, endpoint)
   })
 
-  it.each(['play', 'pause', 'stop', 'startOver', 'previous', 'next'] as const)(
+  it.each([
+    'play',
+    'pause',
+    'stop',
+    'startOver',
+    'previous',
+    'next',
+  ] as const)(
     'should route %s to the plugin handler',
     async (command) => {
       await behavior[command]()

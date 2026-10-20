@@ -28,7 +28,9 @@ function makeAccessory(overrides: Partial<InternalMatterAccessory> = {}): Intern
 }
 
 function collect(accessory: InternalMatterAccessory) {
-  const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+  const query = new AccessoryQuery(new Map([
+    [accessory.UUID, accessory],
+  ]), () => null)
   const [entry] = query.collectAccessories('user', 'child', 'Bridge')
   return entry.clusters as Record<string, Record<string, unknown>>
 }
@@ -38,7 +40,9 @@ describe('featureMap enrichment for the UI payload', () => {
     const accessory = makeAccessory({
       endpoint: {
         state: {
-          thermostat: { featureMap: { heating: true, cooling: true, autoMode: false } },
+          thermostat: {
+            featureMap: { heating: true, cooling: true, autoMode: false },
+          },
         },
       },
     } as unknown as Partial<InternalMatterAccessory>)
@@ -73,18 +77,28 @@ describe('featureMap enrichment for the UI payload', () => {
     // UI with its features and the modal always offered Auto
     const accessory = makeAccessory({
       endpoint: { state: {} },
-      _parts: [{
-        id: 'part-1',
-        displayName: 'Zone 2',
-        deviceType: { name: 'ThermostatDevice' },
-        clusters: { thermostat: { occupiedHeatingSetpoint: 1800 } },
-        endpoint: {
-          state: { thermostat: { featureMap: { heating: true, cooling: false, autoMode: false } } },
+      _parts: [
+        {
+          id: 'part-1',
+          displayName: 'Zone 2',
+          deviceType: { name: 'ThermostatDevice' },
+          clusters: {
+            thermostat: { occupiedHeatingSetpoint: 1800 },
+          },
+          endpoint: {
+            state: {
+              thermostat: {
+                featureMap: { heating: true, cooling: false, autoMode: false },
+              },
+            },
+          },
         },
-      }],
+      ],
     } as unknown as Partial<InternalMatterAccessory>)
 
-    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+    const query = new AccessoryQuery(new Map([
+      [accessory.UUID, accessory],
+    ]), () => null)
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
     const partClusters = entry.parts[0].clusters as Record<string, Record<string, unknown>>
 
@@ -94,15 +108,21 @@ describe('featureMap enrichment for the UI payload', () => {
 
   it('serves a part as-is when it has no live endpoint', () => {
     const accessory = makeAccessory({
-      _parts: [{
-        id: 'part-1',
-        displayName: 'Zone 2',
-        deviceType: { name: 'ThermostatDevice' },
-        clusters: { thermostat: { occupiedHeatingSetpoint: 1800 } },
-      }],
+      _parts: [
+        {
+          id: 'part-1',
+          displayName: 'Zone 2',
+          deviceType: { name: 'ThermostatDevice' },
+          clusters: {
+            thermostat: { occupiedHeatingSetpoint: 1800 },
+          },
+        },
+      ],
     } as unknown as Partial<InternalMatterAccessory>)
 
-    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+    const query = new AccessoryQuery(new Map([
+      [accessory.UUID, accessory],
+    ]), () => null)
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
     const partClusters = entry.parts[0].clusters as Record<string, Record<string, unknown>>
 
@@ -118,7 +138,9 @@ describe('featureMap enrichment for the UI payload', () => {
         throw new Error('behaviors not initialized')
       },
     })
-    const accessory = makeAccessory({ endpoint: { state } } as unknown as Partial<InternalMatterAccessory>)
+    const accessory = makeAccessory({
+      endpoint: { state },
+    } as unknown as Partial<InternalMatterAccessory>)
 
     const clusters = collect(accessory)
 
@@ -137,7 +159,9 @@ describe('accessory information for the UI payload', () => {
 
   it('includes the plugin-provided identity in collectAccessories()', () => {
     const accessory = makeAccessory(identity)
-    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+    const query = new AccessoryQuery(new Map([
+      [accessory.UUID, accessory],
+    ]), () => null)
 
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
 
@@ -146,14 +170,18 @@ describe('accessory information for the UI payload', () => {
 
   it('includes the plugin-provided identity in getAccessoryInfo()', () => {
     const accessory = makeAccessory(identity)
-    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+    const query = new AccessoryQuery(new Map([
+      [accessory.UUID, accessory],
+    ]), () => null)
 
     expect(query.getAccessoryInfo(accessory.UUID)).toMatchObject(identity)
   })
 
   it('leaves firmwareRevision undefined when the plugin did not provide one', () => {
     const accessory = makeAccessory()
-    const query = new AccessoryQuery(new Map([[accessory.UUID, accessory]]), () => null)
+    const query = new AccessoryQuery(new Map([
+      [accessory.UUID, accessory],
+    ]), () => null)
 
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
 

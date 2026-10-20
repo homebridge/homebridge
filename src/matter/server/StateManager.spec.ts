@@ -14,13 +14,21 @@ vi.mock('../../logger.js', () => {
     debug: vi.fn(),
     log: vi.fn(),
   }
-  return { Logger: { withPrefix: vi.fn(() => mockLogger) } }
+  return {
+    Logger: {
+      withPrefix: vi.fn(() => mockLogger),
+    },
+  }
 })
 
 function createMockEndpoint(overrides: Record<string, unknown> = {}) {
   return {
     set: vi.fn(async () => {}),
-    act: vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ setMeasurement: vi.fn() })) })),
+    act: vi.fn(async (fn: any) => fn({
+      get: vi.fn(() => ({
+        setMeasurement: vi.fn(),
+      })),
+    })),
     state: {},
     behaviors: { supported: {} },
     ...overrides,
@@ -51,7 +59,9 @@ describe('stateManager', () => {
 
       await manager.updateAccessoryState('uuid-1', 'onOff', { onOff: true })
 
-      expect(endpoint.set).toHaveBeenCalledWith({ onOff: { onOff: true } })
+      expect(endpoint.set).toHaveBeenCalledWith({
+        onOff: { onOff: true },
+      })
       expect(endpoint.act).not.toHaveBeenCalled()
     })
 
@@ -63,7 +73,9 @@ describe('stateManager', () => {
         activePower: 5_000_000n,
       })
 
-      expect(endpoint.set).toHaveBeenCalledWith({ electricalPowerMeasurement: { activePower: 5_000_000 } })
+      expect(endpoint.set).toHaveBeenCalledWith({
+        electricalPowerMeasurement: { activePower: 5_000_000 },
+      })
       // The cached clusters object must be JSON-serializable (accessory cache, UI IPC)
       const accessory = (manager as any).accessories.get('uuid-1')
       expect(accessory.clusters.electricalPowerMeasurement.activePower).toBe(5_000_000)
@@ -74,8 +86,12 @@ describe('stateManager', () => {
       const setMeasurement = vi.fn()
       const behaviorClass = { name: 'EEMServer' }
       const endpoint = createMockEndpoint({
-        behaviors: { supported: { electricalEnergyMeasurement: behaviorClass } },
-        act: vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ setMeasurement })) })),
+        behaviors: {
+          supported: { electricalEnergyMeasurement: behaviorClass },
+        },
+        act: vi.fn(async (fn: any) => fn({
+          get: vi.fn(() => ({ setMeasurement })),
+        })),
       })
       const manager = createManager(endpoint)
 
@@ -85,8 +101,12 @@ describe('stateManager', () => {
       })
 
       expect(setMeasurement).toHaveBeenCalledWith({
-        cumulativeEnergy: { imported: { energy: 123_000 } },
-        periodicEnergy: { exported: { energy: 456 } },
+        cumulativeEnergy: {
+          imported: { energy: 123_000 },
+        },
+        periodicEnergy: {
+          exported: { energy: 456 },
+        },
       })
       // Nothing left over for the plain set path
       expect(endpoint.set).not.toHaveBeenCalled()
@@ -96,8 +116,12 @@ describe('stateManager', () => {
       const setMeasurement = vi.fn()
       const behaviorClass = { name: 'EEMServer' }
       const endpoint = createMockEndpoint({
-        behaviors: { supported: { electricalEnergyMeasurement: behaviorClass } },
-        act: vi.fn(async (fn: any) => fn({ get: vi.fn(() => ({ setMeasurement })) })),
+        behaviors: {
+          supported: { electricalEnergyMeasurement: behaviorClass },
+        },
+        act: vi.fn(async (fn: any) => fn({
+          get: vi.fn(() => ({ setMeasurement })),
+        })),
       })
       const manager = createManager(endpoint)
 
@@ -124,7 +148,9 @@ describe('stateManager', () => {
       })
 
       expect(endpoint.set).toHaveBeenCalledWith({
-        electricalEnergyMeasurement: { cumulativeEnergyImported: { energy: 1 } },
+        electricalEnergyMeasurement: {
+          cumulativeEnergyImported: { energy: 1 },
+        },
       })
     })
   })
@@ -135,7 +161,9 @@ describe('stateManager', () => {
         state: {
           electricalPowerMeasurement: {
             activePower: 5_000_000n,
-            accuracy: [{ minMeasuredValue: -100n, maxMeasuredValue: 100n }],
+            accuracy: [
+              { minMeasuredValue: -100n, maxMeasuredValue: 100n },
+            ],
           },
         },
       })
@@ -145,7 +173,9 @@ describe('stateManager', () => {
 
       expect(result).toEqual({
         activePower: 5_000_000,
-        accuracy: [{ minMeasuredValue: -100, maxMeasuredValue: 100 }],
+        accuracy: [
+          { minMeasuredValue: -100, maxMeasuredValue: 100 },
+        ],
       })
       expect(() => JSON.stringify(result)).not.toThrow()
     })
@@ -153,7 +183,12 @@ describe('stateManager', () => {
     it('passes non-plain objects (byte strings) through untouched', () => {
       const bytes = new Uint8Array([1, 2, 3])
       const endpoint = createMockEndpoint({
-        state: { someCluster: { rawValue: bytes, nested: { count: 5n } } },
+        state: {
+          someCluster: {
+            rawValue: bytes,
+            nested: { count: 5n },
+          },
+        },
       })
       const manager = createManager(endpoint)
 
@@ -180,7 +215,9 @@ describe('stateManager triggerCommand ordering (#4029)', () => {
             }
           }),
         },
-        onOff: { on: () => order.push('on started') },
+        onOff: {
+          on: () => order.push('on started'),
+        },
       })),
     })
     const manager = createManager(endpoint)

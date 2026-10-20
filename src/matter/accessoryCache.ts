@@ -109,7 +109,9 @@ export class MatterAccessoryCache {
       // An unreadable file is not necessarily corrupt. Keep it intact and
       // prevent later registration/shutdown saves from replacing unread data.
       this.cacheReadFailed = true
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error)
       log.error(`Failed to read Matter accessory cache from ${this.cacheFilePath}: ${errorMessage}`)
       log.warn('Preserving unread Matter accessory cache; saves are disabled until the cache can be loaded. Check storage access and restart Homebridge.')
       return this.cachedAccessories
@@ -140,7 +142,9 @@ export class MatterAccessoryCache {
       return this.cachedAccessories
     } catch (error: unknown) {
       // If JSON parsing failed (corrupted file), delete it and start fresh
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error)
       log.error(`Failed to load Matter accessory cache from ${this.cacheFilePath}: ${errorMessage}`)
       log.warn('Deleting corrupted cache file and starting fresh')
 
@@ -255,9 +259,13 @@ export class MatterAccessoryCache {
       // restart reloaded the file, and a removed one stayed listed (#4013)
       this.cachedAccessories = new Map(serialized.map(entry => [entry.uuid, entry]))
 
-      log.debug(`Saved ${serialized.length} Matter accessor${serialized.length === 1 ? 'y' : 'ies'} to cache`)
+      log.debug(`Saved ${serialized.length} Matter accessor${serialized.length === 1
+        ? 'y'
+        : 'ies'} to cache`)
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error)
       log.error(`Failed to save Matter accessory cache: ${errorMessage}`)
 
       // Clean up temp file if it exists
@@ -300,7 +308,9 @@ export class MatterAccessoryCache {
    * need a single accessory, use getCached(uuid) — it's O(1).
    */
   getAllCached(): SerializedMatterAccessory[] {
-    return [...this.cachedAccessories.values()]
+    return [
+      ...this.cachedAccessories.values(),
+    ]
   }
 
   /**

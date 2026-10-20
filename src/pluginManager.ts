@@ -254,7 +254,9 @@ export class PluginManager {
 
   private handleRegisterAccessory(name: AccessoryName, constructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier): void {
     if (!this.currentInitializingPlugin) {
-      throw new Error(`Unexpected accessory registration. Plugin ${pluginIdentifier ? `'${pluginIdentifier}' ` : ''}tried to register outside the initializer function!`)
+      throw new Error(`Unexpected accessory registration. Plugin ${pluginIdentifier
+        ? `'${pluginIdentifier}' `
+        : ''}tried to register outside the initializer function!`)
     }
 
     if (pluginIdentifier && pluginIdentifier !== this.currentInitializingPlugin.getPluginIdentifier()) {
@@ -274,7 +276,9 @@ export class PluginManager {
 
   private handleRegisterPlatform(name: PlatformName, constructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier): void {
     if (!this.currentInitializingPlugin) {
-      throw new Error(`Unexpected platform registration. Plugin ${pluginIdentifier ? `'${pluginIdentifier}' ` : ''}tried to register outside the initializer function!`)
+      throw new Error(`Unexpected platform registration. Plugin ${pluginIdentifier
+        ? `'${pluginIdentifier}' `
+        : ''}tried to register outside the initializer function!`)
     }
 
     if (pluginIdentifier && pluginIdentifier !== this.currentInitializingPlugin.getPluginIdentifier()) {

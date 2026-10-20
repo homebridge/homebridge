@@ -54,7 +54,9 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to lock door: ${message}`, Status.Failure)
     }
   }
@@ -83,7 +85,9 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to unlock door: ${message}`, Status.Failure)
     }
   }

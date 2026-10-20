@@ -149,7 +149,9 @@ export class SwitchAPIImpl implements SwitchAPI {
     const partId = options?.partId
 
     log.debug(
-      `Emitting switch ${action} for accessory ${uuid}: currentPosition=${position}${partId ? `, partId=${partId}` : ''}`,
+      `Emitting switch ${action} for accessory ${uuid}: currentPosition=${position}${partId
+        ? `, partId=${partId}`
+        : ''}`,
     )
 
     await this.matterApi.updateAccessoryState(uuid, clusterNames.Switch, { currentPosition: position }, partId)

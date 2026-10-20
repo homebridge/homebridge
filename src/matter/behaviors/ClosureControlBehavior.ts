@@ -29,9 +29,15 @@ export class DefaultClosureControlServer extends ClosureControlServer {
   override async moveTo(request: ClosureControl.MoveToRequest): Promise<void> {
     const target = {
       ...(this.state.overallTargetState ?? {}),
-      ...(request.position !== undefined ? { position: request.position } : {}),
-      ...(request.latch !== undefined ? { latch: request.latch } : {}),
-      ...(request.speed !== undefined ? { speed: request.speed } : {}),
+      ...(request.position !== undefined
+        ? { position: request.position }
+        : {}),
+      ...(request.latch !== undefined
+        ? { latch: request.latch }
+        : {}),
+      ...(request.speed !== undefined
+        ? { speed: request.speed }
+        : {}),
     }
 
     this.state.overallTargetState = target as typeof this.state.overallTargetState
@@ -90,7 +96,9 @@ export class HomebridgeClosureControlServer extends DefaultClosureControlServer 
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to move closure: ${message}`, Status.Failure)
     }
   }
@@ -123,7 +131,9 @@ export class HomebridgeClosureControlServer extends DefaultClosureControlServer 
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to stop closure: ${message}`, Status.Failure)
     }
   }

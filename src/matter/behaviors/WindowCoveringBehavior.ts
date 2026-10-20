@@ -106,7 +106,9 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to open window covering: ${message}`, Status.Failure)
     }
   }
@@ -137,7 +139,9 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to close window covering: ${message}`, Status.Failure)
     }
   }
@@ -168,7 +172,9 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to stop window covering: ${message}`, Status.Failure)
     }
   }
@@ -204,7 +210,9 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set window covering position: ${message}`, Status.Failure)
     }
   }
@@ -240,7 +248,9 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set window covering tilt: ${message}`, Status.Failure)
     }
   }

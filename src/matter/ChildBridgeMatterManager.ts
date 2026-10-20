@@ -141,11 +141,15 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   // log when registering bridged accessories that the bridge node would
   // otherwise have hosted.
   private readonly _onRegisterMatterPlatformAccessoriesDropped = (pluginIdentifier: string, _platformName: string, accessories: MatterAccessory[]): void => {
-    log.debug(`Child bridge ${this.bridgeConfig.username} externalsOnly mode: dropping ${accessories.length} bridged Matter accessor${accessories.length === 1 ? 'y' : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
+    log.debug(`Child bridge ${this.bridgeConfig.username} externalsOnly mode: dropping ${accessories.length} bridged Matter accessor${accessories.length === 1
+      ? 'y'
+      : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
   }
 
   private readonly _onUnregisterMatterPlatformAccessoriesDropped = (pluginIdentifier: string, _platformName: string, accessories: MatterAccessory[]): void => {
-    log.debug(`Child bridge ${this.bridgeConfig.username} externalsOnly mode: dropping unregistration for ${accessories.length} bridged Matter accessor${accessories.length === 1 ? 'y' : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
+    log.debug(`Child bridge ${this.bridgeConfig.username} externalsOnly mode: dropping unregistration for ${accessories.length} bridged Matter accessor${accessories.length === 1
+      ? 'y'
+      : 'ies'} from ${pluginIdentifier} (bridge node is not running).`)
   }
 
   // True when this manager was initialised in externalsOnly mode. Determines
@@ -376,7 +380,9 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * requires to be on their own bridge.
    */
   async handlePublishExternalAccessories(accessories: InternalMatterAccessory[], registrationId: string): Promise<void> {
-    log.info(`Publishing ${accessories.length} external Matter accessor${accessories.length === 1 ? 'y' : 'ies'} from child bridge ${this.bridgeConfig.username}`)
+    log.info(`Publishing ${accessories.length} external Matter accessor${accessories.length === 1
+      ? 'y'
+      : 'ies'} from child bridge ${this.bridgeConfig.username}`)
 
     try {
       // Normalize bind config to array format (inherit from bridge)

@@ -107,7 +107,16 @@ describe('matterPortAllocator', () => {
       }
 
       // Should get: 6000, 6001, 6003, 6004, 6006, 6007, 6009, 6010 (skipping 6002, 6005, 6008)
-      expect(ports).toEqual([6000, 6001, 6003, 6004, 6006, 6007, 6009, 6010])
+      expect(ports).toEqual([
+        6000,
+        6001,
+        6003,
+        6004,
+        6006,
+        6007,
+        6009,
+        6010,
+      ])
     })
 
     it('should update statistics with configured ports', async () => {
