@@ -13,6 +13,7 @@ import type {
   SaturationState,
   XYColorState,
 } from '../clusterTypes.js'
+import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { ColorControlServer } from '@matter/main/behaviors/color-control'
 import { Status, StatusResponseError } from '@matter/main/types'
@@ -38,6 +39,26 @@ export class HomebridgeColorControlServer extends ColorControlServer {
   }
 
   /**
+   * Run the plugin handler for a ColorControl command, if there is one.
+   *
+   * All ColorControl handlers are optional, and matter.js calls some of these methods
+   * internally: moveToHueAndSaturationLogic calls moveToHueLogic and moveToSaturationLogic,
+   * and every color mode switch calls stopAllColorMovement. When the plugin did not register
+   * a handler, skip it so the default matter.js logic still runs.
+   */
+  private async runOptionalHandler(
+    registry: BehaviorRegistry,
+    endpointId: string,
+    commandName: string,
+    args?: unknown,
+  ): Promise<void> {
+    if (!registry.getHandler(endpointId, 'colorControl', commandName)) {
+      return
+    }
+    await registry.executeHandler(endpointId, 'colorControl', commandName, args)
+  }
+
+  /**
    * Called when color temperature is changed
    * @param colorTemperatureMireds - Target color temperature in mireds (micro reciprocal degrees)
    * @param transitionTime - Transition time in seconds (0 = as fast as possible)
@@ -47,10 +68,10 @@ export class HomebridgeColorControlServer extends ColorControlServer {
     const registry = this.getRegistry()
 
     try {
-      // Execute user handler
-      await registry.executeHandler(
+      // Execute user handler, if the plugin registered one
+      await this.runOptionalHandler(
+        registry,
         endpointId,
-        'colorControl',
         'moveToColorTemperatureLogic',
         { colorTemperatureMireds, transitionTime },
       )
@@ -91,10 +112,10 @@ export class HomebridgeColorControlServer extends ColorControlServer {
     const registry = this.getRegistry()
 
     try {
-      // Execute user handler
-      await registry.executeHandler(
+      // Execute user handler, if the plugin registered one
+      await this.runOptionalHandler(
+        registry,
         endpointId,
-        'colorControl',
         'moveToHueAndSaturationLogic',
         { hue, saturation, transitionTime },
       )
@@ -137,10 +158,10 @@ export class HomebridgeColorControlServer extends ColorControlServer {
     const registry = this.getRegistry()
 
     try {
-      // Execute user handler
-      await registry.executeHandler(
+      // Execute user handler, if the plugin registered one
+      await this.runOptionalHandler(
+        registry,
         endpointId,
-        'colorControl',
         'moveToColorLogic',
         { targetX, targetY, transitionTime },
       )
@@ -184,10 +205,10 @@ export class HomebridgeColorControlServer extends ColorControlServer {
     const registry = this.getRegistry()
 
     try {
-      // Execute user handler
-      await registry.executeHandler(
+      // Execute user handler, if the plugin registered one
+      await this.runOptionalHandler(
+        registry,
         endpointId,
-        'colorControl',
         'moveToHueLogic',
         { targetHue, direction, transitionTime, isEnhancedHue },
       )
@@ -228,10 +249,10 @@ export class HomebridgeColorControlServer extends ColorControlServer {
     const registry = this.getRegistry()
 
     try {
-      // Execute user handler
-      await registry.executeHandler(
+      // Execute user handler, if the plugin registered one
+      await this.runOptionalHandler(
+        registry,
         endpointId,
-        'colorControl',
         'moveToSaturationLogic',
         { targetSaturation, transitionTime },
       )
@@ -268,10 +289,10 @@ export class HomebridgeColorControlServer extends ColorControlServer {
     const registry = this.getRegistry()
 
     try {
-      // Execute user handler
-      await registry.executeHandler(
+      // Execute user handler, if the plugin registered one
+      await this.runOptionalHandler(
+        registry,
         endpointId,
-        'colorControl',
         'stopAllColorMovement',
       )
 

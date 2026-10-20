@@ -34,6 +34,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): preserve accessory cache on read errors (#4023) (@ethanjnrg)
 - fix(matter): skip malformed accessory cache entries (#4024) (@ethanjnrg)
 - fix(matter): report cache save failures without blocking shutdown (#4025) (@ethanjnrg)
+- fix(matter): fall back to matter.js when a ColorControl handler is missing (#4028) (@cestercian)
 
 ### Homebridge Dependencies
 
