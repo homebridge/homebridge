@@ -388,6 +388,14 @@ export class ServerLifecycle {
         log.debug('Cleared mdns.ipv4 from environment before ServerNode creation')
       }
 
+      // Homebridge handles SIGTERM/SIGINT itself, in the main process and in every
+      // child bridge, and stops each node in turn. matter.js trapping the same
+      // signals raced that: it closed the shared mDNS service while the nodes were
+      // still withdrawing their announcements, which 0.18 reports as an error
+      // ("MDNS discovery cache is closed") on every shutdown of an unpaired node.
+      // Set before the ServerNode exists, as the runtime reads it when it starts.
+      Environment.default.vars.set('runtime.signals', false)
+
       // Set mdns.ipv4 BEFORE creating the ServerNode — MdnsService reads it at
       // construction time, like mdns.networkInterface below.
       if (deps.config.disableIpv4) {

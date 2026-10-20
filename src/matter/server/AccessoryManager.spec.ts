@@ -1654,3 +1654,27 @@ describe('accessory information longer than Matter allows (#4016)', () => {
     expect(info).toMatchObject({ vendorName: 'Acme', productName: 'Switch One', serialNumber: 'SN1' })
   })
 })
+
+describe('colour lights on matter.js 0.18', () => {
+  // The colour light device types require ColorControl's RemainingTime, and
+  // matter.js 0.18 flags an endpoint that leaves it out
+  it('gives ColorControl a RemainingTime when the plugin did not set one', () => {
+    const manager = new AccessoryManager()
+    const accessory = createMockAccessory({ clusters: { colorControl: { colorTemperatureMireds: 250 } } as any })
+
+    const options = (manager as any).createEndpointOptions(accessory, {})
+
+    expect(options.colorControl).toEqual({ colorTemperatureMireds: 250, remainingTime: 0 })
+    expect((accessory.clusters as any).colorControl.remainingTime).toBeUndefined()
+  })
+
+  it('keeps a RemainingTime the plugin set, and adds nothing to an accessory without colour', () => {
+    const manager = new AccessoryManager()
+
+    const withColour = (manager as any).createEndpointOptions(createMockAccessory({ clusters: { colorControl: { remainingTime: 5 } } as any }), {})
+    const withoutColour = (manager as any).createEndpointOptions(createMockAccessory({ clusters: { onOff: { onOff: true } } as any }), {})
+
+    expect(withColour.colorControl.remainingTime).toBe(5)
+    expect(withoutColour.colorControl).toBeUndefined()
+  })
+})

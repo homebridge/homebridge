@@ -291,6 +291,19 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     })
   })
 
+  describe('process signals', () => {
+    // matter.js trapping SIGTERM raced Homebridge's own shutdown: it closed the
+    // shared mDNS service while the nodes were still withdrawing their
+    // announcements, logged as "MDNS discovery cache is closed" on 0.18
+    it('leaves SIGTERM and SIGINT to homebridge, turning matter.js signal handling off before the node exists', async () => {
+      await lifecycle.start(createMockDeps())
+
+      const signalSets = sharedVarsState.calls.filter(c => c.op === 'set' && c.name === 'runtime.signals')
+      expect(signalSets.length).toBeGreaterThan(0)
+      expect((sharedVarsState.store.runtime as Record<string, unknown>)?.signals).toBe(false)
+    })
+  })
+
   describe('setting mdns.ipv4 before ServerNode creation', () => {
     it('sets mdns.ipv4 to false before ServerNode.create when disableIpv4 is true', async () => {
       const deps = createMockDeps({
