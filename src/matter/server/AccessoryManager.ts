@@ -918,15 +918,27 @@ export class AccessoryManager {
     }
 
     if (!config.externalAccessory) {
+      // matter.js rejects an over-long string with its own attribute name, so a
+      // plugin's 33-character model failed registration as a "productName"
+      // constraint error nobody could trace back to `model` (#4016). Shorten it
+      // instead, as the bridge's own names already are, and say which property
+      const fit = (value: string | undefined, maxLength: number, property: string) => {
+        if (typeof value !== 'string' || value.length <= maxLength) {
+          return value
+        }
+        log.warn(`Matter accessory "${accessory.displayName}": ${property} is longer than the ${maxLength} characters Matter allows, `
+          + `so it has been shortened to "${value.slice(0, maxLength)}"`)
+        return value.slice(0, maxLength)
+      }
       endpointOptions.bridgedDeviceBasicInformation = {
-        vendorName: accessory.manufacturer,
-        nodeLabel: accessory.displayName,
-        productName: accessory.model,
+        vendorName: fit(accessory.manufacturer, 32, 'manufacturer'),
+        nodeLabel: fit(accessory.displayName, 32, 'displayName'),
+        productName: fit(accessory.model, 32, 'model'),
         // productLabel SHALL NOT include the vendor name per the Matter spec.
         // Fall back to model or "Device" when stripping consumes the whole name.
-        productLabel: stripVendorFromLabel(accessory.displayName, accessory.manufacturer)
-          || accessory.model || 'Device',
-        serialNumber: accessory.serialNumber,
+        productLabel: fit(stripVendorFromLabel(accessory.displayName, accessory.manufacturer)
+          || accessory.model || 'Device', 64, 'displayName (as the product label)'),
+        serialNumber: fit(accessory.serialNumber, 32, 'serialNumber'),
         reachable: true,
         ...(uniqueId ? { uniqueId } : {}),
       }
