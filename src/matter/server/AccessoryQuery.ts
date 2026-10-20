@@ -145,6 +145,10 @@ export class AccessoryQuery {
         uuid,
         displayName: accessory.displayName,
         deviceType: this.getDeviceTypeName(accessory.deviceType),
+        manufacturer: accessory.manufacturer,
+        model: accessory.model,
+        serialNumber: accessory.serialNumber,
+        firmwareRevision: accessory.firmwareRevision,
         clusters: this.getCurrentState(uuid),
         parts: accessory._parts?.map(part => ({
           id: part.id,
@@ -177,6 +181,10 @@ export class AccessoryQuery {
       uuid,
       displayName: accessory.displayName,
       deviceType: this.getDeviceTypeName(accessory.deviceType),
+      manufacturer: accessory.manufacturer,
+      model: accessory.model,
+      serialNumber: accessory.serialNumber,
+      firmwareRevision: accessory.firmwareRevision,
       clusters: this.getCurrentState(uuid),
       parts: accessory._parts?.map(part => ({
         id: part.id,

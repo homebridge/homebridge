@@ -28,6 +28,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): add the water heater device type, with mode and boost handlers
 - fix(matter): keep a light's lighting feature on its on/off cluster when handlers are attached
 - docs(matter): say which clusters the media player device type actually carries
+- fix(matter): pass accessory information to the UI (#4019) (@thecloudseeker)
 
 ### Homebridge Dependencies
 
