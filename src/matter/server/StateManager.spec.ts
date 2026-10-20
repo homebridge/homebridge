@@ -164,3 +164,57 @@ describe('stateManager', () => {
     })
   })
 })
+
+describe('stateManager triggerCommand ordering (#4029)', () => {
+  it('waits for one command on an endpoint to finish before starting the next', async () => {
+    const order: string[] = []
+    let finishFirst!: () => void
+    const endpoint = createMockEndpoint({
+      act: vi.fn(async (fn: any) => fn({
+        levelControl: {
+          moveToLevelWithOnOff: () => new Promise<void>((resolve) => {
+            order.push('level started')
+            finishFirst = () => {
+              order.push('level finished')
+              resolve()
+            }
+          }),
+        },
+        onOff: { on: () => order.push('on started') },
+      })),
+    })
+    const manager = createManager(endpoint)
+
+    const level = manager.triggerCommand('uuid-1', 'levelControl', 'moveToLevelWithOnOff', { level: 127 })
+    const on = manager.triggerCommand('uuid-1', 'onOff', 'on')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(order).toEqual(['level started'])
+
+    finishFirst()
+    await Promise.all([level, on])
+    expect(order).toEqual(['level started', 'level finished', 'on started'])
+  })
+
+  it('still runs the next command when the one before it failed', async () => {
+    let calls = 0
+    const endpoint = createMockEndpoint({
+      act: vi.fn(async (fn: any) => fn({
+        onOff: {
+          on: () => {
+            calls++
+            if (calls === 1) {
+              throw new Error('first failed')
+            }
+          },
+        },
+      })),
+    })
+    const manager = createManager(endpoint)
+
+    const first = manager.triggerCommand('uuid-1', 'onOff', 'on')
+    const second = manager.triggerCommand('uuid-1', 'onOff', 'on')
+    await expect(first).rejects.toThrow('first failed')
+    await expect(second).resolves.toBeUndefined()
+    expect(calls).toBe(2)
+  })
+})
