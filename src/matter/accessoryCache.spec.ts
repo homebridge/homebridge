@@ -360,6 +360,30 @@ describe('matterAccessoryCache', () => {
   })
 
   describe('save', () => {
+    // The UI lists accessories from the in-memory cache, which was only ever
+    // filled at startup, so new accessories needed a restart to appear (#4013)
+    it('lists an accessory registered after startup once it has been saved, and drops a removed one', async () => {
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+      const accessory = (uuid: string) => ({
+        _associatedPlugin: 'homebridge-test',
+        _associatedPlatform: 'TestPlatform',
+        UUID: uuid,
+        displayName: uuid,
+        deviceType: { name: 'OnOffLight', code: 256 } as any,
+        clusters: { onOff: { onOff: false } },
+      }) as any as InternalMatterAccessory
+
+      await cache.save(new Map([['old-uuid', accessory('old-uuid')], ['new-uuid', accessory('new-uuid')]]))
+      expect(cache.getAllCached().map(entry => entry.uuid)).toEqual(['old-uuid', 'new-uuid'])
+      expect(cache.getCached('new-uuid')?.displayName).toBe('new-uuid')
+
+      await cache.save(new Map([['new-uuid', accessory('new-uuid')]]))
+      expect(cache.getAllCached().map(entry => entry.uuid)).toEqual(['new-uuid'])
+      expect(cache.hasCached('old-uuid')).toBe(false)
+    })
+
     it('should save accessories to cache', async () => {
       mockedMkdir.mockResolvedValue(undefined as any)
       mockedWriteFile.mockResolvedValue(undefined)
