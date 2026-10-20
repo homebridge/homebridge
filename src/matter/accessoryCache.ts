@@ -125,7 +125,8 @@ export class MatterAccessoryCache {
 
       // Load accessories into map (only those with valid UUIDs)
       for (const serialized of cacheData) {
-        if (serialized.uuid) {
+        if (serialized && typeof serialized === 'object' && !Array.isArray(serialized)
+          && typeof serialized.uuid === 'string' && serialized.uuid.length > 0) {
           this.cachedAccessories.set(serialized.uuid, serialized)
         }
       }
