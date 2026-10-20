@@ -106,16 +106,32 @@ export class FabricManager {
         return []
       }
 
-      // Try to read the storage file synchronously for backwards compatibility
-      // Look for JSON files that might contain fabric data
-      const files = fs.readdirSync(storagePath).filter((f: string) => f.endsWith('.json'))
+      // Candidate files, in priority order:
+      //  1. matter.js native storage: `<storagePath>/<nodeId>/fabrics.fabrics`
+      //     (a bare JSON array, no `.json` extension, one directory down)
+      //  2. Legacy: any `*.json` in the storage root with a fabrics key
+      const entries = fs.readdirSync(storagePath, { withFileTypes: true })
+      const candidates: string[] = []
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          candidates.push(path.join(storagePath, entry.name, 'fabrics.fabrics'))
+        }
+      }
+      for (const entry of entries) {
+        if (entry.isFile() && entry.name.endsWith('.json')) {
+          candidates.push(path.join(storagePath, entry.name))
+        }
+      }
 
-      for (const file of files) {
+      for (const file of candidates) {
         try {
-          const data = JSON.parse(fs.readFileSync(path.join(storagePath, file), 'utf-8'))
+          if (!fs.existsSync(file)) {
+            continue
+          }
+          const data = JSON.parse(fs.readFileSync(file, 'utf-8'))
 
           // Check for fabrics data in various storage key formats
-          const fabricsData = data?.['fabrics.fabrics'] || data?.fabrics?.fabrics
+          const fabricsData = Array.isArray(data) ? data : (data?.['fabrics.fabrics'] || data?.fabrics?.fabrics)
           if (Array.isArray(fabricsData) && fabricsData.length > 0) {
             return fabricsData.map((fabric: any) => ({
               fabricIndex: fabric.fabricIndex || 0,

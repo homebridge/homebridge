@@ -1,5 +1,9 @@
 import type { ServerNode } from '@matter/main'
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { FabricManager } from './FabricManager.js'
@@ -33,6 +37,40 @@ function makeServerNode(fabrics: unknown[]): unknown {
 }
 
 describe('fabricManager', () => {
+  describe('storage fallback', () => {
+    it('reads fabrics from matter.js native storage before the node is online (#4009)', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-manager-'))
+      try {
+        const nodeDir = path.join(dir, 'B8653CFC01E7')
+        fs.mkdirSync(nodeDir)
+        fs.writeFileSync(path.join(dir, 'commissioning.json'), JSON.stringify({ commissioned: false }))
+        fs.writeFileSync(
+          path.join(nodeDir, 'fabrics.fabrics'),
+          JSON.stringify([{ fabricIndex: 3, fabricId: '100', nodeId: '200', rootVendorId: 0x1349, label: 'AppleHome' }]),
+        )
+
+        // Node built but not yet online: the live fabric list is still empty
+        const manager = makeFabricManager({ env: {}, state: { operationalCredentials: { fabrics: [] } } }, dir)
+        expect(manager.isCommissioned()).toBe(true)
+        expect(manager.getFabricInfo()).toEqual([
+          { fabricIndex: 3, fabricId: '100', nodeId: '200', rootVendorId: 0x1349, label: 'AppleHome' },
+        ])
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('reports not commissioned when storage holds no fabrics', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-manager-'))
+      try {
+        fs.mkdirSync(path.join(dir, 'B8653CFC01E7'))
+        expect(makeFabricManager({ env: {}, state: { operationalCredentials: { fabrics: [] } } }, dir).isCommissioned()).toBe(false)
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
   describe('getFabricInfo', () => {
     it('maps vendorId from cluster-shaped FabricDescriptorStruct entries (#3974)', () => {
       // The operational credentials cluster names the vendor field `vendorId`
