@@ -336,10 +336,18 @@ export interface MatterAPI {
   readonly status: typeof MatterStatus
 
   /**
-   * Register Matter platform accessories (works exactly like HAP's registerPlatformAccessories)
+   * Register Matter platform accessories
    *
    * Returns a promise that resolves when all accessories are fully registered and ready for state updates.
    * This is especially important for external accessories (like robot vacuums) which require additional setup time.
+   *
+   * Unlike HAP, register every accessory on every start, including the ones handed to
+   * `configureMatterAccessory()` from the cache. Handlers are functions and cannot be cached,
+   * so a restored accessory answers every command with a failure until it is registered again.
+   *
+   * When an accessory is restored from the cache, its cached state is kept: the `clusters`
+   * values passed here are the starting state for a new accessory only. To set the current
+   * state of a restored accessory, call `updateAccessoryState()` once this promise resolves (#4015).
    *
    * @param pluginIdentifier - The plugin identifier (e.g., 'homebridge-example')
    * @param platformName - The platform name (e.g., 'ExamplePlatform')
