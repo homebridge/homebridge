@@ -31,7 +31,7 @@ import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { ChildBridgeExternalPortService } from './externalPortService.js'
 import { Logger } from './logger.js'
 import { ChildBridgeMatterMessageHandler } from './matter/ChildBridgeMatterMessageHandler.js'
-import { isMatterActive } from './matter/config.js'
+import { isMatterActive, isMatterExternalsOnly } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 
@@ -121,6 +121,7 @@ export class ChildBridgeFork {
     // load api
     this.api = new HomebridgeAPI()
     this.api._setHapEnabled(isHapActive(this.bridgeConfig.hap), isHapExternalsOnly(this.bridgeConfig.hap))
+    this.api._setMatterExternalsOnly(isMatterExternalsOnly(this.bridgeConfig.matter))
     this.pluginManager = new PluginManager(this.api)
     this.externalPortService = new ChildBridgeExternalPortService(this)
 

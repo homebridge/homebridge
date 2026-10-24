@@ -27,7 +27,7 @@ import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
-import { isMatterActive, isMatterConfigEnabled, MatterConfigCollector } from './matter/config.js'
+import { isMatterActive, isMatterConfigEnabled, isMatterExternalsOnly, MatterConfigCollector } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
@@ -118,6 +118,7 @@ export class Server {
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI()
     this.api._setHapEnabled(isHapActive(this.config.bridge.hap), isHapExternalsOnly(this.config.bridge.hap))
+    this.api._setMatterExternalsOnly(isMatterExternalsOnly(this.config.bridge.matter))
     this.ipcService = new IpcService()
 
     // Collect all configured Matter ports to avoid conflicts

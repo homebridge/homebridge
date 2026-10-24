@@ -605,6 +605,14 @@ export interface API {
    */
   isMatterEnabled: () => boolean
 
+  /**
+   * Check if this bridge is in Matter externalsOnly mode: the bridge node, and so
+   * every bridged accessory, is not published, while external accessories are.
+   * Only ever true when {@link isMatterEnabled} is.
+   * @returns true if only external Matter accessories publish from this bridge
+   */
+  isMatterExternalsOnly: () => boolean
+
   on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
 }
 
@@ -631,6 +639,7 @@ export class HomebridgeAPI extends EventEmitter implements API {
    * Internal state tracking whether Matter is enabled for this bridge
    */
   private matterEnabled = false
+  private matterExternalsOnly = false
 
   // HAP is enabled by default; startup supplies the bridge-specific state.
   private hapEnabled = true
@@ -732,6 +741,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
    */
   _setMatterEnabled(enabled: boolean): void {
     this.matterEnabled = enabled
+  }
+
+  /**
+   * Set whether this bridge's Matter config is externalsOnly, before plugin
+   * initialization. Only reported while Matter is enabled.
+   * @internal
+   */
+  _setMatterExternalsOnly(externalsOnly: boolean): void {
+    this.matterExternalsOnly = externalsOnly
   }
 
   /**
@@ -885,5 +903,12 @@ export class HomebridgeAPI extends EventEmitter implements API {
    */
   isMatterEnabled(): boolean {
     return this.matterEnabled
+  }
+
+  /**
+   * @see API.isMatterExternalsOnly
+   */
+  isMatterExternalsOnly(): boolean {
+    return this.matterEnabled && this.matterExternalsOnly
   }
 }

@@ -56,6 +56,14 @@ export function isMatterActive(matter: MatterConfig | undefined): boolean {
 }
 
 /**
+ * Whether the bridge is in Matter externalsOnly mode: the bridge node does not
+ * start, but external Matter accessories still publish.
+ */
+export function isMatterExternalsOnly(matter: MatterConfig | undefined): boolean {
+  return !!matter && matter.externalsOnly === true
+}
+
+/**
  * Normalise the coherence of `matter.externalsOnly` for a single bridge block.
  *
  * `externalsOnly: true` is meant to be paired with `enabled: false` (the two
