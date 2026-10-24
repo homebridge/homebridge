@@ -42,6 +42,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - chore(deps): update matter.js to v0.18.0, with the changes its new checks need
 - feat(api): expose bridge HAP enablement to plugins (#4037) (@n0rt0nthec4t)
 - feat(api): add isMatterExternalsOnly to match isHapExternalsOnly
+- fix(matter): only enable matter for main bridge plugins when the main bridge uses it
 
 ### Homebridge Dependencies
 
