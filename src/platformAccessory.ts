@@ -2,7 +2,6 @@ import type {
   Controller,
   ControllerConstructor,
   SerializedAccessory,
-  Service,
   VoidCallback,
   WithUUID,
 } from '@homebridge/hap-nodejs'
@@ -12,7 +11,9 @@ import type { PlatformName, PluginIdentifier, PluginName } from './api.js'
 
 import { EventEmitter } from 'node:events'
 
-import { Accessory, AccessoryEventTypes, Categories } from '@homebridge/hap-nodejs'
+import { Accessory, AccessoryEventTypes, Categories, Service } from '@homebridge/hap-nodejs'
+
+import { Logger } from './logger.js'
 
 export type UnknownContext = Record<string, any>
 
@@ -94,6 +95,7 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
   }
 
   public removeService(service: Service): void {
+    this._warnOnRiskyRemoval(service)
     this._associatedHAPAccessory.removeService(service)
   }
 
@@ -123,6 +125,51 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
    */
   public removeController(controller: Controller): void {
     this._associatedHAPAccessory.removeController(controller)
+  }
+
+  /**
+   * Warn, without refusing, when a plugin removes a service that HAP or a
+   * controller still relies on. Removing either is almost always a mistake,
+   * and its effect only shows later: an accessory HomeKit will not pair, or a
+   * controller that throws on the next start because the services it saved
+   * have gone (#3980).
+   */
+  private _warnOnRiskyRemoval(service: Service): void {
+    if (!this.services.includes(service)) {
+      return
+    }
+
+    const plugin = this._associatedPlugin ?? 'unknown'
+    if (service.UUID === Service.AccessoryInformation.UUID || service.UUID === Service.ProtocolInformation.UUID) {
+      Logger.internal.warn(
+        'The plugin \'%s\' removed the %s service from the accessory \'%s\'. HAP manages this service, and the accessory may not work without it.',
+        plugin,
+        service.displayName,
+        this.displayName,
+      )
+      return
+    }
+
+    if (PlatformAccessory.controllerServiceIds(this).has(service.getServiceId())) {
+      Logger.internal.warn(
+        'The plugin \'%s\' removed the %s service from the accessory \'%s\', but a controller on the accessory still uses it. '
+        + 'The controller may fail when Homebridge next starts. To stop using the controller, remove it with accessory.removeController() instead.',
+        plugin,
+        service.displayName,
+        this.displayName,
+      )
+    }
+  }
+
+  /**
+   * The ids of every service that belongs to one of the accessory's
+   * controllers (a camera, doorbell or remote, say), including controllers
+   * restored from the cache that the plugin has not configured again yet.
+   * Serialising is the one place HAP lists both.
+   */
+  static controllerServiceIds(accessory: PlatformAccessory): Set<string> {
+    const controllers = Accessory.serialize(accessory._associatedHAPAccessory).controllers ?? []
+    return new Set(controllers.flatMap(controller => Object.values(controller.services)))
   }
 
   // private

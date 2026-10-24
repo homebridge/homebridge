@@ -1,3 +1,5 @@
+import type { MockInstance } from 'vitest'
+
 import type { SerializedPlatformAccessory } from './platformAccessory.js'
 
 import {
@@ -9,6 +11,7 @@ import {
 } from '@homebridge/hap-nodejs'
 import { describe, expect, it, vi } from 'vitest'
 
+import { Logger } from './logger.js'
 import { PlatformAccessory } from './platformAccessory.js'
 
 function createAccessory(name = 'TestAccessory', category?: Categories): PlatformAccessory {
@@ -169,6 +172,98 @@ describe('platformAccessory', () => {
       expect(reconstructed.UUID).toBe(accessory.UUID)
       expect(reconstructed.category).toBe(accessory.category)
       expect(reconstructed.context).toBe(accessory.context)
+    })
+  })
+
+  describe('platformAccessory.prototype.removeService warnings', () => {
+    function restart(accessory: PlatformAccessory): PlatformAccessory {
+      return PlatformAccessory.deserialize(JSON.parse(JSON.stringify(PlatformAccessory.serialize(accessory))))
+    }
+
+    function warnings(warnSpy: MockInstance): string[] {
+      return warnSpy.mock.calls.map((call: unknown[]) => String(call[0]))
+    }
+
+    it('says nothing when a plugin removes one of its own services', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+      const old = accessory.addService(Service.ContactSensor)
+
+      accessory.removeService(old)
+
+      expect(warnSpy).not.toHaveBeenCalled()
+      expect(accessory.getService(Service.ContactSensor)).toBeUndefined()
+      warnSpy.mockRestore()
+    })
+
+    it('warns, but still removes, when a plugin removes the information service', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+
+      accessory.removeService(accessory.getService(Service.AccessoryInformation)!)
+
+      expect(warnings(warnSpy)).toEqual([
+        expect.stringContaining('HAP manages this service'),
+      ])
+      expect(warnSpy.mock.calls[0][1]).toBe('TestPlugin')
+      expect(accessory.getService(Service.AccessoryInformation)).toBeUndefined()
+      warnSpy.mockRestore()
+    })
+
+    it('warns when a plugin removes a service a configured controller uses', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+      accessory.configureController(new RemoteController())
+      const controllerService = accessory.services.find(service => service.UUID !== Service.AccessoryInformation.UUID)!
+
+      accessory.removeService(controllerService)
+
+      expect(warnings(warnSpy)).toEqual([
+        expect.stringContaining('a controller on the accessory still uses it'),
+      ])
+      expect(accessory.services).not.toContain(controllerService)
+      warnSpy.mockRestore()
+    })
+
+    it('warns for a controller restored from the cache that is not configured again yet', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const original = createAccessory()
+      original.configureController(new RemoteController())
+      original.addService(Service.MotionSensor)
+      const restored = restart(original)
+      const controllerService = restored.services.find(service =>
+        service.UUID !== Service.AccessoryInformation.UUID
+        && service.UUID !== Service.MotionSensor.UUID,
+      )!
+
+      restored.removeService(controllerService)
+
+      expect(warnings(warnSpy)).toEqual([
+        expect.stringContaining('a controller on the accessory still uses it'),
+      ])
+      warnSpy.mockRestore()
+    })
+
+    it('says nothing for an ordinary service on an accessory that has a controller', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+      accessory.configureController(new RemoteController())
+      const motion = accessory.addService(Service.MotionSensor)
+
+      accessory.removeService(motion)
+
+      expect(warnSpy).not.toHaveBeenCalled()
+      warnSpy.mockRestore()
+    })
+
+    it('says nothing for a service that is not on the accessory', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+
+      accessory.removeService(new Service.AccessoryInformation())
+
+      expect(warnSpy).not.toHaveBeenCalled()
+      warnSpy.mockRestore()
     })
   })
 })
