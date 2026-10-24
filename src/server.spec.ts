@@ -122,6 +122,70 @@ describe('server', () => {
     })
   })
 
+  describe('public Matter enablement during plugin initialization', () => {
+    afterEach(async () => {
+      vi.restoreAllMocks()
+      await fs.writeJson(configPath, mockConfig)
+    })
+
+    const childWithMatter = {
+      platform: 'Example',
+      _bridge: { username: '0E:DC:5D:BE:D6:75', matter: {} },
+    }
+
+    it.each([
+      {
+        matter: undefined,
+        platforms: [],
+        expected: false,
+        externalsOnly: false,
+      },
+      {
+        matter: {},
+        platforms: [],
+        expected: true,
+        externalsOnly: false,
+      },
+      {
+        matter: { externalsOnly: true },
+        platforms: [],
+        expected: true,
+        externalsOnly: true,
+      },
+      {
+        matter: { enabled: false },
+        platforms: [childWithMatter],
+        expected: false,
+        externalsOnly: false,
+      },
+      // A child bridge's Matter runs in its own process, so it must not turn
+      // Matter on for plugins on the main bridge
+      {
+        matter: undefined,
+        platforms: [childWithMatter],
+        expected: false,
+        externalsOnly: false,
+      },
+    ])('reports $expected for bridge.matter=$matter with $platforms.length Matter child bridge(s)', async ({ matter, platforms, expected, externalsOnly }) => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, matter, disableIpc: true },
+        platforms,
+      })
+      const server = new Server({ hideQRCode: true })
+      const stop = new Error('Stop after observing plugin initialization')
+      const initialize = vi.spyOn(PluginManager.prototype, 'initializeInstalledPlugins').mockImplementation(async () => {
+        expect((server as any).api.isMatterEnabled()).toBe(expected)
+        expect((server as any).api.isMatterExternalsOnly()).toBe(externalsOnly)
+        expect((server as any).api.matter !== undefined).toBe(expected)
+        throw stop
+      })
+
+      await expect(server.start()).rejects.toBe(stop)
+      expect(initialize).toHaveBeenCalledOnce()
+    })
+  })
+
   describe('protocol-enablement helpers', () => {
     describe('isHapEnabled', () => {
       it('returns true when bridge.hap is unset (default)', () => {

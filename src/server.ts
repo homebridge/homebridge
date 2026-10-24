@@ -215,29 +215,32 @@ export class Server {
     // load the cached accessories
     await this.bridgeService.loadCachedPlatformAccessoriesFromDisk()
 
-    // Validate Matter configuration up front so we know whether to expose
-    // api.matter to plugins. Validator may strip invalid entries, so re-check
-    // after. Caching the result avoids two more hasMatterConfig calls below.
-    let matterIsConfigured = MatterConfigCollector.hasMatterConfig(this.config)
-    if (matterIsConfigured) {
-      await MatterConfigCollector.validateMatterConfig(this.config)
-      matterIsConfigured = MatterConfigCollector.hasMatterConfig(this.config)
-    }
+    // Validate Matter configuration for every bridge up front (a no-op when no
+    // bridge uses Matter). The validator may strip invalid entries, so the
+    // main bridge is checked after it.
+    await MatterConfigCollector.validateMatterConfig(this.config)
+
+    // Only the main bridge's own config decides Matter here. A child bridge's
+    // Matter runs in that child's process, so it must not make api.matter or
+    // isMatterEnabled() true for plugins on the main bridge - the same rule
+    // isHapEnabled() follows.
+    const matterIsActive = isMatterActive(this.config.bridge.matter)
 
     // Eagerly load the MatterAPI facade before plugins initialize, so api.matter
-    // is defined when plugin code runs on Matter-enabled bridges. The heavy
+    // is defined when plugin code runs on a Matter-enabled main bridge. The heavy
     // MatterBridgeManager init still happens after plugins load (below) — only
     // the API surface needs to be ready early.
-    if (matterIsConfigured) {
+    if (matterIsActive) {
       await this.api.loadMatterAPI()
     }
 
     // initialize plugins
     await this.pluginManager.initializeInstalledPlugins()
 
-    // Initialize Matter manager only if configured. Heavy Matter.js libraries
-    // are loaded here (async), avoiding sync blocking during construction.
-    if (matterIsConfigured) {
+    // Initialize Matter manager only if the main bridge uses Matter. Heavy
+    // Matter.js libraries are loaded here (async), avoiding sync blocking
+    // during construction.
+    if (matterIsActive) {
       // Dynamically import MatterBridgeManager only when needed
       // This prevents loading heavy Matter.js libraries when Matter is not configured
       const { MatterBridgeManager } = await import('./matter/MatterBridgeManager.js')
