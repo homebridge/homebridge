@@ -1,11 +1,15 @@
+import type { Plugin } from './plugin.js'
+
 import process from 'node:process'
 
+import { HAPStorage } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PluginType } from './api.js'
 import { ChildBridgeFork } from './childBridgeFork.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { Logger } from './logger.js'
+import { PluginManager } from './pluginManager.js'
 
 describe('childBridgeFork — parent disconnect handling', () => {
   let onSpy: any
@@ -40,6 +44,48 @@ describe('childBridgeFork — parent disconnect handling', () => {
     // No 5000ms-interval poll should be scheduled now.
     const fiveSecondPolls = setIntervalSpy.mock.calls.filter(([, ms]: any[]) => ms === 5000)
     expect(fiveSecondPolls).toHaveLength(0)
+  })
+})
+
+describe('childBridgeFork - public HAP enablement', () => {
+  const originalTitle = process.title
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    process.title = originalTitle
+  })
+
+  it.each([
+    { hap: undefined, expected: true },
+    { hap: {}, expected: true },
+    { hap: { enabled: true }, expected: true },
+    { hap: { enabled: false }, expected: false },
+    { hap: false, expected: false },
+    { hap: { externalsOnly: true }, expected: false },
+  ])('reports $expected for child bridge hap=$hap before plugins initialize', async ({ hap, expected }) => {
+    const fork = new ChildBridgeFork()
+    vi.spyOn(HAPStorage, 'setCustomStoragePath').mockImplementation(() => {})
+    const plugin = {
+      load: vi.fn().mockResolvedValue(undefined),
+      getPluginIdentifier: () => 'homebridge-example',
+      version: '1.0.0',
+    } as unknown as Plugin
+    vi.spyOn(PluginManager.prototype, 'loadPlugin').mockReturnValue(plugin)
+    const initialize = vi.spyOn(PluginManager.prototype, 'initializePlugin').mockImplementation(async () => {
+      expect((fork as any).api.isHapEnabled()).toBe(expected)
+    })
+
+    await fork.loadPlugin({
+      type: PluginType.PLATFORM,
+      identifier: 'homebridge-example',
+      pluginPath: '/unused',
+      pluginConfig: [],
+      bridgeConfig: { username: '0E:DC:5D:BE:D6:75', name: 'Child', pin: '031-45-154', hap },
+      homebridgeConfig: { bridge: { username: 'CC:22:3D:E3:CE:30', name: 'Main', pin: '031-45-154', hap: { enabled: expected === false } }, accessories: [], platforms: [] },
+      bridgeOptions: { cachedAccessoriesDir: '/unused', cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+    })
+
+    expect(initialize).toHaveBeenCalledOnce()
   })
 })
 

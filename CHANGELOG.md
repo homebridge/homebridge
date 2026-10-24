@@ -6,6 +6,8 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Changes
 
+- feat: expose `api.isHapEnabled()` for main and child bridge HAP enablement (#4010)
+
 - fix: guard child bridge shutdown before bridgeService is assigned (#3999) (@SAY-5)
 - perf: reduce plugin discovery filesystem calls (#4000) (@n0rt0nthec4t)
 - perf: index accessory operations (#4003) (@n0rt0nthec4t)

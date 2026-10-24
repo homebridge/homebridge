@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { PluginType } from './api.js'
 import { Logger } from './logger.js'
+import { PluginManager } from './pluginManager.js'
 import { Server } from './server.js'
 import { User } from './user.js'
 
@@ -69,6 +70,37 @@ describe('server', () => {
     await server.start()
 
     expect(server).toBeInstanceOf(Server)
+  })
+
+  describe('public HAP enablement during plugin initialization', () => {
+    afterEach(async () => {
+      vi.restoreAllMocks()
+      await fs.writeJson(configPath, mockConfig)
+    })
+
+    it.each([
+      { hap: undefined, expected: true },
+      { hap: {}, expected: true },
+      { hap: { enabled: true }, expected: true },
+      { hap: { enabled: false }, expected: false },
+      { hap: false, expected: false },
+      { hap: { externalsOnly: true }, expected: false },
+    ])('reports $expected for bridge.hap=$hap before plugins initialize', async ({ hap, expected }) => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, hap, disableIpc: true },
+      })
+      const server = new Server({ hideQRCode: true })
+      const stop = new Error('Stop after observing plugin initialization')
+      const initialize = vi.spyOn(PluginManager.prototype, 'initializeInstalledPlugins').mockImplementation(async () => {
+        expect((server as any).api.isHapEnabled()).toBe(expected)
+        throw stop
+      })
+
+      // Stop before publishing so this lifecycle check needs no network sockets.
+      await expect(server.start()).rejects.toBe(stop)
+      expect(initialize).toHaveBeenCalledOnce()
+    })
   })
 
   describe('protocol-enablement helpers', () => {

@@ -575,6 +575,13 @@ export interface API {
   publishExternalAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
 
   /**
+   * Check if HAP is enabled for this bridge (`bridge.hap` or `_bridge.hap`).
+   * Enabled by default; false when disabled or in externalsOnly mode.
+   * @returns true if the HAP bridge accessory is enabled
+   */
+  isHapEnabled: () => boolean
+
+  /**
    * Check if Matter is available in this version of Homebridge
    * @returns true if Homebridge version is >= 2.0.0-alpha.0
    */
@@ -614,6 +621,9 @@ export class HomebridgeAPI extends EventEmitter implements API {
    * Internal state tracking whether Matter is enabled for this bridge
    */
   private matterEnabled = false
+
+  // HAP is enabled by default; startup supplies the bridge-specific state.
+  private hapEnabled = true
 
   /**
    * Internal reference to MatterServer for API methods that need return values
@@ -693,6 +703,14 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   constructor() {
     super()
+  }
+
+  /**
+   * Set bridge-specific HAP enablement before plugin initialization.
+   * @internal
+   */
+  _setHapEnabled(enabled: boolean): void {
+    this.hapEnabled = enabled
   }
 
   /**
@@ -823,6 +841,13 @@ export class HomebridgeAPI extends EventEmitter implements API {
     })
 
     this.emit(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories)
+  }
+
+  /**
+   * @see API.isHapEnabled
+   */
+  isHapEnabled(): boolean {
+    return this.hapEnabled
   }
 
   /**
