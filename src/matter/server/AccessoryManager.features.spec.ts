@@ -3,11 +3,12 @@ import type { EndpointType } from '@matter/main'
 import type { MatterAccessory } from '../types.js'
 
 import { FanRequirements } from '@matter/main/devices/fan'
-import { PowerSourceEndpoint } from '@matter/main/endpoints/power-source'
 import { describe, expect, it } from 'vitest'
 
+import { DefaultDeviceEnergyManagementServer, HomebridgeDeviceEnergyManagementServer } from '../behaviors/DeviceEnergyManagementBehavior.js'
+import { HomebridgeEnergyEvseServer } from '../behaviors/EnergyEvseBehavior.js'
 import { HomebridgeFanControlServer } from '../behaviors/FanControlBehavior.js'
-import { devices, deviceTypes } from '../types.js'
+import { deviceRequirements, devices, deviceTypes } from '../types.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
 /**
@@ -277,7 +278,7 @@ describe('an air quality sensor', () => {
 describe('a power source', () => {
   it('is wired when it declares no battery attribute', async () => {
     const deviceType = await prepare({
-      deviceType: PowerSourceEndpoint,
+      deviceType: deviceTypes.PowerSource,
       clusters: {
         powerSource: {
           status: 1,
@@ -293,7 +294,7 @@ describe('a power source', () => {
 
   it('is a battery when it declares a battery attribute', async () => {
     const deviceType = await prepare({
-      deviceType: PowerSourceEndpoint,
+      deviceType: deviceTypes.PowerSource,
       clusters: {
         powerSource: {
           status: 1,
@@ -305,5 +306,170 @@ describe('a power source', () => {
     })
 
     expect(enabledFeatures(deviceType, 'powerSource')).toEqual(['battery', 'rechargeable'])
+  })
+})
+
+/**
+ * The energy clusters' features come from the declared state (#4034), and
+ * their commands from Homebridge's default servers - matter.js implements none.
+ */
+describe('device energy management', () => {
+  const baseState = {
+    esaType: 4,
+    esaCanGenerate: true,
+    esaState: 1,
+    absMinPower: -5000000,
+    absMaxPower: 5000000,
+  }
+
+  it('gets PowerAdjustment from a declared powerAdjustmentCapability', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.DeviceEnergyManagement,
+      clusters: {
+        deviceEnergyManagement: { ...baseState, powerAdjustmentCapability: null, optOutState: 0 },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'deviceEnergyManagement')).toEqual(['powerAdjustment'])
+  })
+
+  it('gets PowerForecastReporting from a declared forecast', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.DeviceEnergyManagement,
+      clusters: {
+        deviceEnergyManagement: { ...baseState, forecast: null },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'deviceEnergyManagement')).toEqual(['powerForecastReporting'])
+  })
+
+  it('gets StateForecastReporting from a forecast that describes states', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.DeviceEnergyManagement,
+      clusters: {
+        deviceEnergyManagement: {
+          ...baseState,
+          forecast: {
+            slots: [
+              { manufacturerEsaState: 1 },
+            ],
+          },
+        },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'deviceEnergyManagement')).toEqual(['stateForecastReporting'])
+  })
+
+  it('carries none it was not given, even with handlers', async () => {
+    // The handler-calling behavior is declared with every feature so its
+    // commands exist; the device must not end up advertising them all
+    const deviceType = await prepare({
+      deviceType: deviceTypes.DeviceEnergyManagement,
+      clusters: { deviceEnergyManagement: baseState },
+      handlers: {
+        deviceEnergyManagement: {
+          pauseRequest: async () => {},
+        },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'deviceEnergyManagement')).toEqual([])
+    const behavior = (deviceType as { behaviors: Record<string, any> }).behaviors.deviceEnergyManagement
+    expect(behavior === HomebridgeDeviceEnergyManagementServer || behavior.prototype instanceof HomebridgeDeviceEnergyManagementServer).toBe(true)
+  })
+
+  it('keeps a feature the plugin composed, and the handlers for it', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.DeviceEnergyManagement.with(
+        deviceRequirements.DeviceEnergyManagement.DeviceEnergyManagementServer.with('Pausable'),
+      ),
+      clusters: {
+        deviceEnergyManagement: { ...baseState, optOutState: 0 },
+      },
+      handlers: {
+        deviceEnergyManagement: {
+          pauseRequest: async () => {},
+        },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'deviceEnergyManagement')).toEqual(['pausable'])
+  })
+
+  it('answers commands even when the plugin composed the plain matter.js server', async () => {
+    // deviceRequirements hands out matter.js's server, which implements no
+    // commands - it is swapped for the default one, keeping the features
+    const deviceType = await prepare({
+      deviceType: deviceTypes.DeviceEnergyManagement.with(
+        deviceRequirements.DeviceEnergyManagement.DeviceEnergyManagementServer.with('Pausable'),
+      ),
+      clusters: {
+        deviceEnergyManagement: { ...baseState, optOutState: 0 },
+      },
+    })
+
+    const behavior = (deviceType as { behaviors: Record<string, any> }).behaviors.deviceEnergyManagement
+    expect(behavior === DefaultDeviceEnergyManagementServer || behavior.prototype instanceof DefaultDeviceEnergyManagementServer).toBe(true)
+    expect(enabledFeatures(deviceType, 'deviceEnergyManagement')).toEqual(['pausable'])
+  })
+})
+
+describe('an ev charger', () => {
+  const baseState = {
+    state: 1,
+    supplyState: 0,
+    faultState: 0,
+    chargingEnabledUntil: null,
+    circuitCapacity: 32000,
+    minimumChargeCurrent: 6000,
+    maximumChargeCurrent: 0,
+  }
+
+  it('keeps matter.js\'s ChargingPreferences and adds nothing it was not asked for', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.EnergyEvse,
+      clusters: { energyEvse: baseState },
+    })
+
+    expect(enabledFeatures(deviceType, 'energyEvse')).toEqual(['chargingPreferences'])
+  })
+
+  it('gets SoCReporting, PlugAndCharge and V2X from the declared state', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.EnergyEvse,
+      clusters: {
+        energyEvse: {
+          ...baseState,
+          stateOfCharge: 50,
+          vehicleId: 'car',
+          maximumDischargeCurrent: 0,
+        },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'energyEvse')).toEqual([
+      'chargingPreferences',
+      'plugAndCharge',
+      'soCReporting',
+      'v2X',
+    ])
+  })
+
+  it('carries only the chosen features once handlers swap the behavior in', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.EnergyEvse,
+      clusters: { energyEvse: baseState },
+      handlers: {
+        energyEvse: {
+          enableCharging: async () => {},
+        },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'energyEvse')).toEqual(['chargingPreferences'])
+    const behavior = (deviceType as { behaviors: Record<string, any> }).behaviors.energyEvse
+    expect(behavior === HomebridgeEnergyEvseServer || behavior.prototype instanceof HomebridgeEnergyEvseServer).toBe(true)
   })
 })

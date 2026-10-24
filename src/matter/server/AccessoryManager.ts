@@ -34,8 +34,10 @@ import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
 import { declaredClusterFeatures } from '../clusterFeatures.js'
 import {
+  applyDeviceEnergyManagementFeatures,
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
+  applyEnergyEvseFeatures,
   applyFanAutoFeature,
   applyLevelControlLightingFloor,
   applyRoomAirConditionerAutoMode,
@@ -107,6 +109,25 @@ export interface AccessoryManagerDeps {
   getMonitoringEnabled: () => boolean
   isCommissioned: () => boolean
 }
+
+/**
+ * Device types whose composition requires every PowerSource to carry a tag
+ * (Descriptor TagList): solar power and battery storage.
+ */
+const TAGGED_POWER_SOURCE_DEVICE_TYPES = new Set<number>([
+  devices.SolarPowerDevice?.deviceType,
+  devices.BatteryStorageDevice?.deviceType,
+].filter((code): code is NonNullable<typeof code> => code !== undefined))
+
+/**
+ * Clusters whose Homebridge behavior is declared with every optional feature
+ * (so the feature-gated commands exist to override), and so must always be
+ * narrowed to the features the device type chose.
+ */
+const FEATURE_RICH_BEHAVIOR_CLUSTERS = new Set([
+  'deviceEnergyManagement',
+  'energyEvse',
+])
 
 /**
  * Clusters the general feature carry-across in
@@ -315,6 +336,24 @@ export class AccessoryManager {
             description: 'AC Power',
             endpointList: [],
             wiredCurrentType: 0, // AC (PowerSource.WiredCurrentType.Ac)
+          }
+        }
+
+        // Solar power and battery storage require every PowerSource in their
+        // composition to carry a tag, and the parent has one too - the one above,
+        // or the plugin's own
+        if (TAGGED_POWER_SOURCE_DEVICE_TYPES.has(Number(deviceType.deviceType))) {
+          deviceType = (deviceType as any).with(DescriptorServer.with('TagList'))
+          endpointOptions.descriptor = {
+            ...endpointOptions.descriptor,
+            tagList: [
+              {
+                mfgCode: null,
+                namespaceId: 7,
+                tag: 0,
+                label: (endpointOptions.powerSource?.description ?? accessory.clusters?.powerSource?.description ?? 'Power').slice(0, 64),
+              },
+            ],
           }
         }
       }
@@ -540,6 +579,11 @@ export class AccessoryManager {
     // FanControl's Auto mode is feature-gated too. Turn it on for a fan that
     // declares a sequence offering Auto, keeping any features already chosen.
     deviceType = applyFanAutoFeature(deviceType, accessory)
+
+    // The energy clusters' features come from the declared state too, and their
+    // commands from Homebridge's default servers - matter.js implements none
+    deviceType = applyDeviceEnergyManagementFeatures(deviceType, accessory)
+    deviceType = applyEnergyEvseFeatures(deviceType, accessory)
 
     // Electrical measurement clusters (power/energy metering) are feature-gated
     // in matter.js and not part of any base device type. Detect them from the
@@ -913,6 +957,11 @@ export class AccessoryManager {
         if (declared && declared.length > 0) {
           behaviorClass = (behaviorClass as any).with(...declared)
           log.info(`${clusterName} custom behavior will preserve features: ${declared.join(', ')}`)
+        } else if (FEATURE_RICH_BEHAVIOR_CLUSTERS.has(clusterName)) {
+          // These handler-calling behaviors carry every feature so their
+          // commands exist to override; one the device did not choose must not
+          // reach the endpoint
+          behaviorClass = (behaviorClass as any).with()
         }
       }
 

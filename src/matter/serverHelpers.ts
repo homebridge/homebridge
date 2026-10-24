@@ -10,12 +10,14 @@ import type { Behavior } from '@matter/node'
 import type { MatterAccessory } from './types.js'
 
 import { Logger } from '../logger.js'
+// Direct matter.js .with() API used instead of typeHelpers wrappers
+import { DefaultDeviceEnergyManagementServer } from './behaviors/DeviceEnergyManagementBehavior.js'
+import { DefaultEnergyEvseServer } from './behaviors/EnergyEvseBehavior.js'
 import {
   HomebridgeRvcCleanModeServer,
   HomebridgeServiceAreaServer,
   HomebridgeWindowCoveringServer,
 } from './behaviors/index.js'
-// Direct matter.js .with() API used instead of typeHelpers wrappers
 import { extractDeclaredFeatures } from './clusterFeatures.js'
 import { clusters, devices, MatterDeviceError } from './types.js'
 
@@ -688,6 +690,91 @@ export function applyFanAutoFeature(deviceType: EndpointType, accessory: MatterA
   ]
   log.info(`Auto-detected FanControl features for ${accessory.displayName}: ${features.join(', ')}`)
   return (deviceType as any).with(fanControl.with(...features))
+}
+
+/**
+ * Rebuild an energy cluster on the default server that implements its commands,
+ * with the features it already has plus the ones the declared state needs.
+ *
+ * matter.js implements none of the DeviceEnergyManagement or EnergyEvse
+ * commands, so a plugin that composed the cluster from deviceRequirements (the
+ * plain matter.js server) would otherwise get one that fails every command.
+ */
+function applyEnergyClusterFeatures(
+  deviceType: EndpointType,
+  accessory: MatterAccessory,
+  clusterName: 'deviceEnergyManagement' | 'energyEvse',
+  defaultServer: typeof DefaultDeviceEnergyManagementServer | typeof DefaultEnergyEvseServer,
+  detected: string[],
+): EndpointType {
+  const behavior = (deviceType as { behaviors?: Record<string, any> }).behaviors?.[clusterName]
+  if (!behavior || typeof behavior.with !== 'function') {
+    return deviceType
+  }
+  const existing = extractDeclaredFeatures(behavior.features ?? {})
+  const features = [
+    ...new Set([
+      ...existing,
+      ...detected,
+    ]),
+  ]
+  // A class is not an instance of itself, so check both
+  const onDefault = behavior === defaultServer || behavior.prototype instanceof defaultServer
+  if (onDefault && features.length === existing.length) {
+    return deviceType
+  }
+  if (features.length > existing.length) {
+    log.info(`Auto-detected ${clusterName} features for ${accessory.displayName}: ${features.join(', ')}`)
+  }
+  const server = onDefault ? behavior : defaultServer
+  return (deviceType as any).with(server.with(...features))
+}
+
+/**
+ * Pick DeviceEnergyManagement's features from the accessory's declared state:
+ * powerAdjustmentCapability means PowerAdjustment (a home battery must have it),
+ * and a forecast means PowerForecastReporting (an EV charger must have it), or
+ * StateForecastReporting when its slots describe states rather than power.
+ *
+ * Pausable, StartTimeAdjustment, ForecastAdjustment and ConstraintBasedAdjustment
+ * have no attribute of their own to detect them by, so a plugin composes those
+ * with deviceRequirements.DeviceEnergyManagement - and that survives a cache
+ * restore, where handler names (functions cannot be cached) would not.
+ */
+export function applyDeviceEnergyManagementFeatures(deviceType: EndpointType, accessory: MatterAccessory): EndpointType {
+  const state = accessory.clusters?.deviceEnergyManagement as Record<string, unknown> | undefined
+  const detected: string[] = []
+  if (state && 'powerAdjustmentCapability' in state) {
+    detected.push('PowerAdjustment')
+  }
+  if (state && 'forecast' in state) {
+    const slots = (state.forecast as { slots?: Array<Record<string, unknown>> } | null)?.slots ?? []
+    detected.push(slots.some(slot => 'manufacturerEsaState' in slot)
+      ? 'StateForecastReporting'
+      : 'PowerForecastReporting')
+  }
+  return applyEnergyClusterFeatures(deviceType, accessory, 'deviceEnergyManagement', DefaultDeviceEnergyManagementServer, detected)
+}
+
+/**
+ * Pick EnergyEvse's features from the accessory's declared state:
+ * stateOfCharge or batteryCapacity mean SoCReporting, vehicleId PlugAndCharge,
+ * and any discharging attribute V2X. ChargingPreferences is on by default in
+ * matter.js. Rfid has no attribute, so compose it with deviceRequirements.EnergyEvse.
+ */
+export function applyEnergyEvseFeatures(deviceType: EndpointType, accessory: MatterAccessory): EndpointType {
+  const state = accessory.clusters?.energyEvse as Record<string, unknown> | undefined
+  const detected: string[] = []
+  if (state && ('stateOfCharge' in state || 'batteryCapacity' in state)) {
+    detected.push('SoCReporting')
+  }
+  if (state && 'vehicleId' in state) {
+    detected.push('PlugAndCharge')
+  }
+  if (state && ('dischargingEnabledUntil' in state || 'maximumDischargeCurrent' in state || 'sessionEnergyDischarged' in state)) {
+    detected.push('V2X')
+  }
+  return applyEnergyClusterFeatures(deviceType, accessory, 'energyEvse', DefaultEnergyEvseServer, detected)
 }
 
 /**

@@ -143,6 +143,21 @@ describe('deviceTypes mandatory clusters', () => {
       'WaterHeater',
       ['thermostat', 'waterHeaterMode', 'waterHeaterManagement'],
     ],
+    // Energy (#4034). Solar power, battery storage and the electrical meter are
+    // not listed: their clusters live on their parts, or are added from the
+    // declared state at registration
+    [
+      'EnergyEvse',
+      ['energyEvse', 'energyEvseMode'],
+    ],
+    [
+      'DeviceEnergyManagement',
+      ['deviceEnergyManagement'],
+    ],
+    [
+      'ElectricalUtilityMeter',
+      ['meterIdentification'],
+    ],
   ]
 
   it.each(cases)('%s includes %j', (name, expectedBehaviors) => {
@@ -182,6 +197,14 @@ describe('command clusters are routable to plugin handlers', () => {
     [
       'WaterHeater',
       ['waterHeaterMode', 'waterHeaterManagement'],
+    ],
+    [
+      'EnergyEvse',
+      ['energyEvse', 'energyEvseMode'],
+    ],
+    [
+      'DeviceEnergyManagement',
+      ['deviceEnergyManagement'],
     ],
   ]
 
@@ -276,6 +299,12 @@ describe('deviceRequirements', () => {
       'RoomAirConditioner',
       'WindowCovering',
       'WaterHeater',
+      'EnergyEvse',
+      'ElectricalMeter',
+      'ElectricalUtilityMeter',
+      'ElectricalEnergyTariff',
+      'PowerSource',
+      'DeviceEnergyManagement',
     ] as const) {
       expect(deviceRequirements[name], `deviceRequirements.${name}`).toBeDefined()
       expect(deviceTypes[name], `deviceTypes.${name}`).toBeDefined()
@@ -325,5 +354,31 @@ describe('waterHeater thermostat features', () => {
     const features = enabledFeatures(supportedBehaviors(deviceTypes.WaterHeater).thermostat)
     expect(features.heating).toBe(true)
     expect(features.cooling).toBe(false)
+  })
+})
+
+describe('energy device types (#4034)', () => {
+  it.each([
+    'SolarPower',
+    'BatteryStorage',
+    'EnergyEvse',
+    'ElectricalMeter',
+    'ElectricalUtilityMeter',
+    'ElectricalEnergyTariff',
+    'PowerSource',
+    'DeviceEnergyManagement',
+  ] as const)('exposes %s', (name) => {
+    expect(deviceTypes[name]).toBeDefined()
+  })
+
+  // The handler-calling behaviors carry every feature; the stock types must not
+  it('starts the charger on matter.js\'s default features only', () => {
+    const features = enabledFeatures(supportedBehaviors(deviceTypes.EnergyEvse).energyEvse)
+    expect(Object.entries(features).filter(([, on]) => on).map(([name]) => name)).toEqual(['chargingPreferences'])
+  })
+
+  it('starts energy management with no features', () => {
+    const features = enabledFeatures(supportedBehaviors(deviceTypes.DeviceEnergyManagement).deviceEnergyManagement)
+    expect(Object.values(features).some(Boolean)).toBe(false)
   })
 })

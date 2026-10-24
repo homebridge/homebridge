@@ -34,9 +34,11 @@ import { BooleanState } from '@matter/main/clusters/boolean-state'
 import { CarbonMonoxideConcentrationMeasurement } from '@matter/main/clusters/carbon-monoxide-concentration-measurement'
 import { ClosureControl } from '@matter/main/clusters/closure-control'
 import { ColorControl } from '@matter/main/clusters/color-control'
+import { DeviceEnergyManagement } from '@matter/main/clusters/device-energy-management'
 import { DoorLock } from '@matter/main/clusters/door-lock'
 import { ElectricalEnergyMeasurement } from '@matter/main/clusters/electrical-energy-measurement'
 import { ElectricalPowerMeasurement } from '@matter/main/clusters/electrical-power-measurement'
+import { EnergyEvse } from '@matter/main/clusters/energy-evse'
 import { FanControl } from '@matter/main/clusters/fan-control'
 import { KeypadInput } from '@matter/main/clusters/keypad-input'
 import { LevelControl } from '@matter/main/clusters/level-control'
@@ -54,12 +56,17 @@ import { WindowCovering } from '@matter/main/clusters/window-covering'
 // Direct imports from individual device files
 import { AirQualitySensorDevice, AirQualitySensorRequirements } from '@matter/main/devices/air-quality-sensor'
 import { BasicVideoPlayerDevice } from '@matter/main/devices/basic-video-player'
+import { BatteryStorageDevice } from '@matter/main/devices/battery-storage'
 import { ClosureDevice, ClosureRequirements } from '@matter/main/devices/closure'
 import { ColorTemperatureLightDevice } from '@matter/main/devices/color-temperature-light'
 import { ContactSensorDevice } from '@matter/main/devices/contact-sensor'
 import { DimmableLightDevice } from '@matter/main/devices/dimmable-light'
 import { DimmablePlugInUnitDevice } from '@matter/main/devices/dimmable-plug-in-unit'
 import { DoorLockDevice } from '@matter/main/devices/door-lock'
+import { ElectricalEnergyTariffDevice, ElectricalEnergyTariffRequirements } from '@matter/main/devices/electrical-energy-tariff'
+import { ElectricalMeterDevice, ElectricalMeterRequirements } from '@matter/main/devices/electrical-meter'
+import { ElectricalUtilityMeterDevice, ElectricalUtilityMeterRequirements } from '@matter/main/devices/electrical-utility-meter'
+import { EnergyEvseDevice, EnergyEvseRequirements } from '@matter/main/devices/energy-evse'
 import { ExtendedColorLightDevice } from '@matter/main/devices/extended-color-light'
 import { FanDevice } from '@matter/main/devices/fan'
 import { GenericSwitchDevice, GenericSwitchRequirements } from '@matter/main/devices/generic-switch'
@@ -73,6 +80,7 @@ import { PumpDevice, PumpRequirements } from '@matter/main/devices/pump'
 import { RoboticVacuumCleanerDevice, RoboticVacuumCleanerRequirements } from '@matter/main/devices/robotic-vacuum-cleaner'
 import { RoomAirConditionerDevice, RoomAirConditionerRequirements } from '@matter/main/devices/room-air-conditioner'
 import { SmokeCoAlarmDevice, SmokeCoAlarmRequirements } from '@matter/main/devices/smoke-co-alarm'
+import { SolarPowerDevice } from '@matter/main/devices/solar-power'
 import { SpeakerDevice } from '@matter/main/devices/speaker'
 import { TemperatureSensorDevice } from '@matter/main/devices/temperature-sensor'
 import { ThermostatDevice, ThermostatRequirements } from '@matter/main/devices/thermostat'
@@ -81,9 +89,13 @@ import { WaterLeakDetectorDevice } from '@matter/main/devices/water-leak-detecto
 import { WaterValveDevice, WaterValveRequirements } from '@matter/main/devices/water-valve'
 import { WindowCoveringDevice, WindowCoveringRequirements } from '@matter/main/devices/window-covering'
 import { BridgedNodeEndpoint } from '@matter/main/endpoints/bridged-node'
+import { DeviceEnergyManagementEndpoint, DeviceEnergyManagementRequirements } from '@matter/main/endpoints/device-energy-management'
 import { ElectricalSensorEndpoint, ElectricalSensorRequirements } from '@matter/main/endpoints/electrical-sensor'
+import { PowerSourceEndpoint, PowerSourceRequirements } from '@matter/main/endpoints/power-source'
 
 import { DefaultClosureControlServer } from './behaviors/ClosureControlBehavior.js'
+import { DefaultDeviceEnergyManagementServer } from './behaviors/DeviceEnergyManagementBehavior.js'
+import { DefaultEnergyEvseServer } from './behaviors/EnergyEvseBehavior.js'
 import { DefaultKeypadInputServer } from './behaviors/KeypadInputBehavior.js'
 import { DefaultMediaPlaybackServer } from './behaviors/MediaPlaybackBehavior.js'
 import { DefaultValveConfigurationAndControlServer } from './behaviors/ValveConfigurationAndControlBehavior.js'
@@ -575,6 +587,20 @@ const devices = {
   BasicVideoPlayerDevice,
   ClosureDevice,
   ClosureRequirements,
+  SolarPowerDevice,
+  BatteryStorageDevice,
+  EnergyEvseDevice,
+  EnergyEvseRequirements,
+  ElectricalMeterDevice,
+  ElectricalMeterRequirements,
+  ElectricalUtilityMeterDevice,
+  ElectricalUtilityMeterRequirements,
+  ElectricalEnergyTariffDevice,
+  ElectricalEnergyTariffRequirements,
+  PowerSourceEndpoint,
+  PowerSourceRequirements,
+  DeviceEnergyManagementEndpoint,
+  DeviceEnergyManagementRequirements,
 }
 
 /**
@@ -588,9 +614,11 @@ const clusters = {
   CarbonMonoxideConcentrationMeasurement,
   ClosureControl,
   ColorControl,
+  DeviceEnergyManagement,
   DoorLock,
   ElectricalEnergyMeasurement,
   ElectricalPowerMeasurement,
+  EnergyEvse,
   FanControl,
   KeypadInput,
   LevelControl,
@@ -745,6 +773,53 @@ export const deviceTypes = {
     DefaultWaterHeaterManagementServer,
   ),
 
+  // Energy (#4034)
+  // ⚠️ It is not yet known how Apple Home presents these types. Test them
+  // there before swapping out an ElectricalSensor or outlet that already works.
+  //
+  // Solar power and battery storage are composed devices: the parent carries
+  // the type, and its parts carry what the spec requires of it. A part that
+  // declares powerSource state becomes a PowerSource (Wired with no battery
+  // attributes, Battery with them), one that declares electrical measurement
+  // state an ElectricalSensor, and a DeviceEnergyManagement part takes
+  // controller requests to adjust power.
+  //   SolarPower:     a wired PowerSource + an ElectricalSensor reporting
+  //                   voltage, activeCurrent and cumulativeEnergyExported
+  //   BatteryStorage: two PowerSources (the battery, and the wired grid side),
+  //                   an ElectricalSensor for each of the AC and DC sides, and a
+  //                   DeviceEnergyManagement declaring powerAdjustmentCapability
+  SolarPower: devices.SolarPowerDevice,
+  BatteryStorage: devices.BatteryStorageDevice,
+  // An EV charger. Its own endpoint carries the charger and its mode
+  // (energyEvseMode needs supportedModes and currentMode); add a wired
+  // PowerSource, an ElectricalSensor and a DeviceEnergyManagement declaring a
+  // forecast as parts. matter.js implements none of the charger's commands, so
+  // the default server records them - supply energyEvse handlers to act on
+  // them. Features come from the declared state: stateOfCharge or
+  // batteryCapacity turn on SoCReporting, vehicleId PlugAndCharge, and any
+  // discharging attribute V2X (see applyEnergyEvseFeatures in serverHelpers.ts).
+  EnergyEvse: devices.EnergyEvseDevice.with(DefaultEnergyEvseServer.with()),
+  // A meter reporting power and energy. Like ElectricalSensor, its measurement
+  // clusters come from the declared electricalPowerMeasurement /
+  // electricalEnergyMeasurement state.
+  ElectricalMeter: devices.ElectricalMeterDevice,
+  // A utility's own meter - declare meterIdentification state - and a tariff.
+  // Both are Matter 1.5 types, so controllers may not know them yet. A tariff
+  // carries no cluster of its own: compose CommodityPrice or CommodityTariff
+  // from deviceRequirements.ElectricalEnergyTariff, and give it the 1 to 6
+  // descriptor tags it requires as clusters.descriptor.tagList.
+  ElectricalUtilityMeter: devices.ElectricalUtilityMeterDevice,
+  ElectricalEnergyTariff: devices.ElectricalEnergyTariffDevice,
+  // The parts the types above are composed from. DeviceEnergyManagement's
+  // features come from the declared state: powerAdjustmentCapability turns on
+  // PowerAdjustment and forecast PowerForecastReporting (see
+  // applyDeviceEnergyManagementFeatures in serverHelpers.ts). Compose the
+  // others - Pausable, StartTimeAdjustment and so on - with
+  // deviceRequirements.DeviceEnergyManagement. matter.js implements none of
+  // its commands, so the default server records them.
+  PowerSource: devices.PowerSourceEndpoint,
+  DeviceEnergyManagement: devices.DeviceEnergyManagementEndpoint.with(DefaultDeviceEnergyManagementServer.with()),
+
   // Other
   // Switch is not part of the base device type — matter.js requires latching vs
   // momentary to be chosen. The momentary feature set matches the press/release
@@ -808,6 +883,12 @@ export const deviceRequirements = {
   RoomAirConditioner: devices.RoomAirConditionerRequirements,
   WindowCovering: devices.WindowCoveringRequirements,
   WaterHeater: devices.WaterHeaterRequirements,
+  EnergyEvse: devices.EnergyEvseRequirements,
+  ElectricalMeter: devices.ElectricalMeterRequirements,
+  ElectricalUtilityMeter: devices.ElectricalUtilityMeterRequirements,
+  ElectricalEnergyTariff: devices.ElectricalEnergyTariffRequirements,
+  PowerSource: devices.PowerSourceRequirements,
+  DeviceEnergyManagement: devices.DeviceEnergyManagementRequirements,
 } as const
 
 /**
@@ -864,6 +945,13 @@ export const clusterNames = {
   // Water heater
   WaterHeaterMode: 'waterHeaterMode',
   WaterHeaterManagement: 'waterHeaterManagement',
+
+  // Energy management, EV chargers and meters
+  DeviceEnergyManagement: 'deviceEnergyManagement',
+  DeviceEnergyManagementMode: 'deviceEnergyManagementMode',
+  EnergyEvse: 'energyEvse',
+  EnergyEvseMode: 'energyEvseMode',
+  MeterIdentification: 'meterIdentification',
 
   // Closures — garage doors, gates and similar
   ClosureControl: 'closureControl',
