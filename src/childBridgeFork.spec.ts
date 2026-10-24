@@ -122,6 +122,86 @@ describe('childBridgeFork - public HAP enablement', () => {
   })
 })
 
+describe('childBridgeFork - Matter enablement', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it.each([
+    {
+      type: PluginType.PLATFORM,
+      matter: undefined,
+      expected: false,
+      externalsOnly: false,
+    },
+    {
+      type: PluginType.PLATFORM,
+      matter: {},
+      expected: true,
+      externalsOnly: false,
+    },
+    {
+      type: PluginType.PLATFORM,
+      matter: { enabled: false },
+      expected: false,
+      externalsOnly: false,
+    },
+    {
+      type: PluginType.PLATFORM,
+      matter: { externalsOnly: true },
+      expected: true,
+      externalsOnly: true,
+    },
+    {
+      type: PluginType.PLATFORM,
+      matter: { enabled: false, externalsOnly: true },
+      expected: true,
+      externalsOnly: true,
+    },
+    // Matter is ignored on an accessory child bridge, so externalsOnly is too
+    {
+      type: PluginType.ACCESSORY,
+      matter: { externalsOnly: true },
+      expected: false,
+      externalsOnly: false,
+    },
+  ])('reports $expected and externalsOnly $externalsOnly for a $type child bridge with matter=$matter', async ({ type, matter, expected, externalsOnly }) => {
+    const fork = new ChildBridgeFork()
+    vi.spyOn(HAPStorage, 'setCustomStoragePath').mockImplementation(() => {})
+    const plugin = {
+      load: vi.fn().mockResolvedValue(undefined),
+      getPluginIdentifier: () => 'homebridge-example',
+      version: '1.0.0',
+    } as unknown as Plugin
+    vi.spyOn(PluginManager.prototype, 'loadPlugin').mockReturnValue(plugin)
+    const initialize = vi.spyOn(PluginManager.prototype, 'initializePlugin').mockImplementation(async () => {
+      expect((fork as any).api.isMatterEnabled()).toBe(expected)
+      expect((fork as any).api.isMatterExternalsOnly()).toBe(externalsOnly)
+    })
+
+    await fork.loadPlugin({
+      type,
+      identifier: 'homebridge-example',
+      pluginPath: '/unused',
+      pluginConfig: [],
+      bridgeConfig: {
+        username: '0E:DC:5D:BE:D6:75',
+        name: 'Child',
+        pin: '031-45-154',
+        matter,
+      },
+      homebridgeConfig: {
+        bridge: { username: 'CC:22:3D:E3:CE:30', name: 'Main', pin: '031-45-154' },
+        accessories: [],
+        platforms: [],
+      },
+      bridgeOptions: { cachedAccessoriesDir: '/unused', cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+    })
+
+    expect(initialize).toHaveBeenCalledOnce()
+  })
+})
+
 describe('childBridgeFork - Matter Accessory Guard', () => {
   it('should not have matterManager when type is ACCESSORY even with matter config', () => {
     const fork = new ChildBridgeFork()

@@ -56,6 +56,23 @@ describe('homebridgeAPI', () => {
     })
   })
 
+  describe('isMatterExternalsOnly', () => {
+    it('defaults to false', () => {
+      const pluginAPI: import('./api.js').API = new HomebridgeAPI()
+      expect(pluginAPI.isMatterExternalsOnly()).toBe(false)
+    })
+
+    it('only reports externalsOnly once Matter is enabled', async () => {
+      const api = new HomebridgeAPI()
+      api._setMatterExternalsOnly(true)
+      expect(api.isMatterExternalsOnly()).toBe(false)
+
+      await api.loadMatterAPI()
+      expect(api.isMatterEnabled()).toBe(true)
+      expect(api.isMatterExternalsOnly()).toBe(true)
+    })
+  })
+
   describe('homebridgeAPI.prototype.registerAccessory', () => {
     it('should register accessory with legacy style signature', () => {
       api.registerAccessory(pluginName, accessoryName, ExampleAccessory)
