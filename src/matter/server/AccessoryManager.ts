@@ -141,6 +141,15 @@ function withColorRemainingTime(endpointOptions: Record<string, any>): void {
   }
 }
 
+/**
+ * A part endpoint built but not yet live, and what finishing it needs to know
+ */
+interface BuiltAccessoryPart {
+  part: MatterAccessoryPart
+  endpoint: Endpoint
+  hasElectrical: boolean
+}
+
 export class AccessoryManager {
   /**
    * Register a single Matter accessory
@@ -310,7 +319,19 @@ export class AccessoryManager {
         }
       }
 
-      const endpoint = new Endpoint(deviceType, endpointOptions)
+      // The parts are built first and handed to the parent, so matter.js
+      // constructs the composed device in one go. A device type that requires
+      // certain parts - solar power, battery storage - is checked when it is
+      // constructed, and added one at a time afterwards they were not there yet.
+      const builtParts = await this.buildAccessoryParts(accessory, deps)
+      const endpoint = new Endpoint(deviceType, {
+        ...endpointOptions,
+        ...(builtParts.length > 0
+          ? {
+              parts: builtParts.map(built => built.endpoint),
+            }
+          : {}),
+      })
 
       setRegistryManager(endpoint, deps.registryManager)
 
@@ -348,7 +369,7 @@ export class AccessoryManager {
       }
 
       this.registerAccessoryHandlers(accessory, deps)
-      const internalParts = await this.createAccessoryParts(accessory, endpoint, deps)
+      const internalParts = await this.finishAccessoryParts(accessory, builtParts, deps)
 
       await this.finalizeAccessoryRegistration(accessory, endpoint, internalParts, deps)
     } catch (error) {
@@ -1017,22 +1038,23 @@ export class AccessoryManager {
   }
 
   /**
-   * Create and register child endpoints (parts) for an accessory
+   * Build the child endpoints (parts) for an accessory, ready to hand to the
+   * parent endpoint before it is added. {@link finishAccessoryParts} does the
+   * rest once they are live.
    *
-   * Parts are added as sub-endpoints of the parent endpoint, creating a composed
-   * device per the Matter spec. Children are plain device types with no
+   * Parts are sub-endpoints of the parent endpoint, creating a composed device
+   * per the Matter spec. Children are plain device types with no
    * BridgedDeviceBasicInformation — only the parent has that.
    * See: https://github.com/matter-js/matter.js/blob/main/docs/MIGRATION_GUIDE_08.md
    */
-  private async createAccessoryParts(
+  private async buildAccessoryParts(
     accessory: MatterAccessory,
-    parentEndpoint: Endpoint,
     deps: AccessoryManagerDeps,
-  ): Promise<InternalMatterAccessoryPart[]> {
-    const internalParts: InternalMatterAccessoryPart[] = []
+  ): Promise<BuiltAccessoryPart[]> {
+    const builtParts: BuiltAccessoryPart[] = []
 
     if (!accessory.parts || accessory.parts.length === 0) {
-      return internalParts
+      return builtParts
     }
 
     log.info(`Creating ${accessory.parts.length} child endpoint(s) for ${accessory.displayName}`)
@@ -1046,7 +1068,6 @@ export class AccessoryManager {
       // clusters, the battery PowerSource, conformance fix-ups and the
       // behaviors that route commands to handlers. See prepareDeviceType().
       const partPrepared = await this.prepareDeviceType(this.partAsAccessory(part, partEndpointId))
-      const partHasElectrical = partPrepared.hasElectrical
       let partDeviceType: EndpointType = partPrepared.deviceType
 
       // Tag each child with a semantic Number tag so controllers can stably
@@ -1074,9 +1095,28 @@ export class AccessoryManager {
       const partEndpoint = new Endpoint(partDeviceType, partEndpointOptions)
       setRegistryManager(partEndpoint, deps.registryManager)
 
-      await parentEndpoint.add(partEndpoint)
+      builtParts.push({ part, endpoint: partEndpoint, hasElectrical: partPrepared.hasElectrical })
+    }
 
-      if (partHasElectrical) {
+    return builtParts
+  }
+
+  /**
+   * Finish the parts {@link buildAccessoryParts} built, now that the parent has
+   * been added: advertise their utility device types and register their handlers.
+   */
+  private async finishAccessoryParts(
+    accessory: MatterAccessory,
+    builtParts: BuiltAccessoryPart[],
+    deps: AccessoryManagerDeps,
+  ): Promise<InternalMatterAccessoryPart[]> {
+    const internalParts: InternalMatterAccessoryPart[] = []
+
+    for (const { part, endpoint: partEndpoint, hasElectrical } of builtParts) {
+      const partEndpointId = `${accessory.UUID}-part-${part.id}`
+      await partEndpoint.construction.ready
+
+      if (hasElectrical) {
         await this.advertiseUtilityDeviceType(partEndpoint, 'ElectricalSensor', part.displayName || part.id)
       }
 
