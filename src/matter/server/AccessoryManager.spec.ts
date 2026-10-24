@@ -98,6 +98,8 @@ vi.mock('../serverHelpers.js', () => ({
   detectThermostatFeatures: vi.fn(() => ['Heating']),
   applyThermostatFeatures: vi.fn((dt: any) => dt),
   applyFanAutoFeature: vi.fn((dt: any) => dt),
+  applyDeviceEnergyManagementFeatures: vi.fn((dt: any) => dt),
+  applyEnergyEvseFeatures: vi.fn((dt: any) => dt),
   applyRoomAirConditionerAutoMode: vi.fn((dt: any) => dt),
   detectElectricalMeasurementClusters: vi.fn(() => ({ hasPowerMeasurement: false, energyFeatures: [] })),
   applyElectricalMeasurementDefaults: vi.fn(),
