@@ -1,7 +1,5 @@
 /* global NodeJS */
 
-// Child bridge plugin startup and protocol lifecycle in an isolated process.
-
 import type { MacAddress } from '@homebridge/hap-nodejs'
 
 import type { AccessoryPlugin, PlatformPlugin } from './api.js'

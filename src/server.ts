@@ -1,5 +1,3 @@
-// Main bridge configuration, plugin startup, and protocol lifecycle.
-
 import type {
   AccessoryIdentifier,
   AccessoryName,
