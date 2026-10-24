@@ -12,11 +12,15 @@
 
 import type {
   ColorControlState,
+  DeviceEnergyManagementState,
   DoorLockState,
   ElectricalEnergyMeasurementState,
   ElectricalPowerMeasurementState,
+  EnergyEvseState,
+  EnergyModeState,
   FanControlState,
   LevelControlState,
+  MeterIdentificationState,
   OnOffState,
   PowerSourceState,
   RvcCleanModeState,
@@ -93,6 +97,13 @@ export interface ClusterStateMap {
   // Electrical measurement (iOS 27+ energy display)
   electricalPowerMeasurement: ElectricalPowerMeasurementState
   electricalEnergyMeasurement: ElectricalEnergyMeasurementState
+
+  // Energy management, EV chargers and meters
+  deviceEnergyManagement: DeviceEnergyManagementState
+  deviceEnergyManagementMode: EnergyModeState
+  energyEvse: EnergyEvseState
+  energyEvseMode: EnergyModeState
+  meterIdentification: MeterIdentificationState
 
   // Identification
   identify: { identifyTime: number, identifyType: number }

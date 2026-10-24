@@ -9,7 +9,7 @@
  * so they automatically update when matter.js is bumped.
  */
 
-import type { ClosureControl, ColorControl, DoorLock, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WaterHeaterManagement, WindowCovering } from '@matter/main/clusters'
+import type { ClosureControl, ColorControl, DeviceEnergyManagement, DoorLock, EnergyEvse, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WaterHeaterManagement, WindowCovering } from '@matter/main/clusters'
 
 import type { MatterCommandHandler } from './types.js'
 
@@ -217,6 +217,50 @@ export interface WaterHeaterManagementHandlers {
 }
 
 /**
+ * DeviceEnergyManagement cluster handler methods. Each is optional: one the
+ * plugin leaves out is still answered, by recording the request in the state.
+ */
+export interface DeviceEnergyManagementHandlers {
+  powerAdjustRequest?: MatterCommandHandler<DeviceEnergyManagement.PowerAdjustRequest>
+  cancelPowerAdjustRequest?: MatterCommandHandler
+  pauseRequest?: MatterCommandHandler<DeviceEnergyManagement.PauseRequest>
+  resumeRequest?: MatterCommandHandler
+  startTimeAdjustRequest?: MatterCommandHandler<DeviceEnergyManagement.StartTimeAdjustRequest>
+  modifyForecastRequest?: MatterCommandHandler<DeviceEnergyManagement.ModifyForecastRequest>
+  requestConstraintBasedForecast?: MatterCommandHandler<DeviceEnergyManagement.RequestConstraintBasedForecastRequest>
+  cancelRequest?: MatterCommandHandler
+}
+
+/**
+ * DeviceEnergyManagementMode cluster handler methods
+ */
+export interface DeviceEnergyManagementModeHandlers {
+  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+}
+
+/**
+ * EnergyEvse (EV charger) cluster handler methods. Each is optional: one the
+ * plugin leaves out is still answered, by recording the command in the state.
+ * There is no getTargets handler - Homebridge answers it with the targets the
+ * last setTargets gave.
+ */
+export interface EnergyEvseHandlers {
+  disable?: MatterCommandHandler
+  enableCharging?: MatterCommandHandler<EnergyEvse.EnableChargingRequest>
+  enableDischarging?: MatterCommandHandler<EnergyEvse.EnableDischargingRequest>
+  startDiagnostics?: MatterCommandHandler
+  setTargets?: MatterCommandHandler<EnergyEvse.SetTargetsRequest>
+  clearTargets?: MatterCommandHandler
+}
+
+/**
+ * EnergyEvseMode cluster handler methods
+ */
+export interface EnergyEvseModeHandlers {
+  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+}
+
+/**
  * Maps known cluster names to their typed handler interfaces.
  *
  * Plugin developers get autocomplete for handler methods within each cluster.
@@ -261,4 +305,8 @@ export interface ClusterHandlerMap {
   keypadInput: KeypadInputHandlers
   waterHeaterMode: WaterHeaterModeHandlers
   waterHeaterManagement: WaterHeaterManagementHandlers
+  deviceEnergyManagement: DeviceEnergyManagementHandlers
+  deviceEnergyManagementMode: DeviceEnergyManagementModeHandlers
+  energyEvse: EnergyEvseHandlers
+  energyEvseMode: EnergyEvseModeHandlers
 }

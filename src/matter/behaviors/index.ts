@@ -15,7 +15,9 @@ export {
   HomebridgePm10ConcentrationMeasurementServer,
   HomebridgePm25ConcentrationMeasurementServer,
 } from './ConcentrationMeasurementBehavior.js'
+export { DefaultDeviceEnergyManagementServer, HomebridgeDeviceEnergyManagementModeServer, HomebridgeDeviceEnergyManagementServer } from './DeviceEnergyManagementBehavior.js'
 export { HomebridgeDoorLockServer } from './DoorLockBehavior.js'
+export { DefaultEnergyEvseServer, HomebridgeEnergyEvseModeServer, HomebridgeEnergyEvseServer } from './EnergyEvseBehavior.js'
 export { HomebridgeFanControlServer } from './FanControlBehavior.js'
 export { HomebridgeIdentifyServer } from './IdentifyBehavior.js'
 export { DefaultKeypadInputServer, HomebridgeKeypadInputServer } from './KeypadInputBehavior.js'
