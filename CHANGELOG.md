@@ -43,6 +43,8 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(api): expose bridge HAP enablement to plugins (#4037) (@n0rt0nthec4t)
 - feat(api): add isMatterExternalsOnly to match isHapExternalsOnly
 - fix(matter): only enable matter for main bridge plugins when the main bridge uses it
+- feat(accessories): warn when a plugin removes a service that hap or a controller needs (#3980)
+- feat(accessories): report cached services a plugin has not used, as a dry run (#3980)
 
 ### Homebridge Dependencies
 

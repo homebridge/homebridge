@@ -55,6 +55,12 @@ export const DEFAULT_BRIDGE_DEFAULTS = {
 
 const log = Logger.internal
 
+// How long after a plugin saves an accessory to look for services it has not
+// used. The plugin template saves a restored accessory first and builds the
+// handler that uses its services straight after, so checking at the save itself
+// would find every service unused (#3980)
+export const UNUSED_SERVICES_CHECK_DELAY = 10_000
+
 /**
  * HAP-specific configuration for a bridge. Mirrors the shape of `MatterConfig`
  * so the two protocol blocks are symmetric and can be reasoned about uniformly.
@@ -300,6 +306,10 @@ export class BridgeService {
   private cachedAccessoriesFileLoaded = false
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map()
   private readonly publishedExternalAccessoriesMetadata: Map<MacAddress, ExternalAccessoryMetadata> = new Map()
+  // What was last reported per accessory, so a plugin saving often is not
+  // told the same thing every time
+  private readonly reportedUnusedServices: WeakMap<PlatformAccessory, string> = new WeakMap()
+  private readonly unusedServicesChecks: WeakMap<PlatformAccessory, ReturnType<typeof setTimeout>> = new WeakMap()
 
   constructor(
     private api: HomebridgeAPI,
@@ -682,9 +692,67 @@ export class BridgeService {
       accessory => !updatedUUIDs.has(accessory._associatedHAPAccessory.UUID),
     )
     this.cachedPlatformAccessories.push(...accessories)
+    accessories.forEach(accessory => this.scheduleUnusedServicesReport(accessory))
 
     // Update persisted accessories
     this.saveCachedPlatformAccessoriesOnDisk()
+  }
+
+  /**
+   * Check the accessory for unused services a little after the plugin's last
+   * save of it, so the plugin has finished setting it up - see
+   * UNUSED_SERVICES_CHECK_DELAY. Saving again starts the wait again.
+   */
+  scheduleUnusedServicesReport(accessory: PlatformAccessory): void {
+    clearTimeout(this.unusedServicesChecks.get(accessory))
+    const timer = setTimeout(() => this.reportUnusedServices(accessory), UNUSED_SERVICES_CHECK_DELAY)
+    timer.unref()
+    this.unusedServicesChecks.set(accessory, timer)
+  }
+
+  /**
+   * Report, at debug level, the cached services the plugin has not used since
+   * Homebridge started. A dry run: nothing is removed (#3980).
+   */
+  reportUnusedServices(accessory: PlatformAccessory): void {
+    this.unusedServicesChecks.delete(accessory)
+    // Unregistered while the check was waiting
+    if (!this.cachedPlatformAccessories.includes(accessory)) {
+      return
+    }
+
+    let unused: Service[]
+    try {
+      unused = PlatformAccessory.findUnusedServices(accessory)
+    } catch (error) {
+      log.debug('Could not check the accessory \'%s\' for unused services: %s', accessory.displayName, error)
+      return
+    }
+
+    const report = unused.map(service => BridgeService.describeService(service)).join(', ')
+    if (report === (this.reportedUnusedServices.get(accessory) ?? '')) {
+      return
+    }
+    this.reportedUnusedServices.set(accessory, report)
+    if (report) {
+      log.debug(
+        'The plugin \'%s\' saved the accessory \'%s\' with cached services it has not used since Homebridge started: %s.',
+        accessory._associatedPlugin,
+        accessory.displayName,
+        report,
+      )
+    }
+  }
+
+  private static describeService(service: Service): string {
+    // A service restored from the cache is a plain Service, so find its type by UUID
+    const type = Object.entries(Service)
+      .find(([, value]) => (value as { UUID?: string })?.UUID === service.UUID)?.[0] ?? service.UUID
+    const name = `${type} '${service.displayName}'`
+    if (!service.subtype) {
+      return name
+    }
+    return `${name} (subtype ${service.subtype})`
   }
 
   handleUnregisterPlatformAccessories(accessories: PlatformAccessory[]): void {
