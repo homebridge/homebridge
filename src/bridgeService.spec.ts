@@ -2,7 +2,7 @@ import type { MockInstance } from 'vitest'
 
 import type { BridgeConfiguration } from './bridgeService.js'
 
-import { Accessory, Categories, CharacteristicWarningType, uuid } from '@homebridge/hap-nodejs'
+import { Accessory, Categories, CharacteristicWarningType, Service, uuid } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
@@ -11,6 +11,7 @@ import {
   isHapConfigEnabled,
   isHapExternalsOnly,
   shouldAddIdentifyingMaterial,
+  UNUSED_SERVICES_CHECK_DELAY,
   validateHapConfig,
 } from './bridgeService.js'
 import { Logger } from './logger.js'
@@ -253,6 +254,90 @@ describe('bridgeService', () => {
       expect(cached.find((x: any) => x === a)).toBe(a)
       expect(cached.find((x: any) => x === newB)).toBe(newB)
       expect(cached.find((x: any) => x === b)).toBeUndefined()
+    })
+  })
+
+  describe('reportUnusedServices', () => {
+    // A restored accessory, the way Homebridge builds it at startup, carrying a
+    // lightbulb and a humidity sensor from an earlier version of the plugin
+    function restored(): PlatformAccessory {
+      const original = makePlatformAccessory('Kitchen')
+      original.addService(Service.Lightbulb)
+      original.addService(Service.HumiditySensor)
+      return PlatformAccessory.deserialize(JSON.parse(JSON.stringify(PlatformAccessory.serialize(original))))
+    }
+
+    function reports(debugSpy: MockInstance): unknown[][] {
+      return debugSpy.mock.calls.filter(call => String(call[0]).includes('has not used'))
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('reports, at debug level, the cached services a plugin saved without using', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const debugSpy = vi.spyOn(Logger.internal, 'debug').mockImplementation(() => {})
+      const accessory = restored()
+      accessory.getService(Service.Lightbulb)
+
+      service.handleUpdatePlatformAccessories([accessory])
+      vi.advanceTimersByTime(UNUSED_SERVICES_CHECK_DELAY)
+
+      expect(reports(debugSpy)).toHaveLength(1)
+      const [, plugin, name, list] = reports(debugSpy)[0]
+      expect(plugin).toBe('homebridge-test')
+      expect(name).toBe('Kitchen')
+      expect(list).toContain('HumiditySensor')
+      expect(list).not.toContain('Lightbulb')
+    })
+
+    it('waits, so a plugin that saves before building its handler is not misreported', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const debugSpy = vi.spyOn(Logger.internal, 'debug').mockImplementation(() => {})
+      const accessory = restored()
+
+      // The plugin template's order: save the restored accessory, then build
+      // the handler that uses its services
+      service.handleUpdatePlatformAccessories([accessory])
+      accessory.getService(Service.Lightbulb)
+      accessory.getService(Service.HumiditySensor)
+      vi.advanceTimersByTime(UNUSED_SERVICES_CHECK_DELAY)
+
+      expect(reports(debugSpy)).toHaveLength(0)
+    })
+
+    it('says it once, not on every save, and removes nothing', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const debugSpy = vi.spyOn(Logger.internal, 'debug').mockImplementation(() => {})
+      const accessory = restored()
+      accessory.getService(Service.Lightbulb)
+
+      service.handleUpdatePlatformAccessories([accessory])
+      vi.advanceTimersByTime(UNUSED_SERVICES_CHECK_DELAY)
+      service.handleUpdatePlatformAccessories([accessory])
+      vi.advanceTimersByTime(UNUSED_SERVICES_CHECK_DELAY)
+
+      expect(reports(debugSpy)).toHaveLength(1)
+      expect(accessory.getService(Service.HumiditySensor)).toBeDefined()
+    })
+
+    it('says nothing about an accessory unregistered while the check waited', () => {
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      vi.spyOn(service.bridge, 'removeBridgedAccessories').mockImplementation(() => {})
+      const debugSpy = vi.spyOn(Logger.internal, 'debug').mockImplementation(() => {})
+      const accessory = restored()
+      accessory.getService(Service.Lightbulb)
+
+      service.handleUpdatePlatformAccessories([accessory])
+      service.handleUnregisterPlatformAccessories([accessory])
+      vi.advanceTimersByTime(UNUSED_SERVICES_CHECK_DELAY)
+
+      expect(reports(debugSpy)).toHaveLength(0)
     })
   })
 

@@ -41,6 +41,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): shorten an accessory's over-long name, model or serial and say which (#4016)
 - chore(deps): update matter.js to v0.18.0, with the changes its new checks need
 - feat(accessories): warn when a plugin removes a service that hap or a controller needs (#3980)
+- feat(accessories): report cached services a plugin has not used, as a dry run (#3980)
 
 ### Homebridge Dependencies
 
