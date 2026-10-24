@@ -1,5 +1,6 @@
 import type { MacAddress } from '@homebridge/hap-nodejs'
 
+import type { HomebridgeConfig } from './bridgeService.js'
 import type { ChildBridgeFork } from './childBridgeFork.js'
 
 import { Logger } from './logger.js'
@@ -11,6 +12,21 @@ export interface ExternalPortsConfiguration {
 }
 
 /**
+ * Collect the HAP ports the config gives to the main bridge and to each child
+ * bridge. A child bridge port inside `ports` is easy to end up with (older UI
+ * versions picked them from there), and handing the same port to an external
+ * accessory makes whichever binds second fail with EADDRINUSE.
+ * @param config - the Homebridge config
+ */
+export function collectConfiguredHapPorts(config: HomebridgeConfig): number[] {
+  return [
+    config.bridge.port,
+    ...config.platforms.map(platform => platform._bridge?.port),
+    ...config.accessories.map(accessory => accessory._bridge?.port),
+  ].filter((port): port is number => typeof port === 'number')
+}
+
+/**
  * Allocates ports from the user defined `config.ports` and `config.matterPorts` options
  * This service is used to allocate ports for external accessories on the main bridge, and child bridges.
  * HAP ports and Matter ports are managed separately with their own ranges.
@@ -19,12 +35,17 @@ export class ExternalPortService {
   private nextExternalPort?: number
   private allocatedPorts: Map<MacAddress, number | undefined> = new Map()
   private readonly matterPortAllocator: MatterPortAllocator
+  private readonly configuredHapPorts: Set<number>
 
   constructor(
     private externalPorts?: ExternalPortsConfiguration,
     matterPorts?: ExternalPortsConfiguration,
     configuredMatterPorts?: number[],
+    configuredHapPorts?: number[],
   ) {
+    // Bridge ports from the config, which external accessories must not be given
+    this.configuredHapPorts = new Set(configuredHapPorts)
+
     // Delegate Matter port allocation to specialized allocator
     this.matterPortAllocator = new MatterPortAllocator(matterPorts, configuredMatterPorts)
   }
@@ -72,12 +93,12 @@ export class ExternalPortService {
       return undefined
     }
 
-    if (this.nextExternalPort === undefined) {
-      this.nextExternalPort = this.externalPorts.start
-      return this.nextExternalPort
-    }
-
-    this.nextExternalPort++
+    // Step past any port a bridge is configured to use
+    do {
+      this.nextExternalPort = this.nextExternalPort === undefined
+        ? this.externalPorts.start
+        : this.nextExternalPort + 1
+    } while (this.nextExternalPort <= this.externalPorts.end && this.configuredHapPorts.has(this.nextExternalPort))
 
     if (this.nextExternalPort <= this.externalPorts.end) {
       return this.nextExternalPort
