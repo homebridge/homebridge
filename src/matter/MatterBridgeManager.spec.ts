@@ -122,6 +122,60 @@ describe('matterBridgeManager', () => {
       expect((m as any).externalsOnlyMode).toBe(true)
     })
 
+    it.each([
+      [
+        '_onRegisterMatterPlatformAccessories',
+        'handleRegisterPlatformAccessories',
+        [
+          'homebridge-test',
+          'TestPlatform',
+          [
+            { displayName: 'x' },
+          ],
+        ],
+      ],
+      [
+        '_onUnregisterMatterPlatformAccessories',
+        'handleUnregisterPlatformAccessories',
+        [
+          'homebridge-test',
+          'TestPlatform',
+          [
+            { displayName: 'x' },
+          ],
+        ],
+      ],
+      [
+        '_onUnregisterExternalMatterAccessories',
+        'handleUnregisterExternalAccessories',
+        [
+          [
+            { displayName: 'x' },
+          ],
+        ],
+      ],
+    ] as const)('%s reports its work so the plugin call can wait for it (#4033)', async (listener, handler, args) => {
+      const m = buildManager({ enabled: false, externalsOnly: true })
+      let finish!: () => void
+      vi.spyOn(m as any, handler).mockReturnValue(new Promise<void>((resolve) => {
+        finish = resolve
+      }))
+      const track = vi.fn()
+
+      ;(m as any)[listener](...args, track)
+
+      expect(track).toHaveBeenCalledOnce()
+      let settled = false
+      void track.mock.calls[0][0].then(() => {
+        settled = true
+      })
+      await Promise.resolve()
+      expect(settled).toBe(false)
+      finish()
+      await track.mock.calls[0][0]
+      expect(settled).toBe(true)
+    })
+
     it('externalsOnly mode: bridged drop stub logs at debug level (does not call base handler)', () => {
       const m = buildManager({ enabled: false, externalsOnly: true })
       const handleRegisterSpy = vi.spyOn(m as any, 'handleRegisterPlatformAccessories')

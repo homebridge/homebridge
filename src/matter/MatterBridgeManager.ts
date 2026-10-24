@@ -7,7 +7,7 @@
 
 import type { MacAddress } from '@homebridge/hap-nodejs'
 
-import type { HomebridgeAPI } from '../api.js'
+import type { HomebridgeAPI, MatterWorkTracker } from '../api.js'
 import type { HomebridgeConfig } from '../bridgeService.js'
 import type { ExternalPortService } from '../externalPortService.js'
 import type { IpcService } from '../ipcService.js'
@@ -68,10 +68,10 @@ export class MatterBridgeManager extends BaseMatterManager {
     })
   }
 
-  private readonly _onRegisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): void => {
-    this.handleRegisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
+  private readonly _onRegisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
+    track?.(this.handleRegisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
       log.error(`Failed to register Matter accessories for ${pluginIdentifier}:`, error)
-    })
+    }))
   }
 
   private readonly _onUpdateMatterPlatformAccessories = (accessories: MatterAccessory[]): void => {
@@ -80,16 +80,16 @@ export class MatterBridgeManager extends BaseMatterManager {
     })
   }
 
-  private readonly _onUnregisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[]): void => {
-    this.handleUnregisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
+  private readonly _onUnregisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
+    track?.(this.handleUnregisterPlatformAccessories(pluginIdentifier, platformName, accessories as InternalMatterAccessory[]).catch((error) => {
       log.error(`Failed to unregister Matter accessories for ${pluginIdentifier}:`, error)
-    })
+    }))
   }
 
-  private readonly _onUnregisterExternalMatterAccessories = (accessories: MatterAccessory[]): void => {
-    this.handleUnregisterExternalAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
+  private readonly _onUnregisterExternalMatterAccessories = (accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
+    track?.(this.handleUnregisterExternalAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
       log.error('Failed to unregister external Matter accessories:', error)
-    })
+    }))
   }
 
   private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): void => {
