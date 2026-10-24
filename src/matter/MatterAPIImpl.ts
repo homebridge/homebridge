@@ -253,10 +253,10 @@ export class MatterAPIImpl implements MatterAPI {
    * 1. The Matter manager must be attached — it is constructed only once
    *    Homebridge has finished launching, so calls during plugin
    *    initialisation are too early.
-   * 2. The manager must have active Matter on THIS bridge. `api.matter` can be
-   *    exposed on the main bridge merely because a *child* bridge uses Matter;
-   *    in that case the main manager attached no listeners, so a main-process
-   *    call would drop/hang. `hasActiveMatter()` distinguishes this.
+   * 2. The manager must have active Matter on THIS bridge, or a call would
+   *    drop/hang with no listener attached. `api.matter` is only loaded for a
+   *    bridge whose own config uses Matter, so this is a safety net rather
+   *    than a path plugins are expected to reach.
    *
    * @param cannotAction - leading clause, e.g. `${plugin}: Cannot register Matter accessories`
    */
