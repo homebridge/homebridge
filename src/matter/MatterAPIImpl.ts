@@ -17,7 +17,7 @@
 
 import type { EndpointType } from '@matter/main'
 
-import type { HomebridgeAPI, MatterAPI, PlatformName, PluginIdentifier } from '../api.js'
+import type { HomebridgeAPI, MatterAPI, MatterWorkTracker, PlatformName, PluginIdentifier } from '../api.js'
 import type { BaseMatterManager } from './BaseMatterManager.js'
 import type { InternalMatterAccessory, MatterAccessory, MatterServer } from './index.js'
 
@@ -51,6 +51,18 @@ const log = Logger.withPrefix('Matter/API')
 const EXTERNAL_DEVICE_TYPES: EndpointType[] = [
   deviceTypes.RoboticVacuumCleaner,
 ]
+
+/**
+ * Emit a Matter event and wait for the work its listeners report through the
+ * tracker. A listener's failure is already logged by the listener, so it is not
+ * rethrown here - the call keeps resolving the way it always has, only later.
+ * @param emit - emits the event, passing the tracker as its last argument
+ */
+async function emitAndWait(emit: (track: MatterWorkTracker) => void): Promise<void> {
+  const work: Promise<void>[] = []
+  emit(promise => work.push(promise))
+  await Promise.allSettled(work)
+}
 
 /**
  * Check if a device type requires external bridge publishing.
@@ -344,7 +356,11 @@ export class MatterAPIImpl implements MatterAPI {
           : 'ies'} for platform '${platformName}'`,
       )
 
-      this.api.emit(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier, platformName, normalAccessories)
+      // Wait for the bridge to finish, so an updateAccessoryState() straight
+      // after reaches an endpoint that exists (#4033)
+      await emitAndWait((track) => {
+        this.api.emit(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier, platformName, normalAccessories, track)
+      })
     }
 
     // Handle external accessories (standalone bridges)
@@ -436,7 +452,11 @@ export class MatterAPIImpl implements MatterAPI {
           ? 'y'
           : 'ies'} from platform '${platformName}'`,
       )
-      this.api.emit(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier, platformName, normalAccessories)
+      // Wait for the bridge to finish, so a register straight after does not
+      // overlap it and contend for the parts list lock (#4033)
+      await emitAndWait((track) => {
+        this.api.emit(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier, platformName, normalAccessories, track)
+      })
     }
 
     // Handle external accessories (standalone bridges)
@@ -446,7 +466,9 @@ export class MatterAPIImpl implements MatterAPI {
           ? 'y'
           : 'ies'} (${externalAccessories.map(a => a.displayName).join(', ')})`,
       )
-      this.api.emit(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, externalAccessories)
+      await emitAndWait((track) => {
+        this.api.emit(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, externalAccessories, track)
+      })
     }
   }
 
