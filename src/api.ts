@@ -1,3 +1,5 @@
+// Public plugin API contracts and bridge-scoped runtime capabilities.
+
 import type { Controller, Service } from '@homebridge/hap-nodejs'
 
 import type { AccessoryConfig, PlatformConfig } from './bridgeService.js'
@@ -575,6 +577,16 @@ export interface API {
   publishExternalAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
 
   /**
+   * Check whether this bridge is configured to publish its HAP bridge accessory.
+   * Uses `bridge.hap` for the main bridge and `_bridge.hap` for a child bridge.
+   * HAP is enabled by default. Returns false when disabled or in externalsOnly
+   * mode; external HAP accessories may still publish in externalsOnly mode.
+   * This reports configuration, not pairing or network availability.
+   * @returns true if the HAP bridge accessory is enabled
+   */
+  isHapEnabled: () => boolean
+
+  /**
    * Check if Matter is available in this version of Homebridge
    * @returns true if Homebridge version is >= 2.0.0-alpha.0
    */
@@ -614,6 +626,9 @@ export class HomebridgeAPI extends EventEmitter implements API {
    * Internal state tracking whether Matter is enabled for this bridge
    */
   private matterEnabled = false
+
+  // HAP is enabled by default; startup supplies the bridge-specific state.
+  private hapEnabled = true
 
   /**
    * Internal reference to MatterServer for API methods that need return values
@@ -693,6 +708,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   constructor() {
     super()
+  }
+
+  /**
+   * Set bridge-specific HAP enablement before plugin initialization.
+   * @param enabled Whether the HAP bridge accessory is enabled
+   * @internal
+   */
+  _setHapEnabled(enabled: boolean): void {
+    this.hapEnabled = enabled
   }
 
   /**
@@ -823,6 +847,16 @@ export class HomebridgeAPI extends EventEmitter implements API {
     })
 
     this.emit(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories)
+  }
+
+  /**
+   * Whether this bridge is configured to publish its HAP bridge accessory.
+   * Disabled and externalsOnly bridges return false, independently of pairing
+   * or network availability. See {@link API.isHapEnabled}.
+   * @returns true if the HAP bridge accessory is enabled
+   */
+  isHapEnabled(): boolean {
+    return this.hapEnabled
   }
 
   /**

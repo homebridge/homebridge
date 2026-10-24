@@ -1,3 +1,5 @@
+// Main bridge configuration, plugin startup, and protocol lifecycle.
+
 import type {
   AccessoryIdentifier,
   AccessoryName,
@@ -117,6 +119,7 @@ export class Server {
 
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI()
+    this.api._setHapEnabled(Server.isHapEnabled(this.config.bridge))
     this.ipcService = new IpcService()
 
     // Collect all configured Matter ports to avoid conflicts

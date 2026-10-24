@@ -1,5 +1,7 @@
 /* global NodeJS */
 
+// Child bridge plugin startup and protocol lifecycle in an isolated process.
+
 import type { MacAddress } from '@homebridge/hap-nodejs'
 
 import type { AccessoryPlugin, PlatformPlugin } from './api.js'
@@ -120,6 +122,7 @@ export class ChildBridgeFork {
 
     // load api
     this.api = new HomebridgeAPI()
+    this.api._setHapEnabled(isHapConfigEnabled(this.bridgeConfig.hap) && isHapExternalsOnly(this.bridgeConfig.hap) === false)
     this.pluginManager = new PluginManager(this.api)
     this.externalPortService = new ChildBridgeExternalPortService(this)
 
