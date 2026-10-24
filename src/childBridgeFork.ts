@@ -26,7 +26,7 @@ import process from 'node:process'
 import { AccessoryEventTypes, HAPStorage } from '@homebridge/hap-nodejs'
 
 import { HomebridgeAPI, PluginType } from './api.js'
-import { BridgeService, isHapConfigEnabled, isHapExternalsOnly } from './bridgeService.js'
+import { BridgeService, isHapActive, isHapConfigEnabled, isHapExternalsOnly } from './bridgeService.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { ChildBridgeExternalPortService } from './externalPortService.js'
 import { Logger } from './logger.js'
@@ -120,6 +120,7 @@ export class ChildBridgeFork {
 
     // load api
     this.api = new HomebridgeAPI()
+    this.api._setHapEnabled(isHapActive(this.bridgeConfig.hap), isHapExternalsOnly(this.bridgeConfig.hap))
     this.pluginManager = new PluginManager(this.api)
     this.externalPortService = new ChildBridgeExternalPortService(this)
 

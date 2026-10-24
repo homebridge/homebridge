@@ -28,6 +28,34 @@ const accessoryName = 'MyCoolAccessory'
 const platformName = 'MyCoolPlatform'
 
 describe('homebridgeAPI', () => {
+  describe('isHapEnabled', () => {
+    it('defaults to enabled through the public API interface', () => {
+      const pluginAPI: import('./api.js').API = new HomebridgeAPI()
+      expect(pluginAPI.isHapEnabled()).toBe(true)
+      expect(pluginAPI.isHapExternalsOnly()).toBe(false)
+    })
+
+    it('reports externalsOnly mode as enabled, like isMatterEnabled, with its own flag', () => {
+      const api = new HomebridgeAPI()
+      api._setHapEnabled(true, true)
+
+      expect(api.isHapEnabled()).toBe(true)
+      expect(api.isHapExternalsOnly()).toBe(true)
+    })
+
+    it('keeps bridge-specific state independent of other API instances and Matter', async () => {
+      const disabled = new HomebridgeAPI()
+      const enabled = new HomebridgeAPI()
+      disabled._setHapEnabled(false)
+      await disabled.loadMatterAPI()
+
+      expect(disabled.isHapEnabled()).toBe(false)
+      expect(disabled.isMatterEnabled()).toBe(true)
+      expect(enabled.isHapEnabled()).toBe(true)
+      expect(enabled.isMatterEnabled()).toBe(false)
+    })
+  })
+
   describe('homebridgeAPI.prototype.registerAccessory', () => {
     it('should register accessory with legacy style signature', () => {
       api.registerAccessory(pluginName, accessoryName, ExampleAccessory)

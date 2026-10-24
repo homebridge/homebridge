@@ -150,6 +150,15 @@ export function isHapExternalsOnly(hap: BridgeHapConfig | boolean | undefined): 
 }
 
 /**
+ * Whether HAP is in use on the bridge at all: the bridge accessory is published,
+ * or the bridge is in externalsOnly mode and only external accessories publish.
+ * The HAP counterpart of `isMatterActive`, and what `api.isHapEnabled()` reports.
+ */
+export function isHapActive(hap: BridgeHapConfig | boolean | undefined): boolean {
+  return isHapConfigEnabled(hap) || isHapExternalsOnly(hap)
+}
+
+/**
  * Whether HAP-NodeJS should enable its `addIdentifyingMaterial` publish option.
  * Missing config, an explicit `disableIdentifyingMaterial: false`, and the
  * deprecated boolean `hap` form preserve the historical behavior (`true`).

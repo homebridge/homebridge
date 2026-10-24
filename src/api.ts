@@ -575,6 +575,23 @@ export interface API {
   publishExternalAccessories: (pluginIdentifier: PluginIdentifier, accessories: PlatformAccessory[]) => void
 
   /**
+   * Check if HAP is enabled for this bridge (`bridge.hap` or `_bridge.hap`).
+   * Enabled by default, and still true in externalsOnly mode, where the bridge
+   * accessory is not published but external HAP accessories still are - the same
+   * meaning as {@link isMatterEnabled}. False only when HAP is disabled outright.
+   * Use {@link isHapExternalsOnly} to tell whether bridged accessories will show.
+   * @returns true if HAP is in use on this bridge
+   */
+  isHapEnabled: () => boolean
+
+  /**
+   * Check if this bridge is in HAP externalsOnly mode: the bridge accessory, and
+   * so every bridged accessory, is not published, while external accessories are.
+   * @returns true if only external HAP accessories publish from this bridge
+   */
+  isHapExternalsOnly: () => boolean
+
+  /**
    * Check if Matter is available in this version of Homebridge
    * @returns true if Homebridge version is >= 2.0.0-alpha.0
    */
@@ -614,6 +631,10 @@ export class HomebridgeAPI extends EventEmitter implements API {
    * Internal state tracking whether Matter is enabled for this bridge
    */
   private matterEnabled = false
+
+  // HAP is enabled by default; startup supplies the bridge-specific state.
+  private hapEnabled = true
+  private hapExternalsOnly = false
 
   /**
    * Internal reference to MatterServer for API methods that need return values
@@ -693,6 +714,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   constructor() {
     super()
+  }
+
+  /**
+   * Set bridge-specific HAP enablement before plugin initialization.
+   * @internal
+   */
+  _setHapEnabled(enabled: boolean, externalsOnly = false): void {
+    this.hapEnabled = enabled
+    this.hapExternalsOnly = externalsOnly
   }
 
   /**
@@ -823,6 +853,20 @@ export class HomebridgeAPI extends EventEmitter implements API {
     })
 
     this.emit(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories)
+  }
+
+  /**
+   * @see API.isHapEnabled
+   */
+  isHapEnabled(): boolean {
+    return this.hapEnabled
+  }
+
+  /**
+   * @see API.isHapExternalsOnly
+   */
+  isHapExternalsOnly(): boolean {
+    return this.hapExternalsOnly
   }
 
   /**
