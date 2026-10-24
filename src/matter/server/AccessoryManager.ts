@@ -721,9 +721,11 @@ export class AccessoryManager {
       // no reading yet from a sleeping device would compose a PowerSource with
       // no Battery feature at all, and then its first real reading would be
       // rejected for the life of the process. Static facts are the declaration
-      // of intent, so they count. Nothing here invents a reading: a source that
-      // declares no battery attribute whatsoever is indistinguishable from a
-      // wired one and is left alone.
+      // of intent, so they count. Nothing here invents a reading. A source that
+      // declares no battery attribute at all is a wired one (mains, a solar
+      // inverter, the grid side of a home battery) and gets the Wired feature -
+      // matter.js rejects a PowerSource with neither feature, which took the
+      // whole accessory down with it.
       const powerSource = accessory.clusters.powerSource as Record<string, unknown>
       const hasBattery = Object.keys(powerSource).some(
         key => /^(?:bat|activeBat)/.test(key) && powerSource[key] !== undefined,
@@ -760,7 +762,8 @@ export class AccessoryManager {
         powerSourceBehavior = (PowerSourceServer as any).with('Battery', 'Rechargeable')
         log.debug('Adding PowerSource server with battery and rechargeable features')
       } else {
-        log.debug('Adding base PowerSource server')
+        powerSourceBehavior = (PowerSourceServer as any).with('Wired')
+        log.debug('Adding PowerSource server with the wired feature')
       }
       customBehaviors.push(powerSourceBehavior)
     }

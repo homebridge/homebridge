@@ -3,6 +3,7 @@ import type { EndpointType } from '@matter/main'
 import type { MatterAccessory } from '../types.js'
 
 import { FanRequirements } from '@matter/main/devices/fan'
+import { PowerSourceEndpoint } from '@matter/main/endpoints/power-source'
 import { describe, expect, it } from 'vitest'
 
 import { HomebridgeFanControlServer } from '../behaviors/FanControlBehavior.js'
@@ -265,5 +266,44 @@ describe('an air quality sensor', () => {
       'moderate',
       'veryPoor',
     ])
+  })
+})
+
+/**
+ * A PowerSource needs Wired or Battery, and matter.js rejected one with
+ * neither - taking the whole accessory down. A source that declares no
+ * battery attribute is a wired one.
+ */
+describe('a power source', () => {
+  it('is wired when it declares no battery attribute', async () => {
+    const deviceType = await prepare({
+      deviceType: PowerSourceEndpoint,
+      clusters: {
+        powerSource: {
+          status: 1,
+          order: 0,
+          description: 'Mains',
+          wiredCurrentType: 0,
+        },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'powerSource')).toEqual(['wired'])
+  })
+
+  it('is a battery when it declares a battery attribute', async () => {
+    const deviceType = await prepare({
+      deviceType: PowerSourceEndpoint,
+      clusters: {
+        powerSource: {
+          status: 1,
+          order: 0,
+          description: 'Battery',
+          batPercentRemaining: 200,
+        },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'powerSource')).toEqual(['battery', 'rechargeable'])
   })
 })
