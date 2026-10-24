@@ -41,6 +41,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): shorten an accessory's over-long name, model or serial and say which (#4016)
 - chore(deps): update matter.js to v0.18.0, with the changes its new checks need
 - feat(api): expose bridge HAP enablement to plugins (#4037) (@n0rt0nthec4t)
+- feat(api): add isMatterExternalsOnly to match isHapExternalsOnly
 
 ### Homebridge Dependencies
 
