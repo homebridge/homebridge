@@ -43,6 +43,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(api): expose bridge HAP enablement to plugins (#4037) (@n0rt0nthec4t)
 - feat(api): add isMatterExternalsOnly to match isHapExternalsOnly
 - fix(matter): only enable matter for main bridge plugins when the main bridge uses it
+- fix: keep external accessory ports off the ports bridges are configured to use (#4035)
 
 ### Homebridge Dependencies
 
