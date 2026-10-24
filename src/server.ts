@@ -22,12 +22,12 @@ import chalk from 'chalk'
 import qrcode from 'qrcode-terminal'
 
 import { HomebridgeAPI, PluginType } from './api.js'
-import { BridgeService, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
+import { BridgeService, isHapActive, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
 import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
-import { isMatterActive, isMatterConfigEnabled, MatterConfigCollector } from './matter/config.js'
+import { isMatterActive, isMatterConfigEnabled, isMatterExternalsOnly, MatterConfigCollector } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
@@ -117,6 +117,8 @@ export class Server {
 
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI()
+    this.api._setHapEnabled(isHapActive(this.config.bridge.hap), isHapExternalsOnly(this.config.bridge.hap))
+    this.api._setMatterExternalsOnly(isMatterExternalsOnly(this.config.bridge.matter))
     this.ipcService = new IpcService()
 
     // Collect all configured Matter ports to avoid conflicts
@@ -188,8 +190,12 @@ export class Server {
 
     const statusUpdate: ServerStatusUpdate = {
       status: this.serverStatus,
-      paired: isPublished ? (bridge?._accessoryInfo?.paired() ?? null) : null,
-      setupUri: isPublished ? (bridge?.setupURI() ?? null) : null,
+      paired: isPublished
+        ? (bridge?._accessoryInfo?.paired() ?? null)
+        : null,
+      setupUri: isPublished
+        ? (bridge?.setupURI() ?? null)
+        : null,
       name: this.config.bridge.name,
       username: this.config.bridge.username,
       pin: this.config.bridge.pin,
@@ -209,29 +215,32 @@ export class Server {
     // load the cached accessories
     await this.bridgeService.loadCachedPlatformAccessoriesFromDisk()
 
-    // Validate Matter configuration up front so we know whether to expose
-    // api.matter to plugins. Validator may strip invalid entries, so re-check
-    // after. Caching the result avoids two more hasMatterConfig calls below.
-    let matterIsConfigured = MatterConfigCollector.hasMatterConfig(this.config)
-    if (matterIsConfigured) {
-      await MatterConfigCollector.validateMatterConfig(this.config)
-      matterIsConfigured = MatterConfigCollector.hasMatterConfig(this.config)
-    }
+    // Validate Matter configuration for every bridge up front (a no-op when no
+    // bridge uses Matter). The validator may strip invalid entries, so the
+    // main bridge is checked after it.
+    await MatterConfigCollector.validateMatterConfig(this.config)
+
+    // Only the main bridge's own config decides Matter here. A child bridge's
+    // Matter runs in that child's process, so it must not make api.matter or
+    // isMatterEnabled() true for plugins on the main bridge - the same rule
+    // isHapEnabled() follows.
+    const matterIsActive = isMatterActive(this.config.bridge.matter)
 
     // Eagerly load the MatterAPI facade before plugins initialize, so api.matter
-    // is defined when plugin code runs on Matter-enabled bridges. The heavy
+    // is defined when plugin code runs on a Matter-enabled main bridge. The heavy
     // MatterBridgeManager init still happens after plugins load (below) — only
     // the API surface needs to be ready early.
-    if (matterIsConfigured) {
+    if (matterIsActive) {
       await this.api.loadMatterAPI()
     }
 
     // initialize plugins
     await this.pluginManager.initializeInstalledPlugins()
 
-    // Initialize Matter manager only if configured. Heavy Matter.js libraries
-    // are loaded here (async), avoiding sync blocking during construction.
-    if (matterIsConfigured) {
+    // Initialize Matter manager only if the main bridge uses Matter. Heavy
+    // Matter.js libraries are loaded here (async), avoiding sync blocking
+    // during construction.
+    if (matterIsActive) {
       // Dynamically import MatterBridgeManager only when needed
       // This prevents loading heavy Matter.js libraries when Matter is not configured
       const { MatterBridgeManager } = await import('./matter/MatterBridgeManager.js')
@@ -990,7 +999,9 @@ export class Server {
         correlationId,
         data: {
           bridgeUsername,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error
+            ? error.message
+            : 'Unknown error',
         },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -1080,7 +1091,9 @@ export class Server {
       const event: MatterEvent = {
         type: 'accessoryInfoData',
         data: {
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error
+            ? error.message
+            : 'Unknown error',
         },
       }
       this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -1207,7 +1220,9 @@ export class Server {
       // so forwarding a control request to it would just be dropped. Gate on
       // isMatterActive (enabled or externalsOnly) — the same condition under
       // which the child creates its Matter handler.
-      const matterChildBridges = [...this.childBridges.values()].filter(
+      const matterChildBridges = [
+        ...this.childBridges.values(),
+      ].filter(
         bridge => isMatterActive(bridge.getMetadata().matterConfig),
       )
 

@@ -52,13 +52,18 @@ describe('matterBridgeManager', () => {
 
     mockServer = {
       registerExternalMatterBridge: vi.fn(),
-      ipcService: { sendMessage: vi.fn() },
+      ipcService: {
+        sendMessage: vi.fn(),
+      },
     }
   })
 
   function buildManager(matterCfg?: any): MatterBridgeManager {
     const cfg = matterCfg !== undefined
-      ? { ...mockConfig, bridge: { ...mockConfig.bridge, matter: matterCfg } }
+      ? {
+          ...mockConfig,
+          bridge: { ...mockConfig.bridge, matter: matterCfg },
+        }
       : mockConfig
     return new MatterBridgeManager(
       cfg,
@@ -122,7 +127,9 @@ describe('matterBridgeManager', () => {
       const handleRegisterSpy = vi.spyOn(m as any, 'handleRegisterPlatformAccessories')
 
       // Directly invoke the drop stub — the base handler must NOT be called.
-      ;(m as any)._onRegisterMatterPlatformAccessoriesDropped('homebridge-test', 'TestPlatform', [{ displayName: 'x' }])
+      ;(m as any)._onRegisterMatterPlatformAccessoriesDropped('homebridge-test', 'TestPlatform', [
+        { displayName: 'x' },
+      ])
 
       expect(handleRegisterSpy).not.toHaveBeenCalled()
     })
@@ -131,9 +138,13 @@ describe('matterBridgeManager', () => {
       const m = buildManager({ enabled: false, externalsOnly: true })
       const handlePublishSpy = vi.spyOn(m as any, 'handlePublishExternalAccessories').mockResolvedValue(undefined)
 
-      ;(m as any)._onPublishExternalMatterAccessories([{ displayName: 'x' }], 'reg-1')
+      ;(m as any)._onPublishExternalMatterAccessories([
+        { displayName: 'x' },
+      ], 'reg-1')
 
-      expect(handlePublishSpy).toHaveBeenCalledWith([{ displayName: 'x' }], 'reg-1')
+      expect(handlePublishSpy).toHaveBeenCalledWith([
+        { displayName: 'x' },
+      ], 'reg-1')
     })
   })
 

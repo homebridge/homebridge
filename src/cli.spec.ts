@@ -14,12 +14,18 @@ vi.mock('./server.js', () => ({
 
 // Avoid spinning up the real HAP storage init.
 vi.mock('@homebridge/hap-nodejs', () => ({
-  HAPStorage: { setCustomStoragePath: vi.fn() },
+  HAPStorage: {
+    setCustomStoragePath: vi.fn(),
+  },
 }))
 
 vi.mock('./logger.js', () => ({
   Logger: {
-    internal: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    internal: {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
     setTimestampEnabled: vi.fn(),
     setDebugEnabled: vi.fn(),
     forceColor: vi.fn(),
@@ -27,7 +33,10 @@ vi.mock('./logger.js', () => ({
 }))
 
 vi.mock('./user.js', () => ({
-  User: { setStoragePath: vi.fn(), persistPath: vi.fn().mockReturnValue('/tmp/persist') },
+  User: {
+    setStoragePath: vi.fn(),
+    persistPath: vi.fn().mockReturnValue('/tmp/persist'),
+  },
 }))
 
 vi.mock('./version.js', () => ({
@@ -50,7 +59,9 @@ describe('cli', () => {
       return process
     })
 
-    fakeTimer = { unref: vi.fn() }
+    fakeTimer = {
+      unref: vi.fn(),
+    }
     setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => fakeTimer as any)
   })
 

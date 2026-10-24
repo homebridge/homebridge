@@ -96,7 +96,9 @@ export class HomebridgeColorControlServer extends ColorControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set color temperature: ${message}`, Status.Failure)
     }
   }
@@ -142,7 +144,9 @@ export class HomebridgeColorControlServer extends ColorControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set hue and saturation: ${message}`, Status.Failure)
     }
   }
@@ -188,7 +192,9 @@ export class HomebridgeColorControlServer extends ColorControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set XY color: ${message}`, Status.Failure)
     }
   }
@@ -210,7 +216,12 @@ export class HomebridgeColorControlServer extends ColorControlServer {
         registry,
         endpointId,
         'moveToHueLogic',
-        { targetHue, direction, transitionTime, isEnhancedHue },
+        {
+          targetHue,
+          direction,
+          transitionTime,
+          isEnhancedHue,
+        },
       )
 
       // Only reached if handler succeeded - update Matter state
@@ -234,7 +245,9 @@ export class HomebridgeColorControlServer extends ColorControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set hue: ${message}`, Status.Failure)
     }
   }
@@ -276,7 +289,9 @@ export class HomebridgeColorControlServer extends ColorControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to set saturation: ${message}`, Status.Failure)
     }
   }
@@ -307,7 +322,9 @@ export class HomebridgeColorControlServer extends ColorControlServer {
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       throw new StatusResponseError(`Failed to stop color movement: ${message}`, Status.Failure)
     }
   }

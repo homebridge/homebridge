@@ -97,7 +97,9 @@ export class Plugin {
   }
 
   public getPluginIdentifier(): PluginIdentifier { // return full plugin name with scope prefix
-    return (this.scope ? `${this.scope}/` : '') + this.pluginName
+    return (this.scope
+      ? `${this.scope}/`
+      : '') + this.pluginName
   }
 
   public getPluginPath(): string {
@@ -232,8 +234,12 @@ major incompatibility issues and thus is considered bad practice. Please inform 
       const defaultKeys = pluginModules && typeof pluginModules === 'object'
         ? Object.keys(pluginModules).slice(0, 10)
         : []
-      const defaultKeysStr = defaultKeys.length > 0 ? ` with keys [${defaultKeys.join(', ')}]` : ''
-      const exportedKeysStr = exportedKeys.length > 0 ? `; named exports: [${exportedKeys.join(', ')}]` : ''
+      const defaultKeysStr = defaultKeys.length > 0
+        ? ` with keys [${defaultKeys.join(', ')}]`
+        : ''
+      const exportedKeysStr = exportedKeys.length > 0
+        ? `; named exports: [${exportedKeys.join(', ')}]`
+        : ''
       throw new Error(
         `Plugin ${this.pluginPath} does not export an initializer function from ${this.main}. Found default export of type '${typeof pluginModules}'${defaultKeysStr}${exportedKeysStr}. The plugin must default-export a function that takes the homebridge api object.`,
       )

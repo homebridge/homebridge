@@ -11,7 +11,9 @@ const emitSpy = vi.spyOn(api, 'emit')
 
 class ExampleAccessory implements AccessoryPlugin {
   getServices(): Service[] {
-    return [new Service.Switch('TestSwitch')]
+    return [
+      new Service.Switch('TestSwitch'),
+    ]
   }
 }
 
@@ -26,6 +28,51 @@ const accessoryName = 'MyCoolAccessory'
 const platformName = 'MyCoolPlatform'
 
 describe('homebridgeAPI', () => {
+  describe('isHapEnabled', () => {
+    it('defaults to enabled through the public API interface', () => {
+      const pluginAPI: import('./api.js').API = new HomebridgeAPI()
+      expect(pluginAPI.isHapEnabled()).toBe(true)
+      expect(pluginAPI.isHapExternalsOnly()).toBe(false)
+    })
+
+    it('reports externalsOnly mode as enabled, like isMatterEnabled, with its own flag', () => {
+      const api = new HomebridgeAPI()
+      api._setHapEnabled(true, true)
+
+      expect(api.isHapEnabled()).toBe(true)
+      expect(api.isHapExternalsOnly()).toBe(true)
+    })
+
+    it('keeps bridge-specific state independent of other API instances and Matter', async () => {
+      const disabled = new HomebridgeAPI()
+      const enabled = new HomebridgeAPI()
+      disabled._setHapEnabled(false)
+      await disabled.loadMatterAPI()
+
+      expect(disabled.isHapEnabled()).toBe(false)
+      expect(disabled.isMatterEnabled()).toBe(true)
+      expect(enabled.isHapEnabled()).toBe(true)
+      expect(enabled.isMatterEnabled()).toBe(false)
+    })
+  })
+
+  describe('isMatterExternalsOnly', () => {
+    it('defaults to false', () => {
+      const pluginAPI: import('./api.js').API = new HomebridgeAPI()
+      expect(pluginAPI.isMatterExternalsOnly()).toBe(false)
+    })
+
+    it('only reports externalsOnly once Matter is enabled', async () => {
+      const api = new HomebridgeAPI()
+      api._setMatterExternalsOnly(true)
+      expect(api.isMatterExternalsOnly()).toBe(false)
+
+      await api.loadMatterAPI()
+      expect(api.isMatterEnabled()).toBe(true)
+      expect(api.isMatterExternalsOnly()).toBe(true)
+    })
+  })
+
   describe('homebridgeAPI.prototype.registerAccessory', () => {
     it('should register accessory with legacy style signature', () => {
       api.registerAccessory(pluginName, accessoryName, ExampleAccessory)
@@ -72,7 +119,11 @@ describe('homebridgeAPI', () => {
       // API directly, so stand in a manager stub to satisfy that precondition.
       // getExternalServer is included because getAccessoryState consults it;
       // hasActiveMatter returns true so the register/update guards pass.
-      ;(api as any)._matterManager = { getExternalServer: () => undefined, hasActiveMatter: () => true, isBridgeServerStarting: () => false }
+      ;(api as any)._matterManager = {
+        getExternalServer: () => undefined,
+        hasActiveMatter: () => true,
+        isBridgeServerStarting: () => false,
+      }
     })
 
     describe('loadMatterAPI lifecycle', () => {
@@ -211,7 +262,9 @@ describe('homebridgeAPI', () => {
             serialNumber: 'SN-001',
             manufacturer: 'Test',
             model: 'Test',
-            clusters: { onOff: { onOff: false } },
+            clusters: {
+              onOff: { onOff: false },
+            },
             context: {},
           },
           {
@@ -251,7 +304,9 @@ describe('homebridgeAPI', () => {
             manufacturer: 'Updated Manufacturer',
             model: 'Updated Model',
             firmwareRevision: '2.0.0',
-            clusters: { onOff: { onOff: true } },
+            clusters: {
+              onOff: { onOff: true },
+            },
             context: {},
           },
         ]

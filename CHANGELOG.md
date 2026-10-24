@@ -40,12 +40,15 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs(matter): say a restored accessory needs registering again, and keeps its cached state (#4015)
 - fix(matter): shorten an accessory's over-long name, model or serial and say which (#4016)
 - chore(deps): update matter.js to v0.18.0, with the changes its new checks need
+- feat(api): expose bridge HAP enablement to plugins (#4037) (@n0rt0nthec4t)
+- feat(api): add isMatterExternalsOnly to match isHapExternalsOnly
+- fix(matter): only enable matter for main bridge plugins when the main bridge uses it
 - feat(accessories): warn when a plugin removes a service that hap or a controller needs (#3980)
 - feat(accessories): report cached services a plugin has not used, as a dry run (#3980)
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.2.4-beta.2`
+- `@homebridge/hap-nodejs` @ `v2.2.4-beta`
 
 ### Matter Dependencies
 

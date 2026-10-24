@@ -156,6 +156,15 @@ export function isHapExternalsOnly(hap: BridgeHapConfig | boolean | undefined): 
 }
 
 /**
+ * Whether HAP is in use on the bridge at all: the bridge accessory is published,
+ * or the bridge is in externalsOnly mode and only external accessories publish.
+ * The HAP counterpart of `isMatterActive`, and what `api.isHapEnabled()` reports.
+ */
+export function isHapActive(hap: BridgeHapConfig | boolean | undefined): boolean {
+  return isHapConfigEnabled(hap) || isHapExternalsOnly(hap)
+}
+
+/**
  * Whether HAP-NodeJS should enable its `addIdentifyingMaterial` publish option.
  * Missing config, an explicit `disableIdentifyingMaterial: false`, and the
  * deprecated boolean `hap` form preserve the historical behavior (`true`).
@@ -194,7 +203,9 @@ export function validateHapConfig(
 
   if (typeof hap !== 'object' || hap === null || Array.isArray(hap)) {
     throw new Error(
-      `${opts.bridgeLabel}: 'hap' must be a boolean or an object with optional 'enabled', 'externalsOnly', and 'disableIdentifyingMaterial' fields, not a ${Array.isArray(hap) ? 'array' : typeof hap}.`,
+      `${opts.bridgeLabel}: 'hap' must be a boolean or an object with optional 'enabled', 'externalsOnly', and 'disableIdentifyingMaterial' fields, not a ${Array.isArray(hap)
+        ? 'array'
+        : typeof hap}.`,
     )
   }
 
@@ -403,7 +414,9 @@ export class BridgeService {
     // them silently, so a failed publish only manifested as the bridge never
     // appearing in HomeKit with no log explanation.
     this.bridge.publish(publishInfo, this.allowInsecureAccess).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       log.error('Failed to publish bridge accessory \'%s\': %s', this.bridge.displayName, message)
     })
   }
@@ -545,7 +558,9 @@ export class BridgeService {
       try {
         this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory)
       } catch (error: any) {
-        log.warn(`${accessory._associatedPlugin ? getLogPrefix(accessory._associatedPlugin) : ''} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, error.message)
+        log.warn(`${accessory._associatedPlugin
+          ? getLogPrefix(accessory._associatedPlugin)
+          : ''} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, error.message)
         orphanedAccessories.add(accessory) // remove it from the list
       }
     }
@@ -599,7 +614,9 @@ export class BridgeService {
     // Matter manager's externalsOnly drop-stubs — external accessories still
     // publish via handlePublishExternalAccessories.
     if (isHapExternalsOnly(this.bridgeConfig.hap)) {
-      log.debug(`HAP externalsOnly mode: ${accessories.length} bridged accessor${accessories.length === 1 ? 'y' : 'ies'} registered to this bridge will not be advertised (only external accessories publish).`)
+      log.debug(`HAP externalsOnly mode: ${accessories.length} bridged accessor${accessories.length === 1
+        ? 'y'
+        : 'ies'} registered to this bridge will not be advertised (only external accessories publish).`)
     }
 
     const cachedAccessories = new Map(
@@ -806,7 +823,9 @@ export class BridgeService {
 
       log.debug('Publishing external accessory (name: %s, publishInfo: %o).', hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo))
       hapAccessory.publish(publishInfo, this.allowInsecureAccess).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error)
+        const message = error instanceof Error
+          ? error.message
+          : String(error)
         log.error('Failed to publish external accessory \'%s\': %s', hapAccessory.displayName, message)
       })
     }

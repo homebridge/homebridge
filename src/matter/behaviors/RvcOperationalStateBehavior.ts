@@ -17,7 +17,9 @@ import { getRegistryManager } from './EndpointContext.js'
 // The Robotic Vacuum Cleaner device type requires the OperationCompletion event,
 // which the cluster itself leaves optional - matter.js 0.18 checks endpoints
 // against their device type and flagged every vacuum without it
-export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServer.enable({ events: { operationCompletion: true } }) {
+export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServer.enable({
+  events: { operationCompletion: true },
+}) {
   /**
    * Get the registry for this behavior's endpoint
    */
@@ -110,7 +112,9 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
 
       // For other errors, wrap in appropriate StatusResponseError
       // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error ? error.message : String(error)
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
       const verb = { pause: 'pause', resume: 'resume', goHome: 'go home' }[command]
       throw new StatusResponseError(`Failed to ${verb}: ${message}`, Status.Failure)
     }

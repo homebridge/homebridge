@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { PluginType } from './api.js'
 import { Logger } from './logger.js'
+import { PluginManager } from './pluginManager.js'
 import { Server } from './server.js'
 import { User } from './user.js'
 
@@ -71,6 +72,120 @@ describe('server', () => {
     expect(server).toBeInstanceOf(Server)
   })
 
+  describe('public HAP enablement during plugin initialization', () => {
+    afterEach(async () => {
+      vi.restoreAllMocks()
+      await fs.writeJson(configPath, mockConfig)
+    })
+
+    it.each([
+      { hap: undefined, expected: true, externalsOnly: false },
+      { hap: {}, expected: true, externalsOnly: false },
+      {
+        hap: { enabled: true },
+        expected: true,
+        externalsOnly: false,
+      },
+      {
+        hap: { enabled: false },
+        expected: false,
+        externalsOnly: false,
+      },
+      { hap: false, expected: false, externalsOnly: false },
+      // externalsOnly still uses HAP for external accessories, as isMatterEnabled does for Matter
+      {
+        hap: { externalsOnly: true },
+        expected: true,
+        externalsOnly: true,
+      },
+      {
+        hap: { enabled: false, externalsOnly: true },
+        expected: true,
+        externalsOnly: true,
+      },
+    ])('reports $expected for bridge.hap=$hap before plugins initialize', async ({ hap, expected, externalsOnly }) => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, hap, disableIpc: true },
+      })
+      const server = new Server({ hideQRCode: true })
+      const stop = new Error('Stop after observing plugin initialization')
+      const initialize = vi.spyOn(PluginManager.prototype, 'initializeInstalledPlugins').mockImplementation(async () => {
+        expect((server as any).api.isHapEnabled()).toBe(expected)
+        expect((server as any).api.isHapExternalsOnly()).toBe(externalsOnly)
+        throw stop
+      })
+
+      // Stop before publishing so this lifecycle check needs no network sockets.
+      await expect(server.start()).rejects.toBe(stop)
+      expect(initialize).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('public Matter enablement during plugin initialization', () => {
+    afterEach(async () => {
+      vi.restoreAllMocks()
+      await fs.writeJson(configPath, mockConfig)
+    })
+
+    const childWithMatter = {
+      platform: 'Example',
+      _bridge: { username: '0E:DC:5D:BE:D6:75', matter: {} },
+    }
+
+    it.each([
+      {
+        matter: undefined,
+        platforms: [],
+        expected: false,
+        externalsOnly: false,
+      },
+      {
+        matter: {},
+        platforms: [],
+        expected: true,
+        externalsOnly: false,
+      },
+      {
+        matter: { externalsOnly: true },
+        platforms: [],
+        expected: true,
+        externalsOnly: true,
+      },
+      {
+        matter: { enabled: false },
+        platforms: [childWithMatter],
+        expected: false,
+        externalsOnly: false,
+      },
+      // A child bridge's Matter runs in its own process, so it must not turn
+      // Matter on for plugins on the main bridge
+      {
+        matter: undefined,
+        platforms: [childWithMatter],
+        expected: false,
+        externalsOnly: false,
+      },
+    ])('reports $expected for bridge.matter=$matter with $platforms.length Matter child bridge(s)', async ({ matter, platforms, expected, externalsOnly }) => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, matter, disableIpc: true },
+        platforms,
+      })
+      const server = new Server({ hideQRCode: true })
+      const stop = new Error('Stop after observing plugin initialization')
+      const initialize = vi.spyOn(PluginManager.prototype, 'initializeInstalledPlugins').mockImplementation(async () => {
+        expect((server as any).api.isMatterEnabled()).toBe(expected)
+        expect((server as any).api.isMatterExternalsOnly()).toBe(externalsOnly)
+        expect((server as any).api.matter !== undefined).toBe(expected)
+        throw stop
+      })
+
+      await expect(server.start()).rejects.toBe(stop)
+      expect(initialize).toHaveBeenCalledOnce()
+    })
+  })
+
   describe('protocol-enablement helpers', () => {
     describe('isHapEnabled', () => {
       it('returns true when bridge.hap is unset (default)', () => {
@@ -82,15 +197,24 @@ describe('server', () => {
       })
 
       it('returns true when bridge.hap.enabled is explicitly true', () => {
-        expect(Server.isHapEnabled({ ...mockConfig.bridge, hap: { enabled: true } } as any)).toBe(true)
+        expect(Server.isHapEnabled({
+          ...mockConfig.bridge,
+          hap: { enabled: true },
+        } as any)).toBe(true)
       })
 
       it('returns false when bridge.hap.enabled is explicitly false', () => {
-        expect(Server.isHapEnabled({ ...mockConfig.bridge, hap: { enabled: false } } as any)).toBe(false)
+        expect(Server.isHapEnabled({
+          ...mockConfig.bridge,
+          hap: { enabled: false },
+        } as any)).toBe(false)
       })
 
       it('returns false when externalsOnly is set (bridge does not publish itself)', () => {
-        expect(Server.isHapEnabled({ ...mockConfig.bridge, hap: { enabled: false, externalsOnly: true } } as any)).toBe(false)
+        expect(Server.isHapEnabled({
+          ...mockConfig.bridge,
+          hap: { enabled: false, externalsOnly: true },
+        } as any)).toBe(false)
       })
     })
 
@@ -104,15 +228,24 @@ describe('server', () => {
       })
 
       it('returns true when bridge.matter has fields configured', () => {
-        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: { port: 5540, name: 'Test' } } as any)).toBe(true)
+        expect(Server.isMatterEnabledForBridge({
+          ...mockConfig.bridge,
+          matter: { port: 5540, name: 'Test' },
+        } as any)).toBe(true)
       })
 
       it('returns false when bridge.matter is configured but explicitly disabled', () => {
-        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: { port: 5540, enabled: false } } as any)).toBe(false)
+        expect(Server.isMatterEnabledForBridge({
+          ...mockConfig.bridge,
+          matter: { port: 5540, enabled: false },
+        } as any)).toBe(false)
       })
 
       it('returns true when bridge.matter.enabled is explicitly true', () => {
-        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: { port: 5540, enabled: true } } as any)).toBe(true)
+        expect(Server.isMatterEnabledForBridge({
+          ...mockConfig.bridge,
+          matter: { port: 5540, enabled: true },
+        } as any)).toBe(true)
       })
     })
   })
@@ -128,7 +261,10 @@ describe('server', () => {
       // Both protocols off is allowed — the bridge loads and simply advertises nothing.
       await fs.writeJson(configPath, {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, hap: { enabled: false } },
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { enabled: false },
+        },
       })
 
       const server = new Server({
@@ -141,7 +277,11 @@ describe('server', () => {
     it('accepts hap.enabled:false when matter is configured', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, hap: { enabled: false }, matter: { port: 5540 } },
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { enabled: false },
+          matter: { port: 5540 },
+        },
       })
 
       const server = new Server({
@@ -154,7 +294,10 @@ describe('server', () => {
     it('accepts hap.enabled:true with no matter (the historical default)', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, hap: { enabled: true } },
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { enabled: true },
+        },
       })
 
       const server = new Server({
@@ -167,7 +310,11 @@ describe('server', () => {
     it('accepts a config with both hap and matter enabled', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, hap: { enabled: true }, matter: { port: 5540 } },
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { enabled: true },
+          matter: { port: 5540 },
+        },
       })
 
       const server = new Server({
@@ -234,7 +381,10 @@ describe('server', () => {
     it('accepts main bridge with externalsOnly: true + enabled: false (canonical form)', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, hap: { enabled: false, externalsOnly: true } },
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { enabled: false, externalsOnly: true },
+        },
       })
 
       const server = new Server({
@@ -247,7 +397,10 @@ describe('server', () => {
     it('honours main bridge with externalsOnly: true alone — warns + normalises, no throw (#3944)', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, hap: { externalsOnly: true } },
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { externalsOnly: true },
+        },
       })
 
       // No longer fatal: validateHapConfig warns and normalises enabled to false,
@@ -261,7 +414,10 @@ describe('server', () => {
     it('honours main bridge with externalsOnly: true + enabled: true — no throw', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
-        bridge: { ...mockConfig.bridge, hap: { enabled: true, externalsOnly: true } },
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { enabled: true, externalsOnly: true },
+        },
       })
 
       expect(new Server({
@@ -275,7 +431,11 @@ describe('server', () => {
         ...mockConfig,
         // hap: false also needs matter configured, otherwise the bridge advertises
         // nothing — pair it with matter so the config is coherent.
-        bridge: { ...mockConfig.bridge, hap: false as unknown as object, matter: { port: 5540 } },
+        bridge: {
+          ...mockConfig.bridge,
+          hap: false as unknown as object,
+          matter: { port: 5540 },
+        },
       })
 
       const server = new Server({
@@ -333,7 +493,10 @@ describe('server', () => {
       // Previously a lowercase _bridge.username was rejected here even though the
       // identical value is accepted on the main bridge — fix the asymmetry.
       const server = makeServer()
-      const bridgeConfig: any = { username: '0e:11:22:33:44:55', hap: { enabled: false } }
+      const bridgeConfig: any = {
+        username: '0e:11:22:33:44:55',
+        hap: { enabled: false },
+      }
       expect(() => (server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', bridgeConfig)).not.toThrow()
       expect(bridgeConfig.username).toBe('0E:11:22:33:44:55') // normalised in place
     })
@@ -356,14 +519,20 @@ describe('server', () => {
 
     it('honours a platform child bridge with externalsOnly: true alone — warns + normalises, no throw (#3944)', () => {
       const server = makeServer()
-      const cfg: any = { username: childUsername, hap: { externalsOnly: true } }
+      const cfg: any = {
+        username: childUsername,
+        hap: { externalsOnly: true },
+      }
       expect(() => (server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', cfg)).not.toThrow()
       expect(cfg.hap.enabled).toBe(false) // normalised to canonical form
     })
 
     it('honours a platform child bridge with externalsOnly: true + enabled: true — flips enabled to false', () => {
       const server = makeServer()
-      const cfg: any = { username: childUsername, hap: { enabled: true, externalsOnly: true } }
+      const cfg: any = {
+        username: childUsername,
+        hap: { enabled: true, externalsOnly: true },
+      }
       expect(() => (server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', cfg)).not.toThrow()
       expect(cfg.hap.enabled).toBe(false)
     })
@@ -423,7 +592,9 @@ describe('server', () => {
       // the only child, the handler should reply "not found" immediately rather
       // than scheduling the 2s fallback.
       const disabledChild = {
-        getMetadata: () => ({ matterConfig: { enabled: false } }),
+        getMetadata: () => ({
+          matterConfig: { enabled: false },
+        }),
         getMatterAccessoryInfo: vi.fn(),
       }
       ;(server as any).childBridges.set('CC:00:00:00:00:02', disabledChild)
@@ -449,7 +620,9 @@ describe('server', () => {
       vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
 
       const externalsOnlyChild = {
-        getMetadata: () => ({ matterConfig: { enabled: false, externalsOnly: true } }),
+        getMetadata: () => ({
+          matterConfig: { enabled: false, externalsOnly: true },
+        }),
         getMatterAccessoryInfo: vi.fn(),
       }
       ;(server as any).childBridges.set('CC:00:00:00:00:03', externalsOnlyChild)
@@ -515,8 +688,13 @@ describe('server', () => {
       // Stub out the collaborators teardown() reaches into — we're only
       // testing the timer cleanup line, not the wider shutdown flow.
       // sendMessage is reached via setServerStatus(ServerStatus.DOWN).
-      ;(server as any).bridgeService = { teardown: () => {} }
-      ;(server as any).ipcService = { stop: () => {}, sendMessage: () => {} }
+      ;(server as any).bridgeService = {
+        teardown: () => {},
+      }
+      ;(server as any).ipcService = {
+        stop: () => {},
+        sendMessage: () => {},
+      }
 
       await server.teardown()
 
@@ -536,12 +714,18 @@ describe('server', () => {
       // through to child forwarding. A disabled-matter child has no handler, so it
       // must be skipped — leaving zero targets and an immediate "not found".
       const disabledChild = {
-        getMetadata: () => ({ matterConfig: { enabled: false } }),
+        getMetadata: () => ({
+          matterConfig: { enabled: false },
+        }),
         controlMatterAccessory: vi.fn(),
       }
       ;(server as any).childBridges.set('CC:00:00:00:00:04', disabledChild)
 
-      await (server as any).handleMatterAccessoryControl({ uuid: 'ctrl-uuid', cluster: 'OnOff', attributes: { on: true } })
+      await (server as any).handleMatterAccessoryControl({
+        uuid: 'ctrl-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+      })
 
       expect(disabledChild.controlMatterAccessory).not.toHaveBeenCalled()
       const notFound = sendSpy.mock.calls.find(([id, payload]) =>
@@ -560,12 +744,18 @@ describe('server', () => {
       vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
 
       const activeChild = {
-        getMetadata: () => ({ matterConfig: { enabled: false, externalsOnly: true } }),
+        getMetadata: () => ({
+          matterConfig: { enabled: false, externalsOnly: true },
+        }),
         controlMatterAccessory: vi.fn(),
       }
       ;(server as any).childBridges.set('CC:00:00:00:00:05', activeChild)
 
-      await (server as any).handleMatterAccessoryControl({ uuid: 'ctrl-uuid', cluster: 'OnOff', attributes: { on: true } })
+      await (server as any).handleMatterAccessoryControl({
+        uuid: 'ctrl-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+      })
 
       expect(activeChild.controlMatterAccessory).toHaveBeenCalledWith(
         expect.objectContaining({ uuid: 'ctrl-uuid' }),
@@ -609,12 +799,21 @@ describe('server', () => {
       ],
       [
         'the named bridge does not exist',
-        { uuid: 'ctrl-uuid', cluster: 'OnOff', attributes: { on: true }, bridgeUsername: 'DD:00:00:00:00:99' },
+        {
+          uuid: 'ctrl-uuid',
+          cluster: 'OnOff',
+          attributes: { on: true },
+          bridgeUsername: 'DD:00:00:00:00:99',
+        },
         'Bridge DD:00:00:00:00:99 not found',
       ],
       [
         'no bridge anywhere owns the accessory',
-        { uuid: 'ctrl-uuid', cluster: 'OnOff', attributes: { on: true } },
+        {
+          uuid: 'ctrl-uuid',
+          cluster: 'OnOff',
+          attributes: { on: true },
+        },
         'Accessory not found',
       ],
     ])('echoes the correlationId when %s', async (_reason, request, expectedError) => {
@@ -645,7 +844,9 @@ describe('server', () => {
       })
       const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
       vi.spyOn(server as any, 'handleTriggerMatterCommand').mockImplementation(() =>
-        succeeds ? Promise.resolve() : Promise.reject(new Error('cluster rejected')),
+        succeeds
+          ? Promise.resolve()
+          : Promise.reject(new Error('cluster rejected')),
       )
 
       await (server as any).handleMatterAccessoryControl({
@@ -673,7 +874,9 @@ describe('server', () => {
       vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
 
       const activeChild = {
-        getMetadata: () => ({ matterConfig: { enabled: true } }),
+        getMetadata: () => ({
+          matterConfig: { enabled: true },
+        }),
         controlMatterAccessory: vi.fn(),
       }
       ;(server as any).childBridges.set('CC:00:00:00:00:06', activeChild)
@@ -704,7 +907,9 @@ describe('server', () => {
         })
         const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
         ;(server as any).childBridges.set('CC:00:00:00:00:07', {
-          getMetadata: () => ({ matterConfig: { enabled: true } }),
+          getMetadata: () => ({
+            matterConfig: { enabled: true },
+          }),
           controlMatterAccessory: vi.fn(),
         })
         return { server, sendSpy }

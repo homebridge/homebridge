@@ -43,34 +43,106 @@ describe('deviceTypes mandatory clusters', () => {
   //   carries Identify
   // - BridgedNode: composed-device container with no cluster of its own
   const cases: Array<[keyof typeof deviceTypes, string[]]> = [
-    ['OnOffLight', ['onOff']],
-    ['DimmableLight', ['onOff', 'levelControl']],
-    ['ColorTemperatureLight', ['onOff', 'levelControl', 'colorControl']],
-    ['ExtendedColorLight', ['onOff', 'levelControl', 'colorControl']],
-    ['OnOffOutlet', ['onOff']],
-    ['DimmableOutlet', ['onOff', 'levelControl']],
-    ['AirQualitySensor', ['airQuality']],
-    ['TemperatureSensor', ['temperatureMeasurement']],
-    ['HumiditySensor', ['relativeHumidityMeasurement']],
-    ['LightSensor', ['illuminanceMeasurement']],
-    ['MotionSensor', ['occupancySensing']],
-    ['ContactSensor', ['booleanState']],
-    ['LeakSensor', ['booleanState']],
-    ['Fan', ['fanControl']],
-    ['DoorLock', ['doorLock']],
-    ['RoboticVacuumCleaner', ['rvcRunMode', 'rvcOperationalState']],
-    ['WaterValve', ['valveConfigurationAndControl']],
-    ['GenericSwitch', ['switch']],
-    ['Pump', ['onOff', 'pumpConfigurationAndControl']],
-    ['RoomAirConditioner', ['onOff', 'thermostat']],
+    [
+      'OnOffLight',
+      ['onOff'],
+    ],
+    [
+      'DimmableLight',
+      ['onOff', 'levelControl'],
+    ],
+    [
+      'ColorTemperatureLight',
+      ['onOff', 'levelControl', 'colorControl'],
+    ],
+    [
+      'ExtendedColorLight',
+      ['onOff', 'levelControl', 'colorControl'],
+    ],
+    [
+      'OnOffOutlet',
+      ['onOff'],
+    ],
+    [
+      'DimmableOutlet',
+      ['onOff', 'levelControl'],
+    ],
+    [
+      'AirQualitySensor',
+      ['airQuality'],
+    ],
+    [
+      'TemperatureSensor',
+      ['temperatureMeasurement'],
+    ],
+    [
+      'HumiditySensor',
+      ['relativeHumidityMeasurement'],
+    ],
+    [
+      'LightSensor',
+      ['illuminanceMeasurement'],
+    ],
+    [
+      'MotionSensor',
+      ['occupancySensing'],
+    ],
+    [
+      'ContactSensor',
+      ['booleanState'],
+    ],
+    [
+      'LeakSensor',
+      ['booleanState'],
+    ],
+    [
+      'Fan',
+      ['fanControl'],
+    ],
+    [
+      'DoorLock',
+      ['doorLock'],
+    ],
+    [
+      'RoboticVacuumCleaner',
+      ['rvcRunMode', 'rvcOperationalState'],
+    ],
+    [
+      'WaterValve',
+      ['valveConfigurationAndControl'],
+    ],
+    [
+      'GenericSwitch',
+      ['switch'],
+    ],
+    [
+      'Pump',
+      ['onOff', 'pumpConfigurationAndControl'],
+    ],
+    [
+      'RoomAirConditioner',
+      ['onOff', 'thermostat'],
+    ],
     // Closures, for garage doors and gates
-    ['Closure', ['closureControl']],
+    [
+      'Closure',
+      ['closureControl'],
+    ],
     // Media. MediaPlayer carries playback and source selection but NOT volume,
     // which lives on a separate Speaker endpoint composed alongside it
-    ['MediaPlayer', ['mediaPlayback']],
-    ['Speaker', ['onOff', 'levelControl']],
+    [
+      'MediaPlayer',
+      ['mediaPlayback'],
+    ],
+    [
+      'Speaker',
+      ['onOff', 'levelControl'],
+    ],
     // Water heater: a heating-only thermostat plus mode and boost
-    ['WaterHeater', ['thermostat', 'waterHeaterMode', 'waterHeaterManagement']],
+    [
+      'WaterHeater',
+      ['thermostat', 'waterHeaterMode', 'waterHeaterManagement'],
+    ],
   ]
 
   it.each(cases)('%s includes %j', (name, expectedBehaviors) => {
@@ -87,12 +159,30 @@ describe('command clusters are routable to plugin handlers', () => {
   // invokes them - the endpoint advertises controls that silently do nothing.
   // That is what shipped for Closure and MediaPlayer, so guard it by name.
   const cases: Array<[keyof typeof deviceTypes, string[]]> = [
-    ['Closure', ['closureControl']],
-    ['MediaPlayer', ['mediaPlayback', 'keypadInput']],
-    ['Speaker', ['onOff', 'levelControl']],
-    ['WaterValve', ['valveConfigurationAndControl']],
-    ['DoorLock', ['doorLock']],
-    ['WaterHeater', ['waterHeaterMode', 'waterHeaterManagement']],
+    [
+      'Closure',
+      ['closureControl'],
+    ],
+    [
+      'MediaPlayer',
+      ['mediaPlayback', 'keypadInput'],
+    ],
+    [
+      'Speaker',
+      ['onOff', 'levelControl'],
+    ],
+    [
+      'WaterValve',
+      ['valveConfigurationAndControl'],
+    ],
+    [
+      'DoorLock',
+      ['doorLock'],
+    ],
+    [
+      'WaterHeater',
+      ['waterHeaterMode', 'waterHeaterManagement'],
+    ],
   ]
 
   it.each(cases)('%s can route %j', (name, clusterNames) => {
@@ -173,7 +263,20 @@ describe('deviceRequirements', () => {
   // cannot do that without these. Reaching into `@matter/main` from a plugin is
   // not an acceptable substitute.
   it('exposes a requirements entry for every feature-gated device type', () => {
-    for (const name of ['MotionSensor', 'SmokeSensor', 'ElectricalSensor', 'Thermostat', 'Closure', 'RoboticVacuumCleaner', 'WaterValve', 'GenericSwitch', 'Pump', 'RoomAirConditioner', 'WindowCovering', 'WaterHeater'] as const) {
+    for (const name of [
+      'MotionSensor',
+      'SmokeSensor',
+      'ElectricalSensor',
+      'Thermostat',
+      'Closure',
+      'RoboticVacuumCleaner',
+      'WaterValve',
+      'GenericSwitch',
+      'Pump',
+      'RoomAirConditioner',
+      'WindowCovering',
+      'WaterHeater',
+    ] as const) {
       expect(deviceRequirements[name], `deviceRequirements.${name}`).toBeDefined()
       expect(deviceTypes[name], `deviceTypes.${name}`).toBeDefined()
     }

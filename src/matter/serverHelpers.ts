@@ -565,7 +565,9 @@ export function checkThermostatSetpointLimits(
   // matter.js treats an undeclared deadband as 2.0°C, and replaces anything
   // above the legal 0..127 with the same value.
   const declared = cluster.minSetpointDeadBand
-  const deadBand = (declared === undefined || declared > 127 ? 20 : declared) * 10
+  const deadBand = (declared === undefined || declared > 127
+    ? 20
+    : declared) * 10
 
   // An unset user limit does NOT fall back to the spec default - it falls back
   // to the accessory's own absolute limit for that mode, and only then to the
@@ -575,8 +577,10 @@ export function checkThermostatSetpointLimits(
   // bounds it never declared - and warned about, or cleared, wrongly.
   const limit = (scope: 'Heat' | 'Cool', bound: 'min' | 'max'): number =>
     cluster[`${bound}${scope}SetpointLimit`]
-    ?? cluster[`abs${bound === 'min' ? 'Min' : 'Max'}${scope}SetpointLimit`]
-    ?? THERMOSTAT_ABS_LIMITS[scope][bound]
+    ?? cluster[`abs${bound === 'min'
+      ? 'Min'
+      : 'Max'}${scope}SetpointLimit`]
+      ?? THERMOSTAT_ABS_LIMITS[scope][bound]
 
   const problems: string[] = []
   for (const bound of ['max', 'min'] as const) {
@@ -678,7 +682,10 @@ export function applyFanAutoFeature(deviceType: EndpointType, accessory: MatterA
   if (!fanControl || typeof fanControl.with !== 'function' || fanControl.features?.auto) {
     return deviceType
   }
-  const features = [...extractDeclaredFeatures(fanControl.features ?? {}), 'Auto']
+  const features = [
+    ...extractDeclaredFeatures(fanControl.features ?? {}),
+    'Auto',
+  ]
   log.info(`Auto-detected FanControl features for ${accessory.displayName}: ${features.join(', ')}`)
   return (deviceType as any).with(fanControl.with(...features))
 }
@@ -876,7 +883,9 @@ function makeAccuracyEntry(measurementType: number, min: number, max: number, fi
     measured: true,
     minMeasuredValue: min,
     maxMeasuredValue: max,
-    accuracyRanges: [{ rangeMin: min, rangeMax: max, fixedMax }],
+    accuracyRanges: [
+      { rangeMin: min, rangeMax: max, fixedMax },
+    ],
   }
 }
 
@@ -961,7 +970,9 @@ export function applyElectricalMeasurementClusters(
     // (already resolved by applyElectricalMeasurementDefaults: plugin value
     // or the AC default): 1 = DC, everything else measures mains.
     const powerMode = (accessory.clusters?.electricalPowerMeasurement as Record<string, unknown> | undefined)?.powerMode
-    const currentFeature = powerMode === 1 ? 'DirectCurrent' : 'AlternatingCurrent'
+    const currentFeature = powerMode === 1
+      ? 'DirectCurrent'
+      : 'AlternatingCurrent'
     behaviors.push((requirements.ElectricalPowerMeasurementServer as any).with(currentFeature))
   }
   if (detection.energyFeatures.length > 0 && !existing.electricalEnergyMeasurement) {
@@ -974,7 +985,9 @@ export function applyElectricalMeasurementClusters(
 
   const detected = [
     detection.hasPowerMeasurement ? 'power' : undefined,
-    detection.energyFeatures.length > 0 ? `energy (${detection.energyFeatures.join(', ')})` : undefined,
+    detection.energyFeatures.length > 0
+      ? `energy (${detection.energyFeatures.join(', ')})`
+      : undefined,
   ].filter(Boolean).join(' + ')
   log.info(`Auto-detected electrical measurement for ${accessory.displayName}: ${detected}`)
 

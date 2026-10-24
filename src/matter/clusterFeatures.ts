@@ -60,7 +60,9 @@ export function declaredClusterFeatures(deviceType: unknown): Record<string, str
       result[id] = names
     }
   }
-  return Object.keys(result).length > 0 ? result : undefined
+  return Object.keys(result).length > 0
+    ? result
+    : undefined
 }
 
 /**

@@ -28,7 +28,11 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: 128 })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: 128, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
+        args: {
+          level: 128,
+          optionsMask: { executeIfOff: true },
+          optionsOverride: { executeIfOff: true },
+        },
       })
     })
 
@@ -36,7 +40,11 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: 0 })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: 0, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
+        args: {
+          level: 0,
+          optionsMask: { executeIfOff: true },
+          optionsOverride: { executeIfOff: true },
+        },
       })
     })
 
@@ -44,7 +52,11 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: 254 })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: 254, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
+        args: {
+          level: 254,
+          optionsMask: { executeIfOff: true },
+          optionsOverride: { executeIfOff: true },
+        },
       })
     })
 
@@ -414,7 +426,11 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: null })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: null, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
+        args: {
+          level: null,
+          optionsMask: { executeIfOff: true },
+          optionsOverride: { executeIfOff: true },
+        },
       })
     })
 
@@ -422,7 +438,11 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('levelControl', { currentLevel: undefined })
       expect(result).toEqual({
         command: 'moveToLevelWithOnOff',
-        args: { level: undefined, optionsMask: { executeIfOff: true }, optionsOverride: { executeIfOff: true } },
+        args: {
+          level: undefined,
+          optionsMask: { executeIfOff: true },
+          optionsOverride: { executeIfOff: true },
+        },
       })
     })
   })

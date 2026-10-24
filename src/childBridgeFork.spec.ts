@@ -1,11 +1,15 @@
+import type { Plugin } from './plugin.js'
+
 import process from 'node:process'
 
+import { HAPStorage } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PluginType } from './api.js'
 import { ChildBridgeFork } from './childBridgeFork.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { Logger } from './logger.js'
+import { PluginManager } from './pluginManager.js'
 
 describe('childBridgeFork — parent disconnect handling', () => {
   let onSpy: any
@@ -40,6 +44,161 @@ describe('childBridgeFork — parent disconnect handling', () => {
     // No 5000ms-interval poll should be scheduled now.
     const fiveSecondPolls = setIntervalSpy.mock.calls.filter(([, ms]: any[]) => ms === 5000)
     expect(fiveSecondPolls).toHaveLength(0)
+  })
+})
+
+describe('childBridgeFork - public HAP enablement', () => {
+  const originalTitle = process.title
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    process.title = originalTitle
+  })
+
+  it.each([
+    { hap: undefined, expected: true, externalsOnly: false },
+    { hap: {}, expected: true, externalsOnly: false },
+    {
+      hap: { enabled: true },
+      expected: true,
+      externalsOnly: false,
+    },
+    {
+      hap: { enabled: false },
+      expected: false,
+      externalsOnly: false,
+    },
+    { hap: false, expected: false, externalsOnly: false },
+    // externalsOnly still uses HAP for external accessories, as isMatterEnabled does for Matter
+    {
+      hap: { externalsOnly: true },
+      expected: true,
+      externalsOnly: true,
+    },
+    {
+      hap: { enabled: false, externalsOnly: true },
+      expected: true,
+      externalsOnly: true,
+    },
+  ])('reports $expected for child bridge hap=$hap before plugins initialize', async ({ hap, expected, externalsOnly }) => {
+    const fork = new ChildBridgeFork()
+    vi.spyOn(HAPStorage, 'setCustomStoragePath').mockImplementation(() => {})
+    const plugin = {
+      load: vi.fn().mockResolvedValue(undefined),
+      getPluginIdentifier: () => 'homebridge-example',
+      version: '1.0.0',
+    } as unknown as Plugin
+    vi.spyOn(PluginManager.prototype, 'loadPlugin').mockReturnValue(plugin)
+    const initialize = vi.spyOn(PluginManager.prototype, 'initializePlugin').mockImplementation(async () => {
+      expect((fork as any).api.isHapEnabled()).toBe(expected)
+      expect((fork as any).api.isHapExternalsOnly()).toBe(externalsOnly)
+    })
+
+    await fork.loadPlugin({
+      type: PluginType.PLATFORM,
+      identifier: 'homebridge-example',
+      pluginPath: '/unused',
+      pluginConfig: [],
+      bridgeConfig: {
+        username: '0E:DC:5D:BE:D6:75',
+        name: 'Child',
+        pin: '031-45-154',
+        hap,
+      },
+      homebridgeConfig: {
+        bridge: {
+          username: 'CC:22:3D:E3:CE:30',
+          name: 'Main',
+          pin: '031-45-154',
+          hap: { enabled: expected === false },
+        },
+        accessories: [],
+        platforms: [],
+      },
+      bridgeOptions: { cachedAccessoriesDir: '/unused', cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+    })
+
+    expect(initialize).toHaveBeenCalledOnce()
+  })
+})
+
+describe('childBridgeFork - Matter enablement', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it.each([
+    {
+      type: PluginType.PLATFORM,
+      matter: undefined,
+      expected: false,
+      externalsOnly: false,
+    },
+    {
+      type: PluginType.PLATFORM,
+      matter: {},
+      expected: true,
+      externalsOnly: false,
+    },
+    {
+      type: PluginType.PLATFORM,
+      matter: { enabled: false },
+      expected: false,
+      externalsOnly: false,
+    },
+    {
+      type: PluginType.PLATFORM,
+      matter: { externalsOnly: true },
+      expected: true,
+      externalsOnly: true,
+    },
+    {
+      type: PluginType.PLATFORM,
+      matter: { enabled: false, externalsOnly: true },
+      expected: true,
+      externalsOnly: true,
+    },
+    // Matter is ignored on an accessory child bridge, so externalsOnly is too
+    {
+      type: PluginType.ACCESSORY,
+      matter: { externalsOnly: true },
+      expected: false,
+      externalsOnly: false,
+    },
+  ])('reports $expected and externalsOnly $externalsOnly for a $type child bridge with matter=$matter', async ({ type, matter, expected, externalsOnly }) => {
+    const fork = new ChildBridgeFork()
+    vi.spyOn(HAPStorage, 'setCustomStoragePath').mockImplementation(() => {})
+    const plugin = {
+      load: vi.fn().mockResolvedValue(undefined),
+      getPluginIdentifier: () => 'homebridge-example',
+      version: '1.0.0',
+    } as unknown as Plugin
+    vi.spyOn(PluginManager.prototype, 'loadPlugin').mockReturnValue(plugin)
+    const initialize = vi.spyOn(PluginManager.prototype, 'initializePlugin').mockImplementation(async () => {
+      expect((fork as any).api.isMatterEnabled()).toBe(expected)
+      expect((fork as any).api.isMatterExternalsOnly()).toBe(externalsOnly)
+    })
+
+    await fork.loadPlugin({
+      type,
+      identifier: 'homebridge-example',
+      pluginPath: '/unused',
+      pluginConfig: [],
+      bridgeConfig: {
+        username: '0E:DC:5D:BE:D6:75',
+        name: 'Child',
+        pin: '031-45-154',
+        matter,
+      },
+      homebridgeConfig: {
+        bridge: { username: 'CC:22:3D:E3:CE:30', name: 'Main', pin: '031-45-154' },
+        accessories: [],
+        platforms: [],
+      },
+      bridgeOptions: { cachedAccessoriesDir: '/unused', cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+    })
+
+    expect(initialize).toHaveBeenCalledOnce()
   })
 })
 
@@ -302,7 +461,10 @@ describe('childBridgeFork - Matter Handlers', () => {
     })
 
     it('publishes the bridge when hap.enabled is explicitly true', () => {
-      ;(childBridgeFork as any).bridgeConfig = { username: '0E:DC:5D:BE:D6:75', hap: { enabled: true } }
+      ;(childBridgeFork as any).bridgeConfig = {
+        username: '0E:DC:5D:BE:D6:75',
+        hap: { enabled: true },
+      }
 
       childBridgeFork.publishHapIfEnabled()
 
