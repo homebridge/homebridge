@@ -382,6 +382,17 @@ export interface PowerSourceState {
   batFunctionalWhileCharging?: boolean
   batChargingCurrent?: number | null
   activeBatChargeFaults?: number[]
+  batCapacity?: number
+  // A wired source (mains, a solar inverter, the grid side of a home battery).
+  // Any of these, and no battery attribute, gives the source the Wired feature.
+  wiredAssessedInputVoltage?: number | null
+  wiredAssessedInputFrequency?: number | null
+  wiredCurrentType?: number
+  wiredAssessedCurrent?: number | null
+  wiredNominalVoltage?: number
+  wiredMaximumCurrent?: number
+  wiredPresent?: boolean
+  activeWiredFaults?: number[]
 }
 
 /**
