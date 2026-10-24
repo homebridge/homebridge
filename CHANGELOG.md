@@ -45,6 +45,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): only enable matter for main bridge plugins when the main bridge uses it
 - fix: keep external accessory ports off the ports bridges are configured to use (#4035)
 - fix(matter): resolve register and unregister once the bridge has finished (#4033)
+- fix(matter): give a power source with no battery the wired feature, so it registers
 
 ### Homebridge Dependencies
 
