@@ -22,7 +22,7 @@ import chalk from 'chalk'
 import qrcode from 'qrcode-terminal'
 
 import { HomebridgeAPI, PluginType } from './api.js'
-import { BridgeService, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
+import { BridgeService, isHapActive, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
 import { ChildBridgeService } from './childBridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
@@ -117,6 +117,7 @@ export class Server {
 
     // object we feed to Plugins and BridgeService
     this.api = new HomebridgeAPI()
+    this.api._setHapEnabled(isHapActive(this.config.bridge.hap), isHapExternalsOnly(this.config.bridge.hap))
     this.ipcService = new IpcService()
 
     // Collect all configured Matter ports to avoid conflicts
