@@ -221,6 +221,7 @@ describe('homebridgeAPI', () => {
           matterPluginName,
           matterPlatformName,
           matterAccessories,
+          expect.any(Function),
         )
       })
 
@@ -250,6 +251,7 @@ describe('homebridgeAPI', () => {
           matterPluginName,
           matterPlatformName,
           matterAccessories,
+          expect.any(Function),
         )
       })
 
@@ -289,6 +291,7 @@ describe('homebridgeAPI', () => {
           matterPluginName,
           matterPlatformName,
           matterAccessories,
+          expect.any(Function),
         )
       })
     })
@@ -391,6 +394,7 @@ describe('homebridgeAPI', () => {
           matterPluginName,
           matterPlatformName,
           matterAccessories,
+          expect.any(Function),
         )
       })
 
@@ -423,6 +427,7 @@ describe('homebridgeAPI', () => {
           matterPluginName,
           matterPlatformName,
           matterAccessories,
+          expect.any(Function),
         )
       })
 
@@ -442,10 +447,11 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenLastCalledWith(
           InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES,
           [vacuumAccessory],
+          expect.any(Function),
         )
       })
 
-      it('should split unregister into normal and external based on device type', () => {
+      it('should split unregister into normal and external based on device type', async () => {
         emitSpy.mockClear()
 
         const mixedAccessories: MatterAccessory[] = [
@@ -480,7 +486,8 @@ describe('homebridgeAPI', () => {
 
         matter.unregisterPlatformAccessories(matterPluginName, matterPlatformName, mixedAccessories)
 
-        expect(emitSpy).toHaveBeenCalledTimes(2)
+        // The second event follows once the bridge has finished with the first
+        await vi.waitFor(() => expect(emitSpy).toHaveBeenCalledTimes(2))
 
         const calls = emitSpy.mock.calls as any[]
         const unregisterCall = calls.find(call => call[0] === InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES) as any[]
@@ -494,6 +501,72 @@ describe('homebridgeAPI', () => {
         expect(unregisterExternalCall).toBeDefined()
         expect(unregisterExternalCall[1]).toHaveLength(1)
         expect(unregisterExternalCall[1][0].displayName).toBe('Vacuum 1')
+      })
+    })
+
+    describe('waiting for the bridge (#4033)', () => {
+      const light = (): MatterAccessory => ({
+        UUID: matter.uuid.generate('test-light-wait'),
+        displayName: 'Light',
+        deviceType: matter.deviceTypes.OnOffLight,
+        serialNumber: 'SN-WAIT',
+        manufacturer: 'Test',
+        model: 'Test',
+        context: {},
+      })
+
+      /**
+       * Stand in for the bridge: report work that only finishes when the test says so
+       * @param event - the event to listen for
+       */
+      function slowBridge(event: InternalAPIEvent) {
+        let finish!: () => void
+        const done = new Promise<void>((resolve) => {
+          finish = resolve
+        })
+        const listener = (...args: unknown[]) => {
+          (args.at(-1) as (work: Promise<void>) => void)(done)
+        }
+        api.on(event as any, listener)
+        return {
+          finish,
+          stop: () => api.removeListener(event, listener),
+        }
+      }
+
+      it.each([
+        ['register', InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES],
+        ['unregister', InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES],
+      ] as const)('only resolves %s once the bridge has finished', async (method, event) => {
+        const bridge = slowBridge(event)
+        let resolved = false
+        const call = matter[`${method}PlatformAccessories`](matterPluginName, matterPlatformName, [
+          light(),
+        ]).then(() => {
+          resolved = true
+        })
+
+        // Give the call every chance to resolve early
+        await new Promise(resolve => setTimeout(resolve, 10))
+        expect(resolved).toBe(false)
+
+        bridge.finish()
+        await call
+        expect(resolved).toBe(true)
+        bridge.stop()
+      })
+
+      it('still resolves, without throwing, when the bridge work fails', async () => {
+        // The bridge logs its own failure; the plugin's call behaves as before
+        const listener = (...args: unknown[]) => {
+          (args.at(-1) as (work: Promise<void>) => void)(Promise.reject(new Error('bridge failed')))
+        }
+        api.on(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES as any, listener)
+
+        await expect(matter.unregisterPlatformAccessories(matterPluginName, matterPlatformName, [
+          light(),
+        ])).resolves.toBeUndefined()
+        api.removeListener(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, listener)
       })
     })
 
@@ -528,7 +601,7 @@ describe('homebridgeAPI', () => {
         )
       })
 
-      it('should split accessories into normal and external based on device type', () => {
+      it('should split accessories into normal and external based on device type', async () => {
         emitSpy.mockClear()
 
         const mixedAccessories: MatterAccessory[] = [
@@ -563,7 +636,8 @@ describe('homebridgeAPI', () => {
 
         matter.registerPlatformAccessories(matterPluginName, matterPlatformName, mixedAccessories)
 
-        expect(emitSpy).toHaveBeenCalledTimes(2)
+        // The second event follows once the bridge has finished with the first
+        await vi.waitFor(() => expect(emitSpy).toHaveBeenCalledTimes(2))
 
         const calls = emitSpy.mock.calls as any[]
         const registerCall = calls.find(call => call[0] === InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES) as any[]
