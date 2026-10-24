@@ -1549,7 +1549,7 @@ describe('accessoryManager', () => {
       expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
     })
 
-    it('leaves a power source with no battery attributes as a plain PowerSource', async () => {
+    it('gives a power source with no battery attributes the Wired feature', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
         deviceType: {
@@ -1562,7 +1562,8 @@ describe('accessoryManager', () => {
         } as any,
         clusters: {
           doorLock: { lockState: 1 },
-          // indistinguishable from a wired source - do not guess a battery
+          // no battery attribute, so a wired source - matter.js rejects a
+          // PowerSource with neither feature, and the accessory with it
           powerSource: { status: 0, order: 0, description: 'AC Power' },
         },
         handlers: {
@@ -1575,7 +1576,8 @@ describe('accessoryManager', () => {
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
-      expect(PowerSourceServer.with).not.toHaveBeenCalled()
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Wired')
+      expect(PowerSourceServer.with).not.toHaveBeenCalledWith('Battery', 'Rechargeable')
     })
   })
 
