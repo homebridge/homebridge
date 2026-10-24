@@ -12,7 +12,11 @@ import {
   HomebridgeCarbonMonoxideConcentrationMeasurementServer,
   HomebridgeClosureControlServer,
   HomebridgeColorControlServer,
+  HomebridgeDeviceEnergyManagementModeServer,
+  HomebridgeDeviceEnergyManagementServer,
   HomebridgeDoorLockServer,
+  HomebridgeEnergyEvseModeServer,
+  HomebridgeEnergyEvseServer,
   HomebridgeFanControlServer,
   HomebridgeIdentifyServer,
   HomebridgeKeypadInputServer,
@@ -79,6 +83,12 @@ export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
   // Water heater
   waterHeaterMode: HomebridgeWaterHeaterModeServer,
   waterHeaterManagement: HomebridgeWaterHeaterManagementServer,
+
+  // Energy management and EV chargers
+  deviceEnergyManagement: HomebridgeDeviceEnergyManagementServer,
+  deviceEnergyManagementMode: HomebridgeDeviceEnergyManagementModeServer,
+  energyEvse: HomebridgeEnergyEvseServer,
+  energyEvseMode: HomebridgeEnergyEvseModeServer,
 } as const
 
 /**
