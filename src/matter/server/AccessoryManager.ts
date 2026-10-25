@@ -34,8 +34,10 @@ import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
 import { declaredClusterFeatures } from '../clusterFeatures.js'
 import {
+  applyDeviceEnergyManagementFeatures,
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
+  applyEnergyEvseFeatures,
   applyFanAutoFeature,
   applyLevelControlLightingFloor,
   applyRoomAirConditionerAutoMode,
@@ -109,6 +111,25 @@ export interface AccessoryManagerDeps {
 }
 
 /**
+ * Device types whose composition requires every PowerSource to carry a tag
+ * (Descriptor TagList): solar power and battery storage.
+ */
+const TAGGED_POWER_SOURCE_DEVICE_TYPES = new Set<number>([
+  devices.SolarPowerDevice?.deviceType,
+  devices.BatteryStorageDevice?.deviceType,
+].filter((code): code is NonNullable<typeof code> => code !== undefined))
+
+/**
+ * Clusters whose Homebridge behavior is declared with every optional feature
+ * (so the feature-gated commands exist to override), and so must always be
+ * narrowed to the features the device type chose.
+ */
+const FEATURE_RICH_BEHAVIOR_CLUSTERS = new Set([
+  'deviceEnergyManagement',
+  'energyEvse',
+])
+
+/**
  * Clusters the general feature carry-across in
  * {@link AccessoryManager.buildCustomBehaviors} leaves alone, because they work
  * out their features for themselves further up.
@@ -139,6 +160,15 @@ function withColorRemainingTime(endpointOptions: Record<string, any>): void {
   if (endpointOptions.colorControl && endpointOptions.colorControl.remainingTime === undefined) {
     endpointOptions.colorControl = { ...endpointOptions.colorControl, remainingTime: 0 }
   }
+}
+
+/**
+ * A part endpoint built but not yet live, and what finishing it needs to know
+ */
+interface BuiltAccessoryPart {
+  part: MatterAccessoryPart
+  endpoint: Endpoint
+  hasElectrical: boolean
 }
 
 export class AccessoryManager {
@@ -308,9 +338,39 @@ export class AccessoryManager {
             wiredCurrentType: 0, // AC (PowerSource.WiredCurrentType.Ac)
           }
         }
+
+        // Solar power and battery storage require every PowerSource in their
+        // composition to carry a tag, and the parent has one too - the one above,
+        // or the plugin's own
+        if (TAGGED_POWER_SOURCE_DEVICE_TYPES.has(Number(deviceType.deviceType))) {
+          deviceType = (deviceType as any).with(DescriptorServer.with('TagList'))
+          endpointOptions.descriptor = {
+            ...endpointOptions.descriptor,
+            tagList: [
+              {
+                mfgCode: null,
+                namespaceId: 7,
+                tag: 0,
+                label: (endpointOptions.powerSource?.description ?? accessory.clusters?.powerSource?.description ?? 'Power').slice(0, 64),
+              },
+            ],
+          }
+        }
       }
 
-      const endpoint = new Endpoint(deviceType, endpointOptions)
+      // The parts are built first and handed to the parent, so matter.js
+      // constructs the composed device in one go. A device type that requires
+      // certain parts - solar power, battery storage - is checked when it is
+      // constructed, and added one at a time afterwards they were not there yet.
+      const builtParts = await this.buildAccessoryParts(accessory, deps)
+      const endpoint = new Endpoint(deviceType, {
+        ...endpointOptions,
+        ...(builtParts.length > 0
+          ? {
+              parts: builtParts.map(built => built.endpoint),
+            }
+          : {}),
+      })
 
       setRegistryManager(endpoint, deps.registryManager)
 
@@ -348,7 +408,7 @@ export class AccessoryManager {
       }
 
       this.registerAccessoryHandlers(accessory, deps)
-      const internalParts = await this.createAccessoryParts(accessory, endpoint, deps)
+      const internalParts = await this.finishAccessoryParts(accessory, builtParts, deps)
 
       await this.finalizeAccessoryRegistration(accessory, endpoint, internalParts, deps)
     } catch (error) {
@@ -519,6 +579,11 @@ export class AccessoryManager {
     // FanControl's Auto mode is feature-gated too. Turn it on for a fan that
     // declares a sequence offering Auto, keeping any features already chosen.
     deviceType = applyFanAutoFeature(deviceType, accessory)
+
+    // The energy clusters' features come from the declared state too, and their
+    // commands from Homebridge's default servers - matter.js implements none
+    deviceType = applyDeviceEnergyManagementFeatures(deviceType, accessory)
+    deviceType = applyEnergyEvseFeatures(deviceType, accessory)
 
     // Electrical measurement clusters (power/energy metering) are feature-gated
     // in matter.js and not part of any base device type. Detect them from the
@@ -721,9 +786,11 @@ export class AccessoryManager {
       // no reading yet from a sleeping device would compose a PowerSource with
       // no Battery feature at all, and then its first real reading would be
       // rejected for the life of the process. Static facts are the declaration
-      // of intent, so they count. Nothing here invents a reading: a source that
-      // declares no battery attribute whatsoever is indistinguishable from a
-      // wired one and is left alone.
+      // of intent, so they count. Nothing here invents a reading. A source that
+      // declares no battery attribute at all is a wired one (mains, a solar
+      // inverter, the grid side of a home battery) and gets the Wired feature -
+      // matter.js rejects a PowerSource with neither feature, which took the
+      // whole accessory down with it.
       const powerSource = accessory.clusters.powerSource as Record<string, unknown>
       const hasBattery = Object.keys(powerSource).some(
         key => /^(?:bat|activeBat)/.test(key) && powerSource[key] !== undefined,
@@ -760,7 +827,8 @@ export class AccessoryManager {
         powerSourceBehavior = (PowerSourceServer as any).with('Battery', 'Rechargeable')
         log.debug('Adding PowerSource server with battery and rechargeable features')
       } else {
-        log.debug('Adding base PowerSource server')
+        powerSourceBehavior = (PowerSourceServer as any).with('Wired')
+        log.debug('Adding PowerSource server with the wired feature')
       }
       customBehaviors.push(powerSourceBehavior)
     }
@@ -889,6 +957,11 @@ export class AccessoryManager {
         if (declared && declared.length > 0) {
           behaviorClass = (behaviorClass as any).with(...declared)
           log.info(`${clusterName} custom behavior will preserve features: ${declared.join(', ')}`)
+        } else if (FEATURE_RICH_BEHAVIOR_CLUSTERS.has(clusterName)) {
+          // These handler-calling behaviors carry every feature so their
+          // commands exist to override; one the device did not choose must not
+          // reach the endpoint
+          behaviorClass = (behaviorClass as any).with()
         }
       }
 
@@ -1014,22 +1087,23 @@ export class AccessoryManager {
   }
 
   /**
-   * Create and register child endpoints (parts) for an accessory
+   * Build the child endpoints (parts) for an accessory, ready to hand to the
+   * parent endpoint before it is added. {@link finishAccessoryParts} does the
+   * rest once they are live.
    *
-   * Parts are added as sub-endpoints of the parent endpoint, creating a composed
-   * device per the Matter spec. Children are plain device types with no
+   * Parts are sub-endpoints of the parent endpoint, creating a composed device
+   * per the Matter spec. Children are plain device types with no
    * BridgedDeviceBasicInformation — only the parent has that.
    * See: https://github.com/matter-js/matter.js/blob/main/docs/MIGRATION_GUIDE_08.md
    */
-  private async createAccessoryParts(
+  private async buildAccessoryParts(
     accessory: MatterAccessory,
-    parentEndpoint: Endpoint,
     deps: AccessoryManagerDeps,
-  ): Promise<InternalMatterAccessoryPart[]> {
-    const internalParts: InternalMatterAccessoryPart[] = []
+  ): Promise<BuiltAccessoryPart[]> {
+    const builtParts: BuiltAccessoryPart[] = []
 
     if (!accessory.parts || accessory.parts.length === 0) {
-      return internalParts
+      return builtParts
     }
 
     log.info(`Creating ${accessory.parts.length} child endpoint(s) for ${accessory.displayName}`)
@@ -1043,7 +1117,6 @@ export class AccessoryManager {
       // clusters, the battery PowerSource, conformance fix-ups and the
       // behaviors that route commands to handlers. See prepareDeviceType().
       const partPrepared = await this.prepareDeviceType(this.partAsAccessory(part, partEndpointId))
-      const partHasElectrical = partPrepared.hasElectrical
       let partDeviceType: EndpointType = partPrepared.deviceType
 
       // Tag each child with a semantic Number tag so controllers can stably
@@ -1071,9 +1144,28 @@ export class AccessoryManager {
       const partEndpoint = new Endpoint(partDeviceType, partEndpointOptions)
       setRegistryManager(partEndpoint, deps.registryManager)
 
-      await parentEndpoint.add(partEndpoint)
+      builtParts.push({ part, endpoint: partEndpoint, hasElectrical: partPrepared.hasElectrical })
+    }
 
-      if (partHasElectrical) {
+    return builtParts
+  }
+
+  /**
+   * Finish the parts {@link buildAccessoryParts} built, now that the parent has
+   * been added: advertise their utility device types and register their handlers.
+   */
+  private async finishAccessoryParts(
+    accessory: MatterAccessory,
+    builtParts: BuiltAccessoryPart[],
+    deps: AccessoryManagerDeps,
+  ): Promise<InternalMatterAccessoryPart[]> {
+    const internalParts: InternalMatterAccessoryPart[] = []
+
+    for (const { part, endpoint: partEndpoint, hasElectrical } of builtParts) {
+      const partEndpointId = `${accessory.UUID}-part-${part.id}`
+      await partEndpoint.construction.ready
+
+      if (hasElectrical) {
         await this.advertiseUtilityDeviceType(partEndpoint, 'ElectricalSensor', part.displayName || part.id)
       }
 

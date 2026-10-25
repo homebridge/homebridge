@@ -299,6 +299,77 @@ export interface WaterHeaterModeState {
 }
 
 /**
+ * Device Energy Management state. powerAdjustmentCapability turns on the
+ * PowerAdjustment feature and forecast the PowerForecastReporting one; compose
+ * the cluster with `.with(...)` for the others (see deviceRequirements).
+ */
+export interface DeviceEnergyManagementState {
+  esaType?: number
+  esaCanGenerate?: boolean
+  esaState?: number
+  absMinPower?: number | bigint
+  absMaxPower?: number | bigint
+  powerAdjustmentCapability?: {
+    powerAdjustCapability: Array<{ minPower: number | bigint, maxPower: number | bigint, minDuration: number, maxDuration: number }> | null
+    cause: number
+  } | null
+  forecast?: Record<string, unknown> | null
+  optOutState?: number
+}
+
+/**
+ * Energy management mode, EV charger mode: the same shape as every Matter mode cluster
+ */
+export interface EnergyModeState {
+  supportedModes?: Array<{
+    label: string
+    mode: number
+    modeTags?: Array<{ value: number }>
+  }>
+  currentMode?: number
+}
+
+/**
+ * EV charger state. stateOfCharge or batteryCapacity turns on SoCReporting,
+ * vehicleId PlugAndCharge, and any discharging attribute V2X.
+ */
+export interface EnergyEvseState {
+  state?: number | null
+  supplyState?: number
+  faultState?: number
+  chargingEnabledUntil?: number | null
+  dischargingEnabledUntil?: number | null
+  circuitCapacity?: number | bigint
+  minimumChargeCurrent?: number | bigint
+  maximumChargeCurrent?: number | bigint
+  maximumDischargeCurrent?: number | bigint
+  userMaximumChargeCurrent?: number | bigint
+  randomizationDelayWindow?: number
+  nextChargeStartTime?: number | null
+  nextChargeTargetTime?: number | null
+  nextChargeRequiredEnergy?: number | bigint | null
+  nextChargeTargetSoC?: number | null
+  approximateEvEfficiency?: number | null
+  stateOfCharge?: number | null
+  batteryCapacity?: number | bigint | null
+  vehicleId?: string | null
+  sessionId?: number | null
+  sessionDuration?: number | null
+  sessionEnergyCharged?: number | bigint | null
+  sessionEnergyDischarged?: number | bigint | null
+}
+
+/**
+ * Meter identification state, for an electrical utility meter
+ */
+export interface MeterIdentificationState {
+  meterType?: number | null
+  pointOfDelivery?: string | null
+  meterSerialNumber?: string | null
+  protocolVersion?: string | null
+}
+
+/**
  * Water Heater Management state
  */
 export interface WaterHeaterManagementState {
@@ -382,6 +453,17 @@ export interface PowerSourceState {
   batFunctionalWhileCharging?: boolean
   batChargingCurrent?: number | null
   activeBatChargeFaults?: number[]
+  batCapacity?: number
+  // A wired source (mains, a solar inverter, the grid side of a home battery).
+  // Any of these, and no battery attribute, gives the source the Wired feature.
+  wiredAssessedInputVoltage?: number | null
+  wiredAssessedInputFrequency?: number | null
+  wiredCurrentType?: number
+  wiredAssessedCurrent?: number | null
+  wiredNominalVoltage?: number
+  wiredMaximumCurrent?: number
+  wiredPresent?: boolean
+  activeWiredFaults?: number[]
 }
 
 /**

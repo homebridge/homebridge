@@ -30,6 +30,10 @@ vi.mock('@matter/main', () => {
     id: string | undefined
     close = vi.fn()
     add = vi.fn()
+    construction = {
+      ready: Promise.resolve(),
+    }
+
     // Device types advertised through the descriptor, so tests can assert WHICH
     // type was added rather than only how many times act() ran.
     advertisedDeviceTypes: string[] = []
@@ -94,6 +98,8 @@ vi.mock('../serverHelpers.js', () => ({
   detectThermostatFeatures: vi.fn(() => ['Heating']),
   applyThermostatFeatures: vi.fn((dt: any) => dt),
   applyFanAutoFeature: vi.fn((dt: any) => dt),
+  applyDeviceEnergyManagementFeatures: vi.fn((dt: any) => dt),
+  applyEnergyEvseFeatures: vi.fn((dt: any) => dt),
   applyRoomAirConditionerAutoMode: vi.fn((dt: any) => dt),
   detectElectricalMeasurementClusters: vi.fn(() => ({ hasPowerMeasurement: false, energyFeatures: [] })),
   applyElectricalMeasurementDefaults: vi.fn(),
@@ -1549,7 +1555,7 @@ describe('accessoryManager', () => {
       expect(PowerSourceServer.with).toHaveBeenCalledWith('Battery', 'Rechargeable')
     })
 
-    it('leaves a power source with no battery attributes as a plain PowerSource', async () => {
+    it('gives a power source with no battery attributes the Wired feature', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
         deviceType: {
@@ -1562,7 +1568,8 @@ describe('accessoryManager', () => {
         } as any,
         clusters: {
           doorLock: { lockState: 1 },
-          // indistinguishable from a wired source - do not guess a battery
+          // no battery attribute, so a wired source - matter.js rejects a
+          // PowerSource with neither feature, and the accessory with it
           powerSource: { status: 0, order: 0, description: 'AC Power' },
         },
         handlers: {
@@ -1575,7 +1582,8 @@ describe('accessoryManager', () => {
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
-      expect(PowerSourceServer.with).not.toHaveBeenCalled()
+      expect(PowerSourceServer.with).toHaveBeenCalledWith('Wired')
+      expect(PowerSourceServer.with).not.toHaveBeenCalledWith('Battery', 'Rechargeable')
     })
   })
 
@@ -1793,6 +1801,37 @@ describe('accessoryManager', () => {
           label: 'Part outlet-1',
         },
       ])
+    })
+
+    it('builds the parent together with its parts, rather than adding them afterwards', async () => {
+      // matter.js checks a device type's required parts when the endpoint is
+      // constructed. Added one at a time afterwards, the parts of a solar power
+      // or battery storage device were not there yet, and every restart logged
+      // the composition as broken
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({
+        deviceType: createSpyDeviceType({ deviceType: 0x0100, name: 'OnOffLight' }),
+        parts: [
+          createComposedPart('outlet-1'),
+          createComposedPart('outlet-2'),
+        ],
+      } as any)
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.options.parts).toEqual(internal._parts.map((part: any) => part.endpoint))
+      expect(internal.endpoint.add).not.toHaveBeenCalled()
+    })
+
+    it('builds a parent with no parts as before', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory({})
+
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+
+      const internal = deps.accessories.get('test-uuid-001') as any
+      expect(internal.endpoint.options).not.toHaveProperty('parts')
     })
   })
 

@@ -24,7 +24,7 @@ import qrcode from 'qrcode-terminal'
 import { HomebridgeAPI, PluginType } from './api.js'
 import { BridgeService, isHapActive, isHapConfigEnabled, isHapExternalsOnly, validateHapConfig } from './bridgeService.js'
 import { ChildBridgeService } from './childBridgeService.js'
-import { ExternalPortService } from './externalPortService.js'
+import { collectConfiguredHapPorts, ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
 import { isMatterActive, isMatterConfigEnabled, isMatterExternalsOnly, MatterConfigCollector } from './matter/config.js'
@@ -124,7 +124,7 @@ export class Server {
     // Collect all configured Matter ports to avoid conflicts
     const configuredMatterPorts = MatterConfigCollector.collectConfiguredMatterPorts(this.config)
 
-    this.externalPortService = new ExternalPortService(this.config.ports, this.config.matterPorts, configuredMatterPorts)
+    this.externalPortService = new ExternalPortService(this.config.ports, this.config.matterPorts, configuredMatterPorts, collectConfiguredHapPorts(this.config))
 
     // set status to pending
     this.setServerStatus(ServerStatus.PENDING)
