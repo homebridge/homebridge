@@ -48,6 +48,8 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): give a power source with no battery the wired feature, so it registers
 - fix(matter): build a composed accessory together with its parts
 - feat(matter): add solar, battery, ev charger, meter and tariff device types (#4034)
+- feat(accessories): warn when a plugin removes a service that hap or a controller needs (#3980)
+- feat(accessories): report cached services a plugin has not used, as a dry run (#3980)
 
 ### Homebridge Dependencies
 

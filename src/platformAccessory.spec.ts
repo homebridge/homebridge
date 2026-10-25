@@ -1,3 +1,5 @@
+import type { MockInstance } from 'vitest'
+
 import type { SerializedPlatformAccessory } from './platformAccessory.js'
 
 import {
@@ -9,6 +11,7 @@ import {
 } from '@homebridge/hap-nodejs'
 import { describe, expect, it, vi } from 'vitest'
 
+import { Logger } from './logger.js'
 import { PlatformAccessory } from './platformAccessory.js'
 
 function createAccessory(name = 'TestAccessory', category?: Categories): PlatformAccessory {
@@ -169,6 +172,280 @@ describe('platformAccessory', () => {
       expect(reconstructed.UUID).toBe(accessory.UUID)
       expect(reconstructed.category).toBe(accessory.category)
       expect(reconstructed.context).toBe(accessory.context)
+    })
+  })
+
+  describe('platformAccessory.findUnusedServices', () => {
+    // What Homebridge does at startup: save the accessory to the cache, then
+    // build it again from what was saved
+    function restore(accessory: PlatformAccessory): PlatformAccessory {
+      return PlatformAccessory.deserialize(JSON.parse(JSON.stringify(PlatformAccessory.serialize(accessory))))
+    }
+
+    function unusedUUIDs(accessory: PlatformAccessory): string[] {
+      return PlatformAccessory.findUnusedServices(accessory).map(service => service.UUID)
+    }
+
+    it('lists a cached service the plugin no longer asks for', () => {
+      const original = createAccessory()
+      original.addService(Service.Lightbulb)
+      original.addService(Service.HumiditySensor)
+
+      const restored = restore(original)
+      restored.getService(Service.Lightbulb)!.getCharacteristic('On')
+
+      expect(unusedUUIDs(restored)).toEqual([Service.HumiditySensor.UUID])
+    })
+
+    it('counts a service reached through accessory.services once the plugin calls into it', () => {
+      const original = createAccessory()
+      original.addService(Service.Switch, 'One', 'one')
+
+      const restored = restore(original)
+      // the pattern getService cannot see: finding the service in the list
+      const found = restored.services.find(service => service.subtype === 'one')!
+      found.updateCharacteristic('On', true)
+
+      expect(unusedUUIDs(restored)).toEqual([])
+    })
+
+    it('tells two services of one type apart by subtype', () => {
+      const original = createAccessory()
+      original.addService(Service.Switch, 'One', 'one')
+      original.addService(Service.Switch, 'Two', 'two')
+
+      const restored = restore(original)
+      restored.getServiceById(Service.Switch, 'one')
+
+      expect(PlatformAccessory.findUnusedServices(restored).map(service => service.subtype)).toEqual(['two'])
+    })
+
+    it('never lists the information service, used or not', () => {
+      const restored = restore(createAccessory())
+
+      expect(unusedUUIDs(restored)).toEqual([])
+    })
+
+    it('counts a service linked from a used one as used', () => {
+      const original = createAccessory()
+      const tv = original.addService(Service.Television)
+      const input = original.addService(Service.InputSource, 'HDMI 1', 'hdmi1')
+      tv.addLinkedService(input)
+
+      const restored = restore(original)
+      restored.getService(Service.Television)
+
+      expect(unusedUUIDs(restored)).toEqual([])
+    })
+
+    it('never lists the services of a controller restored from the cache but not configured yet', () => {
+      const original = createAccessory()
+      original.configureController(new RemoteController())
+      const controllerServices = original.services.length - 1
+      original.addService(Service.Switch)
+
+      const restored = restore(original)
+      restored.getService(Service.Switch)
+
+      expect(controllerServices).toBeGreaterThan(0)
+      expect(unusedUUIDs(restored)).toEqual([])
+    })
+
+    it('never lists the services of a configured controller', () => {
+      const original = createAccessory()
+      original.configureController(new RemoteController())
+      original.addService(Service.Switch)
+
+      const restored = restore(original)
+      restored.configureController(new RemoteController())
+      restored.getService(Service.Switch)
+
+      expect(unusedUUIDs(restored)).toEqual([])
+    })
+
+    it('lists nothing while the plugin has not reached the accessory at all', () => {
+      // a device not found since the restart: the plugin has not set the
+      // accessory up yet, which says nothing about which services are stale
+      const original = createAccessory()
+      original.addService(Service.Lightbulb)
+      original.addService(Service.HumiditySensor)
+
+      const restored = restore(original)
+
+      expect(unusedUUIDs(restored)).toEqual([])
+    })
+
+    it('does not count HAP reading the information service as the plugin reaching the accessory', () => {
+      const original = createAccessory()
+      original.addService(Service.HumiditySensor)
+
+      const restored = restore(original)
+      // what HAP does itself when it publishes the accessory
+      restored.services.find(service => service.UUID === Service.AccessoryInformation.UUID)!.getCharacteristic('Name')
+
+      expect(unusedUUIDs(restored)).toEqual([])
+    })
+
+    it('lists a stale service on an accessory whose plugin only looked up the information service', () => {
+      // a hub or main accessory: no services of its own beyond the information service
+      const original = createAccessory()
+      original.addService(Service.HumiditySensor)
+
+      const restored = restore(original)
+      restored.getService(Service.AccessoryInformation)!.updateCharacteristic('Manufacturer', 'Test')
+
+      expect(unusedUUIDs(restored)).toEqual([Service.HumiditySensor.UUID])
+    })
+
+    it('lists nothing for a new accessory, whose services were all added this run', () => {
+      const accessory = createAccessory()
+      accessory.addService(Service.Lightbulb)
+
+      expect(unusedUUIDs(accessory)).toEqual([])
+    })
+
+    it('does not list a service the plugin removed', () => {
+      const original = createAccessory()
+      original.addService(Service.HumiditySensor)
+
+      const restored = restore(original)
+      const old = restored.getService(Service.HumiditySensor)!
+      restored.removeService(old)
+
+      expect(unusedUUIDs(restored)).toEqual([])
+    })
+
+    it('still lists a stale service after the plugin removes a different one', () => {
+      const original = createAccessory()
+      original.addService(Service.Lightbulb)
+      original.addService(Service.Switch)
+      original.addService(Service.HumiditySensor)
+
+      const restored = restore(original)
+      restored.getService(Service.Lightbulb)
+      // HAP unlinks the removed service from every other one, which must not
+      // count as the plugin using them
+      restored.removeService(restored.getService(Service.Switch)!)
+
+      expect(unusedUUIDs(restored)).toEqual([Service.HumiditySensor.UUID])
+    })
+
+    it('stops watching a service once it has been used', () => {
+      const original = createAccessory()
+      original.addService(Service.Lightbulb)
+
+      const restored = restore(original)
+      const light = restored.services.find(service => service.UUID === Service.Lightbulb.UUID)!
+      expect(Object.hasOwn(light, 'getCharacteristic')).toBe(true)
+
+      light.getCharacteristic('On')
+
+      expect(Object.hasOwn(light, 'getCharacteristic')).toBe(false)
+      expect(light.getCharacteristic).toBe(Service.prototype.getCharacteristic)
+    })
+
+    it('leaves what is saved to the cache unchanged', () => {
+      const original = createAccessory()
+      original.addService(Service.Lightbulb)
+      original.addService(Service.HumiditySensor)
+      const restored = restore(original)
+
+      PlatformAccessory.findUnusedServices(restored)
+
+      expect(restored.services).toHaveLength(3)
+      expect(PlatformAccessory.serialize(restored)).toEqual(PlatformAccessory.serialize(restore(original)))
+    })
+  })
+
+  describe('platformAccessory.prototype.removeService warnings', () => {
+    function restart(accessory: PlatformAccessory): PlatformAccessory {
+      return PlatformAccessory.deserialize(JSON.parse(JSON.stringify(PlatformAccessory.serialize(accessory))))
+    }
+
+    function warnings(warnSpy: MockInstance): string[] {
+      return warnSpy.mock.calls.map((call: unknown[]) => String(call[0]))
+    }
+
+    it('says nothing when a plugin removes one of its own services', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+      const old = accessory.addService(Service.ContactSensor)
+
+      accessory.removeService(old)
+
+      expect(warnSpy).not.toHaveBeenCalled()
+      expect(accessory.getService(Service.ContactSensor)).toBeUndefined()
+      warnSpy.mockRestore()
+    })
+
+    it('warns, but still removes, when a plugin removes the information service', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+
+      accessory.removeService(accessory.getService(Service.AccessoryInformation)!)
+
+      expect(warnings(warnSpy)).toEqual([
+        expect.stringContaining('HAP manages this service'),
+      ])
+      expect(warnSpy.mock.calls[0][1]).toBe('TestPlugin')
+      expect(accessory.getService(Service.AccessoryInformation)).toBeUndefined()
+      warnSpy.mockRestore()
+    })
+
+    it('warns when a plugin removes a service a configured controller uses', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+      accessory.configureController(new RemoteController())
+      const controllerService = accessory.services.find(service => service.UUID !== Service.AccessoryInformation.UUID)!
+
+      accessory.removeService(controllerService)
+
+      expect(warnings(warnSpy)).toEqual([
+        expect.stringContaining('a controller on the accessory still uses it'),
+      ])
+      expect(accessory.services).not.toContain(controllerService)
+      warnSpy.mockRestore()
+    })
+
+    it('warns for a controller restored from the cache that is not configured again yet', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const original = createAccessory()
+      original.configureController(new RemoteController())
+      original.addService(Service.MotionSensor)
+      const restored = restart(original)
+      const controllerService = restored.services.find(service =>
+        service.UUID !== Service.AccessoryInformation.UUID
+        && service.UUID !== Service.MotionSensor.UUID,
+      )!
+
+      restored.removeService(controllerService)
+
+      expect(warnings(warnSpy)).toEqual([
+        expect.stringContaining('a controller on the accessory still uses it'),
+      ])
+      warnSpy.mockRestore()
+    })
+
+    it('says nothing for an ordinary service on an accessory that has a controller', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+      accessory.configureController(new RemoteController())
+      const motion = accessory.addService(Service.MotionSensor)
+
+      accessory.removeService(motion)
+
+      expect(warnSpy).not.toHaveBeenCalled()
+      warnSpy.mockRestore()
+    })
+
+    it('says nothing for a service that is not on the accessory', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const accessory = createAccessory()
+
+      accessory.removeService(new Service.AccessoryInformation())
+
+      expect(warnSpy).not.toHaveBeenCalled()
+      warnSpy.mockRestore()
     })
   })
 })
