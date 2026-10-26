@@ -50,7 +50,7 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.2.4-beta.4",
+    "@homebridge/hap-nodejs": "2.2.4-beta.5",
     "@matter/main": "0.18.0",
     "chalk": "6.0.1",
     "commander": "15.0.0",
