@@ -333,6 +333,18 @@ describe('server', () => {
       expect(server).toBeInstanceOf(Server)
     })
 
+    it('accepts a config.json that starts with a UTF-8 byte order mark', async () => {
+      await fs.writeFile(configPath, `\uFEFF${JSON.stringify(mockConfig, null, 2)}`)
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect(server).toBeInstanceOf(Server)
+      expect((server as any).config.bridge.name).toBe('Homebridge')
+    })
+
     it('accepts a lowercase main bridge MAC and normalises it to uppercase', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,

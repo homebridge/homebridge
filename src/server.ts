@@ -380,7 +380,8 @@ export class Server {
 
     let config: Partial<HomebridgeConfig>
     try {
-      config = JSON.parse(readFileSync(configPath, { encoding: 'utf8' }))
+      // strip a UTF-8 byte order mark, which some Windows editors add and JSON.parse rejects
+      config = JSON.parse(readFileSync(configPath, { encoding: 'utf8' }).replace(/^\uFEFF/, ''))
     } catch (error: any) {
       log.error('There was a problem reading your config.json file.')
       log.error('Please try pasting your config.json file here to validate it: https://jsonlint.com')
