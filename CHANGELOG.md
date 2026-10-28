@@ -48,6 +48,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): give a power source with no battery the wired feature, so it registers
 - fix(matter): build a composed accessory together with its parts
 - feat(matter): add solar, battery, ev charger, meter and tariff device types (#4034)
+- fix: accept a config.json that starts with a UTF-8 BOM (#4039) (@b84330808)
 
 ### Homebridge Dependencies
 
