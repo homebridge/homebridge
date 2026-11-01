@@ -8,6 +8,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 - ci: refresh upstream Homebridge dependencies daily and on demand for alpha
 - docs: bring the readme's install list in line with the wiki
+- docs(matter): fix the concentration unit values in the example (4 = µg/m³, 0 = ppm)
 
 ### Homebridge Dependencies
 
