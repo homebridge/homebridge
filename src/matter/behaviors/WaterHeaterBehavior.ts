@@ -6,10 +6,10 @@
  * heating-only thermostat.
  */
 
-import type { ModeBase } from '@matter/main/clusters'
-
+import { ModeUtils } from '@matter/main/behaviors/mode-base'
 import { WaterHeaterManagementServer } from '@matter/main/behaviors/water-heater-management'
 import { WaterHeaterModeServer } from '@matter/main/behaviors/water-heater-mode'
+import { ModeBase } from '@matter/main/clusters'
 import { WaterHeaterManagement } from '@matter/main/clusters/water-heater-management'
 import { Status, StatusResponseError } from '@matter/main/types'
 
@@ -34,9 +34,10 @@ function asStatusError(error: unknown, action: string): unknown {
 /**
  * Custom WaterHeaterMode Server that calls plugin handlers.
  *
- * matter.js's base server already validates the mode and records it, so this
- * only has to tell the plugin first - otherwise a mode picked in a controller
- * changed the cluster and never reached the heater.
+ * This tells the plugin first - otherwise a mode picked in a controller changed
+ * the cluster and never reached the heater. matter.js's base server validates
+ * the mode and records it, but only after the plugin has been told, so the mode
+ * is checked here first and the plugin only hears about a mode the device lists.
  */
 export class HomebridgeWaterHeaterModeServer extends WaterHeaterModeServer {
   private getRegistry() {
@@ -46,6 +47,12 @@ export class HomebridgeWaterHeaterModeServer extends WaterHeaterModeServer {
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
+
+    // matter.js only checks the mode in super.changeToMode, after the handler has run
+    const modeCheck = ModeUtils.assertModeChange(this.state.supportedModes, this.state.currentMode, request.newMode)
+    if (modeCheck.status !== ModeBase.ModeChangeStatus.Success) {
+      return modeCheck
+    }
 
     try {
       await registry.executeHandler(endpointId, 'waterHeaterMode', 'changeToMode', request)

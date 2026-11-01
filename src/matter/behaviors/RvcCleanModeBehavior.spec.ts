@@ -76,6 +76,16 @@ describe('homebridgeRvcCleanModeServer', () => {
       configurable: true,
     })
 
+    // Modes 0-3 are supported, the device starts in mode 0
+    const state = {
+      currentMode: 0,
+      supportedModes: [0, 1, 2, 3].map(mode => ({ label: `Mode ${mode}`, mode, modeTags: [] })),
+    }
+    Object.defineProperty(behavior, 'state', {
+      get: () => state,
+      configurable: true,
+    })
+
     // Mock super method
     vi.spyOn(Object.getPrototypeOf(HomebridgeRvcCleanModeServer.prototype), 'changeToMode').mockReturnValue(undefined)
   })
@@ -118,6 +128,14 @@ describe('homebridgeRvcCleanModeServer', () => {
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
       await expect(behavior.changeToMode(request)).rejects.toThrow('Failed to change clean mode: Handler failed')
+    })
+
+    it('should refuse a mode the device does not list, without calling the handler', async () => {
+      const result = await behavior.changeToMode({ newMode: 7 })
+
+      expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
+      expect(mockRegistry.executeHandler).not.toHaveBeenCalled()
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
     describe('without DirectModeChange', () => {

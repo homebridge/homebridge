@@ -4,9 +4,9 @@
  * Handles robotic vacuum cleaner run mode changes
  */
 
-import type { ModeBase } from '@matter/main/clusters'
-
+import { ModeUtils } from '@matter/main/behaviors/mode-base'
 import { RvcRunModeServer } from '@matter/main/behaviors/rvc-run-mode'
+import { ModeBase } from '@matter/main/clusters'
 import { Status, StatusResponseError } from '@matter/main/types'
 
 import { MatterStatus } from '../errors.js'
@@ -33,6 +33,12 @@ export class HomebridgeRvcRunModeServer extends RvcRunModeServer {
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
+
+    // matter.js only checks the mode in super.changeToMode, after the handler has run
+    const modeCheck = ModeUtils.assertModeChange(this.state.supportedModes, this.state.currentMode, request.newMode)
+    if (modeCheck.status !== ModeBase.ModeChangeStatus.Success) {
+      return modeCheck
+    }
 
     try {
       // Execute user handler

@@ -6,12 +6,12 @@
  * targets a controller sets. EnergyEvseMode picks how it decides when to charge.
  */
 
-import type { ModeBase } from '@matter/main/clusters'
-
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { EnergyEvseServer } from '@matter/main/behaviors/energy-evse'
 import { EnergyEvseModeServer } from '@matter/main/behaviors/energy-evse-mode'
+import { ModeUtils } from '@matter/main/behaviors/mode-base'
+import { ModeBase } from '@matter/main/clusters'
 import { EnergyEvse } from '@matter/main/clusters/energy-evse'
 import { Status, StatusResponseError } from '@matter/main/types'
 
@@ -181,8 +181,9 @@ export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
 /**
  * Custom EnergyEvseMode Server that calls plugin handlers.
  *
- * matter.js's base server already validates the mode and records it, so this
- * only has to tell the plugin first.
+ * matter.js's base server validates the mode and records it, but only after
+ * the plugin has been told - so the mode is checked here first, and the plugin
+ * only hears about a mode the device lists.
  */
 export class HomebridgeEnergyEvseModeServer extends EnergyEvseModeServer {
   private getRegistry() {
@@ -192,6 +193,12 @@ export class HomebridgeEnergyEvseModeServer extends EnergyEvseModeServer {
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
+
+    // matter.js only checks the mode in super.changeToMode, after the handler has run
+    const modeCheck = ModeUtils.assertModeChange(this.state.supportedModes, this.state.currentMode, request.newMode)
+    if (modeCheck.status !== ModeBase.ModeChangeStatus.Success) {
+      return modeCheck
+    }
 
     try {
       await registry.executeHandler(endpointId, 'energyEvseMode', 'changeToMode', request)
