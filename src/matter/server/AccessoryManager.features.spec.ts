@@ -271,6 +271,46 @@ describe('an air quality sensor', () => {
 })
 
 /**
+ * A pump's pressure and flow are optional clusters, so nothing composed them.
+ * Pressure's scaled attributes need its Extended feature - a plain server
+ * would refuse them and take the pump down with it.
+ */
+describe('a pump\'s optional readings', () => {
+  const pumpClusters = {
+    onOff: { onOff: true },
+    pumpConfigurationAndControl: { operationMode: 0, effectiveOperationMode: 0, effectiveControlMode: 0 },
+  }
+
+  it('gets plain pressure and flow from a declared reading', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.Pump,
+      clusters: {
+        ...pumpClusters,
+        pressureMeasurement: { measuredValue: 120 },
+        flowMeasurement: { measuredValue: 300 },
+      },
+    })
+
+    const behaviors = (deviceType as { behaviors: Record<string, unknown> }).behaviors
+    expect(behaviors.flowMeasurement).toBeDefined()
+    expect(behaviors.pressureMeasurement).toBeDefined()
+    expect(enabledFeatures(deviceType, 'pressureMeasurement')).toEqual([])
+  })
+
+  it('gets Extended pressure from a declared scaled reading', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.Pump,
+      clusters: {
+        ...pumpClusters,
+        pressureMeasurement: { measuredValue: 120, scaledValue: 1205, scale: -1 },
+      },
+    })
+
+    expect(enabledFeatures(deviceType, 'pressureMeasurement')).toEqual(['extended'])
+  })
+})
+
+/**
  * A PowerSource needs Wired or Battery, and matter.js rejected one with
  * neither - taking the whole accessory down. A source that declares no
  * battery attribute is a wired one.

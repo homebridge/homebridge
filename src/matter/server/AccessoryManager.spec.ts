@@ -101,6 +101,7 @@ vi.mock('../serverHelpers.js', () => ({
   applyDeviceEnergyManagementFeatures: vi.fn((dt: any) => dt),
   applyEnergyEvseFeatures: vi.fn((dt: any) => dt),
   applyRoomAirConditionerAutoMode: vi.fn((dt: any) => dt),
+  applyOptionalMeasurementClusters: vi.fn((dt: any) => dt),
   detectElectricalMeasurementClusters: vi.fn(() => ({ hasPowerMeasurement: false, energyFeatures: [] })),
   applyElectricalMeasurementDefaults: vi.fn(),
   applyLevelControlLightingFloor: vi.fn(),

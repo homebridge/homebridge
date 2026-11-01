@@ -1,6 +1,7 @@
 import type { ClusterStateMap } from './clusterStateMap.js'
 import type { MatterClusterName } from './types.js'
 
+import * as matterDevices from '@matter/main/devices'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { clusterNames } from './types.js'
@@ -24,6 +25,22 @@ describe('clusterNames', () => {
     // the speaker's two clusters are shared with lights and outlets
     expect(values).toContain('levelControl')
     expect(values).toContain('onOff')
+  })
+
+  it('includes every optional measurement cluster homebridge composes from declared state', () => {
+    // applyOptionalMeasurementClusters adds these to any device type that
+    // lists them, so a plugin can update them - and each one missing here
+    // warned on every reading
+    const values = Object.values(clusterNames)
+    const optionalMeasurements = Object.entries(matterDevices)
+      .filter(([name]) => name.endsWith('Requirements'))
+      .flatMap(([, requirements]) => Object.values((requirements as any).server?.optional ?? {}))
+      .map(server => (server as { id: string }).id)
+      .filter(id => id.endsWith('Measurement'))
+    expect(optionalMeasurements).toContain('pm25ConcentrationMeasurement')
+    for (const id of new Set(optionalMeasurements)) {
+      expect(values).toContain(id)
+    }
   })
 
   it('lists every cluster routable via ClusterStateMap (compile-time drift guard)', () => {

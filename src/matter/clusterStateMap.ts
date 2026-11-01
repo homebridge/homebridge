@@ -35,6 +35,30 @@ import type {
 } from './clusterTypes.js'
 
 /**
+ * The shape every concentration measurement cluster shares.
+ *
+ * Homebridge turns on the cluster's features from the attributes declared at
+ * registration: a reading or unit brings NumericMeasurement, and levelValue
+ * brings LevelIndication. A numeric reading also needs measurementUnit.
+ */
+interface ConcentrationMeasurementState {
+  measuredValue: number | null
+  minMeasuredValue?: number | null
+  maxMeasuredValue?: number | null
+  peakMeasuredValue?: number | null
+  peakMeasuredValueWindow?: number
+  averageMeasuredValue?: number | null
+  averageMeasuredValueWindow?: number
+  uncertainty?: number
+  /** 0 = ppm, 1 = ppb, 2 = ppt, 3 = mg/m³, 4 = µg/m³, 5 = ng/m³, 6 = particles/m³, 7 = Bq/m³ */
+  measurementUnit?: number
+  /** 0 = air (assumed when left out), 1 = water, 2 = soil */
+  measurementMedium: number
+  /** 0 = unknown, 1 = low, 2 = medium, 3 = high, 4 = critical */
+  levelValue?: number
+}
+
+/**
  * Maps known cluster names to their typed state interfaces.
  *
  * Plugin developers get autocomplete for known clusters while unknown clusters
@@ -73,6 +97,9 @@ export interface ClusterStateMap {
   temperatureMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null }
   relativeHumidityMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null }
   illuminanceMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null }
+  flowMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, tolerance?: number }
+  /** The scaled attributes turn on the Extended feature, for a resolution finer than 1 kPa */
+  pressureMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, tolerance?: number, scaledValue?: number | null, minScaledValue?: number | null, maxScaledValue?: number | null, scaledTolerance?: number, scale?: number }
   occupancySensing: { occupancy: { occupied: boolean }, occupancySensorType?: number, occupancySensorTypeBitmap?: { pir?: boolean, ultrasonic?: boolean, physicalContact?: boolean } }
   booleanState: { stateValue: boolean }
 
@@ -85,11 +112,16 @@ export interface ClusterStateMap {
 
   // Air quality clusters
   airQuality: { airQuality: number }
-  carbonMonoxideConcentrationMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, measurementMedium: number, measurementUnit?: number }
-  nitrogenDioxideConcentrationMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, measurementMedium: number, measurementUnit?: number }
-  ozoneConcentrationMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, measurementMedium: number, measurementUnit?: number }
-  pm10ConcentrationMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, measurementMedium: number, measurementUnit?: number }
-  pm25ConcentrationMeasurement: { measuredValue: number | null, minMeasuredValue?: number | null, maxMeasuredValue?: number | null, measurementMedium: number, measurementUnit?: number }
+  carbonDioxideConcentrationMeasurement: ConcentrationMeasurementState
+  carbonMonoxideConcentrationMeasurement: ConcentrationMeasurementState
+  formaldehydeConcentrationMeasurement: ConcentrationMeasurementState
+  nitrogenDioxideConcentrationMeasurement: ConcentrationMeasurementState
+  ozoneConcentrationMeasurement: ConcentrationMeasurementState
+  pm1ConcentrationMeasurement: ConcentrationMeasurementState
+  pm10ConcentrationMeasurement: ConcentrationMeasurementState
+  pm25ConcentrationMeasurement: ConcentrationMeasurementState
+  radonConcentrationMeasurement: ConcentrationMeasurementState
+  totalVolatileOrganicCompoundsConcentrationMeasurement: ConcentrationMeasurementState
 
   // Switch (GenericSwitch - stateless remotes and buttons)
   switch: { currentPosition: number, numberOfPositions?: number }

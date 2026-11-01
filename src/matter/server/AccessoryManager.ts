@@ -40,6 +40,7 @@ import {
   applyEnergyEvseFeatures,
   applyFanAutoFeature,
   applyLevelControlLightingFloor,
+  applyOptionalMeasurementClusters,
   applyRoomAirConditionerAutoMode,
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
@@ -601,6 +602,11 @@ export class AccessoryManager {
         + 'the endpoint will expose no measurement clusters.',
       )
     }
+
+    // A device type carries only its mandatory clusters, so the optional
+    // readings a plugin declares - an air quality sensor's PM2.5, a
+    // thermostat's humidity - need composing too, see applyOptionalMeasurementClusters
+    deviceType = applyOptionalMeasurementClusters(deviceType, accessory)
 
     const features = this.detectClusterFeatures(accessory, deviceType)
 

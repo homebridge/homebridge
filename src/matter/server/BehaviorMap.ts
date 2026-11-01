@@ -95,10 +95,11 @@ export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
  * Full cluster behavior map including sensor/measurement behaviors.
  *
  * ⚠️ Nothing consumes this. Every entry below is a no-op subclass that only calls
- * `super.initialize()`, so attaching them would change no behaviour - the base
- * matter.js servers the device type already carries do the work. Kept for now
- * because the classes are exported API; see STATE_ONLY_CLUSTERS above for how the
- * behavior builder handles these clusters instead.
+ * `super.initialize()`, and on their own they carry no features, which matter.js
+ * refuses for a concentration cluster. Kept for now because the classes are
+ * exported API. The air quality sensor carries only its AirQuality cluster; the
+ * concentration readings are optional, and applyOptionalMeasurementClusters in
+ * serverHelpers.ts composes them from the declared state.
  */
 export const FULL_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
   ...CORE_CLUSTER_BEHAVIOR_MAP,
