@@ -48,7 +48,7 @@ HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7f
 
 ### Raspberry Pi
 
-[Official Homebridge Raspberry Pi Image](https://github.com/homebridge/homebridge-raspbian-image/wiki/Getting-Started) <br> [Install Homebridge on Raspbian](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Raspbian)
+[Official Homebridge Raspberry Pi Image](https://github.com/homebridge/homebridge-raspbian-image/wiki/Getting-Started) <br> [Install Homebridge on Raspberry Pi OS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Raspbian)
 
 ---
 
@@ -57,7 +57,23 @@ HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7f
 ### Linux
 
 [Debian or Ubuntu Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Debian-or-Ubuntu-Linux) |
-[Red Hat, CentOS or Fedora Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Red-Hat%2C-CentOS-or-Fedora-Linux) | [Arch / Manjaro Linux|Install Homebridge on Arch Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Arch-Linux) <br>
+[Red Hat, CentOS or Fedora Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Red-Hat%2C-CentOS-or-Fedora-Linux) | [Arch / Manjaro Linux](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Arch-Linux) <br>
+
+---
+
+<img align="left" src="https://user-images.githubusercontent.com/3979615/59594527-56fa8c00-9137-11e9-937b-32092dfcff41.png" alt="docker" height="75" width="75"/>
+
+### Docker
+
+[Install Homebridge on Docker](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker) <br> [Synology](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Synology) | [Unraid](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Unraid) | [QNAP](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-QNAP) | [TrueNAS Scale](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-TrueNAS-Scale-24.10-or-later)
+
+---
+
+<img align="left" src="https://github.com/user-attachments/assets/c305ca8b-146c-4d43-98b6-ebabb23be290" alt="VM" height="75" width="75"/>
+
+### Virtual Machine - Windows and macOS
+
+[Install Homebridge on Virtual Machine](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Virtual-Machine) (recommended) <br> [Install Homebridge on Windows](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10)
 
 ---
 
@@ -66,22 +82,6 @@ HomeKit communities can also be found on both [Discord](https://discord.gg/RcV7f
 ### macOS
 
 [Install Homebridge on macOS](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-macOS)
-
----
-
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59593218-e0f52580-9134-11e9-8b77-585755af5d99.png" alt="windows" height="75" width="75"/>
-
-### Windows 10 / 11
-
-[Install Homebridge on Windows 10 / 11 Using Hyper V](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Windows-10-Using-Hyper-V)
-
----
-
-<img align="left" src="https://user-images.githubusercontent.com/3979615/59594527-56fa8c00-9137-11e9-937b-32092dfcff41.png" alt="docker" height="75" width="75"/>
-
-### Docker
-
-[Install Homebridge on Docker](https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker) <br> [Synology](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Synology) | [Unraid](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-Unraid) | [QNAP](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-QNAP) | [TrueNAS Scale](https://github.com/homebridge/docker-homebridge/wiki/Homebridge-on-TrueNAS-Scale)
 
 ---
 
