@@ -2,7 +2,7 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v2.4.1 (Pending Release)
+## v2.5.0 (2026-11-01)
 
 ### Changes
 
