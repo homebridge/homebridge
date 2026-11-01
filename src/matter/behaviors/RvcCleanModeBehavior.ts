@@ -4,9 +4,9 @@
  * Handles robotic vacuum cleaner cleaning mode changes
  */
 
-import type { ModeBase } from '@matter/main/clusters'
-
 import { RvcCleanModeServer } from '@matter/main/behaviors/rvc-clean-mode'
+import { RvcRunModeBehavior } from '@matter/main/behaviors/rvc-run-mode'
+import { ModeBase, RvcRunMode } from '@matter/main/clusters'
 import { Status, StatusResponseError } from '@matter/main/types'
 
 import { MatterStatus } from '../errors.js'
@@ -24,6 +24,20 @@ export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
   }
 
   /**
+   * Whether the RvcRunMode cluster's current mode carries the Idle tag.
+   * An endpoint without a run mode cluster counts as idle - there is nothing to check against.
+   */
+  private isRunModeIdle(): boolean {
+    const runMode = this.agent.maybeGet(RvcRunModeBehavior)
+    if (!runMode) {
+      return true
+    }
+    const { currentMode, supportedModes } = runMode.state
+    const current = supportedModes.find(({ mode }) => mode === currentMode)
+    return current?.modeTags.some(({ value }) => value === RvcRunMode.ModeTag.Idle) ?? false
+  }
+
+  /**
    * Handle change to mode command
    * Changes the vacuum's cleaning mode (e.g., quick clean, deep clean, spot clean)
    *
@@ -33,6 +47,14 @@ export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
+
+    // Without DirectModeChange the spec only allows clean-mode changes while the run mode is idle
+    if (!(this.features as { directModeChange?: boolean }).directModeChange && !this.isRunModeIdle()) {
+      return {
+        status: ModeBase.ModeChangeStatus.InvalidInMode,
+        statusText: 'Cannot change clean mode while the device is not idle',
+      }
+    }
 
     try {
       // Execute user handler
