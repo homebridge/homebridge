@@ -26,30 +26,35 @@
  *       minMeasuredValue: 0,
  *       maxMeasuredValue: 1000,
  *       measurementUnit: 4,   // 4 = µg/m³
+ *       measurementMedium: 0, // 0 = air
  *     },
  *     pm10ConcentrationMeasurement: {
  *       measuredValue: 25.0,  // PM10 concentration in µg/m³
  *       minMeasuredValue: 0,
  *       maxMeasuredValue: 1000,
  *       measurementUnit: 4,
+ *       measurementMedium: 0, // 0 = air
  *     },
  *     ozoneConcentrationMeasurement: {
  *       measuredValue: 0.05,  // Ozone concentration in ppm
  *       minMeasuredValue: 0,
  *       maxMeasuredValue: 1,
  *       measurementUnit: 0,   // 0 = ppm
+ *       measurementMedium: 0, // 0 = air
  *     },
  *     nitrogenDioxideConcentrationMeasurement: {
  *       measuredValue: 0.02,  // NO2 concentration in ppm
  *       minMeasuredValue: 0,
  *       maxMeasuredValue: 1,
  *       measurementUnit: 0,
+ *       measurementMedium: 0, // 0 = air
  *     },
  *     carbonMonoxideConcentrationMeasurement: {
  *       measuredValue: 3.0,   // CO concentration in ppm
  *       minMeasuredValue: 0,
  *       maxMeasuredValue: 100,
  *       measurementUnit: 0,
+ *       measurementMedium: 0, // 0 = air
  *     }
  *   }
  * }

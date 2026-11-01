@@ -1080,3 +1080,130 @@ export function applyElectricalMeasurementClusters(
 
   return (deviceType as any).with(...behaviors)
 }
+
+/**
+ * Measurement clusters with no features to choose, or only pressure's
+ * Extended, which the scaled attributes need. matter.js builds the rest as-is,
+ * so declaring their state is all it takes to turn them on.
+ */
+const PLAIN_MEASUREMENT_CLUSTERS = new Set([
+  'flowMeasurement',
+  'pressureMeasurement',
+  'relativeHumidityMeasurement',
+  'temperatureMeasurement',
+])
+
+/**
+ * Work out a concentration cluster's features from the attributes it declares.
+ *
+ * Matter requires at least one of NumericMeasurement and LevelIndication, and
+ * matter.js refuses the cluster without one. Returns `null` when the declared
+ * state asks for neither, so the caller can leave the cluster out.
+ *
+ * LevelIndication always brings MediumLevel and CriticalLevel with it, as the
+ * AirQuality cluster's extra levels do: without them matter.js refuses a
+ * levelValue of Medium or Critical, and a sensor only reports one level at a
+ * time, so offering all of them costs nothing.
+ */
+export function detectConcentrationMeasurementFeatures(state: Record<string, unknown>): string[] | null {
+  const declared = (...keys: string[]) => keys.some(key => state[key] !== undefined)
+  const features: string[] = []
+
+  if (declared('measuredValue', 'minMeasuredValue', 'maxMeasuredValue', 'measurementUnit', 'peakMeasuredValue', 'peakMeasuredValueWindow', 'averageMeasuredValue', 'averageMeasuredValueWindow', 'uncertainty')) {
+    features.push('NumericMeasurement')
+    if (declared('peakMeasuredValue', 'peakMeasuredValueWindow')) {
+      features.push('PeakMeasurement')
+    }
+    if (declared('averageMeasuredValue', 'averageMeasuredValueWindow')) {
+      features.push('AverageMeasurement')
+    }
+  }
+  if (declared('levelValue')) {
+    features.push('LevelIndication', 'MediumLevel', 'CriticalLevel')
+  }
+
+  return features.length > 0
+    ? features
+    : null
+}
+
+/**
+ * Add the optional measurement clusters an accessory declares state for.
+ *
+ * A device type only carries its mandatory clusters. The optional ones - the
+ * PM2.5, CO and other readings on an air quality sensor, the humidity on a
+ * thermostat, the flow and pressure on a pump - have to be composed, and
+ * nothing did. matter.js quietly ignores endpoint state for a cluster the
+ * endpoint does not have, so the readings were dropped without a word.
+ *
+ * Only clusters the device type lists as optional are added, so an accessory
+ * cannot gain a cluster its device type does not allow. A concentration
+ * cluster whose declared state would fail registration is left out with a
+ * warning instead: before this it was dropped anyway, and refusing it here
+ * keeps the rest of the accessory working.
+ */
+export function applyOptionalMeasurementClusters(deviceType: EndpointType, accessory: MatterAccessory): EndpointType {
+  const declaredClusters = accessory.clusters as Record<string, Record<string, unknown> | undefined> | undefined
+  if (!declaredClusters) {
+    return deviceType
+  }
+
+  const existing = (deviceType as { behaviors?: Record<string, unknown> }).behaviors ?? {}
+  const optional = (deviceType as { requirements?: { server?: { optional?: Record<string, BehaviorType> } } }).requirements?.server?.optional ?? {}
+  const behaviors: BehaviorType[] = []
+  const added: string[] = []
+
+  for (const server of Object.values(optional)) {
+    const clusterName = server.id
+    const state = declaredClusters[clusterName]
+    if (!state || existing[clusterName]) {
+      continue
+    }
+
+    if (PLAIN_MEASUREMENT_CLUSTERS.has(clusterName)) {
+      const extended = clusterName === 'pressureMeasurement'
+        && [
+          'scaledValue',
+          'minScaledValue',
+          'maxScaledValue',
+          'scaledTolerance',
+          'scale',
+        ].some(key => state[key] !== undefined)
+      behaviors.push(extended
+        ? (server as any).with('Extended')
+        : server)
+      added.push(extended
+        ? `${clusterName} (Extended)`
+        : clusterName)
+      continue
+    }
+
+    if (!clusterName.endsWith('ConcentrationMeasurement')) {
+      continue
+    }
+
+    const features = detectConcentrationMeasurementFeatures(state)
+    if (!features) {
+      log.warn(`${accessory.displayName}: ${clusterName} declares neither a measuredValue nor a levelValue, so it has been left out`)
+      continue
+    }
+    if (features.includes('NumericMeasurement') && state.measurementUnit === undefined) {
+      log.warn(`${accessory.displayName}: ${clusterName} declares a reading but no measurementUnit (0 = ppm, 4 = µg/m³ and so on), so it has been left out`)
+      continue
+    }
+    // MeasurementMedium is mandatory, and the example in the docs never set it.
+    // These are air quality readings, so the medium is air
+    if (state.measurementMedium === undefined) {
+      state.measurementMedium = 0 // ConcentrationMeasurement.MeasurementMedium.Air
+    }
+    behaviors.push((server as any).with(...features))
+    added.push(`${clusterName} (${features.join(', ')})`)
+  }
+
+  if (behaviors.length === 0) {
+    return deviceType
+  }
+
+  log.info(`Added the optional measurement clusters ${accessory.displayName} declares: ${added.join(', ')}`)
+  return (deviceType as any).with(...behaviors)
+}
