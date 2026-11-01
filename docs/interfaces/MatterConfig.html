@@ -14,7 +14,7 @@
 <div class="tsd-comment tsd-typography"><p>Matter Configuration (for bridge or child bridge)</p>
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">MatterConfig</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#disableipv4">disableIpv4</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#enabled">enabled</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#externalsonly">externalsOnly</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#name">name</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#port">port</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-signature-symbol">[</span><span class="tsd-kind-index-signature">key</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]:</span> <span class="tsd-signature-type">unknown</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div>
-<section class="tsd-panel tsd-hierarchy" data-refl="1159">
+<section class="tsd-panel tsd-hierarchy" data-refl="1359">
 <h4>Hierarchy</h4>
 <ul class="tsd-hierarchy">
 <li class="tsd-hierarchy-item"><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">unknown</span><span class="tsd-signature-symbol">&gt;</span>
@@ -26,7 +26,7 @@
 <li class="tsd-index-signature">
 <div class="tsd-signature"><span class="tsd-signature-symbol">[</span><span class="tsd-kind-parameter">key</span>: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]:</span> <span class="tsd-signature-type">unknown</span></div></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/4f632d45b230c76f21800481e4bd09d22b06a86c/src/matter/types.ts#L335">src/matter/types.ts:335</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/cce10f8f9c734e7fccc004d864d9037aec805b92/src/matter/types.ts#L377">src/matter/types.ts:377</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -54,7 +54,7 @@ resolving over IPv4 while direct IP access still works). Missing or
 <code>false</code> keeps matter.js's default dual-stack behaviour.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/4f632d45b230c76f21800481e4bd09d22b06a86c/src/matter/types.ts#L373">src/matter/types.ts:373</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/cce10f8f9c734e7fccc004d864d9037aec805b92/src/matter/types.ts#L415">src/matter/types.ts:415</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="enabled"><code class="tsd-tag">Optional</code><span>enabled</span><a href="#enabled" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">enabled</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span></div>
@@ -64,7 +64,7 @@ re-enabled without re-commissioning. Missing/<code>true</code> means enabled. Th
 mirrors how <code>bridge.hap.enabled: false</code> disables HAP without losing pairing data.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/4f632d45b230c76f21800481e4bd09d22b06a86c/src/matter/types.ts#L348">src/matter/types.ts:348</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/cce10f8f9c734e7fccc004d864d9037aec805b92/src/matter/types.ts#L390">src/matter/types.ts:390</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="externalsonly"><code class="tsd-tag">Optional</code><span>externals<wbr/>Only</span><a href="#externalsonly" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">externalsOnly</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span></div>
@@ -79,21 +79,21 @@ rather than rejecting the config. Mirrors the behaviour of
 <code>bridge.hap.externalsOnly</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/4f632d45b230c76f21800481e4bd09d22b06a86c/src/matter/types.ts#L362">src/matter/types.ts:362</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/cce10f8f9c734e7fccc004d864d9037aec805b92/src/matter/types.ts#L404">src/matter/types.ts:404</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="name"><code class="tsd-tag">Optional</code><span>name</span><a href="#name" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">name</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Name for the Matter bridge (optional)</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/4f632d45b230c76f21800481e4bd09d22b06a86c/src/matter/types.ts#L340">src/matter/types.ts:340</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/cce10f8f9c734e7fccc004d864d9037aec805b92/src/matter/types.ts#L382">src/matter/types.ts:382</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="port"><code class="tsd-tag">Optional</code><span>port</span><a href="#port" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">port</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span></div>
 <div class="tsd-comment tsd-typography"><p>Port for Matter server (optional, will auto-assign if not specified)</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/4f632d45b230c76f21800481e4bd09d22b06a86c/src/matter/types.ts#L337">src/matter/types.ts:337</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/homebridge/homebridge/blob/cce10f8f9c734e7fccc004d864d9037aec805b92/src/matter/types.ts#L379">src/matter/types.ts:379</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

@@ -49,6 +49,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): build a composed accessory together with its parts
 - feat(matter): add solar, battery, ev charger, meter and tariff device types (#4034)
 - fix: accept a config.json that starts with a UTF-8 BOM (#4039) (@b84330808)
+- chore(docs): regenerate docs for `v2.5.0`
 
 ### Homebridge Dependencies
 
