@@ -11,6 +11,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): reject rvc clean mode changes while the robot is not idle, unless DirectModeChange
 - fix(matter): check a requested mode exists before calling the plugin's changeToMode handler
 - fix(matter): expose the optional readings a plugin declares, like an air quality sensor's pm2.5
+- fix(matter): send the ui each main-bridge accessory's state, so its tiles can be controlled (#4014)
 
 ### Homebridge Dependencies
 

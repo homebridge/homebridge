@@ -267,6 +267,10 @@ export class MatterServer extends EventEmitter {
     return this.accessoryQuery.getCachedAccessory(uuid)
   }
 
+  getLiveState(uuid: string, partId?: string): Record<string, Record<string, unknown>> {
+    return this.accessoryQuery.getLiveState(uuid, partId)
+  }
+
   collectAccessories(bridgeUsername: string, bridgeType: string, bridgeName: string): any[] {
     return this.accessoryQuery.collectAccessories(bridgeUsername, bridgeType, bridgeName)
   }

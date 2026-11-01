@@ -10,6 +10,7 @@ import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
 import { MatterBridgeManager } from './MatterBridgeManager.js'
 import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
+import { AccessoryQuery } from './server/AccessoryQuery.js'
 
 describe('matterBridgeManager', () => {
   let mockConfig: HomebridgeConfig
@@ -335,6 +336,77 @@ describe('matterBridgeManager', () => {
       // REGISTER appears twice — once for the normal handler, once for the drop stub.
       const registerRemovals = removed.filter((e: any) => e === InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES)
       expect(registerRemovals.length).toBe(2)
+    })
+  })
+
+  describe('collectAllAccessories — live cluster state for the UI (#4014)', () => {
+    // The UI can only toggle an accessory whose state it was sent. The state
+    // was read through server.getAccessory(), which strips the endpoint, so
+    // every main-bridge accessory reached the UI with `clusters: {}` and a
+    // click failed with "OnOff cluster not found".
+    function buildServer() {
+      const uuid = 'switch-uuid'
+      const accessories = new Map<string, any>([
+        [
+          uuid,
+          {
+            UUID: uuid,
+            displayName: 'Switch',
+            clusters: {
+              onOff: { onOff: false },
+            },
+            endpoint: {
+              state: {
+                onOff: { onOff: true, $internal: 'hidden', _private: 'hidden' },
+              },
+            },
+            _parts: [
+              {
+                id: 'outlet-1',
+                endpoint: {
+                  state: {
+                    onOff: { onOff: false },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      ])
+      const query = new AccessoryQuery(accessories, () => null)
+      return {
+        getAllCachedAccessories: () => [
+          {
+            uuid,
+            displayName: 'Switch',
+            deviceType: { name: 'OnOffLightSwitch' },
+            parts: [
+              {
+                id: 'outlet-1',
+                displayName: 'Outlet',
+                deviceType: { name: 'OnOffPlugInUnit' },
+              },
+            ],
+          },
+        ],
+        getCommissioningSnapshot: () => ({ commissioned: true, fabricCount: 0, fabrics: [] }),
+        getAccessory: (id: string) => query.getAccessory(id),
+        getLiveState: (id: string, partId?: string) => query.getLiveState(id, partId),
+      }
+    }
+
+    it('sends each accessory and part with its live state from the endpoint', () => {
+      const manager = buildManager({ enabled: true })
+      ;(manager as any).matterServer = buildServer()
+
+      const [accessory] = manager.collectAllAccessories()
+
+      expect(accessory.clusters).toEqual({
+        onOff: { onOff: true },
+      })
+      expect(accessory.parts?.[0].clusters).toEqual({
+        onOff: { onOff: false },
+      })
     })
   })
 })
