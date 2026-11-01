@@ -139,6 +139,37 @@ export class AccessoryQuery {
   }
 
   /**
+   * Read the live cluster state of an accessory or one of its parts, straight
+   * from its endpoint. Returns an empty object when the accessory, part or
+   * endpoint does not exist (yet).
+   *
+   * This reads the internal record: getAccessory() leaves the endpoint out of
+   * what it hands back, so a caller that only has that can never see the
+   * state (#4014).
+   */
+  getLiveState(uuid: string, partId?: string): Record<string, Record<string, unknown>> {
+    const accessory = this.accessories.get(uuid)
+    const endpoint = partId
+      ? accessory?._parts?.find(part => part.id === partId)?.endpoint
+      : accessory?.endpoint
+    const endpointState = (endpoint as { state?: Record<string, Record<string, unknown>> } | undefined)?.state
+    if (!endpointState) {
+      return {}
+    }
+
+    const state: Record<string, Record<string, unknown>> = {}
+    for (const [clusterName, clusterState] of Object.entries(endpointState)) {
+      state[clusterName] = {}
+      for (const [key, value] of Object.entries(clusterState ?? {})) {
+        if (!key.startsWith('_') && !key.startsWith('$')) {
+          state[clusterName][key] = value
+        }
+      }
+    }
+    return state
+  }
+
+  /**
    * Collect all accessories for UI display
    */
   collectAccessories(bridgeUsername: string, bridgeType: string, bridgeName: string): any[] {

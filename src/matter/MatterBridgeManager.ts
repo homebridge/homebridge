@@ -663,31 +663,9 @@ export class MatterBridgeManager extends BaseMatterManager {
     uuid: string,
     partId?: string,
   ): Record<string, Record<string, unknown>> {
-    const accessory = server.getAccessory(uuid)
-    if (!accessory) {
-      return {}
-    }
-
-    const endpoint = partId
-      ? (accessory as any)._parts?.find((p: any) => p.id === partId)?.endpoint
-      : (accessory as any).endpoint
-
-    if (!endpoint) {
-      return {}
-    }
-
-    const state: Record<string, Record<string, unknown>> = {}
-
-    for (const [clusterName, clusterState] of Object.entries(endpoint.state)) {
-      state[clusterName] = {}
-      for (const [key, value] of Object.entries(clusterState as any)) {
-        if (!key.startsWith('_') && !key.startsWith('$')) {
-          state[clusterName][key] = value
-        }
-      }
-    }
-
-    return state
+    // Read through the server's internal record: server.getAccessory() strips
+    // the endpoint, which left the UI with no state to control (#4014)
+    return server.getLiveState(uuid, partId)
   }
 
   /**
