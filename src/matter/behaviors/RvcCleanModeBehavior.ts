@@ -4,6 +4,7 @@
  * Handles robotic vacuum cleaner cleaning mode changes
  */
 
+import { ModeUtils } from '@matter/main/behaviors/mode-base'
 import { RvcCleanModeServer } from '@matter/main/behaviors/rvc-clean-mode'
 import { RvcRunModeBehavior } from '@matter/main/behaviors/rvc-run-mode'
 import { ModeBase, RvcRunMode } from '@matter/main/clusters'
@@ -47,6 +48,12 @@ export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
+
+    // matter.js only checks the mode in super.changeToMode, after the handler has run
+    const modeCheck = ModeUtils.assertModeChange(this.state.supportedModes, this.state.currentMode, request.newMode)
+    if (modeCheck.status !== ModeBase.ModeChangeStatus.Success) {
+      return modeCheck
+    }
 
     // Without DirectModeChange the spec only allows clean-mode changes while the run mode is idle
     if (!(this.features as { directModeChange?: boolean }).directModeChange && !this.isRunModeIdle()) {

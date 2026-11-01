@@ -1,5 +1,6 @@
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
+import { ModeBase } from '@matter/main/clusters'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setRegistryManager } from './EndpointContext.js'
@@ -33,6 +34,16 @@ describe('homebridgeRvcRunModeServer', () => {
     behavior = Object.create(HomebridgeRvcRunModeServer.prototype)
     Object.defineProperty(behavior, 'endpoint', {
       get: () => mockEndpoint,
+      configurable: true,
+    })
+
+    // Modes 0-3 are supported, the device starts in mode 0
+    const state = {
+      currentMode: 0,
+      supportedModes: [0, 1, 2, 3].map(mode => ({ label: `Mode ${mode}`, mode, modeTags: [] })),
+    }
+    Object.defineProperty(behavior, 'state', {
+      get: () => state,
       configurable: true,
     })
 
@@ -78,6 +89,14 @@ describe('homebridgeRvcRunModeServer', () => {
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
       await expect(behavior.changeToMode(request)).rejects.toThrow('Failed to change run mode: Handler failed')
+    })
+
+    it('should refuse a mode the device does not list, without calling the handler', async () => {
+      const result = await behavior.changeToMode({ newMode: 7 })
+
+      expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
+      expect(mockRegistry.executeHandler).not.toHaveBeenCalled()
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
   })
 })
