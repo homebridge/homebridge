@@ -42,6 +42,9 @@ describe('homebridgeLevelControlServer', () => {
     vi.spyOn(Object.getPrototypeOf(HomebridgeLevelControlServer.prototype), 'step').mockReturnValue(undefined)
     vi.spyOn(Object.getPrototypeOf(HomebridgeLevelControlServer.prototype), 'stop').mockReturnValue(undefined)
     vi.spyOn(Object.getPrototypeOf(HomebridgeLevelControlServer.prototype), 'moveToLevelWithOnOff').mockReturnValue(undefined)
+    vi.spyOn(Object.getPrototypeOf(HomebridgeLevelControlServer.prototype), 'moveWithOnOff').mockReturnValue(undefined)
+    vi.spyOn(Object.getPrototypeOf(HomebridgeLevelControlServer.prototype), 'stepWithOnOff').mockReturnValue(undefined)
+    vi.spyOn(Object.getPrototypeOf(HomebridgeLevelControlServer.prototype), 'stopWithOnOff').mockReturnValue(undefined)
   })
 
   describe('moveToLevel', () => {
@@ -350,6 +353,138 @@ describe('homebridgeLevelControlServer', () => {
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
       await expect(behavior.moveToLevelWithOnOff(request)).rejects.toThrow('Failed to set level with on/off: Handler failed')
+    })
+  })
+
+  describe('moveWithOnOff', () => {
+    it('should execute handler with request', async () => {
+      const request = {
+        moveMode: 0,
+        rate: 10,
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await behavior.moveWithOnOff(request)
+
+      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+        testEndpointId,
+        'levelControl',
+        'moveWithOnOff',
+        request,
+      )
+    })
+
+    it('should not sync state to cache', async () => {
+      const request = {
+        moveMode: 0,
+        rate: 10,
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await behavior.moveWithOnOff(request)
+
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+    })
+
+    it('should handle handler execution errors gracefully', async () => {
+      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+      const request = {
+        moveMode: 0,
+        rate: 10,
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await expect(behavior.moveWithOnOff(request)).rejects.toThrow('Failed to move level with on/off: Handler failed')
+    })
+  })
+
+  describe('stepWithOnOff', () => {
+    it('should execute handler with request', async () => {
+      const request = {
+        stepMode: 0,
+        stepSize: 20,
+        transitionTime: 5,
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await behavior.stepWithOnOff(request)
+
+      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+        testEndpointId,
+        'levelControl',
+        'stepWithOnOff',
+        request,
+      )
+    })
+
+    it('should not sync state to cache', async () => {
+      const request = {
+        stepMode: 0,
+        stepSize: 20,
+        transitionTime: 5,
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await behavior.stepWithOnOff(request)
+
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+    })
+
+    it('should handle handler execution errors gracefully', async () => {
+      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+      const request = {
+        stepMode: 0,
+        stepSize: 20,
+        transitionTime: 5,
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await expect(behavior.stepWithOnOff(request)).rejects.toThrow('Failed to step level with on/off: Handler failed')
+    })
+  })
+
+  describe('stopWithOnOff', () => {
+    it('should execute handler with request', async () => {
+      const request = {
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await behavior.stopWithOnOff(request)
+
+      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+        testEndpointId,
+        'levelControl',
+        'stopWithOnOff',
+        request,
+      )
+    })
+
+    it('should not sync state to cache', async () => {
+      const request = {
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await behavior.stopWithOnOff(request)
+
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+    })
+
+    it('should handle handler execution errors gracefully', async () => {
+      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+      const request = {
+        optionsMask: {},
+        optionsOverride: {},
+      }
+
+      await expect(behavior.stopWithOnOff(request)).rejects.toThrow('Failed to stop level change with on/off: Handler failed')
     })
   })
 })
