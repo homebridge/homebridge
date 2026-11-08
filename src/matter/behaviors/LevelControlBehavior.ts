@@ -21,6 +21,23 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
   }
 
   /**
+   * Run the plugin's handler for a level command that also switches on or off.
+   *
+   * Plugins rarely register these exact names: the docs and examples only show
+   * moveToLevelWithOnOff. So fall back to the plain command's handler, which
+   * takes the same request, and with neither let matter.js carry on as it did
+   * before these were routed, rather than fail a command that used to work
+   */
+  private async runWithOnOffHandler(commandName: string, fallbackName: string, request: unknown): Promise<void> {
+    const endpointId = this.endpoint.id
+    const registry = this.getRegistry()
+    const handlerName = [commandName, fallbackName].find(name => registry.getHandler(endpointId, 'levelControl', name))
+    if (handlerName) {
+      await registry.executeHandler(endpointId, 'levelControl', handlerName, request)
+    }
+  }
+
+  /**
    * Handle moveToLevel command
    */
   override async moveToLevel(request: LevelControl.MoveToLevelRequest): Promise<void> {
@@ -216,17 +233,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    * Handle moveWithOnOff command
    */
   override async moveWithOnOff(request: LevelControl.MoveRequest): Promise<void> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
     try {
-      // Execute user handler
-      await registry.executeHandler(
-        endpointId,
-        'levelControl',
-        'moveWithOnOff',
-        request,
-      )
+      // Execute user handler, falling back to the plain move handler
+      await this.runWithOnOffHandler('moveWithOnOff', 'move', request)
 
       // Only reached if handler succeeded
       await super.moveWithOnOff(request)
@@ -250,17 +259,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    * Handle stepWithOnOff command
    */
   override async stepWithOnOff(request: LevelControl.StepRequest): Promise<void> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
     try {
-      // Execute user handler
-      await registry.executeHandler(
-        endpointId,
-        'levelControl',
-        'stepWithOnOff',
-        request,
-      )
+      // Execute user handler, falling back to the plain step handler
+      await this.runWithOnOffHandler('stepWithOnOff', 'step', request)
 
       // Only reached if handler succeeded
       await super.stepWithOnOff(request)
@@ -284,17 +285,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    * Handle stopWithOnOff command
    */
   override async stopWithOnOff(request: LevelControl.StopRequest): Promise<void> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
     try {
-      // Execute user handler
-      await registry.executeHandler(
-        endpointId,
-        'levelControl',
-        'stopWithOnOff',
-        request,
-      )
+      // Execute user handler, falling back to the plain stop handler
+      await this.runWithOnOffHandler('stopWithOnOff', 'stop', request)
 
       // Only reached if handler succeeded
       await super.stopWithOnOff(request)

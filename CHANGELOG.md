@@ -13,6 +13,8 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): expose the optional readings a plugin declares, like an air quality sensor's pm2.5
 - fix(matter): send the ui each main-bridge accessory's state, so its tiles can be controlled (#4014)
 - chore(deps): dependency updates
+- fix(matter): send the level commands with on/off to the plugin's handlers (#4045) (@zerafachris)
+- fix(matter): fall back to the plain level handlers for move, step and stop with on/off
 
 ### Homebridge Dependencies
 
