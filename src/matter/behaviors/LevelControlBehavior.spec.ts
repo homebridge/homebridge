@@ -16,6 +16,7 @@ describe('homebridgeLevelControlServer', () => {
     // Create mock registry
     mockRegistry = {
       executeHandler: vi.fn().mockResolvedValue(true),
+      getHandler: vi.fn().mockReturnValue(async () => {}),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -485,6 +486,55 @@ describe('homebridgeLevelControlServer', () => {
       }
 
       await expect(behavior.stopWithOnOff(request)).rejects.toThrow('Failed to stop level change with on/off: Handler failed')
+    })
+  })
+
+  /**
+   * Plugins rarely register the WithOnOff names - the docs and examples only
+   * show moveToLevelWithOnOff. A missing handler must not turn a command that
+   * matter.js used to carry out into a failure for every such plugin.
+   */
+  describe('a plugin without the with on/off handlers', () => {
+    const requests = {
+      moveWithOnOff: {
+        moveMode: 0,
+        rate: 10,
+        optionsMask: {},
+        optionsOverride: {},
+      },
+      stepWithOnOff: {
+        stepMode: 0,
+        stepSize: 20,
+        transitionTime: 5,
+        optionsMask: {},
+        optionsOverride: {},
+      },
+      stopWithOnOff: { optionsMask: {}, optionsOverride: {} },
+    } as const
+
+    it.each([
+      ['moveWithOnOff', 'move'],
+      ['stepWithOnOff', 'step'],
+      ['stopWithOnOff', 'stop'],
+    ] as const)('sends %s to the plain %s handler', async (command, plain) => {
+      mockRegistry.getHandler = vi.fn((_id: string, _cluster: string, name: string) => name === plain
+        ? async () => {}
+        : undefined) as any
+
+      await (behavior as any)[command](requests[command])
+
+      expect(mockRegistry.executeHandler).toHaveBeenCalledTimes(1)
+      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(testEndpointId, 'levelControl', plain, requests[command])
+    })
+
+    it.each(['moveWithOnOff', 'stepWithOnOff', 'stopWithOnOff'] as const)('lets matter.js carry out %s when there is no handler at all', async (command) => {
+      mockRegistry.getHandler = vi.fn().mockReturnValue(undefined)
+      const parent = Object.getPrototypeOf(HomebridgeLevelControlServer.prototype)
+
+      await expect((behavior as any)[command](requests[command])).resolves.toBeUndefined()
+
+      expect(mockRegistry.executeHandler).not.toHaveBeenCalled()
+      expect(parent[command]).toHaveBeenCalledWith(requests[command])
     })
   })
 })
