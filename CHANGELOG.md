@@ -12,14 +12,16 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): check a requested mode exists before calling the plugin's changeToMode handler
 - fix(matter): expose the optional readings a plugin declares, like an air quality sensor's pm2.5
 - fix(matter): send the ui each main-bridge accessory's state, so its tiles can be controlled (#4014)
+- fix(matter): send the level commands with on/off to the plugin's handlers (#4045) (@zerafachris)
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.3.0`
+- `@homebridge/hap-nodejs` @ `v2.3.1-beta`
 
 ### Matter Dependencies
 
 - `@matter/main` @ `v0.18.0`
+- `@matter/nodejs` @ `v0.18.0`
 
 ## v2.5.0 (2026-11-01)
 
