@@ -335,4 +335,39 @@ describe('logFormatter', () => {
       expect(result).toContain('test')
     })
   })
+
+  // A controller still using an old session gets each message dropped with this
+  // error until it reconnects by itself, which filled the log while all worked (#4026)
+  describe('session decrypt failures', () => {
+    const decryptFailure = () => ({
+      now: new Date(),
+      facility: 'Multiplex',
+      values: [
+        new Error('[crypto-decrypt] aes-128-ccm decryption failed: Unsupported state or unable to authenticate data'),
+      ],
+      level: 4,
+    })
+
+    it('leaves them out of the normal log', () => {
+      expect(createHomebridgeLogFormatter()(decryptFailure())).toBe('')
+    })
+
+    it('shows them when matter debug mode is on', () => {
+      const result = createHomebridgeLogFormatter({ debug: true })(decryptFailure())
+
+      expect(result).toContain('[Matter/Multiplex]')
+      expect(result).toContain('[crypto-decrypt]')
+    })
+
+    it('still logs other errors from the same facility', () => {
+      const result = createHomebridgeLogFormatter()({
+        ...decryptFailure(),
+        values: [
+          new Error('something else went wrong'),
+        ],
+      })
+
+      expect(result).toContain('something else went wrong')
+    })
+  })
 })

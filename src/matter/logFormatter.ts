@@ -24,6 +24,18 @@ import { Logger } from '../logger.js'
 const MESSAGE_CHANNEL_MAX_LENGTH = 1024
 
 /**
+ * Whether a message is matter.js failing to decrypt a message it received.
+ *
+ * A controller that is still using an old session, for example after a restart
+ * or re-pairing, gets every message dropped this way until it sets up a new
+ * one, which it does by itself. matter.js logs each drop as an error, so a busy
+ * hub could fill the log with stack traces while everything worked (#4026).
+ */
+function isSessionDecryptFailure(facility: string, messageText: string): boolean {
+  return facility === 'Multiplex' && messageText.includes('[crypto-decrypt]')
+}
+
+/**
  * Create a custom log formatter that matches the homebridge format.
  * Format: [timestamp] [Matter:Facility] message
  * Timestamp format matches system locale (via toLocaleString()).
@@ -34,7 +46,7 @@ const MESSAGE_CHANNEL_MAX_LENGTH = 1024
  * - Matter WARN → yellow (Homebridge warn)
  * - Matter ERROR/FATAL → red (Homebridge error)
  */
-export function createHomebridgeLogFormatter(): (diagnostic: unknown) => string {
+export function createHomebridgeLogFormatter(options: { debug?: boolean } = {}): (diagnostic: unknown) => string {
   // Capture timestamp setting once when formatter is created
   const timestampEnabled = Logger.isTimestampEnabled()
 
@@ -61,6 +73,16 @@ export function createHomebridgeLogFormatter(): (diagnostic: unknown) => string 
         // apply a single Homebridge level colour to the whole line below.
         let messageText = LogFormat.formats.plain(msg.values)
 
+        // Keep the matter.js decrypt failures out of the normal log, and show
+        // them as debug lines when Matter debug mode is on
+        let level = msg.level
+        if (isSessionDecryptFailure(msg.facility, messageText)) {
+          if (!options.debug) {
+            return ''
+          }
+          level = 0
+        }
+
         // Trim excessively long messages from verbose facilities like MessageChannel
         if (msg.facility === 'MessageChannel' && messageText.length > MESSAGE_CHANNEL_MAX_LENGTH) {
           messageText = `${messageText.substring(0, MESSAGE_CHANNEL_MAX_LENGTH)} [trimmed...]`
@@ -73,8 +95,8 @@ export function createHomebridgeLogFormatter(): (diagnostic: unknown) => string 
         // Matter ERROR/FATAL → red (Homebridge error).
         // For 'notice' or anything else, leave it uncolored (Homebridge info style).
         let coloredMessage = messageText
-        if (msg.level !== undefined) {
-          switch (msg.level) {
+        if (level !== undefined) {
+          switch (level) {
             //     export const DEBUG: LogLevel = 0;
             //     export const INFO: LogLevel = 1;
             //     export const NOTICE: LogLevel = 2;
