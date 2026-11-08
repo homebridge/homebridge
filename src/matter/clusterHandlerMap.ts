@@ -31,6 +31,7 @@ export interface LevelControlHandlers {
   step?: MatterCommandHandler<LevelControl.StepRequest>
   stop?: MatterCommandHandler<LevelControl.StopRequest>
   moveToLevelWithOnOff?: MatterCommandHandler<LevelControl.MoveToLevelRequest>
+  // Optional: without them, these three fall back to the move, step and stop handlers
   moveWithOnOff?: MatterCommandHandler<LevelControl.MoveRequest>
   stepWithOnOff?: MatterCommandHandler<LevelControl.StepRequest>
   stopWithOnOff?: MatterCommandHandler<LevelControl.StopRequest>
