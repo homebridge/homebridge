@@ -211,4 +211,106 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
       throw new StatusResponseError(`Failed to set level with on/off: ${message}`, Status.Failure)
     }
   }
+
+  /**
+   * Handle moveWithOnOff command
+   */
+  override async moveWithOnOff(request: LevelControl.MoveRequest): Promise<void> {
+    const endpointId = this.endpoint.id
+    const registry = this.getRegistry()
+
+    try {
+      // Execute user handler
+      await registry.executeHandler(
+        endpointId,
+        'levelControl',
+        'moveWithOnOff',
+        request,
+      )
+
+      // Only reached if handler succeeded
+      await super.moveWithOnOff(request)
+    } catch (error) {
+      // If user handler already threw a StatusResponseError, propagate it as-is
+      // This sends a proper Matter protocol error response to the controller
+      if (MatterStatus.isMatterProtocolError(error)) {
+        throw error
+      }
+
+      // For other errors, wrap in appropriate StatusResponseError
+      // This prevents the endpoint from crashing and keeps the device online
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
+      throw new StatusResponseError(`Failed to move level with on/off: ${message}`, Status.Failure)
+    }
+  }
+
+  /**
+   * Handle stepWithOnOff command
+   */
+  override async stepWithOnOff(request: LevelControl.StepRequest): Promise<void> {
+    const endpointId = this.endpoint.id
+    const registry = this.getRegistry()
+
+    try {
+      // Execute user handler
+      await registry.executeHandler(
+        endpointId,
+        'levelControl',
+        'stepWithOnOff',
+        request,
+      )
+
+      // Only reached if handler succeeded
+      await super.stepWithOnOff(request)
+    } catch (error) {
+      // If user handler already threw a StatusResponseError, propagate it as-is
+      // This sends a proper Matter protocol error response to the controller
+      if (MatterStatus.isMatterProtocolError(error)) {
+        throw error
+      }
+
+      // For other errors, wrap in appropriate StatusResponseError
+      // This prevents the endpoint from crashing and keeps the device online
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
+      throw new StatusResponseError(`Failed to step level with on/off: ${message}`, Status.Failure)
+    }
+  }
+
+  /**
+   * Handle stopWithOnOff command
+   */
+  override async stopWithOnOff(request: LevelControl.StopRequest): Promise<void> {
+    const endpointId = this.endpoint.id
+    const registry = this.getRegistry()
+
+    try {
+      // Execute user handler
+      await registry.executeHandler(
+        endpointId,
+        'levelControl',
+        'stopWithOnOff',
+        request,
+      )
+
+      // Only reached if handler succeeded
+      await super.stopWithOnOff(request)
+    } catch (error) {
+      // If user handler already threw a StatusResponseError, propagate it as-is
+      // This sends a proper Matter protocol error response to the controller
+      if (MatterStatus.isMatterProtocolError(error)) {
+        throw error
+      }
+
+      // For other errors, wrap in appropriate StatusResponseError
+      // This prevents the endpoint from crashing and keeps the device online
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
+      throw new StatusResponseError(`Failed to stop level change with on/off: ${message}`, Status.Failure)
+    }
+  }
 }
