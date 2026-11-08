@@ -101,7 +101,7 @@ export class MatterServer extends EventEmitter {
       MatterLogger.level = MatterLogLevel.NOTICE
     }
 
-    MatterLogger.format = createHomebridgeLogFormatter()
+    MatterLogger.format = createHomebridgeLogFormatter({ debug: this.config.debugModeEnabled })
 
     MatterLogger.destinations.default.write = (text: string) => {
       if (text.trim() !== '') {
