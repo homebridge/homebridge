@@ -295,7 +295,7 @@ export class Server {
 
     // restore cached accessories
     this.bridgeService.restoreCachedPlatformAccessories()
-    this.matterManager?.restoreCachedAccessories(this.options.keepOrphanedCachedAccessories ?? false)
+    await this.matterManager?.restoreCachedAccessories(this.options.keepOrphanedCachedAccessories ?? false)
 
     this.api.signalFinished()
 
