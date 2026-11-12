@@ -61,13 +61,13 @@ describe('fabricManager', () => {
           ]),
         )
 
-        // Node built but not yet online: the live fabric list is still empty
-        const manager = makeFabricManager({
+        // Node built but not yet online: the live list is temporarily empty.
+        const manager = new FabricManager(() => ({
           env: {},
           state: {
             operationalCredentials: { fabrics: [] },
           },
-        }, dir)
+        }) as unknown as ServerNode, () => dir, () => false)
         expect(manager.isCommissioned()).toBe(true)
         expect(manager.getFabricInfo()).toEqual([
           {

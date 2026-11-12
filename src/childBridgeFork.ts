@@ -269,7 +269,7 @@ export class ChildBridgeFork {
 
     // Restore Matter accessories if Matter is enabled for this bridge
     if (this.matterManager) {
-      this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
+      await this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
     }
 
     // Publish HAP only when not opted out via hap.enabled=false and not in

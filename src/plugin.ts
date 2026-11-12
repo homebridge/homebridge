@@ -172,6 +172,15 @@ export class Plugin {
     platforms.unshift(platformPlugin)
   }
 
+  public getUniqueActiveDynamicPlatform(): DynamicPlatformPlugin | undefined {
+    const platforms = [
+      ...this.activeDynamicPlatforms.values(),
+    ].flat()
+    return platforms.length === 1
+      ? platforms[0]
+      : undefined
+  }
+
   public getActiveDynamicPlatform(platformName: PlatformName): DynamicPlatformPlugin | undefined {
     const platforms = this.activeDynamicPlatforms.get(platformName)
     // we always use the last registered

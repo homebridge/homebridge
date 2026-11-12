@@ -212,14 +212,6 @@ export class AccessoryManager {
             }))
             .filter(({ enabledFeatures }) => enabledFeatures.length > 0),
         )
-        const partShape = (list?: { id: string, features?: MatterAccessory['features'] }[]) => JSON.stringify(
-          (list ?? [])
-            .map(part => ({
-              id: part.id,
-              features: featureShape(part.features),
-            }))
-            .sort((left, right) => left.id.localeCompare(right.id)),
-        )
         // ⚠️ The name is not enough. The cache stores a device type as
         // {name, code}, so a restore rebuilds the BASE type - anything the
         // plugin composed itself (via api.matter.deviceRequirements) is gone,
@@ -233,6 +225,17 @@ export class AccessoryManager {
         // these only differ when the plugin has changed its mind since.
         const clusterFeatureShape = (deviceType: unknown) => JSON.stringify(
           Object.entries(declaredClusterFeatures(deviceType) ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+        )
+        const partShape = (list?: MatterAccessory['parts']) => JSON.stringify(
+          (list ?? [])
+            .map(part => ({
+              id: part.id,
+              type: (part.deviceType as { name?: string })?.name,
+              behaviors: behaviorKeys(part.deviceType),
+              clusterFeatures: clusterFeatureShape(part.deviceType),
+              features: featureShape(part.features),
+            }))
+            .sort((left, right) => left.id.localeCompare(right.id)),
         )
         const sameShape = (existing.deviceType as { name?: string })?.name === (accessory.deviceType as { name?: string })?.name
           && partShape(existing._parts ?? existing.parts) === partShape(accessory.parts)
@@ -249,13 +252,20 @@ export class AccessoryManager {
             registered: true,
             _restoredFromCache: false,
           })
+          // Remove old static handlers as well as live sources, including parts
+          // whose replacement deliberately no longer supplies any handlers.
+          deps.behaviorRegistry.removeEndpoint(accessory.UUID)
           this.registerAccessoryHandlers(accessory, deps)
           for (const part of accessory.parts ?? []) {
+            const partEndpointId = `${accessory.UUID}-part-${part.id}`
+            deps.behaviorRegistry.registerPartEndpoint(partEndpointId, accessory.UUID, part.id)
+            if ((accessory as InternalMatterAccessory)._restoredFromCache) {
+              deps.behaviorRegistry.registerHandlerSource(partEndpointId,
+                () => accessory.parts?.find(candidate => candidate.id === part.id)?.handlers)
+            }
             if (!part.handlers) {
               continue
             }
-            const partEndpointId = `${accessory.UUID}-part-${part.id}`
-            deps.behaviorRegistry.registerPartEndpoint(partEndpointId, accessory.UUID, part.id)
             for (const [clusterName, handlers] of Object.entries(part.handlers)) {
               for (const [commandName, handler] of Object.entries(handlers)) {
                 deps.behaviorRegistry.registerHandler(partEndpointId, clusterName, commandName, handler)
@@ -1075,6 +1085,11 @@ export class AccessoryManager {
    * Register command handlers for an accessory
    */
   private registerAccessoryHandlers(accessory: MatterAccessory, deps: AccessoryManagerDeps): void {
+    // Cache callbacks may replace handlers after this endpoint is already online.
+    deps.behaviorRegistry.registerHandlerSource(accessory.UUID,
+      (accessory as InternalMatterAccessory)._restoredFromCache
+        ? () => accessory.handlers
+        : undefined)
     if (!accessory.handlers) {
       return
     }
@@ -1185,6 +1200,10 @@ export class AccessoryManager {
       log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
 
       if (part.handlers) {
+        if ((accessory as InternalMatterAccessory)._restoredFromCache) {
+          deps.behaviorRegistry.registerHandlerSource(partEndpointId,
+            () => accessory.parts?.find(candidate => candidate.id === part.id)?.handlers)
+        }
         deps.registryManager.registerEndpoint(partEndpointId, deps.behaviorRegistry)
 
         for (const [clusterName, handlers] of Object.entries(part.handlers)) {

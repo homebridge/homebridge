@@ -37,6 +37,37 @@ describe('behaviorRegistry', () => {
   })
 
   describe('registerHandler', () => {
+    it('dispatches commands added or replaced after restoring an endpoint', async () => {
+      const accessory = {
+        handlers: { serviceArea: {} },
+      } as InternalMatterAccessory
+      registry.registerHandlerSource('restored', () => accessory.handlers)
+      await expect(registry.executeHandler('restored', 'serviceArea', 'selectAreas', {
+        newAreas: [1],
+      })).rejects.toThrow('No handler registered')
+      const selectAreas = vi.fn()
+      const changeToMode = vi.fn()
+      accessory.handlers = {
+        serviceArea: { selectAreas },
+        rvcCleanMode: { changeToMode },
+      }
+      await registry.executeHandler('restored', 'serviceArea', 'selectAreas', {
+        newAreas: [1],
+      })
+      await registry.executeHandler('restored', 'rvcCleanMode', 'changeToMode', { newMode: 0 })
+      expect(selectAreas).toHaveBeenCalledWith({
+        newAreas: [1],
+      }, undefined)
+      expect(changeToMode).toHaveBeenCalledWith({ newMode: 0 }, undefined)
+      accessory.handlers = {}
+      expect(registry.getHandler('restored', 'serviceArea', 'selectAreas')).toBeUndefined()
+      registry.removeEndpoint('restored')
+      accessory.handlers = {
+        serviceArea: { selectAreas },
+      }
+      expect(registry.getHandler('restored', 'serviceArea', 'selectAreas')).toBeUndefined()
+    })
+
     it('should register a handler', () => {
       const handler = vi.fn()
       registry.registerHandler('endpoint1', 'onOff', 'toggle', handler)

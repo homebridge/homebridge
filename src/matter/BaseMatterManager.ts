@@ -7,15 +7,16 @@ import type { PluginManager } from '../pluginManager.js'
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { InternalMatterAccessory, MatterAccessory } from './types.js'
 
-import { rmSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 
 import { Logger } from '../logger.js'
 import { User } from '../user.js'
 import { generate } from '../util/mac.js'
 import { mapAttributesToCommand } from './ClusterCommandMapper.js'
+import { applyDeclaredClusterFeatures } from './clusterFeatures.js'
 import { MatterServer } from './server.js'
-import { MatterAccessoryNotOnBridgeError } from './types.js'
+import { deviceTypes, MatterAccessoryNotOnBridgeError } from './types.js'
 
 const log = Logger.withPrefix('Matter/BaseManager')
 const COLON_RE = /:/g
@@ -28,9 +29,14 @@ export abstract class BaseMatterManager {
   protected matterServer?: MatterServer
   protected readonly externalMatterServers: Map<string, MatterServer> = new Map()
   protected readonly pluginManager: PluginManager
+  private readonly pendingExternalRegistrations = new Set<string>()
 
   constructor(pluginManager: PluginManager) {
     this.pluginManager = pluginManager
+  }
+
+  protected getExternalCacheOwner(): string | undefined {
+    return undefined
   }
 
   /**
@@ -221,8 +227,12 @@ export abstract class BaseMatterManager {
   /**
    * Restore cached Matter accessories (matching HAP pattern)
    */
-  restoreCachedAccessories(keepOrphaned: boolean): void {
+  async restoreCachedAccessories(keepOrphaned: boolean): Promise<void> {
+    if (!this.hasActiveMatter()) {
+      return
+    }
     if (!this.matterServer) {
+      await this.restoreExternalCacheForPlugins()
       return
     }
 
@@ -271,6 +281,110 @@ export abstract class BaseMatterManager {
         } else {
           log.debug(`Platform ${cachedAccessory.platform} does not implement configureMatterAccessory`)
         }
+      }
+    }
+    await this.restoreExternalCacheForPlugins()
+  }
+
+  protected async publishRestoredExternalAccessory(accessory: InternalMatterAccessory): Promise<void> {
+    throw new Error(`External cache publishing not implemented for ${accessory.displayName}`)
+  }
+
+  protected async attachRestoredExternalAccessory(accessory: InternalMatterAccessory): Promise<boolean> {
+    const server = this.externalMatterServers.get(accessory.UUID)
+    if (!server || !this.pendingExternalRegistrations.has(accessory.UUID)) {
+      return false
+    }
+    // Reuse the existing shape reconciliation and handler registration path.
+    await server.registerPlatformAccessories(accessory._associatedPlugin || 'unknown',
+      accessory._associatedPlatform || 'ExternalMatter', [accessory])
+    this.pendingExternalRegistrations.delete(accessory.UUID)
+    accessory._eventEmitter?.emit('ready', server.getServerInfo().port)
+    return true
+  }
+
+  private async restoreExternalCacheForPlugins(): Promise<void> {
+    const root = User.matterPath()
+    if (!existsSync(root)) {
+      return
+    }
+    let dirs: string[]
+    try {
+      dirs = readdirSync(root)
+    } catch {
+      log.warn('Could not read external Matter cache directory; leaving storage unchanged')
+      return
+    }
+    for (const dir of dirs) {
+      if (!/^[0-9A-F]{12}$/i.test(dir)) {
+        continue
+      }
+      const file = path.join(root, dir, 'accessories.json')
+      if (!existsSync(file)) {
+        continue
+      }
+      try {
+        // Old caches have no reliable bridge ownership. Let an explicit plugin
+        // registration claim them rather than guessing across main/child processes.
+        const ownerFile = path.join(root, dir, 'homebridge-owner.json')
+        if (!existsSync(ownerFile)) {
+          continue
+        }
+        const owner = JSON.parse(readFileSync(ownerFile, 'utf8'))
+        const bridge = this.getExternalCacheOwner()
+        if (!bridge || owner.bridge !== bridge) {
+          continue
+        }
+        const entries = JSON.parse(readFileSync(file, 'utf8')) as SerializedMatterAccessory[]
+        if (!Array.isArray(entries) || entries.length !== 1) {
+          continue
+        }
+        const cached = entries[0]
+        if (owner.uuid !== cached?.uuid || owner.plugin !== cached?.plugin || owner.platform !== cached?.platform) {
+          continue
+        }
+        if (typeof cached?.uuid !== 'string' || generate(cached.uuid).replace(COLON_RE, '').toUpperCase() !== dir.toUpperCase()) {
+          continue
+        }
+        if (this.externalMatterServers.has(cached.uuid)) {
+          continue
+        }
+        const plugin = this.pluginManager.getPlugin(cached.plugin)
+        const platform = cached.platform && cached.platform !== 'ExternalMatter'
+          ? plugin?.getActiveDynamicPlatform(cached.platform)
+          : plugin?.getUniqueActiveDynamicPlatform()
+        if (!platform?.configureMatterAccessory) {
+          continue
+        }
+        const type = deviceTypes[cached.deviceType?.name as keyof typeof deviceTypes]
+        if (!type) {
+          continue
+        }
+        const accessory = this.deserializeMatterAccessory(cached) as InternalMatterAccessory
+        accessory.deviceType = applyDeclaredClusterFeatures(type, cached.deviceType?.clusterFeatures)
+        accessory.features = cached.features
+        accessory._restoredFromCache = true
+        // Compose cluster behaviors before the plugin supplies its live handlers.
+        accessory.handlers = Object.fromEntries(Object.keys(cached.clusters ?? {}).map(name => [name, {}]))
+        accessory._associatedPlugin = cached.plugin
+        accessory._associatedPlatform = cached.platform
+        accessory.parts = cached.parts?.map((part) => {
+          const partType = deviceTypes[part.deviceType?.name as keyof typeof deviceTypes]
+          if (!partType) {
+            throw new Error('Unknown cached external part type')
+          }
+          return {
+            ...part,
+            deviceType: applyDeclaredClusterFeatures(partType, part.deviceType.clusterFeatures),
+            handlers: Object.fromEntries(Object.keys(part.clusters ?? {}).map(name => [name, {}])),
+          }
+        })
+        await this.publishRestoredExternalAccessory(accessory)
+        this.pendingExternalRegistrations.add(cached.uuid)
+        // Never deliver a phantom accessory after a failed bind/start.
+        platform.configureMatterAccessory(accessory)
+      } catch {
+        log.warn('Could not restore external Matter cache; leaving storage unchanged')
       }
     }
   }
@@ -363,6 +477,7 @@ export abstract class BaseMatterManager {
 
         // Remove from the map
         this.externalMatterServers.delete(accessory.UUID)
+        this.pendingExternalRegistrations.delete(accessory.UUID)
 
         // Clean up storage folder
         // Generate the same uniqueId that was used when creating the server

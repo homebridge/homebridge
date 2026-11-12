@@ -7,6 +7,9 @@
 
 import type { InternalMatterAccessory } from './types.js'
 
+import { renameSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+
 import { Logger } from '../logger.js'
 import { User } from '../user.js'
 import { generate } from '../util/mac.js'
@@ -19,6 +22,8 @@ const COLON_RE = /:/g
  * Configuration context for publishing external Matter accessories
  */
 export interface ExternalAccessoryPublishContext {
+  /** Owning main or child bridge; legacy caches are claimed on registration. */
+  bridgeUsername?: string
   /** Port service for allocating Matter ports */
   portService: {
     requestMatterPort: (uniqueId: string) => Promise<number | null | undefined>
@@ -117,10 +122,20 @@ export async function publishExternalMatterAccessory(
     const pluginIdentifier = accessory._associatedPlugin || 'unknown'
 
     // Register the accessory to this dedicated server
-    await matterServer.registerPlatformAccessories(pluginIdentifier, 'ExternalMatter', [accessory])
+    await matterServer.registerPlatformAccessories(pluginIdentifier, accessory._associatedPlatform || 'ExternalMatter', [accessory])
 
     // Now run the server with the device already attached (required for external accessories)
     await matterServer.runServer()
+    if (context.bridgeUsername) {
+      const ownerFile = path.join(User.matterPath(), uniqueId, 'homebridge-owner.json')
+      writeFileSync(`${ownerFile}.tmp`, JSON.stringify({
+        bridge: context.bridgeUsername,
+        uuid: accessory.UUID,
+        plugin: pluginIdentifier,
+        platform: accessory._associatedPlatform || 'ExternalMatter',
+      }))
+      renameSync(`${ownerFile}.tmp`, ownerFile)
+    }
   } catch (error) {
     // Tear down the half-started server so we don't leak SIGINT/SIGTERM
     // handlers, an open mDNS responder, and the matter.js event loop.

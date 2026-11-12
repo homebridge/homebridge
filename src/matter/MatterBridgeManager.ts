@@ -56,6 +56,17 @@ export class MatterBridgeManager extends BaseMatterManager {
     // attachment.
   }
 
+  protected override async publishRestoredExternalAccessory(accessory: InternalMatterAccessory): Promise<void> {
+    await this.handlePublishExternalAccessories([accessory], `restore-${accessory.UUID}`)
+    if (!this.externalMatterServers.has(accessory.UUID)) {
+      throw new Error('Failed to restore external Matter server')
+    }
+  }
+
+  protected override getExternalCacheOwner(): string {
+    return this.config.bridge.username
+  }
+
   protected override releaseExternalMatterPort(uniqueId: string): void {
     this.externalPortService.releaseMatterPort(uniqueId)
   }
@@ -346,12 +357,16 @@ export class MatterBridgeManager extends BaseMatterManager {
         try {
           // Check if already published
           if (this.externalMatterServers.has(accessory.UUID)) {
+            if (await this.attachRestoredExternalAccessory(accessory)) {
+              continue
+            }
             log.warn(`External Matter accessory ${accessory.displayName} (${accessory.UUID}) is already published`)
             continue
           }
 
           // Publish the accessory using shared helper
           const result = await publishExternalMatterAccessory(accessory, {
+            bridgeUsername: this.config.bridge.username,
             portService: this.externalPortService,
             networkInterfaces,
             debugModeEnabled: this.options.debugModeEnabled,
