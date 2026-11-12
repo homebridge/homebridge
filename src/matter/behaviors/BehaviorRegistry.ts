@@ -6,7 +6,7 @@
  */
 
 import type { MatterServer } from '../server.js'
-import type { InternalMatterAccessory, MatterHandlerContext } from '../types.js'
+import type { InternalMatterAccessory, MatterAccessory, MatterHandlerContext } from '../types.js'
 
 import { Status, StatusResponseError } from '@matter/main/types'
 
@@ -48,6 +48,15 @@ export type MatterAccessoryMap = Map<string, InternalMatterAccessory>
 export class BehaviorRegistry {
   // Handler storage: endpointId -> clusterName -> commandName -> handler
   private handlers = new Map<string, Map<string, Map<string, MatterCommandHandler>>>()
+  private handlerSources = new Map<string, () => MatterAccessory['handlers']>()
+
+  registerHandlerSource(endpointId: string, source?: () => MatterAccessory['handlers']): void {
+    if (source) {
+      this.handlerSources.set(endpointId, source)
+    } else {
+      this.handlerSources.delete(endpointId)
+    }
+  }
 
   // Part endpoint mapping: endpointId -> { parentUuid, partId }
   private partEndpoints = new Map<string, { parentUuid: string, partId: string }>()
@@ -100,6 +109,10 @@ export class BehaviorRegistry {
     clusterName: string,
     commandName: string,
   ): MatterCommandHandler | undefined {
+    const source = this.handlerSources.get(endpointId)
+    if (source) {
+      return source()?.[clusterName]?.[commandName]
+    }
     return this.handlers.get(endpointId)?.get(clusterName)?.get(commandName)
   }
 
@@ -247,6 +260,7 @@ export class BehaviorRegistry {
     // (e.g. RegistryManager, which has no parent-aware sweep of its own).
     const removed: string[] = [endpointId]
     this.handlers.delete(endpointId)
+    this.handlerSources.delete(endpointId)
     for (const key of this.reportedMissing) {
       if (key.startsWith(`${endpointId}.`) || key.startsWith(`${endpointId}-part-`)) {
         this.reportedMissing.delete(key)
@@ -258,6 +272,7 @@ export class BehaviorRegistry {
       if (info.parentUuid === endpointId || partEndpointId === endpointId) {
         this.partEndpoints.delete(partEndpointId)
         this.handlers.delete(partEndpointId)
+        this.handlerSources.delete(partEndpointId)
         if (partEndpointId !== endpointId) {
           removed.push(partEndpointId)
         }
@@ -271,6 +286,7 @@ export class BehaviorRegistry {
    */
   clear(): void {
     this.handlers.clear()
+    this.handlerSources.clear()
     this.partEndpoints.clear()
     this.reportedMissing.clear()
   }
