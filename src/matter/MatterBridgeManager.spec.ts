@@ -77,6 +77,16 @@ describe('matterBridgeManager', () => {
   }
 
   describe('constructor', () => {
+    it('routes a replacement object to the restored external server', async () => {
+      const m = buildManager({ enabled: true })
+      const accessory = { UUID: 'restored', displayName: 'Restored' } as any
+      ;(m as any).externalMatterServers.set(accessory.UUID, {})
+      const attach = vi.spyOn(m as any, 'attachRestoredExternalAccessory').mockResolvedValue(true)
+      await m.handlePublishExternalAccessories([accessory], 'replacement')
+      expect(attach).toHaveBeenCalledWith(accessory)
+      expect(mockApi._resolveExternalRegistration).toHaveBeenCalledWith('replacement')
+    })
+
     it('does NOT attach API listeners during construction (deferred to initialize)', () => {
       buildManager({ enabled: true })
       // Before initialize(), no listeners are wired up. This avoids spurious

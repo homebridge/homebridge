@@ -55,6 +55,16 @@ describe('childBridgeMatterManager', () => {
   })
 
   describe('isMatterEnabled', () => {
+    it('routes a replacement object to the restored external server', async () => {
+      const m = new ChildBridgeMatterManager(mockBridgeConfig, mockBridgeOptions, mockApi, mockExternalPortService, mockPluginManager)
+      const accessory = { UUID: 'restored', displayName: 'Restored' } as any
+      ;(m as any).externalMatterServers.set(accessory.UUID, {})
+      const attach = vi.spyOn(m as any, 'attachRestoredExternalAccessory').mockResolvedValue(true)
+      await m.handlePublishExternalAccessories([accessory], 'replacement')
+      expect(attach).toHaveBeenCalledWith(accessory)
+      expect(mockApi._resolveExternalRegistration).toHaveBeenCalledWith('replacement')
+    })
+
     it('should return false when Matter is not configured', () => {
       manager = new ChildBridgeMatterManager(
         mockBridgeConfig,

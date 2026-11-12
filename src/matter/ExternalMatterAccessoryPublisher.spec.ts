@@ -1,6 +1,8 @@
 import type { ExternalAccessoryPublishContext } from './ExternalMatterAccessoryPublisher.js'
 import type { InternalMatterAccessory } from './types.js'
 
+import { renameSync, writeFileSync } from 'node:fs'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../logger.js'
@@ -28,6 +30,11 @@ vi.mock('../logger.js', () => {
 vi.mock('../user.js')
 vi.mock('../util/mac.js')
 vi.mock('./server.js')
+vi.mock('node:fs', async importOriginal => ({
+  ...await importOriginal<typeof import('node:fs')>(),
+  renameSync: vi.fn(),
+  writeFileSync: vi.fn(),
+}))
 
 describe('externalMatterAccessoryPublisher', () => {
   let mockAccessory: InternalMatterAccessory
@@ -92,6 +99,40 @@ describe('externalMatterAccessoryPublisher', () => {
   })
 
   describe('publishExternalMatterAccessory', () => {
+    it('records bridge ownership only after successful startup for later restoration', async () => {
+      mockContext.bridgeUsername = 'main-bridge'
+      mockAccessory._associatedPlatform = 'TestPlatform'
+      await publishExternalMatterAccessory(mockAccessory, mockContext)
+      expect(writeFileSync).toHaveBeenCalledWith('/mock/matter/path/AABBCCDDEEFF/homebridge-owner.json.tmp', JSON.stringify({
+        bridge: 'main-bridge',
+        uuid: mockAccessory.UUID,
+        plugin: 'homebridge-test-plugin',
+        platform: 'TestPlatform',
+      }))
+      expect(renameSync).toHaveBeenCalledWith('/mock/matter/path/AABBCCDDEEFF/homebridge-owner.json.tmp', '/mock/matter/path/AABBCCDDEEFF/homebridge-owner.json')
+      expect(vi.mocked(writeFileSync).mock.invocationCallOrder[0]).toBeGreaterThan(mockMatterServer.runServer.mock.invocationCallOrder[0])
+    })
+
+    it('does not claim ownership after a failed start', async () => {
+      mockContext.bridgeUsername = 'child-bridge'
+      mockMatterServer.start.mockRejectedValueOnce(new Error('storage locked'))
+      await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('storage locked')
+      expect(writeFileSync).not.toHaveBeenCalled()
+    })
+
+    it('cleans up the server and releases its port when recording ownership fails', async () => {
+      mockContext.bridgeUsername = 'child-bridge'
+      mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
+      mockPortService.releaseMatterPort = vi.fn()
+      vi.mocked(writeFileSync).mockImplementationOnce(() => {
+        throw new Error('write denied')
+      })
+      await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('write denied')
+      expect(mockMatterServer.stop).toHaveBeenCalledOnce()
+      expect(mockPortService.releaseMatterPort).toHaveBeenCalledWith('AABBCCDDEEFF')
+      expect(renameSync).not.toHaveBeenCalled()
+    })
+
     describe('validation', () => {
       it('should return null when accessory has no UUID', async () => {
         const invalidAccessory = { ...mockAccessory, UUID: undefined } as any
@@ -266,6 +307,14 @@ describe('externalMatterAccessoryPublisher', () => {
           'homebridge-test-plugin',
           'ExternalMatter',
           [mockAccessory],
+        )
+      })
+
+      it('preserves the owning platform in the external cache registration', async () => {
+        const accessory = { ...mockAccessory, _associatedPlatform: 'VacuumPlatform' }
+        await publishExternalMatterAccessory(accessory, mockContext)
+        expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledWith(
+          'homebridge-test-plugin', 'VacuumPlatform', [accessory],
         )
       })
 

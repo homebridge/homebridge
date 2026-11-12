@@ -30,15 +30,18 @@ export interface CommissioningSnapshot {
 }
 
 export class FabricManager {
+  private storageFabricListAvailable = false
   constructor(
     private readonly getServerNode: () => ServerNode | null,
     private readonly getMatterStoragePath: () => string | undefined,
+    private readonly isServerReady: () => boolean = () => true,
   ) {}
 
   /**
    * Get fabric information for commissioned controllers
    */
   getFabricInfo(): FabricInfo[] {
+    this.storageFabricListAvailable = false
     try {
       const serverNode = this.getServerNode()
       if (!serverNode) {
@@ -55,7 +58,7 @@ export class FabricManager {
       try {
         const serverState = serverNode as any
         const fabrics = serverState?.state?.operationalCredentials?.fabrics
-        if (Array.isArray(fabrics) && fabrics.length > 0) {
+        if (Array.isArray(fabrics) && (fabrics.length > 0 || this.isServerReady())) {
           return fabrics.map((fabric: any) => ({
             fabricIndex: fabric.fabricIndex || 0,
             fabricId: fabric.fabricId?.toString() || '',
@@ -90,7 +93,7 @@ export class FabricManager {
   private hasLiveFabricList(): boolean {
     try {
       const serverNode = this.getServerNode() as any
-      return Array.isArray(serverNode?.state?.operationalCredentials?.fabrics)
+      return this.isServerReady() && Array.isArray(serverNode?.state?.operationalCredentials?.fabrics)
     } catch {
       return false
     }
@@ -131,10 +134,11 @@ export class FabricManager {
           const data = JSON.parse(fs.readFileSync(file, 'utf-8'))
 
           // Check for fabrics data in various storage key formats
-          const fabricsData = Array.isArray(data)
+          const fabricsData = path.basename(file) === 'fabrics.fabrics' && Array.isArray(data)
             ? data
             : (data?.['fabrics.fabrics'] || data?.fabrics?.fabrics)
-          if (Array.isArray(fabricsData) && fabricsData.length > 0) {
+          if (Array.isArray(fabricsData)) {
+            this.storageFabricListAvailable = true
             return fabricsData.map((fabric: any) => ({
               fabricIndex: fabric.fabricIndex || 0,
               fabricId: fabric.fabricId?.value?.toString() || fabric.fabricId?.toString() || '',
@@ -159,23 +163,7 @@ export class FabricManager {
    */
   isCommissioned(): boolean {
     try {
-      const serverNode = this.getServerNode()
-      if (serverNode) {
-        // Try to check commissioned state from the server node
-        try {
-          const serverState = serverNode as any
-          const commissioned = serverState?.state?.commissioning?.commissioned
-          if (commissioned === true) {
-            return true
-          }
-        } catch {
-          // Fallback
-        }
-      }
-
-      // Fallback to checking fabric count
-      const fabrics = this.getFabricInfo()
-      return fabrics.length > 0
+      return this.getCommissioningSnapshot().commissioned
     } catch (error) {
       log.debug('Failed to check commissioned status:', error)
       return false
@@ -213,7 +201,7 @@ export class FabricManager {
     // So only fall back to the flag when the live list could not be read at
     // all, which is the one case where an empty list means "don't know" rather
     // than "nothing is paired".
-    if (this.hasLiveFabricList()) {
+    if (this.hasLiveFabricList() || this.storageFabricListAvailable) {
       return { commissioned: false, fabricCount, fabrics }
     }
 

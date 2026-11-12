@@ -6,6 +6,7 @@ import { PowerSourceServer } from '@matter/node/behaviors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../../logger.js'
+import { BehaviorRegistry } from '../behaviors/BehaviorRegistry.js'
 import { HomebridgeRvcCleanModeServer } from '../behaviors/RvcCleanModeBehavior.js'
 import {
   applyElectricalMeasurementClusters,
@@ -222,6 +223,7 @@ function createMockDeps(overrides: Partial<AccessoryManagerDeps> = {}): Accessor
     accessories: new Map<string, InternalMatterAccessory>(),
     behaviorRegistry: {
       registerHandler: vi.fn(),
+      registerHandlerSource: vi.fn(),
       registerPartEndpoint: vi.fn(),
       removeEndpoint: vi.fn((endpointId: string) => [endpointId]),
     } as any,
@@ -549,6 +551,93 @@ describe('accessoryManager', () => {
     // the existing endpoint in place (no parts-list churn) rather than hitting the
     // duplicate-UUID error, and a genuine structural change must re-register fresh.
     describe('cache-restored attach-in-place (#3969)', () => {
+      it('keeps live part handlers when the cached object itself is registered again', async () => {
+        const deps = createMockDeps()
+        const part = createComposedPart()
+        const restored = {
+          ...createMockAccessory({
+            parts: [part],
+          }),
+          endpoint: { marker: 'restored-endpoint' },
+          _parts: [part],
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set(restored.UUID, restored)
+        const registry = new BehaviorRegistry(deps.accessories)
+        deps.behaviorRegistry = registry
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', restored, deps)
+        const handler = vi.fn()
+        restored.parts[0].handlers = {
+          onOff: { on: handler },
+        }
+        expect(registry.getHandler(`${restored.UUID}-part-${part.id}`, 'onOff', 'on')).toBe(handler)
+        restored.parts[0].handlers = undefined
+        expect(registry.getHandler(`${restored.UUID}-part-${part.id}`, 'onOff', 'on')).toBeUndefined()
+      })
+
+      it('rebuilds a retained part when its device type changes', async () => {
+        const deps = createMockDeps()
+        const part = createComposedPart()
+        const restored = {
+          ...createMockAccessory({
+            parts: [part],
+          }),
+          endpoint: {
+            marker: 'restored-endpoint',
+            close: vi.fn(),
+          },
+          _parts: [part],
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set(restored.UUID, restored)
+        const unregister = vi.spyOn(manager, 'unregisterAccessory')
+        const replacement = {
+          ...part,
+          deviceType: createChainableDeviceType({ deviceType: 0x010A, name: 'OnOffPlugInUnit' }),
+        }
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory({
+          parts: [replacement],
+        }), deps)
+        expect(unregister).toHaveBeenCalledWith(restored.UUID, deps)
+        expect(deps.accessories.get(restored.UUID)?.endpoint).not.toBe(restored.endpoint)
+      })
+
+      it('removes old parent and part handlers when a replacement omits them', async () => {
+        const deps = createMockDeps()
+        const oldHandler = vi.fn()
+        const part = createComposedPart()
+        const restored = {
+          ...createMockAccessory({
+            parts: [part],
+          }),
+          endpoint: { marker: 'restored-endpoint' },
+          _parts: [part],
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set(restored.UUID, restored)
+        const registry = new BehaviorRegistry(deps.accessories)
+        deps.behaviorRegistry = registry
+        const partId = `${restored.UUID}-part-${part.id}`
+        registry.registerHandler(restored.UUID, 'onOff', 'on', oldHandler)
+        registry.registerHandler(partId, 'onOff', 'on', oldHandler)
+        registry.registerHandlerSource(partId, () => ({
+          onOff: { on: oldHandler },
+        }))
+        registry.registerPartEndpoint(partId, restored.UUID, part.id)
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform',
+          createMockAccessory({
+            parts: [part],
+          }), deps)
+
+        expect(registry.getHandler(restored.UUID, 'onOff', 'on')).toBeUndefined()
+        expect(registry.getHandler(partId, 'onOff', 'on')).toBeUndefined()
+        expect(oldHandler).not.toHaveBeenCalled()
+      })
+
       it('attaches a plugin registration to a restored accessory in place when the shape is unchanged', async () => {
         const deps = createMockDeps()
         const restored = {
@@ -949,6 +1038,21 @@ describe('accessoryManager', () => {
       await expect(
         manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps),
       ).rejects.toThrow('Maximum device limit')
+    })
+
+    it('keeps restored handler lookup connected to the object returned to the plugin', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory() as InternalMatterAccessory
+      accessory._restoredFromCache = true
+      accessory.handlers = { serviceArea: {} }
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+      const source = vi.mocked(deps.behaviorRegistry.registerHandlerSource).mock.calls.find(call => call[0] === accessory.UUID)?.[1]
+      expect(source).toBeTypeOf('function')
+      const selectAreas = vi.fn()
+      accessory.handlers = {
+        serviceArea: { selectAreas },
+      }
+      expect(source?.()?.serviceArea?.selectAreas).toBe(selectAreas)
     })
 
     it('should register handlers when provided', async () => {

@@ -115,6 +115,7 @@ export class MatterServer extends EventEmitter {
     this.fabricManager = new FabricManager(
       () => this.serverNode,
       () => this.serverLifecycle.matterStoragePath,
+      () => this.isRunning,
     )
 
     this.serverLifecycle = new ServerLifecycle()

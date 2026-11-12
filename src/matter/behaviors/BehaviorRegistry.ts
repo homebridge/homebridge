@@ -6,7 +6,7 @@
  */
 
 import type { MatterServer } from '../server.js'
-import type { InternalMatterAccessory, MatterHandlerContext } from '../types.js'
+import type { InternalMatterAccessory, MatterAccessory, MatterHandlerContext } from '../types.js'
 
 import { Logger } from '../../logger.js'
 
@@ -30,6 +30,15 @@ export type MatterAccessoryMap = Map<string, InternalMatterAccessory>
 export class BehaviorRegistry {
   // Handler storage: endpointId -> clusterName -> commandName -> handler
   private handlers = new Map<string, Map<string, Map<string, MatterCommandHandler>>>()
+  private handlerSources = new Map<string, () => MatterAccessory['handlers']>()
+
+  registerHandlerSource(endpointId: string, source?: () => MatterAccessory['handlers']): void {
+    if (source) {
+      this.handlerSources.set(endpointId, source)
+    } else {
+      this.handlerSources.delete(endpointId)
+    }
+  }
 
   // Part endpoint mapping: endpointId -> { parentUuid, partId }
   private partEndpoints = new Map<string, { parentUuid: string, partId: string }>()
@@ -84,6 +93,10 @@ export class BehaviorRegistry {
     clusterName: string,
     commandName: string,
   ): MatterCommandHandler | undefined {
+    const source = this.handlerSources.get(endpointId)
+    if (source) {
+      return source()?.[clusterName]?.[commandName]
+    }
     return this.handlers.get(endpointId)?.get(clusterName)?.get(commandName)
   }
 
@@ -211,12 +224,14 @@ export class BehaviorRegistry {
     // (e.g. RegistryManager, which has no parent-aware sweep of its own).
     const removed: string[] = [endpointId]
     this.handlers.delete(endpointId)
+    this.handlerSources.delete(endpointId)
     // Sweep any part endpoints whose parent matches the unregistering UUID,
     // and drop their handler tables too.
     for (const [partId, info] of this.partEndpoints) {
       if (info.parentUuid === endpointId || partId === endpointId) {
         this.partEndpoints.delete(partId)
         this.handlers.delete(partId)
+        this.handlerSources.delete(partId)
         if (partId !== endpointId) {
           removed.push(partId)
         }
@@ -230,6 +245,7 @@ export class BehaviorRegistry {
    */
   clear(): void {
     this.handlers.clear()
+    this.handlerSources.clear()
     this.partEndpoints.clear()
   }
 

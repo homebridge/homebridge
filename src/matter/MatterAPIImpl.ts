@@ -365,10 +365,11 @@ export class MatterAPIImpl implements MatterAPI {
 
     // Handle external accessories (standalone bridges)
     if (externalAccessories.length > 0) {
-      // Add plugin association (no platform for external)
+      // Preserve platform ownership so external caches can be restored on restart.
       externalAccessories.forEach((accessory) => {
         const internal = accessory as InternalMatterAccessory
         internal._associatedPlugin = pluginIdentifier
+        internal._associatedPlatform = platformName
       })
 
       log.debug(
