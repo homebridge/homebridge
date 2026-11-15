@@ -24,8 +24,12 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
   }
 
-  override initialize(): void {
-    super.initialize()
+  override async initialize(): Promise<void> {
+    // matter.js's own set-up can be async and can fail (it refuses a thermostat
+    // whose limits it can not make sense of). Waited for, the failure fails
+    // this one registration. Not waited for, nobody caught it, and Node ended
+    // Homebridge for an unhandled rejection.
+    await super.initialize()
 
     // React to systemMode attribute changes (off, heat, cool, auto, etc.)
     this.reactTo(this.events.systemMode$Changed, this.#handleSystemModeChange, { offline: true })

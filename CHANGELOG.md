@@ -91,6 +91,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs(matter): mark MatterAccessory.getState as deprecated, as it has never been called
 - docs(matter): deprecate the ready event a plugin can not receive, and name only methods that exist
 - fix(matter): make removeFabric remove the paired controller instead of always failing
+- fix(matter): fail only the registration of a thermostat matter.js refuses, not all of homebridge
 
 ### Homebridge Dependencies
 

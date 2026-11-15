@@ -21,8 +21,8 @@ export class HomebridgeFanControlServer extends FanControlServer {
     return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
   }
 
-  override initialize(): void {
-    super.initialize()
+  override async initialize(): Promise<void> {
+    await super.initialize()
 
     // React to fanMode attribute changes (on/off)
     this.reactTo(this.events.fanMode$Changed, this.#handleFanModeChange, { offline: true })
