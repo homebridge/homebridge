@@ -1118,6 +1118,51 @@ export class Server {
     })
   }
 
+  /**
+   * Arm the "nobody answered" reply for a control request that was handed to
+   * one or more child bridges. A child that does not have the accessory, or
+   * has no Matter running, stays silent, so without this nothing is sent back
+   * at all. Mirrors the accessoryInfoData fallback: a short timer that the
+   * owner's response cancels (via ChildBridgeService.onAccessoryControlResponse).
+   *
+   * Only meaningful with a correlationId: the UI drops any response without
+   * one, so there would be nothing to rescue.
+   */
+  private armMatterControlFallback(uuid: string, correlationId: string | undefined, reason: string): void {
+    if (!correlationId) {
+      return
+    }
+    const existing = this.pendingMatterControlRequests.get(correlationId)
+    if (existing) {
+      clearTimeout(existing)
+    }
+    const fallback = setTimeout(() => {
+      this.pendingMatterControlRequests.delete(correlationId)
+      matterLogger.warn(`Accessory ${uuid} not found - ${reason}`)
+      this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid }, correlationId)
+    }, 2000)
+    fallback.unref()
+    this.pendingMatterControlRequests.set(correlationId, fallback)
+  }
+
+  /**
+   * Hand a control request to the one child bridge it names. The request is
+   * always answered: at once when the child process is not running (stopped,
+   * restarting, or waiting to be restarted after a crash), and by the fallback
+   * when the child is running but does not answer.
+   */
+  private forwardMatterControlToChild(
+    childBridge: ChildBridgeService,
+    data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, correlationId?: string },
+  ): void {
+    if (!childBridge.controlMatterAccessory(data)) {
+      matterLogger.warn(`Cannot control ${data.uuid} - child bridge ${childBridge.identifier} is not running`)
+      this.sendMatterControlResponse({ success: false, error: 'Child bridge is not running', uuid: data.uuid }, data.correlationId)
+      return
+    }
+    this.armMatterControlFallback(data.uuid, data.correlationId, `child bridge ${childBridge.identifier} did not claim it`)
+  }
+
   private async handleMatterAccessoryControl(data?: {
     uuid: string
     cluster: string
@@ -1160,7 +1205,7 @@ export class Server {
       for (const childBridge of this.childBridges.values()) {
         if (childBridge.getMetadata().username.toUpperCase() === targetUsername) {
           matterLogger.debug(`Routing to child bridge ${childBridge.identifier} (${targetUsername})`)
-          childBridge.controlMatterAccessory(data)
+          this.forwardMatterControlToChild(childBridge, data)
           return
         }
       }
@@ -1187,7 +1232,7 @@ export class Server {
           const childBridge = this.childBridges.get(ownerUsername)
           if (childBridge) {
             matterLogger.debug(`Routing to child bridge ${childBridge.identifier} (${ownerUsername}) for external accessory ${data.uuid}`)
-            childBridge.controlMatterAccessory(data)
+            this.forwardMatterControlToChild(childBridge, data)
           } else {
             matterLogger.error(`Owner bridge ${ownerUsername} not found for external bridge ${targetUsername}`)
             this.sendMatterControlResponse({ success: false, error: `Owner bridge ${ownerUsername} not found`, uuid: data.uuid }, correlationId)
@@ -1231,25 +1276,8 @@ export class Server {
         // Every Matter child is asked and only the owner answers - a child that
         // does not have the accessory returns silently, by design. So when no
         // child owns it nothing is sent back at all, and the UI sat through its
-        // own 10s timeout, retried the command, then reported a failure. Mirror
-        // the accessoryInfoData fallback: arm a short timer that the owner's
-        // response cancels (via ChildBridgeService.onAccessoryControlResponse).
-        //
-        // Only meaningful with a correlationId — the UI drops any response
-        // without one, so there would be nothing to rescue.
-        if (correlationId) {
-          const existing = this.pendingMatterControlRequests.get(correlationId)
-          if (existing) {
-            clearTimeout(existing)
-          }
-          const fallback = setTimeout(() => {
-            this.pendingMatterControlRequests.delete(correlationId)
-            matterLogger.warn(`Accessory ${data.uuid} not found - no child bridge with Matter claimed it`)
-            this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid: data.uuid }, correlationId)
-          }, 2000)
-          fallback.unref()
-          this.pendingMatterControlRequests.set(correlationId, fallback)
-        }
+        // own 10s timeout, retried the command, then reported a failure.
+        this.armMatterControlFallback(data.uuid, correlationId, 'no child bridge with Matter claimed it')
       } else {
         matterLogger.warn(`Accessory ${data.uuid} not found - not on main bridge and no child bridges with Matter available`)
         this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid: data.uuid }, correlationId)

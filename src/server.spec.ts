@@ -943,6 +943,109 @@ describe('server', () => {
       )
     })
 
+    // The UI names the bridge whenever it knows the accessory, so this is the
+    // normal path. A child that is not running dropped the request, and a child
+    // that does not own the accessory stays silent: either way nothing came
+    // back, and the UI waited 10s, sent the command again, then showed a failure.
+    describe('a request that names one child bridge', () => {
+      const childUsername = 'CC:00:00:00:00:08'
+
+      function serverWithNamedChild(sent: boolean) {
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+        const child = {
+          identifier: 'TestPlatform',
+          getMetadata: () => ({
+            username: childUsername,
+            matterConfig: { enabled: true },
+          }),
+          controlMatterAccessory: vi.fn(() => sent),
+        }
+        ;(server as any).childBridges.set(childUsername, child)
+        return { server, sendSpy, child }
+      }
+
+      function controlResponses(sendSpy: ReturnType<typeof vi.spyOn>) {
+        return (sendSpy.mock.calls as [string, any][])
+          .filter(([id, payload]) => id === 'matterEvent' && payload?.type === 'accessoryControlResponse')
+          .map(([, payload]) => payload)
+      }
+
+      const request = {
+        uuid: 'named-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+        bridgeUsername: childUsername.toLowerCase(),
+        correlationId: 'corr-named',
+      }
+
+      it('answers at once when the child process is not running', async () => {
+        const { server, sendSpy, child } = serverWithNamedChild(false)
+
+        await (server as any).handleMatterAccessoryControl(request)
+
+        expect(child.controlMatterAccessory).toHaveBeenCalledTimes(1)
+        expect(controlResponses(sendSpy)).toEqual([
+          {
+            type: 'accessoryControlResponse',
+            correlationId: 'corr-named',
+            data: { success: false, error: 'Child bridge is not running', uuid: 'named-uuid' },
+          },
+        ])
+        expect((server as any).pendingMatterControlRequests.size).toBe(0)
+      })
+
+      it('answers after two seconds when the running child stays silent', async () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = serverWithNamedChild(true)
+
+          await (server as any).handleMatterAccessoryControl(request)
+          expect(controlResponses(sendSpy)).toHaveLength(0)
+
+          vi.advanceTimersByTime(2000)
+          expect(controlResponses(sendSpy)).toEqual([
+            {
+              type: 'accessoryControlResponse',
+              correlationId: 'corr-named',
+              data: { success: false, error: 'Accessory not found', uuid: 'named-uuid' },
+            },
+          ])
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('stays quiet when the child does answer', async () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = serverWithNamedChild(true)
+
+          await (server as any).handleMatterAccessoryControl(request)
+          ;(server as any).cancelPendingMatterControlRequest('corr-named')
+          vi.advanceTimersByTime(5000)
+
+          expect(controlResponses(sendSpy)).toHaveLength(0)
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('answers at once for an external accessory whose owning child is not running', async () => {
+        const { server, sendSpy, child } = serverWithNamedChild(false)
+        server.registerExternalMatterBridge('EE:00:00:00:00:01', childUsername)
+
+        await (server as any).handleMatterAccessoryControl({ ...request, bridgeUsername: 'EE:00:00:00:00:01' })
+
+        expect(child.controlMatterAccessory).toHaveBeenCalledTimes(1)
+        expect(controlResponses(sendSpy)).toHaveLength(1)
+        expect(controlResponses(sendSpy)[0].data.error).toBe('Child bridge is not running')
+      })
+    })
+
     // The broadcast asks every Matter child and only the owner answers - a child
     // that does not have the accessory returns silently. So when no child owns
     // it nothing came back at all, and the UI sat through its own 10s timeout,

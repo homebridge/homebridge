@@ -496,6 +496,24 @@ describe('childBridgeService', () => {
     // correlationId - a worse failure than the silence it was added to fix.
     // The Server spec calls cancelPendingMatterControlRequest directly, so it
     // cannot catch a break here; only driving a real child message can.
+    it('controlMatterAccessory says whether the request reached the child', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      const request = {
+        uuid: 'u',
+        cluster: 'onOff',
+        attributes: { onOff: true },
+      }
+
+      expect(service.controlMatterAccessory(request)).toBe(true)
+
+      // Stopped, restarting, or waiting to be restarted after a crash.
+      child.connected = false
+      expect(service.controlMatterAccessory(request)).toBe(false)
+    })
+
     it('on MATTER_EVENT accessoryControlResponse, calls onAccessoryControlResponse if set', () => {
       const { service, ipcService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
