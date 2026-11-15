@@ -62,6 +62,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: call every shutdown listener and finish the teardown when one plugin's listener throws
 - fix: load a commonjs plugin whose main has no file extension or names a folder
 - fix: read nested conditions, fallback lists and sub-path maps in a plugin's exports field
+- fix: start without the global npm folder when npm can not be run to find it
 
 ### Homebridge Dependencies
 
