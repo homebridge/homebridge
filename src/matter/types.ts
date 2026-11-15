@@ -291,10 +291,12 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
    * What reaches a plugin, and what does not (there is no general handler like HAP's `onSet`):
    * - Every command of a cluster Homebridge has a behavior for (`on`, `moveToLevel`,
    *   `lockDoor` and so on) calls the handler of that name.
-   * - Five attributes a controller writes directly have a `...Change` handler:
+   * - Seven attributes a controller writes directly have a `...Change` handler:
    *   `fanControl.fanModeChange`, `fanControl.percentSettingChange`,
-   *   `thermostat.systemModeChange`, `thermostat.occupiedHeatingSetpointChange` and
-   *   `thermostat.occupiedCoolingSetpointChange`.
+   *   `thermostat.systemModeChange`, `thermostat.occupiedHeatingSetpointChange`,
+   *   `thermostat.occupiedCoolingSetpointChange`, and (for a thermostat with the
+   *   Occupancy feature) `thermostat.unoccupiedHeatingSetpointChange` and
+   *   `thermostat.unoccupiedCoolingSetpointChange`.
    * - Any other attribute a controller writes changes the Matter state, and the plugin is
    *   not told.
    * - State the plugin sends itself with `api.matter.updateAccessoryState()` calls none of

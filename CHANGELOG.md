@@ -257,6 +257,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: say the default pin is only a risk while a bridge is not paired
 - fix: count a child bridge crash as one after a restart that a stop cut short
 - fix(matter): write the pairing files one save at a time, so two saves at once both work
+- docs(matter): list the two unoccupied setpoint change handlers with the other five
 
 ### Homebridge Dependencies
 
