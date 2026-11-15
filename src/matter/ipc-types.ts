@@ -46,6 +46,11 @@ export interface MatterStatusInfo {
    * intentionally suppressed). Mirrors `bridge.hap.externalsOnly`.
    */
   externalsOnly?: boolean
+  /**
+   * True when Matter is configured for the bridge but its server did not
+   * start (for example its port is in use). The reason is in the log.
+   */
+  startFailed?: boolean
 }
 
 /**

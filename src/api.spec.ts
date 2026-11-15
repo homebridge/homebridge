@@ -180,6 +180,7 @@ describe('homebridgeAPI', () => {
         getExternalServer: () => undefined,
         hasActiveMatter: () => true,
         isBridgeServerStarting: () => false,
+        getBridgeStartFailure: () => undefined,
       }
     })
 

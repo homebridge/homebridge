@@ -134,7 +134,10 @@ export class MatterBridgeManager extends BaseMatterManager {
    * made against the main bridge must be rejected rather than silently dropped.
    */
   override hasActiveMatter(): boolean {
-    return this.matterServer !== undefined || this.externalsOnlyMode
+    // A bridge server that failed to start still counts: its listeners are
+    // attached, external accessories (which have a server of their own) can
+    // still publish, and a bridged registration gets the true reason.
+    return this.matterServer !== undefined || this.externalsOnlyMode || this.bridgeStartFailure !== undefined
   }
 
   // Stored reference so the stateChange listener can be removed in teardown()
@@ -295,6 +298,17 @@ export class MatterBridgeManager extends BaseMatterManager {
         : String(error)
       const errorCode = getErrorCode(error)
 
+      // The server object was kept before, never running. The bridge then
+      // reported Matter as enabled with no pairing codes, and told every
+      // plugin "still starting" for the rest of the run. Its port stays
+      // reserved: it may be the very port another program holds.
+      const failedServer = this.matterServer
+      this.matterServer = undefined
+      this.bridgeStartFailure = errorMessage
+      failedServer?.stop().catch((stopError: unknown) => {
+        log.debug('Could not stop the Matter server that failed to start:', stopError)
+      })
+
       // Unreadable stored data is reported, and set aside, by the server
       // itself: its error says where the data went and what to do next.
       if (errorCode === 'EADDRINUSE' || errorMessage.includes('address already in use')) {
@@ -414,6 +428,7 @@ export class MatterBridgeManager extends BaseMatterManager {
         enabled: false,
         port: this.config.bridge.matter?.port,
         externalsOnly: this.externalsOnlyMode,
+        ...(this.bridgeStartFailure !== undefined && { startFailed: true }),
       }
     }
 

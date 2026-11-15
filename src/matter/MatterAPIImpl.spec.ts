@@ -355,6 +355,7 @@ describe('matterAPIImpl.registerPlatformAccessories — bridged registration bef
       _matterManager: {
         hasActiveMatter: () => true,
         isBridgeServerStarting: () => true,
+        getBridgeStartFailure: () => undefined,
       },
     })
     const impl = new MatterAPIImpl(api)
@@ -368,11 +369,31 @@ describe('matterAPIImpl.registerPlatformAccessories — bridged registration bef
     expect(api.emit).not.toHaveBeenCalled()
   })
 
+  it('rejects with the true reason when the bridge server failed to start', async () => {
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        isBridgeServerStarting: () => false,
+        getBridgeStartFailure: () => 'address already in use',
+      },
+    })
+    const impl = new MatterAPIImpl(api)
+    vi.spyOn(impl as any, 'validateAccessories').mockReturnValue([bridgedAccessory])
+
+    const error: Error = await impl.registerPlatformAccessories('homebridge-test', 'TestPlatform', [bridgedAccessory])
+      .then(() => new Error('registered'), failure => failure)
+
+    expect(error.message).toMatch(/failed to start \(address already in use\)/)
+    expect(error.message).not.toMatch(/still starting|transient/)
+    expect(api.emit).not.toHaveBeenCalled()
+  })
+
   it('emits the registration once the bridge server is running', async () => {
     const api = makeApi({
       _matterManager: {
         hasActiveMatter: () => true,
         isBridgeServerStarting: () => false,
+        getBridgeStartFailure: () => undefined,
       },
     })
     const impl = new MatterAPIImpl(api)

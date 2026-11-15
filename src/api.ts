@@ -212,16 +212,24 @@ export type MatterWorkTracker = (work: Promise<void>) => void
  *
  * @example
  * ```typescript
- * // Defensive pattern (recommended for plugins that work with or without Matter):
- * api.matter?.registerPlatformAccessories('homebridge-example', 'Example', [{
- *   UUID: api.hap.uuid.generate('my-light'),
- *   displayName: 'Living Room Light',
- *   deviceType: api.matter!.deviceTypes.OnOffLight,
- *   manufacturer: 'Example',
- *   model: 'Example Light',
- *   serialNumber: 'EX-001',
- *   clusters: { onOff: { onOff: false } },
- * }])
+ * // Defensive pattern (recommended for plugins that work with or without Matter).
+ * // The Matter methods return promises, and a registration is rejected when it can
+ * // not be done (for example when the Matter server of the bridge did not start).
+ * // Always await them and catch the error: a rejection nobody handles ends Homebridge.
+ * try {
+ *   await api.matter?.registerPlatformAccessories('homebridge-example', 'Example', [{
+ *     UUID: api.hap.uuid.generate('my-light'),
+ *     displayName: 'Living Room Light',
+ *     deviceType: api.matter!.deviceTypes.OnOffLight,
+ *     manufacturer: 'Example',
+ *     model: 'Example Light',
+ *     serialNumber: 'EX-001',
+ *     context: {},
+ *     clusters: { onOff: { onOff: false } },
+ *   }])
+ * } catch (error) {
+ *   log.error('Could not register the Matter accessory:', error)
+ * }
  *
  * // Update state when device changes externally
  * await api.matter?.updateAccessoryState(uuid, 'onOff', { onOff: true })
@@ -531,9 +539,19 @@ export interface API {
    *
    * Safe access patterns:
    * ```typescript
-   * api.matter?.registerPlatformAccessories(...)         // defensive, no-ops when disabled
+   * await api.matter?.registerPlatformAccessories(...)   // defensive, no-ops when disabled
    * if (api.isMatterEnabled()) {
-   *   api.matter!.registerPlatformAccessories(...)       // explicit guard
+   *   await api.matter!.registerPlatformAccessories(...) // explicit guard
+   * }
+   * ```
+   *
+   * The Matter methods return promises. Await them inside a `try`/`catch`:
+   * a rejection that nobody handles ends Homebridge.
+   * ```typescript
+   * try {
+   *   await api.matter?.registerPlatformAccessories(...)
+   * } catch (error) {
+   *   log.error('Could not register the Matter accessories:', error)
    * }
    * ```
    *

@@ -337,6 +337,12 @@ export class MatterAPIImpl implements MatterAPI {
       // unaffected — they run on their own dedicated server and already await a
       // completion resolver.
       const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
+      const startFailure = matterManager?.getBridgeStartFailure()
+      if (startFailure !== undefined) {
+        throw new Error(
+          `${pluginIdentifier}: Cannot register Matter accessories — the Matter server for this bridge failed to start (${startFailure}). See the error at start-up in the log. HomeKit accessories are not affected.`,
+        )
+      }
       if (matterManager && matterManager.isBridgeServerStarting()) {
         throw new Error(
           `${pluginIdentifier}: Cannot register Matter accessories yet — the Matter server for this bridge is still starting. Register from your platform's 'didFinishLaunching' event; if you already do, this is transient and the accessories are restored from cache on the next start.`,

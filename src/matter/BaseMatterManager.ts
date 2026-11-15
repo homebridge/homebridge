@@ -64,6 +64,17 @@ export abstract class BaseMatterManager {
    * bridge server at all (`matterServer` is undefined) and bridged registrations
    * are intentionally dropped by the drop stubs — that must not throw.
    */
+  /**
+   * Why the bridge's Matter server did not start, when it did not. Set by the
+   * manager that starts it. A failed start is not "still starting": nothing
+   * will finish it in this run.
+   */
+  protected bridgeStartFailure: string | undefined
+
+  getBridgeStartFailure(): string | undefined {
+    return this.bridgeStartFailure
+  }
+
   isBridgeServerStarting(): boolean {
     // In deferOnline mode the server is deliberately built but kept offline
     // until the initial registration burst settles, so registrations MUST be
