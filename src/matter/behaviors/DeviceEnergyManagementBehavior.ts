@@ -123,45 +123,53 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
     return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
   }
 
-  private async run(commandName: string, action: string, apply: () => Promise<void>, request?: unknown): Promise<void> {
+  private async run(commandName: string, apply: () => Promise<void>, request?: unknown): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
     await runOptionalHandler(this, registry, endpointId, 'deviceEnergyManagement', commandName, request)
     await apply()
-    registry.syncStateToCache(endpointId, 'deviceEnergyManagement', { esaState: this.state.esaState })
+    // A power adjustment also records its reason, in powerAdjustmentCapability
+    // (which only exists with the PowerAdjustment feature)
+    const capability = this.state.powerAdjustmentCapability
+    registry.syncStateToCache(endpointId, 'deviceEnergyManagement', {
+      esaState: this.state.esaState,
+      ...(capability !== undefined
+        ? { powerAdjustmentCapability: capability }
+        : {}),
+    })
   }
 
   override async powerAdjustRequest(request: DeviceEnergyManagement.PowerAdjustRequest): Promise<void> {
-    await this.run('powerAdjustRequest', 'adjust power', () => super.powerAdjustRequest(request), request)
+    await this.run('powerAdjustRequest', () => super.powerAdjustRequest(request), request)
   }
 
   override async cancelPowerAdjustRequest(): Promise<void> {
-    await this.run('cancelPowerAdjustRequest', 'cancel the power adjustment', () => super.cancelPowerAdjustRequest())
+    await this.run('cancelPowerAdjustRequest', () => super.cancelPowerAdjustRequest())
   }
 
   override async pauseRequest(request: DeviceEnergyManagement.PauseRequest): Promise<void> {
-    await this.run('pauseRequest', 'pause', () => super.pauseRequest(request), request)
+    await this.run('pauseRequest', () => super.pauseRequest(request), request)
   }
 
   override async resumeRequest(): Promise<void> {
-    await this.run('resumeRequest', 'resume', () => super.resumeRequest())
+    await this.run('resumeRequest', () => super.resumeRequest())
   }
 
   override async startTimeAdjustRequest(request: DeviceEnergyManagement.StartTimeAdjustRequest): Promise<void> {
-    await this.run('startTimeAdjustRequest', 'adjust the start time', () => super.startTimeAdjustRequest(request), request)
+    await this.run('startTimeAdjustRequest', () => super.startTimeAdjustRequest(request), request)
   }
 
   override async modifyForecastRequest(request: DeviceEnergyManagement.ModifyForecastRequest): Promise<void> {
-    await this.run('modifyForecastRequest', 'modify the forecast', () => super.modifyForecastRequest(request), request)
+    await this.run('modifyForecastRequest', () => super.modifyForecastRequest(request), request)
   }
 
   override async requestConstraintBasedForecast(request: DeviceEnergyManagement.RequestConstraintBasedForecastRequest): Promise<void> {
-    await this.run('requestConstraintBasedForecast', 'apply the constraints', () => super.requestConstraintBasedForecast(request), request)
+    await this.run('requestConstraintBasedForecast', () => super.requestConstraintBasedForecast(request), request)
   }
 
   override async cancelRequest(): Promise<void> {
-    await this.run('cancelRequest', 'cancel the forecast change', () => super.cancelRequest())
+    await this.run('cancelRequest', () => super.cancelRequest())
   }
 }
 

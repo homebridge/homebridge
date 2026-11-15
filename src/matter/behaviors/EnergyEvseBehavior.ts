@@ -59,6 +59,16 @@ function assertDiagnosticsAllowed(supplyState: EnergyEvse.SupplyState): void {
   }
 }
 
+/** The attributes the charging and discharging commands change. */
+const SYNCED_ATTRIBUTES = [
+  'supplyState',
+  'chargingEnabledUntil',
+  'minimumChargeCurrent',
+  'maximumChargeCurrent',
+  'dischargingEnabledUntil',
+  'maximumDischargeCurrent',
+] as const
+
 /**
  * Default EnergyEvse Server.
  *
@@ -127,45 +137,56 @@ export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
     return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
   }
 
-  private async run(commandName: string, action: string, apply: () => Promise<void>, request?: unknown): Promise<void> {
+  /**
+   * Run the plugin's handler, then the default server's command, then sync
+   * the attributes the command can change to the cache. The targets commands
+   * change no attribute, so they pass `syncState: false`.
+   */
+  private async run(commandName: string, apply: () => Promise<void>, request?: unknown, syncState = true): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
     await runOptionalHandler(this, registry, endpointId, commandName, request)
     await apply()
-    registry.syncStateToCache(endpointId, 'energyEvse', {
-      supplyState: this.state.supplyState,
-      chargingEnabledUntil: this.state.chargingEnabledUntil,
-      minimumChargeCurrent: this.state.minimumChargeCurrent,
-      maximumChargeCurrent: this.state.maximumChargeCurrent,
-    })
+    if (!syncState) {
+      return
+    }
+    // The discharging attributes only exist on a charger with the V2X feature
+    const stateUpdate: Record<string, unknown> = {}
+    for (const attribute of SYNCED_ATTRIBUTES) {
+      const value = this.state[attribute]
+      if (value !== undefined) {
+        stateUpdate[attribute] = value
+      }
+    }
+    registry.syncStateToCache(endpointId, 'energyEvse', stateUpdate)
   }
 
   override async disable(): Promise<void> {
-    await this.run('disable', 'disable the charger', () => super.disable())
+    await this.run('disable', () => super.disable())
   }
 
   override async enableCharging(request: EnergyEvse.EnableChargingRequest): Promise<void> {
-    await this.run('enableCharging', 'enable charging', () => super.enableCharging(request), request)
+    await this.run('enableCharging', () => super.enableCharging(request), request)
   }
 
   override async enableDischarging(request: EnergyEvse.EnableDischargingRequest): Promise<void> {
-    await this.run('enableDischarging', 'enable discharging', () => super.enableDischarging(request), request)
+    await this.run('enableDischarging', () => super.enableDischarging(request), request)
   }
 
   override async startDiagnostics(): Promise<void> {
     // Checked before the plugin is told, so its handler only runs for a
     // request the charger is going to accept
     assertDiagnosticsAllowed(this.state.supplyState)
-    await this.run('startDiagnostics', 'start diagnostics', () => super.startDiagnostics())
+    await this.run('startDiagnostics', () => super.startDiagnostics())
   }
 
   override async setTargets(request: EnergyEvse.SetTargetsRequest): Promise<void> {
-    await this.run('setTargets', 'set the charging targets', () => super.setTargets(request), request)
+    await this.run('setTargets', () => super.setTargets(request), request, false)
   }
 
   override async clearTargets(): Promise<void> {
-    await this.run('clearTargets', 'clear the charging targets', () => super.clearTargets())
+    await this.run('clearTargets', () => super.clearTargets(), undefined, false)
   }
 }
 

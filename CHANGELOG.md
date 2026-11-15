@@ -148,6 +148,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): keep an energy device paused or adjusting when a controller cancels a forecast change
 - fix(matter): give a lock or valve handler a request object when the command comes from the ui
 - fix(matter): let the ui change only the hue of a light, and the mode of an energy device
+- fix(matter): cache the discharging state of an ev charger and the reason of a power adjustment
 
 ### Homebridge Dependencies
 

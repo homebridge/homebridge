@@ -2181,3 +2181,150 @@ describe('a command sent from the homebridge ui, on a real node', () => {
     expect(requests).toEqual([{}])
   })
 })
+
+describe('the cached state of energy devices, on a real node', () => {
+  const cached = (cluster: string) => accessories.get('test-uuid')?.clusters?.[cluster]
+
+  it('holds the discharging attributes of a two-way ev charger after its commands', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.EnergyEvse,
+      clusters: {
+        energyEvse: {
+          state: 0,
+          supplyState: 0,
+          faultState: 0,
+          chargingEnabledUntil: null,
+          dischargingEnabledUntil: null,
+          circuitCapacity: 32000,
+          minimumChargeCurrent: 6000,
+          maximumChargeCurrent: 32000,
+          maximumDischargeCurrent: 0,
+          sessionId: null,
+          sessionDuration: null,
+          sessionEnergyCharged: null,
+          sessionEnergyDischarged: null,
+        },
+        energyEvseMode: {
+          supportedModes: [
+            {
+              label: 'Manual',
+              mode: 0,
+              modeTags: [
+                { value: 16384 },
+              ],
+            },
+            {
+              label: 'Auto',
+              mode: 1,
+              modeTags: [
+                { value: 16385 },
+              ],
+            },
+          ],
+          currentMode: 0,
+        },
+      },
+      handlers: {
+        energyEvse: {
+          enableDischarging: async () => {},
+        },
+      },
+    })
+
+    await invoke(endpoint, 'energyEvse', 'enableDischarging', { dischargingEnabledUntil: null, maximumDischargeCurrent: 10000 })
+    expect(stateOf(endpoint, 'energyEvse')).toMatchObject({ supplyState: 2, maximumDischargeCurrent: 10000 })
+    expect(cached('energyEvse')).toMatchObject({ supplyState: 2, dischargingEnabledUntil: null, maximumDischargeCurrent: 10000 })
+
+    await invoke(endpoint, 'energyEvse', 'disable')
+    expect(cached('energyEvse')).toMatchObject({
+      supplyState: 0,
+      maximumDischargeCurrent: 0,
+      dischargingEnabledUntil: stateOf(endpoint, 'energyEvse').dischargingEnabledUntil,
+    })
+    expect(cached('energyEvse')?.dischargingEnabledUntil).toBeGreaterThan(0)
+  })
+
+  it('holds the reason of a power adjustment', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.DeviceEnergyManagement,
+      clusters: {
+        deviceEnergyManagement: {
+          esaType: 13,
+          esaCanGenerate: false,
+          esaState: 1,
+          absMinPower: 0,
+          absMaxPower: 5000000,
+          powerAdjustmentCapability: {
+            powerAdjustCapability: [
+              {
+                minPower: 0,
+                maxPower: 5000000,
+                minDuration: 60,
+                maxDuration: 3600,
+              },
+            ],
+            cause: 0,
+          },
+          optOutState: 0,
+        },
+        deviceEnergyManagementMode: {
+          supportedModes: [
+            {
+              label: 'No optimisation',
+              mode: 0,
+              modeTags: [
+                { value: 16384 },
+              ],
+            },
+            {
+              label: 'Local',
+              mode: 1,
+              modeTags: [
+                { value: 16386 },
+              ],
+            },
+            {
+              label: 'Grid',
+              mode: 2,
+              modeTags: [
+                { value: 16387 },
+              ],
+            },
+          ],
+          currentMode: 0,
+        },
+      },
+      handlers: {
+        deviceEnergyManagement: {
+          powerAdjustRequest: async () => {},
+          cancelPowerAdjustRequest: async () => {},
+        },
+      },
+    })
+
+    // cause 1 = grid optimization, which is adjust reason 2
+    await invoke(endpoint, 'deviceEnergyManagement', 'powerAdjustRequest', { power: 1000000, duration: 600, cause: 1 })
+    expect(cached('deviceEnergyManagement')).toMatchObject({
+      esaState: 3,
+      powerAdjustmentCapability: { cause: 2 },
+    })
+
+    await invoke(endpoint, 'deviceEnergyManagement', 'cancelPowerAdjustRequest')
+    expect(cached('deviceEnergyManagement')).toMatchObject({
+      esaState: 1,
+      powerAdjustmentCapability: { cause: 0 },
+    })
+    // the cache is written to disk as JSON, so what is in it must survive that
+    expect(JSON.parse(JSON.stringify(cached('deviceEnergyManagement')?.powerAdjustmentCapability))).toEqual({
+      powerAdjustCapability: [
+        {
+          minPower: 0,
+          maxPower: 5000000,
+          minDuration: 60,
+          maxDuration: 3600,
+        },
+      ],
+      cause: 0,
+    })
+  })
+})
