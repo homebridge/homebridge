@@ -9,7 +9,7 @@ import type { HomebridgeAPI, MatterWorkTracker } from '../api.js'
 import type { BridgeConfiguration, BridgeOptions } from '../bridgeService.js'
 import type { ChildBridgeExternalPortService } from '../externalPortService.js'
 import type { ChildBridgeMatterStatusInfo } from './ipc-types.js'
-import type { AccessoryInfo } from './managerTypes.js'
+import type { AccessoryInfo, ServerAccessoryData } from './managerTypes.js'
 import type { CommissioningSnapshot } from './server/FabricManager.js'
 import type { InternalMatterAccessory, MatterAccessory, MatterConfig } from './types.js'
 
@@ -38,13 +38,6 @@ const DEFER_ONLINE_CAP_MS = 45000
 const DEFER_ONLINE_POLL_MS = 500
 
 export type { ChildBridgeMatterStatusInfo } from './ipc-types.js'
-
-/**
- * What a MatterServer returns for one accessory (its methods are typed `any`):
- * the identity, device type, state and parts, without the fields that need the
- * bridge, the accessory cache or the commissioning state.
- */
-type ServerAccessoryData = Pick<AccessoryInfo, 'uuid' | 'displayName' | 'deviceType' | 'manufacturer' | 'model' | 'serialNumber' | 'firmwareRevision' | 'clusters' | 'parts'>
 
 /**
  * Manages Matter server and accessories for a child bridge

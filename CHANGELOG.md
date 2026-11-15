@@ -246,6 +246,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - chore: add the homepage url to package.json
 - fix(matter): warn when a plugin declares a cluster its device type does not carry
 - test(matter): keep the measurements spec's matter.js storage out of the home directory
+- refactor(matter): type what a matter server lists for the ui in place of any
 
 ### Homebridge Dependencies
 

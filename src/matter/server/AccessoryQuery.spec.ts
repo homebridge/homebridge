@@ -100,7 +100,7 @@ describe('featureMap enrichment for the UI payload', () => {
       [accessory.UUID, accessory],
     ]), () => null)
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
-    const partClusters = entry.parts[0].clusters as Record<string, Record<string, unknown>>
+    const partClusters = entry.parts![0].clusters
 
     expect(partClusters.thermostat.featureMap).toEqual({ heating: true, cooling: false, autoMode: false })
     expect(partClusters.thermostat.occupiedHeatingSetpoint).toBe(1800)
@@ -124,7 +124,7 @@ describe('featureMap enrichment for the UI payload', () => {
       [accessory.UUID, accessory],
     ]), () => null)
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
-    const partClusters = entry.parts[0].clusters as Record<string, Record<string, unknown>>
+    const partClusters = entry.parts![0].clusters
 
     expect(partClusters.thermostat.featureMap).toBeUndefined()
     expect(partClusters.thermostat.occupiedHeatingSetpoint).toBe(1800)

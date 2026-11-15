@@ -67,6 +67,18 @@ export interface AccessoryInfo {
 /**
  * Information about a part of a composed accessory
  */
+/**
+ * What a MatterServer returns for one accessory: the identity, device type,
+ * state and parts, without the fields that need the bridge, the accessory
+ * cache or the commissioning state.
+ */
+export type ServerAccessoryData = Pick<AccessoryInfo, 'uuid' | 'displayName' | 'deviceType' | 'manufacturer' | 'model' | 'serialNumber' | 'firmwareRevision' | 'clusters' | 'parts'>
+
+/**
+ * What a MatterServer lists for the UI: {@link ServerAccessoryData} and the bridge it is on.
+ */
+export type ServerAccessoryListEntry = ServerAccessoryData & Pick<AccessoryInfo, 'bridge'>
+
 export interface AccessoryPartInfo {
   id: string
   displayName?: string

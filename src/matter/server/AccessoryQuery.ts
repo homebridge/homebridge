@@ -7,6 +7,7 @@
 import type { Endpoint, EndpointType } from '@matter/main'
 
 import type { MatterAccessoryCache, SerializedMatterAccessory } from '../accessoryCache.js'
+import type { AccessoryInfo, ServerAccessoryData, ServerAccessoryListEntry } from '../managerTypes.js'
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 
 import { Logger } from '../../logger.js'
@@ -201,11 +202,11 @@ export class AccessoryQuery {
   /**
    * Collect all accessories for UI display
    */
-  collectAccessories(bridgeUsername: string, bridgeType: string, bridgeName: string): any[] {
-    const accessories: any[] = []
+  collectAccessories(bridgeUsername: string, bridgeType: AccessoryInfo['bridge']['type'], bridgeName: string): ServerAccessoryListEntry[] {
+    const accessories: ServerAccessoryListEntry[] = []
 
     for (const [uuid, accessory] of this.accessories.entries()) {
-      const transformed = {
+      const transformed: ServerAccessoryListEntry = {
         uuid,
         displayName: accessory.displayName,
         deviceType: this.getDeviceTypeName(accessory.deviceType),
@@ -235,7 +236,7 @@ export class AccessoryQuery {
   /**
    * Get detailed info for a specific accessory
    */
-  getAccessoryInfo(uuid: string): any | undefined {
+  getAccessoryInfo(uuid: string): ServerAccessoryData | undefined {
     const accessory = this.accessories.get(uuid)
     if (!accessory) {
       return undefined
