@@ -282,7 +282,7 @@ describe('configValidator', () => {
       expect(result.errors.length).toBeGreaterThan(0)
     })
 
-    it('should warn when no port specified', () => {
+    it('does not warn when no port is specified, as that is the normal set-up', () => {
       const config: PlatformConfig = {
         platform: 'TestPlatform',
         _bridge: {
@@ -294,8 +294,30 @@ describe('configValidator', () => {
       }
       const result = MatterConfigValidator.validateChildMatterConfig(config, 'platform', 'TestPlatform')
       expect(result.isValid).toBe(true)
-      expect(result.warnings.length).toBeGreaterThan(0)
-      expect(result.warnings[0]).toContain('No port specified')
+      expect(result.warnings).toEqual([])
+      expect(logWarnSpy).not.toHaveBeenCalled()
+      expect(vi.mocked(Logger).withPrefix('test').debug).toHaveBeenCalledWith(expect.stringContaining('No port specified'))
+    })
+
+    it('leaves the logging of its errors and warnings to the caller, so each is printed once', () => {
+      const config: PlatformConfig = {
+        platform: 'TestPlatform',
+        _bridge: {
+          name: 'Test',
+          username: 'AA:BB:CC:DD:EE:FF' as any,
+          pin: '123-45-678',
+          port: 51826,
+          matter: {
+            port: 99999,
+          },
+        },
+      }
+      const result = MatterConfigValidator.validateChildMatterConfig(config, 'platform', 'TestPlatform')
+
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0]).toContain('Child Matter bridge for platform "TestPlatform"')
+      expect(vi.mocked(Logger).withPrefix('test').error).not.toHaveBeenCalled()
+      expect(logWarnSpy).not.toHaveBeenCalled()
     })
 
     it('should warn about port proximity with HAP bridge', () => {
@@ -446,7 +468,11 @@ describe('configValidator', () => {
         },
         {
           platform: 'Platform2',
-          _bridge: { matter: {} } as any, // missing port (warning)
+          // too close to its HAP port (warning)
+          _bridge: {
+            port: 51826,
+            matter: { port: 51828 },
+          } as any,
         },
       ]
       const result = MatterConfigValidator.validateAllChildMatterConfigs(platforms, [])

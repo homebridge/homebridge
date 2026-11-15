@@ -194,6 +194,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): keep the cache entry of an accessory that could not be rebuilt at start
 - fix(matter): list external accessories in the ui when the main bridge is in externals-only mode
 - fix(matter): stop reporting a port conflict with a child bridge whose matter is disabled
+- fix(matter): log each child bridge config message once, and no warning for a port left out
 
 ### Homebridge Dependencies
 
