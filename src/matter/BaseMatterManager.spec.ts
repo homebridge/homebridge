@@ -3,6 +3,7 @@ import type { InternalMatterAccessory } from './types.js'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Logger } from '../logger.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { MatterServer } from './server.js'
 
@@ -318,6 +319,25 @@ describe('baseMatterManager', () => {
       await manager.handleRegisterPlatformAccessories('test-plugin', 'TestPlatform', accessories)
 
       expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledWith('test-plugin', 'TestPlatform', accessories)
+    })
+
+    it('warns, as a HAP registration does, when the platform name is not one the plugin has', async () => {
+      manager.setMatterServer(mockMatterServer)
+      const warn = vi.spyOn(Logger.withPrefix('Matter/BaseManager'), 'warn').mockImplementation(() => {})
+      ;(mockPluginManager.getPlugin as ReturnType<typeof vi.fn>).mockReturnValue({
+        getActiveDynamicPlatform: (name: string) => (name === 'TestPlatform'
+          ? {}
+          : undefined),
+      })
+
+      await manager.handleRegisterPlatformAccessories('test-plugin', 'TestPlatform', [])
+      expect(warn).not.toHaveBeenCalled()
+
+      await manager.handleRegisterPlatformAccessories('test-plugin', 'WrongName', [])
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('\'WrongName\'. The platform couldn\'t be found'))
+      // the accessories are still registered, as on the HAP side
+      expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledTimes(2)
+      warn.mockRestore()
     })
 
     it('should log warning if server not running', async () => {

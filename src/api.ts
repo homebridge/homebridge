@@ -817,7 +817,12 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   public static isDynamicPlatformPlugin(platformPlugin: PlatformPlugin): platformPlugin is DynamicPlatformPlugin {
+    // A platform that only does Matter has configureMatterAccessory and no
+    // configureAccessory. It is a dynamic platform too: without this its
+    // cached Matter accessories had no platform to go back to, and were
+    // removed as orphans at every start. A static platform stays static.
     return 'configureAccessory' in platformPlugin
+      || ('configureMatterAccessory' in platformPlugin && !HomebridgeAPI.isStaticPlatformPlugin(platformPlugin))
   }
 
   public static isStaticPlatformPlugin(platformPlugin: PlatformPlugin): platformPlugin is StaticPlatformPlugin {
