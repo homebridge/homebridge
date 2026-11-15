@@ -335,7 +335,7 @@ export class Server {
    * Handle Matter command trigger from IPC (for UI control)
    * This is called by IPC handlers, not API events
    */
-  private async handleTriggerMatterCommand(uuid: string, cluster: string, attributes: Record<string, any>, partId?: string): Promise<void> {
+  private async handleTriggerMatterCommand(uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): Promise<void> {
     if (!this.matterManager) {
       throw new Error('Matter manager not initialized')
     }
@@ -1219,9 +1219,12 @@ export class Server {
           await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
           matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
           this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
-        } catch (error: any) {
-          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${error.message}`)
-          this.sendMatterControlResponse({ success: false, error: error.message, uuid: data.uuid }, correlationId)
+        } catch (error: unknown) {
+          const message = error instanceof Error
+            ? error.message
+            : String(error)
+          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${message}`)
+          this.sendMatterControlResponse({ success: false, error: message, uuid: data.uuid }, correlationId)
         }
         return
       }
@@ -1248,9 +1251,12 @@ export class Server {
             await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
             matterLogger.debug(`External accessory ${data.uuid} successfully controlled via main bridge`)
             this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
-          } catch (error: any) {
-            matterLogger.error(`Main bridge failed to control external accessory ${data.uuid}: ${error.message}`)
-            this.sendMatterControlResponse({ success: false, error: error.message, uuid: data.uuid }, correlationId)
+          } catch (error: unknown) {
+            const message = error instanceof Error
+              ? error.message
+              : String(error)
+            matterLogger.error(`Main bridge failed to control external accessory ${data.uuid}: ${message}`)
+            this.sendMatterControlResponse({ success: false, error: message, uuid: data.uuid }, correlationId)
           }
         } else {
           // External accessory on child bridge - lookup by username

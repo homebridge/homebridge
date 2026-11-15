@@ -111,6 +111,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): list only the child bridge the ui asks for, and skip one that is not running
 - fix(matter): keep a child bridge running when a plugin handler rejects a ui control with no error
 - fix: ignore a message from the parent process whose id is not a known request
+- refactor: type the messages between a child bridge and the main process by their id
 
 ### Homebridge Dependencies
 

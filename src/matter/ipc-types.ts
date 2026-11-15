@@ -5,6 +5,8 @@
  * main Homebridge process and child bridges.
  */
 
+import type { FabricInfo } from './server/FabricManager.js'
+
 /**
  * Matter event types
  */
@@ -51,6 +53,35 @@ export interface MatterStatusInfo {
    * start (for example its port is in use). The reason is in the log.
    */
   startFailed?: boolean
+}
+
+/**
+ * The Matter part of the status a child bridge sends to the main process.
+ */
+export interface ChildBridgeMatterStatusInfo {
+  qrCode?: string
+  manualPairingCode?: string
+  serialNumber?: string
+  commissioned: boolean
+  deviceCount: number
+  fabricCount: number
+  fabrics: FabricInfo[]
+  /**
+   * True when Matter is configured for the child bridge but its server did
+   * not start (for example its port is in use). The reason is in the log.
+   */
+  startFailed?: boolean
+}
+
+/**
+ * A request from the UI to control one Matter accessory.
+ */
+export interface MatterControlRequest {
+  uuid: string
+  cluster: string
+  attributes: Record<string, unknown>
+  partId?: string
+  correlationId?: string
 }
 
 /**

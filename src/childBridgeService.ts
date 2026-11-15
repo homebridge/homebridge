@@ -14,6 +14,8 @@ import type { ExternalPortService } from './externalPortService.js'
 import type { IpcService, MatterEvent } from './ipcService.js'
 import type { Logging } from './logger.js'
 import type { FabricInfo, MatterConfig } from './matter/index.js'
+import type { ChildBridgeMatterStatusInfo, MatterControlRequest } from './matter/ipc-types.js'
+import type { AccessoryInfo } from './matter/managerTypes.js'
 import type { Plugin } from './plugin.js'
 import type { HomebridgeOptions } from './server.js'
 
@@ -140,6 +142,38 @@ export interface ChildProcessMessageEvent<T> {
   data?: T
 }
 
+/**
+ * Every message the main process and a child bridge process send each other,
+ * with the data that goes with its id.
+ */
+export type ChildProcessMessage
+  = | {
+    id: ChildProcessMessageEventType.READY
+      | ChildProcessMessageEventType.START
+      | ChildProcessMessageEventType.ONLINE
+      | ChildProcessMessageEventType.START_MATTER_MONITORING
+      | ChildProcessMessageEventType.STOP_MATTER_MONITORING
+      | ChildProcessMessageEventType.GET_MATTER_ACCESSORIES
+    data?: undefined
+  }
+  | { id: ChildProcessMessageEventType.LOAD, data: ChildProcessLoadEventData }
+  | { id: ChildProcessMessageEventType.LOADED, data: ChildProcessPluginLoadedEventData }
+  | { id: ChildProcessMessageEventType.PORT_REQUEST, data: ChildProcessPortRequestEventData }
+  | { id: ChildProcessMessageEventType.PORT_ALLOCATED, data: ChildProcessPortAllocatedEventData }
+  | { id: ChildProcessMessageEventType.STATUS_UPDATE, data: ChildBridgePairedStatusEventData }
+  | { id: ChildProcessMessageEventType.RELEASE_MATTER_PORT, data?: { uniqueId?: string } }
+  | { id: ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO, data: { uuid: string, correlationId?: string } }
+  | { id: ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL, data: MatterControlRequest }
+  | { id: ChildProcessMessageEventType.MATTER_EVENT, data: MatterEvent }
+
+/**
+ * What a child bridge answers to a request for its Matter accessories.
+ */
+export interface ChildBridgeMatterAccessories {
+  accessories: AccessoryInfo[]
+  bridgeUsername: string
+}
+
 export interface ChildProcessLoadEventData {
   type: PluginType
   identifier: string
@@ -167,16 +201,7 @@ export interface ChildProcessPortAllocatedEventData {
 export interface ChildBridgePairedStatusEventData {
   paired: boolean | null
   setupUri: string | null
-  matter?: {
-    qrCode?: string
-    manualPairingCode?: string
-    serialNumber?: string
-    commissioned: boolean
-    deviceCount: number
-    fabricCount?: number
-    fabrics?: FabricInfo[]
-    startFailed?: boolean
-  }
+  matter?: ChildBridgeMatterStatusInfo
 }
 
 /**
@@ -224,22 +249,13 @@ export interface ChildMetadata {
 export class ChildBridgeService {
   private child?: ChildProcess
   private args: string[] = []
-  private processEnv: ForkOptions = {}
+  private forkOptions: ForkOptions = {}
   private shuttingDown = false
   private lastBridgeStatus: ChildBridgeStatus = ChildBridgeStatus.PENDING
   private pairedStatus: boolean | null = null
   private manuallyStopped = false
   private setupUri: string | null = null
-  private matterCommissioningInfo?: {
-    qrCode?: string
-    manualPairingCode?: string
-    serialNumber?: string
-    commissioned: boolean
-    deviceCount?: number
-    fabricCount?: number
-    fabrics?: FabricInfo[]
-    startFailed?: boolean
-  }
+  private matterCommissioningInfo?: ChildBridgeMatterStatusInfo
 
   private pluginConfig: Array<PlatformConfig | AccessoryConfig> = []
   private log: Logging
@@ -262,7 +278,7 @@ export class ChildBridgeService {
   // Matter accessories pending response callback. Concurrent callers of
   // requestMatterAccessories share the same in-flight promise (see
   // matterAccessoriesPromise) so this resolver only needs to settle once.
-  private matterAccessoriesResolve?: (data: { accessories: any[], bridgeUsername: string } | undefined) => void
+  private matterAccessoriesResolve?: (data: ChildBridgeMatterAccessories | undefined) => void
 
   // In-flight requestMatterAccessories promise. Cached so that a second
   // caller arriving while the first is pending shares the same response
@@ -270,7 +286,7 @@ export class ChildBridgeService {
   // first caller's `accessoriesData` would be lost to a `undefined`
   // short-circuit and its `handleGetMatterAccessories` would emit an
   // accessoriesData event missing this child's accessories.
-  private matterAccessoriesPromise?: Promise<{ accessories: any[], bridgeUsername: string } | undefined>
+  private matterAccessoriesPromise?: Promise<ChildBridgeMatterAccessories | undefined>
 
   // Callback for external Matter bridge registration
   public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
@@ -389,7 +405,7 @@ export class ChildBridgeService {
    * event missing this child's accessories. Coalescing lets both callers
    * resolve with the same data on a single response.
    */
-  public requestMatterAccessories(timeoutMs = 500): Promise<{ accessories: any[], bridgeUsername: string } | undefined> {
+  public requestMatterAccessories(timeoutMs = 500): Promise<ChildBridgeMatterAccessories | undefined> {
     if (this.matterAccessoriesPromise) {
       return this.matterAccessoriesPromise
     }
@@ -403,7 +419,7 @@ export class ChildBridgeService {
 
     this.matterAccessoriesPromise = new Promise((resolve) => {
       let timeout: ReturnType<typeof setTimeout> | undefined
-      const settle = (data: { accessories: any[], bridgeUsername: string } | undefined) => {
+      const settle = (data: ChildBridgeMatterAccessories | undefined) => {
         if (timeout) {
           clearTimeout(timeout)
         }
@@ -439,7 +455,7 @@ export class ChildBridgeService {
    * @returns false when the request could not be sent, because the child
    * process is not running (stopped, restarting, or waiting to be restarted)
    */
-  public controlMatterAccessory(data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, correlationId?: string }): boolean {
+  public controlMatterAccessory(data: MatterControlRequest): boolean {
     // The correlationId (when the UI sent one) rides through to the child,
     // whose message handler echoes it on its accessoryControlResponse - that
     // is what lets the UI match the response to its pending request.
@@ -470,7 +486,7 @@ export class ChildBridgeService {
     // A freshly (re)started process has not reported ONLINE yet.
     this.childOnlineSince = undefined
 
-    this.child = fork(resolve(__dirname, 'childBridgeFork.js'), this.args, this.processEnv)
+    this.child = fork(resolve(__dirname, 'childBridgeFork.js'), this.args, this.forkOptions)
 
     this.child.stdout?.on('data', (data) => {
       process.stdout.write(data)
@@ -490,7 +506,7 @@ export class ChildBridgeService {
     })
 
     // handle incoming ipc messages from the child process
-    this.child.on('message', (message: ChildProcessMessageEvent<unknown>) => {
+    this.child.on('message', (message: ChildProcessMessage) => {
       if (!message || typeof message !== 'object' || !message.id) {
         return
       }
@@ -504,7 +520,7 @@ export class ChildBridgeService {
           break
         }
         case ChildProcessMessageEventType.LOADED: {
-          const version = (message.data as ChildProcessPluginLoadedEventData).version
+          const version = message.data.version
           if (this.pluginConfig.length > 1) {
             this.log.success(`Child bridge started successfully with ${this.pluginConfig.length} accessories (plugin v${version}).`)
           } else {
@@ -530,19 +546,18 @@ export class ChildBridgeService {
           break
         }
         case ChildProcessMessageEventType.PORT_REQUEST: {
-          void this.handlePortRequest(message.data as ChildProcessPortRequestEventData)
+          void this.handlePortRequest(message.data)
           break
         }
         case ChildProcessMessageEventType.RELEASE_MATTER_PORT: {
-          const data = message.data as { uniqueId?: string } | undefined
-          if (data?.uniqueId) {
-            this.externalPortService.releaseMatterPort(data.uniqueId)
+          if (message.data?.uniqueId) {
+            this.externalPortService.releaseMatterPort(message.data.uniqueId)
           }
           break
         }
         case ChildProcessMessageEventType.STATUS_UPDATE: {
           // Handle unified status update with HAP and Matter info
-          const statusData = message.data as ChildBridgePairedStatusEventData
+          const statusData = message.data
 
           // Update HAP status
           this.pairedStatus = statusData.paired
@@ -569,14 +584,14 @@ export class ChildBridgeService {
         }
         case ChildProcessMessageEventType.MATTER_EVENT: {
           // Handle unified Matter event
-          const matterEvent = message.data as MatterEvent
+          const matterEvent = message.data
 
           // Special handling for accessoriesData - resolve pending request
           if (matterEvent.type === 'accessoriesData') {
-            this.matterAccessoriesResolve?.(matterEvent.data as any)
+            this.matterAccessoriesResolve?.(matterEvent.data as ChildBridgeMatterAccessories)
           } else if (matterEvent.type === 'externalBridgeRegistration') {
             // Handle external bridge registration - register directly with callback
-            const data = matterEvent.data as any
+            const data = matterEvent.data as { externalBridgeUsername: string }
             if (this.onExternalBridgeRegistered) {
               // Pass the child bridge username (not identifier) so it can be looked up in childBridges Map
               this.onExternalBridgeRegistered(data.externalBridgeUsername, this.bridgeConfig.username)
@@ -734,7 +749,7 @@ export class ChildBridgeService {
    * Set environment variables for the child process
    */
   private setProcessEnv(): void {
-    this.processEnv = {
+    this.forkOptions = {
       env: {
         ...process.env,
         DEBUG: `${process.env.DEBUG || ''} ${this.bridgeConfig.env?.DEBUG || ''}`.trim(),
@@ -1038,8 +1053,10 @@ export class ChildBridgeService {
           this.log.warn('Accessory config could not be found, using existing config.')
         }
       }
-    } catch (error: any) {
-      this.log.error('Failed to refresh plugin config:', error.message)
+    } catch (error: unknown) {
+      this.log.error('Failed to refresh plugin config:', error instanceof Error
+        ? error.message
+        : error)
     }
   }
 
