@@ -195,6 +195,12 @@ export interface FanControlHandlers {
  */
 export interface IdentifyHandlers {
   identify?: MatterCommandHandler<Identify.IdentifyRequest>
+  /**
+   * An identify effect was asked for (blink, breathe, okay, ...). Lights and
+   * plugs offer this command. It is answered before the handler runs, so the
+   * handler can not refuse it: an error it throws is logged.
+   */
+  triggerEffect?: MatterCommandHandler<Identify.TriggerEffectRequest>
 }
 
 /**

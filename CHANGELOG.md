@@ -235,6 +235,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): forget the routing entry of an external accessory when a plugin unregisters it
 - refactor(matter): run a ui command through the matter.js command lookup of the endpoint
 - refactor(matter): let matter.js drop the log lines of its quiet facilities by facility level
+- fix(matter): tell a plugin about an identify effect through a new triggerEffect handler
 
 ### Homebridge Dependencies
 
