@@ -197,6 +197,13 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
+    // The handler is optional. matter.js moves the setpoints itself, and each
+    // move reaches the plugin through its setpoint-change handler, so a plugin
+    // with only those handlers needs nothing more for this command.
+    if (!registry.getHandler(endpointId, 'thermostat', 'setpointRaiseLower')) {
+      return super.setpointRaiseLower(request)
+    }
+
     // Execute user handler
     await registry.executeHandler(endpointId, 'thermostat', 'setpointRaiseLower', request)
 
