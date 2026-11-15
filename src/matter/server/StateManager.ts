@@ -15,6 +15,7 @@ import type {
 
 import { Logger } from '../../logger.js'
 import { forgetPluginUpdate, notePluginUpdate } from '../behaviors/pluginUpdates.js'
+import { deviceErrorFrom } from '../MatterError.js'
 import { MatterDeviceError } from '../types.js'
 
 const log = Logger.withPrefix('Matter/Server')
@@ -172,7 +173,7 @@ export class StateManager {
             ? ` part ${partId}`
             : ''
           log.error(`Failed to update state for accessory ${uuid}${partInfo}:`, error)
-          reject(new MatterDeviceError(`Failed to update accessory state: ${error}`))
+          reject(deviceErrorFrom('Failed to update accessory state', error))
         }
       })
     })
@@ -342,7 +343,7 @@ export class StateManager {
         ? ` part ${partId}`
         : ''
       log.error(`Failed to trigger command for accessory ${uuid}${partInfo}:`, error)
-      throw new MatterDeviceError(`Failed to trigger command: ${error}`)
+      throw deviceErrorFrom('Failed to trigger command', error)
     }
   }
 

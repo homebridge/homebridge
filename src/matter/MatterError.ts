@@ -39,6 +39,42 @@ export interface MatterErrorDetails {
 }
 
 /**
+ * The message of an error together with the messages of the errors inside it.
+ *
+ * matter.js reports a failure as an outer error with a general text ("Behaviors
+ * have errors") and puts the reason ("currentLevel: Value 300 is above the
+ * maximum of 254") in `errors` or `cause`. A plugin that logs `error.message`
+ * needs the reason, so this joins them, outermost first.
+ */
+export function describeError(error: unknown): string {
+  const messages: string[] = []
+  const seen = new Set<unknown>()
+  const visit = (value: unknown, depth: number): void => {
+    if (value === undefined || value === null || seen.has(value) || depth > 8) {
+      return
+    }
+    seen.add(value)
+    if (!(value instanceof Error)) {
+      messages.push(String(value))
+      return
+    }
+    // A wrapper often repeats the text of what it wraps
+    if (value.message && !messages.some(message => message.includes(value.message))) {
+      messages.push(value.message)
+    }
+    const inner = (value as { errors?: unknown }).errors
+    if (Array.isArray(inner)) {
+      for (const item of inner) {
+        visit(item, depth + 1)
+      }
+    }
+    visit(value.cause, depth + 1)
+  }
+  visit(error, 0)
+  return messages.join(': ') || 'Unknown error'
+}
+
+/**
  * Base internal Matter error — categorises a failure for the
  * MatterErrorHandler and adds a timestamp / recoverable flag on top of
  * Node's plain Error.
@@ -53,7 +89,9 @@ export class MatterError extends Error {
     public readonly code: string,
     public readonly details?: MatterErrorDetails,
   ) {
-    super(message)
+    super(message, details?.originalError
+      ? { cause: details.originalError }
+      : undefined)
     this.name = 'MatterError'
     this.type = details?.type ?? MatterErrorType.UNKNOWN
     this.timestamp = new Date()
@@ -73,6 +111,22 @@ export class MatterStorageError extends MatterError {
     super(message, 'STORAGE_ERROR', { ...details, type: MatterErrorType.STORAGE })
     this.name = 'MatterStorageError'
   }
+}
+
+/**
+ * Wrap a failure for the plugin: the text says what was being done and why it
+ * failed, and the original error is kept as `cause`. An error that already is
+ * a MatterDeviceError has its own full text and is passed on as it is.
+ */
+export function deviceErrorFrom(action: string, error: unknown): MatterDeviceError {
+  if (error instanceof MatterDeviceError) {
+    return error
+  }
+  return new MatterDeviceError(`${action}: ${describeError(error)}`, {
+    originalError: error instanceof Error
+      ? error
+      : new Error(String(error)),
+  })
 }
 
 export class MatterDeviceError extends MatterError {

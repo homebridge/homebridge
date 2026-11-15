@@ -1200,3 +1200,46 @@ describe('colorControl on a real node', () => {
     expect(calls).toEqual(['moveToHueAndSaturationLogic', 'moveToHueLogic'])
   })
 })
+
+describe('errors a plugin gets back, on a real node', () => {
+  it('names the attribute that was wrong when a registration fails, and keeps the cause', async () => {
+    const error: Error = await register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff: true },
+        levelControl: { currentLevel: 300 },
+      },
+    }).then(() => new Error('registered'), failure => failure)
+
+    expect(error.message).toMatch(/^Failed to register accessory: /)
+    expect(error.message).toContain('currentLevel')
+    expect(error.message).toContain('254')
+    expect(error.cause).toBeInstanceOf(Error)
+  })
+
+  it('says what was wrong when a state update fails, and keeps the cause', async () => {
+    await register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff: true },
+        levelControl: { currentLevel: 100 },
+      },
+    })
+
+    const error: Error = await stateManager.updateAccessoryState('test-uuid', 'levelControl', { currentLevel: 300 })
+      .then(() => new Error('updated'), failure => failure)
+
+    expect(error.message).toMatch(/^Failed to update accessory state: /)
+    expect(error.message).toContain('levelControl')
+    expect(error.message).toContain('Value 300')
+    expect(error.message).toContain('254')
+    expect(error.cause).toBeInstanceOf(Error)
+  })
+
+  it('does not wrap its own error a second time', async () => {
+    const error: Error = await stateManager.updateAccessoryState('no-such-uuid', 'onOff', { onOff: true })
+      .then(() => new Error('updated'), failure => failure)
+
+    expect(error.message).toBe('Accessory no-such-uuid not found or not registered')
+  })
+})
