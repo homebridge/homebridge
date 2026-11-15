@@ -917,12 +917,24 @@ export class BridgeService {
 
           log.info('Initializing platform accessory \'%s\'...', accessoryName)
 
-          const accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryName, platformType, uuidBase)
+          // One accessory the bridge refuses (HAP-NodeJS throws for a second
+          // accessory with the same UUID, which here means the same name) must
+          // not stop the others, or stop Homebridge starting.
+          try {
+            const accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryName, platformType, uuidBase)
 
-          if (accessory) {
-            this.bridge.addBridgedAccessory(accessory)
-          } else {
-            logger('Platform %s returned an accessory at index %d with an empty set of services. Won\'t adding it to the bridge!', platformType, index)
+            if (accessory) {
+              this.bridge.addBridgedAccessory(accessory)
+            } else {
+              logger.info('Platform %s returned an accessory at index %d with an empty set of services; not adding it to the bridge.', platformType, index)
+            }
+          } catch (error: unknown) {
+            logger.error(
+              `Error loading the accessory "${accessoryName}" (index ${index}) of the platform "${platformType}" from "${plugin.getPluginIdentifier()}":`,
+              error instanceof Error
+                ? error.message
+                : error,
+            )
           }
         })
 
