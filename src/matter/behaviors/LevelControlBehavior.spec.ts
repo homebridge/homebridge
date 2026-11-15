@@ -118,7 +118,7 @@ describe('homebridgeLevelControlServer', () => {
       )
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         level: 100,
@@ -128,7 +128,7 @@ describe('homebridgeLevelControlServer', () => {
       }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.moveToLevel(request)).rejects.toThrow('Failed to set level: Handler failed')
+      await expect(behavior.moveToLevel(request)).rejects.toThrow('Handler failed')
     })
   })
 
@@ -164,7 +164,7 @@ describe('homebridgeLevelControlServer', () => {
       expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         moveMode: 0,
@@ -174,7 +174,7 @@ describe('homebridgeLevelControlServer', () => {
       }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.move(request)).rejects.toThrow('Failed to move level: Handler failed')
+      await expect(behavior.move(request)).rejects.toThrow('Handler failed')
     })
   })
 
@@ -212,7 +212,7 @@ describe('homebridgeLevelControlServer', () => {
       expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         stepMode: 0,
@@ -223,7 +223,7 @@ describe('homebridgeLevelControlServer', () => {
       }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.step(request)).rejects.toThrow('Failed to step level: Handler failed')
+      await expect(behavior.step(request)).rejects.toThrow('Handler failed')
     })
   })
 
@@ -249,12 +249,12 @@ describe('homebridgeLevelControlServer', () => {
       expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = { optionsMask: {}, optionsOverride: {} }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.stop(request)).rejects.toThrow('Failed to stop level change: Handler failed')
+      await expect(behavior.stop(request)).rejects.toThrow('Handler failed')
     })
   })
 
@@ -343,7 +343,7 @@ describe('homebridgeLevelControlServer', () => {
       )
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         level: 100,
@@ -353,7 +353,7 @@ describe('homebridgeLevelControlServer', () => {
       }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.moveToLevelWithOnOff(request)).rejects.toThrow('Failed to set level with on/off: Handler failed')
+      await expect(behavior.moveToLevelWithOnOff(request)).rejects.toThrow('Handler failed')
     })
   })
 
@@ -389,7 +389,7 @@ describe('homebridgeLevelControlServer', () => {
       expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         moveMode: 0,
@@ -398,7 +398,7 @@ describe('homebridgeLevelControlServer', () => {
         optionsOverride: {},
       }
 
-      await expect(behavior.moveWithOnOff(request)).rejects.toThrow('Failed to move level with on/off: Handler failed')
+      await expect(behavior.moveWithOnOff(request)).rejects.toThrow('Handler failed')
     })
   })
 
@@ -436,7 +436,7 @@ describe('homebridgeLevelControlServer', () => {
       expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         stepMode: 0,
@@ -446,7 +446,7 @@ describe('homebridgeLevelControlServer', () => {
         optionsOverride: {},
       }
 
-      await expect(behavior.stepWithOnOff(request)).rejects.toThrow('Failed to step level with on/off: Handler failed')
+      await expect(behavior.stepWithOnOff(request)).rejects.toThrow('Handler failed')
     })
   })
 
@@ -478,14 +478,14 @@ describe('homebridgeLevelControlServer', () => {
       expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         optionsMask: {},
         optionsOverride: {},
       }
 
-      await expect(behavior.stopWithOnOff(request)).rejects.toThrow('Failed to stop level change with on/off: Handler failed')
+      await expect(behavior.stopWithOnOff(request)).rejects.toThrow('Handler failed')
     })
   })
 

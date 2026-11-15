@@ -5,9 +5,7 @@
  */
 
 import { OnOffServer } from '@matter/main/behaviors/on-off'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 export class HomebridgeOnOffServer extends OnOffServer {
@@ -45,29 +43,14 @@ export class HomebridgeOnOffServer extends OnOffServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'onOff', 'on')
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'onOff', 'on')
 
-      // Only reached if handler succeeded - update Matter state
-      await super.on()
+    // Only reached if handler succeeded - update Matter state
+    await super.on()
 
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'onOff', { onOff: true })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to turn on: ${message}`, Status.Failure)
-    }
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'onOff', { onOff: true })
   }
 
   /**
@@ -77,29 +60,14 @@ export class HomebridgeOnOffServer extends OnOffServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'onOff', 'off')
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'onOff', 'off')
 
-      // Only reached if handler succeeded - update Matter state
-      await super.off()
+    // Only reached if handler succeeded - update Matter state
+    await super.off()
 
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'onOff', { onOff: false })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to turn off: ${message}`, Status.Failure)
-    }
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'onOff', { onOff: false })
   }
 
   /**
@@ -116,35 +84,20 @@ export class HomebridgeOnOffServer extends OnOffServer {
       return super.toggle()
     }
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'onOff', 'toggle')
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'onOff', 'toggle')
 
-      // Only reached if handler succeeded - update Matter state. Not through
-      // super.toggle(): it would come back through the on() / off() overrides
-      // and call the plugin a second time. super.on() and super.off() are
-      // matter.js's own, and keep its extra work (timed on, scene control).
-      if (this.state.onOff) {
-        await super.off()
-      } else {
-        await super.on()
-      }
-
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'onOff', { onOff: this.state.onOff })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to toggle: ${message}`, Status.Failure)
+    // Only reached if handler succeeded - update Matter state. Not through
+    // super.toggle(): it would come back through the on() / off() overrides
+    // and call the plugin a second time. super.on() and super.off() are
+    // matter.js's own, and keep its extra work (timed on, scene control).
+    if (this.state.onOff) {
+      await super.off()
+    } else {
+      await super.on()
     }
+
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'onOff', { onOff: this.state.onOff })
   }
 }

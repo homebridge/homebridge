@@ -105,7 +105,7 @@ describe('homebridgeColorControlServer', () => {
     it('should not update Matter state when a registered handler fails', async () => {
       registeredHandlers.moveToColorTemperatureLogic = vi.fn().mockRejectedValue(new Error('device offline'))
 
-      await expect(behavior.moveToColorTemperatureLogic(300, 0)).rejects.toThrow('Failed to set color temperature: device offline')
+      await expect(behavior.moveToColorTemperatureLogic(300, 0)).rejects.toThrow('device offline')
       expect(superProto.moveToColorTemperatureLogic).not.toHaveBeenCalled()
     })
   })

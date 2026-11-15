@@ -41,6 +41,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): stop each matter server adding its own shutdown signal listeners
 - fix(matter): show the pairing codes in one banner only and keep the passcode files private
 - refactor(matter): turn a plugin handler error into a matter failure in one place
+- refactor(matter): drop the repeated error wrapping from the on/off, level and colour behaviors
 
 ### Homebridge Dependencies
 
