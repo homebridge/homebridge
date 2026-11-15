@@ -282,6 +282,47 @@ describe('plugin', () => {
       expect(errorSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('carry an additional copy of homebridge and hap-nodejs'))
     })
 
+    it('names a scoped plugin in full in these messages', async () => {
+      const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs')
+      const { tmpdir } = await import('node:os')
+      const { join } = await import('node:path')
+      const dir = mkdtempSync(join(tmpdir(), 'homebridge-plugin-spec-'))
+      try {
+        writeFileSync(join(dir, 'index.js'), commonJsPlugin)
+        const plugin = new Plugin('homebridge-test', dir, {
+          name: '@scope/homebridge-test',
+          version: '1.0.0',
+          engines: { homebridge: '^0.4.0', node: '^4.0.0' },
+          dependencies: { homebridge: '^2.0.0' },
+        } as never, '@scope')
+
+        await plugin.load()
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+
+      expect(warnSpy).toHaveBeenCalledTimes(2)
+      expect(warnSpy).toHaveBeenNthCalledWith(1, expect.stringContaining('The plugin "@scope/homebridge-test" requires a Homebridge version'))
+      expect(warnSpy).toHaveBeenNthCalledWith(2, expect.stringContaining('The plugin "@scope/homebridge-test" requires a Node.js version'))
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('The plugin "@scope/homebridge-test" defines'))
+    })
+
+    it('does not change the package.json object it is given', () => {
+      const packageJSON = {
+        name: 'homebridge-test',
+        version: '1.0.0',
+        peerDependencies: { homebridge: '>=2.0.0' },
+      }
+
+      void new Plugin('homebridge-test', '/unused', packageJSON as never)
+
+      expect(packageJSON).toEqual({
+        name: 'homebridge-test',
+        version: '1.0.0',
+        peerDependencies: { homebridge: '>=2.0.0' },
+      })
+    })
+
     it('can not be initialized before it is loaded', () => {
       const plugin = new Plugin('homebridge-test', '/unused', { name: 'homebridge-test', version: '1.0.0' } as never)
 

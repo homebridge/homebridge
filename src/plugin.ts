@@ -110,14 +110,15 @@ export class Plugin {
       this.main = packageJSON.main || './index.js'
     }
 
-    // very temporary fix for first wave of plugins
-    if (packageJSON.peerDependencies && (!packageJSON.engines || !packageJSON.engines.homebridge)) {
-      packageJSON.engines = packageJSON.engines || {}
-      packageJSON.engines.homebridge = packageJSON.peerDependencies.homebridge
+    // A plugin may name its Homebridge version in `peerDependencies` only. Take it from there when
+    // `engines` has none. (The caller's package.json object is left as it is.)
+    let engines = packageJSON.engines
+    if (packageJSON.peerDependencies && !engines?.homebridge) {
+      engines = { ...engines, homebridge: packageJSON.peerDependencies.homebridge }
     }
 
     this.loadContext = {
-      engines: packageJSON.engines,
+      engines,
       dependencies: packageJSON.dependencies,
     }
   }
@@ -219,21 +220,21 @@ export class Plugin {
 
     // make sure the version is satisfied by the currently running version of Homebridge
     if (!satisfies(getVersion(), versionRequired, { includePrerelease: true })) {
-      // TODO - change this back to an error
-      log.warn(`The plugin "${this.pluginName}" requires a Homebridge version of ${versionRequired} which does \
+      // a warning on purpose, not an error: many plugins declare a range that is narrower than what they run on
+      log.warn(`The plugin "${this.getPluginIdentifier()}" requires a Homebridge version of ${versionRequired} which does \
 not satisfy the current Homebridge version of v${getVersion()}. You may need to update this plugin (or Homebridge) to a newer version. \
 You may face unexpected issues or stability problems running this plugin.`)
     }
 
     // make sure the version is satisfied by the currently running version of Node
     if (nodeVersionRequired && !satisfies(process.version, nodeVersionRequired)) {
-      log.warn(`The plugin "${this.pluginName}" requires a Node.js version of ${nodeVersionRequired} which does \
+      log.warn(`The plugin "${this.getPluginIdentifier()}" requires a Node.js version of ${nodeVersionRequired} which does \
 not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://homebridge.io/w/JTKEF`)
     }
 
     const dependencies = context.dependencies || {}
     if (dependencies.homebridge || dependencies['hap-nodejs'] || dependencies['@homebridge/hap-nodejs']) {
-      log.error(`The plugin "${this.pluginName}" defines 'homebridge' and/or 'hap-nodejs' in their 'dependencies' section, \
+      log.error(`The plugin "${this.getPluginIdentifier()}" defines 'homebridge' and/or 'hap-nodejs' in their 'dependencies' section, \
 meaning they carry an additional copy of homebridge and hap-nodejs. This not only wastes disk space, but also can cause \
 major incompatibility issues and thus is considered bad practice. Please inform the developer to update their plugin!`)
     }

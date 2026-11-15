@@ -187,6 +187,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor: type the prefixed logger, the plugin module and the matter state event without any
 - fix: leave the other accessories untouched when one in a register call is not a PlatformAccessory
 - fix: keep a higher colour level of the terminal when colour is forced with -C
+- fix: name a scoped plugin in full in its version and dependency warnings
 
 ### Homebridge Dependencies
 
