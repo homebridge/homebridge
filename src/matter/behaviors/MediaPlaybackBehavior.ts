@@ -9,6 +9,7 @@ import { MediaPlaybackServer } from '@matter/main/behaviors/media-playback'
 import { MediaPlayback } from '@matter/main/clusters/media-playback'
 
 import { MatterStatus } from '../errors.js'
+import { HandlerFailure } from './BehaviorRegistry.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
@@ -129,7 +130,8 @@ export class HomebridgeMediaPlaybackServer extends DefaultMediaPlaybackServer {
 
       return response
     } catch (error) {
-      if (MatterStatus.isMatterProtocolError(error)) {
+      // A Matter status the plugin threw on purpose goes to the controller as it is
+      if (MatterStatus.isMatterProtocolError(error) && !(error instanceof HandlerFailure)) {
         throw error
       }
 

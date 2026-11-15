@@ -8,6 +8,7 @@ import { KeypadInputServer } from '@matter/main/behaviors/keypad-input'
 import { KeypadInput } from '@matter/main/clusters/keypad-input'
 
 import { MatterStatus } from '../errors.js'
+import { HandlerFailure } from './BehaviorRegistry.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
@@ -49,9 +50,8 @@ export class HomebridgeKeypadInputServer extends DefaultKeypadInputServer {
       await registry.executeHandler(endpointId, 'keypadInput', 'sendKey', request)
       return { status: KeypadInput.Status.Success }
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
+      // A Matter status the plugin threw on purpose goes to the controller as it is
+      if (MatterStatus.isMatterProtocolError(error) && !(error instanceof HandlerFailure)) {
         throw error
       }
 

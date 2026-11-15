@@ -13,6 +13,7 @@ import { NodeJsFilesystem } from '@matter/nodejs'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../../logger.js'
+import { MatterStatus } from '../errors.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
 import { StateManager } from '../server/StateManager.js'
 import { deviceTypes } from '../types.js'
@@ -190,7 +191,7 @@ describe('onOff on a real node', () => {
       },
     })
 
-    await expect(invoke(endpoint, 'onOff', 'toggle')).rejects.toThrow('Failed to toggle: device offline')
+    await expect(invoke(endpoint, 'onOff', 'toggle')).rejects.toThrow('The onOff.toggle handler failed: device offline')
     expect(stateOf(endpoint, 'onOff').onOff).toBe(false)
   })
 })
@@ -931,5 +932,50 @@ describe('window coverings on a real node', () => {
 
     // 8 = tilt blind with lift; 10 = interior blind
     expect(stateOf(endpoint, 'windowCovering')).toMatchObject({ type: 8, endProductType: 10 })
+  })
+})
+
+describe('clusters that answer with their own status, on a real node', () => {
+  /** A media player whose sendKey and play handlers run `handler`. */
+  function mediaPlayer(handler: () => Promise<void>) {
+    return register({
+      deviceType: deviceTypes.MediaPlayer,
+      clusters: {
+        onOff: { onOff: true },
+        mediaPlayback: { currentState: 0 },
+      },
+      handlers: {
+        keypadInput: { sendKey: handler },
+        mediaPlayback: { play: handler },
+      },
+    })
+  }
+
+  const failing = async () => {
+    throw new Error('device offline')
+  }
+  const busy = async () => {
+    throw new MatterStatus.Busy('tv is starting')
+  }
+
+  it('reports a failed sendKey handler as an unsupported key, not as a failed command', async () => {
+    const endpoint = await mediaPlayer(failing)
+
+    // 1 = UnsupportedKey
+    await expect(invoke(endpoint, 'keypadInput', 'sendKey', { keyCode: 1 })).resolves.toEqual({ status: 1 })
+  })
+
+  it('reports a failed play handler as invalid state, not as a failed command', async () => {
+    const endpoint = await mediaPlayer(failing)
+
+    // 1 = InvalidStateForCommand
+    await expect(invoke(endpoint, 'mediaPlayback', 'play')).resolves.toEqual({ status: 1 })
+  })
+
+  it('still passes on a matter status the plugin threw on purpose', async () => {
+    const endpoint = await mediaPlayer(busy)
+
+    await expect(invoke(endpoint, 'keypadInput', 'sendKey', { keyCode: 1 })).rejects.toThrow('tv is starting')
+    await expect(invoke(endpoint, 'mediaPlayback', 'play')).rejects.toThrow('tv is starting')
   })
 })
