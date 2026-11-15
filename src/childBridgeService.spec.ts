@@ -1182,6 +1182,16 @@ describe('childBridgeService', () => {
         expect((service as any).bridgeConfig.hap).toEqual({ enabled: true })
       })
 
+      it('keeps the bridge settings in use when the new pin is not a text', async () => {
+        const { service } = refreshWith({ pin: 3145154, name: 'New Name' })
+        const error = vi.spyOn((service as any).log, 'error').mockImplementation(() => {})
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.pin).not.toBe(3145154)
+        expect(String(error.mock.calls[0][0])).toContain('Not a valid pin in _bridge.pin: 3145154')
+      })
+
       it('turns a legacy boolean hap into the object form', async () => {
         const { service } = refreshWith({ hap: false })
 

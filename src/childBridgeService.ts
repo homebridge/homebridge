@@ -32,6 +32,7 @@ import { IpcOutgoingEvent } from './ipcService.js'
 import { Logger } from './logger.js'
 import { shouldStartMatterServer, stripMatterExternalsOnlyForAccessory, validateMatterExternalsOnly } from './matter/config.js'
 import { User } from './user.js'
+import { validatePin } from './util/pin.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -975,7 +976,8 @@ export class ChildBridgeService {
    *
    * The block gets the checks a full start gives it. Before, a `_bridge` block
    * changed in the UI was used unchecked after a child bridge restart: a wrong
-   * `hap` block, or a Matter port another bridge already has.
+   * `hap` block, a pin that is not a text, or a Matter port another bridge
+   * already has.
    */
   private async useRefreshedBridgeConfig(homebridgeConfig: HomebridgeConfig): Promise<void> {
     const config = this.pluginConfig[0]
@@ -988,6 +990,10 @@ export class ChildBridgeService {
 
     try {
       validateHapConfig(bridgeConfig, { bridgeLabel, isAccessoryPlugin: this.type === PluginType.ACCESSORY })
+      // A child bridge with no pin of its own uses the one of the main bridge
+      if (bridgeConfig.pin !== undefined && bridgeConfig.pin !== null && (bridgeConfig.pin as unknown) !== '') {
+        validatePin(bridgeConfig.pin, '_bridge.pin')
+      }
     } catch (error: unknown) {
       this.log.error(`${error instanceof Error
         ? error.message
