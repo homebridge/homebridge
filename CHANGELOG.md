@@ -134,6 +134,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: give a clear error or warning for a config.json with the wrong kind of value in it
 - refactor: type caught errors as unknown and replace any, casts and ts-expect-error with real types
 - refactor: remove unused storage and server methods and fix typos
+- fix: name the accessory in a characteristic warning, and end the line with one full stop
 
 ### Homebridge Dependencies
 
