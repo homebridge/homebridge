@@ -873,6 +873,24 @@ describe('childBridgeService', () => {
     })
   })
 
+  describe('homebridge shutdown while waiting to restart after a crash', () => {
+    it('drops the pending restart', () => {
+      vi.useFakeTimers()
+      const { service, api } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      childProcesses.list[0].connected = false
+      childProcesses.list[0].emit('close', 1, null)
+      expect(vi.getTimerCount()).toBe(1)
+
+      api.emit('shutdown')
+
+      expect(vi.getTimerCount()).toBe(0)
+      vi.advanceTimersByTime(60_000)
+      expect(childProcesses.list).toHaveLength(1)
+    })
+  })
+
   describe('restartChildBridge — while waiting to restart after a crash', () => {
     it('starts the child now instead of waiting out the back-off, and only once', () => {
       vi.useFakeTimers()
