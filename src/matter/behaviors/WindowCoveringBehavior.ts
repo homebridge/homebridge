@@ -7,9 +7,7 @@
 import type { WindowCovering } from '@matter/main/clusters'
 
 import { WindowCoveringServer } from '@matter/main/behaviors/window-covering'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
@@ -84,174 +82,99 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'windowCovering', 'upOrOpen')
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'windowCovering', 'upOrOpen')
 
-      // Only reached if handler succeeded - update Matter state
-      await super.upOrOpen()
+    // Only reached if handler succeeded - update Matter state
+    await super.upOrOpen()
 
-      // Sync state to cache - window covering opening
-      this.syncPositionStateToCache(
-        endpointId,
-        WindowCoveringStateProps.targetPositionLiftPercent100ths,
-        WindowCoveringStateProps.currentPositionLiftPercent100ths,
-      )
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to open window covering: ${message}`, Status.Failure)
-    }
+    // Sync state to cache - window covering opening
+    this.syncPositionStateToCache(
+      endpointId,
+      WindowCoveringStateProps.targetPositionLiftPercent100ths,
+      WindowCoveringStateProps.currentPositionLiftPercent100ths,
+    )
   }
 
   override async downOrClose(): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'windowCovering', 'downOrClose')
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'windowCovering', 'downOrClose')
 
-      // Only reached if handler succeeded - update Matter state
-      await super.downOrClose()
+    // Only reached if handler succeeded - update Matter state
+    await super.downOrClose()
 
-      // Sync state to cache - window covering closing
-      this.syncPositionStateToCache(
-        endpointId,
-        WindowCoveringStateProps.targetPositionLiftPercent100ths,
-        WindowCoveringStateProps.currentPositionLiftPercent100ths,
-      )
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to close window covering: ${message}`, Status.Failure)
-    }
+    // Sync state to cache - window covering closing
+    this.syncPositionStateToCache(
+      endpointId,
+      WindowCoveringStateProps.targetPositionLiftPercent100ths,
+      WindowCoveringStateProps.currentPositionLiftPercent100ths,
+    )
   }
 
   override async stopMotion(): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'windowCovering', 'stopMotion')
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'windowCovering', 'stopMotion')
 
-      // Only reached if handler succeeded - update Matter state
-      await super.stopMotion()
+    // Only reached if handler succeeded - update Matter state
+    await super.stopMotion()
 
-      // Sync state to cache - window covering stopped
-      this.syncPositionStateToCache(
-        endpointId,
-        WindowCoveringStateProps.targetPositionLiftPercent100ths,
-        WindowCoveringStateProps.currentPositionLiftPercent100ths,
-      )
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to stop window covering: ${message}`, Status.Failure)
-    }
+    // Sync state to cache - window covering stopped
+    this.syncPositionStateToCache(
+      endpointId,
+      WindowCoveringStateProps.targetPositionLiftPercent100ths,
+      WindowCoveringStateProps.currentPositionLiftPercent100ths,
+    )
   }
 
   override async goToLiftPercentage(request: WindowCovering.GoToLiftPercentageRequest): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(
-        endpointId,
-        'windowCovering',
-        'goToLiftPercentage',
-        request,
-      )
+    // Execute user handler
+    await registry.executeHandler(
+      endpointId,
+      'windowCovering',
+      'goToLiftPercentage',
+      request,
+    )
 
-      // Only reached if handler succeeded - update Matter state
-      await super.goToLiftPercentage(request)
+    // Only reached if handler succeeded - update Matter state
+    await super.goToLiftPercentage(request)
 
-      // Sync state to cache - window covering moving to target position
-      this.syncPositionStateToCache(
-        endpointId,
-        WindowCoveringStateProps.targetPositionLiftPercent100ths,
-        WindowCoveringStateProps.currentPositionLiftPercent100ths,
-      )
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set window covering position: ${message}`, Status.Failure)
-    }
+    // Sync state to cache - window covering moving to target position
+    this.syncPositionStateToCache(
+      endpointId,
+      WindowCoveringStateProps.targetPositionLiftPercent100ths,
+      WindowCoveringStateProps.currentPositionLiftPercent100ths,
+    )
   }
 
   override async goToTiltPercentage(request: WindowCovering.GoToTiltPercentageRequest): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(
-        endpointId,
-        'windowCovering',
-        'goToTiltPercentage',
-        request,
-      )
+    // Execute user handler
+    await registry.executeHandler(
+      endpointId,
+      'windowCovering',
+      'goToTiltPercentage',
+      request,
+    )
 
-      // Only reached if handler succeeded - update Matter state
-      await super.goToTiltPercentage(request)
+    // Only reached if handler succeeded - update Matter state
+    await super.goToTiltPercentage(request)
 
-      // Sync state to cache - window covering tilting to target angle
-      this.syncPositionStateToCache(
-        endpointId,
-        WindowCoveringStateProps.targetPositionTiltPercent100ths,
-        WindowCoveringStateProps.currentPositionTiltPercent100ths,
-      )
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set window covering tilt: ${message}`, Status.Failure)
-    }
+    // Sync state to cache - window covering tilting to target angle
+    this.syncPositionStateToCache(
+      endpointId,
+      WindowCoveringStateProps.targetPositionTiltPercent100ths,
+      WindowCoveringStateProps.currentPositionTiltPercent100ths,
+    )
   }
 }

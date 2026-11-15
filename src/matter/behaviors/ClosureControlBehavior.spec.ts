@@ -95,7 +95,7 @@ describe('homebridgeClosureControlServer', () => {
   it('should record the state only after the handler succeeds', async () => {
     vi.mocked(registry.executeHandler).mockRejectedValueOnce(new Error('gate jammed'))
 
-    await expect(behavior.moveTo({ position: 1 } as any)).rejects.toThrow('Failed to move closure')
+    await expect(behavior.moveTo({ position: 1 } as any)).rejects.toThrow('gate jammed')
     expect(state.overallTargetState).toBeUndefined()
   })
 
@@ -117,9 +117,9 @@ describe('homebridgeClosureControlServer', () => {
     expect(registry.executeHandler).toHaveBeenCalledWith(endpointId, 'closureControl', 'stop')
   })
 
-  it('should wrap a handler failure so the endpoint stays online', async () => {
+  it('should pass a handler failure on to matter.js', async () => {
     vi.mocked(registry.executeHandler).mockRejectedValueOnce(new Error('no response'))
 
-    await expect(behavior.stop()).rejects.toThrow('Failed to stop closure: no response')
+    await expect(behavior.stop()).rejects.toThrow('no response')
   })
 })
