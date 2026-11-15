@@ -893,6 +893,33 @@ describe('childBridgeService', () => {
     })
   })
 
+  describe('restartChildBridge — then stopped before the old process ended', () => {
+    it('counts a later crash as a crash', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.mocked(fs.readJson).mockResolvedValue({ platforms: [] } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+
+      // restart, and stop before the old process has ended
+      service.restartChildBridge()
+      service.stopChildBridge()
+      childProcesses.list[0].connected = false
+      childProcesses.list[0].emit('close', 143, null)
+
+      service.startChildBridge()
+      expect(childProcesses.list).toHaveLength(2)
+
+      // a plugin crash: waits out the back-off, and counts
+      childProcesses.list[1].connected = false
+      childProcesses.list[1].emit('close', 1, null)
+
+      expect(childProcesses.list).toHaveLength(2)
+      expect((service as any).restartCount).toBe(1)
+    })
+  })
+
   describe('homebridge shutdown while waiting to restart after a crash', () => {
     it('drops the pending restart', () => {
       vi.useFakeTimers()

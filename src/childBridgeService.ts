@@ -933,6 +933,9 @@ export class ChildBridgeService {
       this.shuttingDown = true
       this.manuallyStopped = true
       this.restartCount = 0
+      // A restart asked for before the stop will not happen. Left set, it made
+      // the first crash after a later start look like a requested restart.
+      this.restartRequested = false
       if (this.scheduledRestartTimeout) {
         clearTimeout(this.scheduledRestartTimeout)
         this.scheduledRestartTimeout = undefined
