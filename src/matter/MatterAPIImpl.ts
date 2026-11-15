@@ -38,6 +38,9 @@ interface HomebridgeAPIInternals {
 
 const log = Logger.withPrefix('Matter/API')
 
+/** The cluster names Homebridge knows, built once: the check runs on every state update and read */
+const VALID_CLUSTER_NAMES = new Set<string>(Object.values(clusterNames))
+
 // ============================================================================
 // External Device Type Configuration
 // ============================================================================
@@ -101,6 +104,9 @@ class MatterAccessoryValidationError extends Error {
  */
 export class MatterAPIImpl implements MatterAPI {
   readonly switch: SwitchAPIImpl
+
+  /** Unknown cluster names already warned about */
+  private readonly warnedClusterNames = new Set<string>()
 
   constructor(private readonly api: HomebridgeAPI) {
     this.switch = new SwitchAPIImpl(this)
@@ -179,20 +185,25 @@ export class MatterAPIImpl implements MatterAPI {
   }
 
   /**
-   * Validate cluster name is valid
+   * Warn about a cluster name Homebridge does not know. It does not block:
+   * the name may still be right for a cluster a plugin composed itself.
+   *
+   * Once per name. This runs on every state update and every state read, and
+   * a plugin that polls with an unknown name filled the log with the same
+   * line, each one listing every valid name.
    *
    * @param clusterName - Cluster name to validate
    * @param context - Context string for error messages
    */
   private validateClusterName(clusterName: string, context: string): void {
-    // Check if cluster name is in the known cluster names
-    const validClusterNames = Object.values(clusterNames) as string[]
-    if (!validClusterNames.includes(clusterName)) {
-      log.warn(
-        `${context}: Unknown cluster name '${clusterName}'. This might cause issues. `
-        + `Valid clusters: ${validClusterNames.join(', ')}`,
-      )
+    if (VALID_CLUSTER_NAMES.has(clusterName) || this.warnedClusterNames.has(clusterName)) {
+      return
     }
+    this.warnedClusterNames.add(clusterName)
+    log.warn(
+      `${context}: Unknown cluster name '${clusterName}'. This might cause issues (this is logged once for each name). `
+      + `Valid clusters: ${[...VALID_CLUSTER_NAMES].join(', ')}`,
+    )
   }
 
   /**
