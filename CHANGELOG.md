@@ -103,6 +103,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): report a real main bridge failure for a ui control instead of accessory not found
 - fix: check the _bridge block a child bridge reads from config.json when it restarts
 - fix(matter): stop waiting to bring a child bridge online once it is torn down
+- fix: drop the pairing details of an earlier child bridge process from its status
 
 ### Homebridge Dependencies
 
