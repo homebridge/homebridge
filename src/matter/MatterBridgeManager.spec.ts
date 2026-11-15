@@ -128,6 +128,35 @@ describe('matterBridgeManager', () => {
     })
   })
 
+  describe('initialize — a bridge server that fails to start', () => {
+    beforeEach(() => {
+      mockExternalPortService.reserveMatterPort = vi.fn()
+      vi.spyOn(MatterServer.prototype, 'start').mockRejectedValue(new Error('address already in use'))
+      vi.spyOn(MatterServer.prototype, 'stop').mockResolvedValue(undefined)
+      for (const level of ['info', 'warn', 'error', 'debug'] as const) {
+        vi.spyOn(Logger.prototype, level).mockImplementation(() => {})
+      }
+    })
+
+    it('is reported as failed, not as enabled and still starting', async () => {
+      const manager = buildManager({ port: 5555 })
+
+      await manager.initialize()
+
+      expect(manager.getMatterStatus()).toEqual({
+        enabled: false,
+        port: 5555,
+        externalsOnly: false,
+        startFailed: true,
+      })
+      expect(manager.isBridgeServerStarting()).toBe(false)
+      expect(manager.getBridgeStartFailure()).toBe('address already in use')
+      // the listeners are attached, and external accessories can still publish
+      expect(manager.hasActiveMatter()).toBe(true)
+      expect(MatterServer.prototype.stop).toHaveBeenCalledOnce()
+    })
+  })
+
   describe('initialize — three-state (disabled, externalsOnly, normal)', () => {
     it('returns early when matter is not configured', async () => {
       const m = buildManager(undefined)
