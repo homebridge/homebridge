@@ -205,7 +205,7 @@ export class Plugin {
   }
 
   public async load(): Promise<void> {
-    const context = this.loadContext!
+    const context = this.loadContext
     assert(context, 'Reached illegal state. Plugin state is undefined!')
     this.loadContext = undefined // free up memory
 
@@ -253,13 +253,14 @@ major incompatibility issues and thus is considered bad practice. Please inform 
     // try to import it and grab the exported initialization hook
     // pathToFileURL(specifier).href to turn a path into a "file url"
     // see https://github.com/nodejs/node/issues/31710
-    const pluginModule = await import(pathToFileURL(mainPath).href)
-    const pluginModules = pluginModule.default
+    const pluginModule: Record<string, unknown> = await import(pathToFileURL(mainPath).href)
+    // a CommonJS plugin built from ESM source puts its initializer on `default.default`
+    const pluginModules = pluginModule.default as (PluginInitializer & { default?: unknown }) | Record<string, unknown> | undefined
 
     if (typeof pluginModules === 'function') {
       this.pluginInitializer = pluginModules
     } else if (pluginModules && typeof pluginModules.default === 'function') {
-      this.pluginInitializer = pluginModules.default
+      this.pluginInitializer = pluginModules.default as PluginInitializer
     } else {
       // Be specific about what we found instead of just "doesn't export an
       // initializer". Helps plugin authors and users diagnose ESM/CJS
