@@ -16,6 +16,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): fall back to the plain level handlers for move, step and stop with on/off
 - fix(matter): keep matter's session decrypt failures out of the normal log (#4026)
 - fix: stop counting a child bridge restart asked for in the ui as a crash
+- fix: tell a child bridge started again after a manual stop when homebridge shuts down
 
 ### Homebridge Dependencies
 

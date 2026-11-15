@@ -282,6 +282,10 @@ export class ChildBridgeService {
   // counted as a crash by handleProcessClose().
   private restartRequested = false
 
+  // Whether _onApiShutdown is attached to the api right now. A manual stop
+  // removes it, and a later start has to put it back.
+  private shutdownListenerAttached = false
+
   // Stored shutdown listener so it can be removed in teardown(),
   // matching the pattern used by MatterBridgeManager (#3915).
   private readonly _onApiShutdown = (): void => {
@@ -301,6 +305,18 @@ export class ChildBridgeService {
     private externalPortService: ExternalPortService,
   ) {
     this.log = Logger.withPrefix(this.plugin.getPluginIdentifier())
+    this.attachShutdownListener()
+  }
+
+  /**
+   * Listen for the Homebridge shutdown, so the child process is told to stop.
+   * Does nothing when the listener is already attached.
+   */
+  private attachShutdownListener(): void {
+    if (this.shutdownListenerAttached) {
+      return
+    }
+    this.shutdownListenerAttached = true
     this.api.on('shutdown', this._onApiShutdown)
 
     // make sure we don't hit the max listeners limit
@@ -781,7 +797,8 @@ export class ChildBridgeService {
     // away (manual stop or parent shutdown). `restartChildBridge` also calls
     // teardown(), but the service stays alive across a restart — dropping the
     // listener there orphans the new child from the parent's shutdown signal.
-    if (this.shuttingDown || this.manuallyStopped) {
+    if ((this.shuttingDown || this.manuallyStopped) && this.shutdownListenerAttached) {
+      this.shutdownListenerAttached = false
       this.api.removeListener('shutdown', this._onApiShutdown)
       this.api.setMaxListeners(Math.max(0, this.api.getMaxListeners() - 1))
     }
@@ -852,6 +869,7 @@ export class ChildBridgeService {
   public startChildBridge(): void {
     if (this.manuallyStopped && this.bridgeStatus === ChildBridgeStatus.DOWN && (!this.child || !this.child.connected)) {
       void this.refreshConfig()
+      this.attachShutdownListener()
       this.startChildProcess()
       this.shuttingDown = false
       this.manuallyStopped = false
