@@ -180,3 +180,125 @@ describe('onOff on a real node', () => {
     expect(stateOf(endpoint, 'onOff').onOff).toBe(false)
   })
 })
+
+describe('levelControl on a real node', () => {
+  const options = { optionsMask: {}, optionsOverride: {} }
+
+  /** A dimmable light at level 100 that is on, with the given level handlers. */
+  function dimmableLight(levelHandlers: Record<string, (request: { level: number }) => Promise<void>>) {
+    return register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff: true },
+        levelControl: { currentLevel: 100, minLevel: 1, maxLevel: 254 },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+          off: async () => {},
+        },
+        levelControl: levelHandlers,
+      },
+    })
+  }
+
+  it('runs MoveToLevel through moveToLevelWithOnOff when that is the only handler', async () => {
+    const levels: number[] = []
+    const endpoint = await dimmableLight({
+      moveToLevelWithOnOff: async (request) => {
+        levels.push(request.level)
+      },
+    })
+
+    await invoke(endpoint, 'levelControl', 'moveToLevel', { level: 50, transitionTime: 0, ...options })
+
+    expect(levels).toEqual([50])
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(50)
+  })
+
+  it('runs MoveToLevelWithOnOff through moveToLevel when that is the only handler', async () => {
+    const levels: number[] = []
+    const endpoint = await dimmableLight({
+      moveToLevel: async (request) => {
+        levels.push(request.level)
+      },
+    })
+
+    await invoke(endpoint, 'levelControl', 'moveToLevelWithOnOff', { level: 60, transitionTime: 0, ...options })
+
+    expect(levels).toEqual([60])
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(60)
+  })
+
+  it.each([
+    {
+      command: 'step',
+      request: { stepMode: 0, stepSize: 40, transitionTime: 0 },
+      level: 140,
+    },
+    {
+      command: 'stepWithOnOff',
+      request: { stepMode: 1, stepSize: 40, transitionTime: 0 },
+      level: 60,
+    },
+    {
+      command: 'stepWithOnOff',
+      request: { stepMode: 0, stepSize: 200, transitionTime: 0 },
+      level: 254,
+    },
+    {
+      command: 'move',
+      request: { moveMode: 0, rate: null },
+      level: 254,
+    },
+    {
+      command: 'moveWithOnOff',
+      request: { moveMode: 1, rate: null },
+      level: 1,
+    },
+  ])('tells the move-to-level handler the target of $command when it has no handler of its own', async ({ command, request, level }) => {
+    const levels: number[] = []
+    const endpoint = await dimmableLight({
+      moveToLevelWithOnOff: async (moveToLevel) => {
+        levels.push(moveToLevel.level)
+      },
+    })
+
+    await invoke(endpoint, 'levelControl', command, {
+      ...request,
+      ...options,
+    })
+
+    expect(levels).toEqual([level])
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(level)
+  })
+
+  it('prefers the handler of the command itself', async () => {
+    const calls: string[] = []
+    const endpoint = await dimmableLight({
+      step: async () => {
+        calls.push('step')
+      },
+      moveToLevel: async () => {
+        calls.push('moveToLevel')
+      },
+    })
+
+    await invoke(endpoint, 'levelControl', 'stepWithOnOff', {
+      stepMode: 0,
+      stepSize: 40,
+      transitionTime: 0,
+      ...options,
+    })
+
+    expect(calls).toEqual(['step'])
+  })
+
+  it('does not fail Stop when the plugin has no stop handler', async () => {
+    const endpoint = await dimmableLight({
+      moveToLevel: async () => {},
+    })
+
+    await expect(invoke(endpoint, 'levelControl', 'stop', options)).resolves.toBeUndefined()
+  })
+})
