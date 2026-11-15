@@ -53,6 +53,13 @@ const REFUSED_PINS = new Set([
 ])
 
 /**
+ * The setup code Homebridge uses when the config has none, and the one in
+ * `config-sample.json`. It is public, so every bridge that keeps it can be
+ * paired by anyone on the same network who knows it.
+ */
+const DEFAULT_PIN = '031-45-154'
+
+/**
  * Check the setup code (`pin`) of a bridge.
  *
  * HAP-NodeJS stores whatever it is given. A pin that is not a text made the
@@ -72,6 +79,8 @@ function validatePin(pin: unknown, setting: string): void {
     log.warn(`The pin in ${setting} is not in the form "031-45-154" (3 digits, 2 digits, 3 digits, with dashes). The Home app can not pair with a pin in another form.`)
   } else if (REFUSED_PINS.has(pin)) {
     log.warn(`The pin in ${setting} is one that HomeKit refuses, as it is too easy to guess. The Home app may not pair with it: choose another one.`)
+  } else if (pin === DEFAULT_PIN) {
+    log.warn(`${setting} is ${DEFAULT_PIN}, the well-known default setup code. Anyone on your network who knows it can pair with this bridge: set a pin of your own in config.json.`)
   }
 }
 
@@ -424,11 +433,12 @@ export class Server {
     const defaultBridge: BridgeConfiguration = {
       name: 'Homebridge',
       username: 'CC:22:3D:E3:CE:30',
-      pin: '031-45-154',
+      pin: DEFAULT_PIN,
     }
 
     if (!existsSync(configPath)) {
       log.warn('config.json (%s) not found.', configPath)
+      validatePin(defaultBridge.pin, 'bridge.pin')
       return { // return a default configuration
         bridge: defaultBridge,
         accessories: [],

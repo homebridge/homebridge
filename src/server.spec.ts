@@ -473,8 +473,41 @@ describe('server', () => {
       expect(warnings.mock.calls.flat().join(' ')).toMatch(warning)
     })
 
+    it('warns when the main bridge uses the well-known default pin, and still starts', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, pin: '031-45-154' },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.pin).toBe('031-45-154')
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(/bridge\.pin is 031-45-154, the well-known default setup code/)
+    })
+
+    it('warns about the default pin when the config has no bridge section at all', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, { accessories: [], platforms: [] })
+
+      // eslint-disable-next-line no-new
+      new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(/the well-known default setup code/)
+    })
+
     it('gives no warning for a good main bridge pin', async () => {
       const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, pin: '482-91-357' },
+      })
 
       // eslint-disable-next-line no-new
       new Server({
@@ -834,6 +867,8 @@ describe('server', () => {
     it('warns about a child bridge pin in the wrong form, and accepts a child bridge with no pin', () => {
       const server = makeServer()
       const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      // the main bridge of the test config has the default pin, which warns when the server is made
+      warnings.mockClear()
 
       ;(server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', { username: childUsername })
       expect(warnings).not.toHaveBeenCalled()

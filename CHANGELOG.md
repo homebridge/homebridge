@@ -242,6 +242,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): erase what matter.js stored for an accessory when a plugin unregisters it
 - fix(matter): refuse a vacuum pause, resume or go home in a state matter does not allow it in
 - chore: use an https repository url, drop the stale maintainers field and correct the labeler job
+- fix: warn at start-up when a bridge uses the well-known default pin 031-45-154
 
 ### Homebridge Dependencies
 
