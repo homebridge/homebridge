@@ -234,9 +234,21 @@ export type { HomebridgeOptions } from './server.js'
 export type { User } from './user.js'
 
 /**
- * Export the CONST ENUMS from hap-nodejs
- * These get converted to their string value at compile time
- * and can be safely used directly.
+ * Export the enums from hap-nodejs.
+ *
+ * These are value exports. What a plugin's build does with `import { Categories } from 'homebridge'`
+ * depends on the HAP-NodeJS version Homebridge is built against and on the plugin's compiler set-up:
+ *
+ * - While HAP-NodeJS declares them as `const enum`, plain `tsc` replaces `Categories.LIGHTBULB` with
+ *   its value at compile time and drops the import, so the plugin does not load `homebridge` at run time.
+ * - Once HAP-NodeJS declares them as normal enums (its next release does), and already today with
+ *   `isolatedModules` or `verbatimModuleSyntax` or in plain JavaScript, the import stays in the
+ *   plugin's code. The plugin then loads the `homebridge` package at run time. That needs `homebridge`
+ *   to be found from the plugin's folder (it is not on every install), and it loads everything this
+ *   entry exports, including matter.js.
+ *
+ * To stay clear of both, read the enums from the API object, which needs no import:
+ * `api.hap.Categories.LIGHTBULB`, `api.hap.HAPStatus`, `api.hap.Perms` and so on.
  */
 export {
   Access,
