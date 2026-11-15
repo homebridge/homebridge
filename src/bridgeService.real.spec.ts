@@ -228,6 +228,74 @@ describe('characteristic warnings of a platform accessory', () => {
   })
 })
 
+describe('characteristic warnings that reach the bridge', () => {
+  /** Every log line, at any level, that holds the text. */
+  function logged(text: string): string[] {
+    return (['info', 'warn', 'error', 'debug'] as const)
+      .flatMap(level => vi.mocked(Logger.internal[level]).mock.calls)
+      .map(call => call.join(' '))
+      .filter(line => line.includes(text))
+  }
+
+  beforeEach(() => {
+    for (const level of ['info', 'warn', 'error', 'debug'] as const) {
+      vi.spyOn(Logger.internal, level).mockImplementation(() => {})
+    }
+  })
+
+  /** Send a warning from a characteristic the way HAP-NodeJS does, and let the bridge look at it. */
+  async function warn(characteristic: Characteristic, type: CharacteristicWarningType, message: string): Promise<void> {
+    (characteristic as unknown as { characteristicWarning: (message: string, type: CharacteristicWarningType) => void }).characteristicWarning(message, type)
+    await Promise.resolve()
+  }
+
+  it('prints one from a service of the bridge itself', async () => {
+    const manufacturer = service.bridge.getService(Service.AccessoryInformation)!.getCharacteristic(Characteristic.Manufacturer)
+
+    await warn(manufacturer, CharacteristicWarningType.WARN_MESSAGE, 'bridge warning')
+
+    expect(logged('bridge warning')).toHaveLength(1)
+    expect(logged('bridge warning')[0]).toContain('[Test Bridge@')
+    expect(vi.mocked(Logger.internal.warn)).toHaveBeenCalledTimes(1)
+  })
+
+  it('prints an error from the bridge itself as an error', async () => {
+    const manufacturer = service.bridge.getService(Service.AccessoryInformation)!.getCharacteristic(Characteristic.Manufacturer)
+
+    await warn(manufacturer, CharacteristicWarningType.ERROR_MESSAGE, 'bridge error')
+
+    expect(vi.mocked(Logger.internal.error).mock.calls.map(call => call.join(' ')).join('\n')).toContain('bridge error')
+  })
+
+  it('prints one from an accessory whose plugin is not loaded', async () => {
+    const pluginManager = (service as unknown as { pluginManager: { getPlugin: () => unknown } }).pluginManager
+    pluginManager.getPlugin = () => undefined
+    const lamp = accessory('Lamp')
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+
+    await warn(lamp.getService(Service.Switch)!.getCharacteristic(Characteristic.On), CharacteristicWarningType.WARN_MESSAGE, 'orphan warning')
+
+    expect(logged('orphan warning')).toHaveLength(1)
+    expect(logged('orphan warning')[0]).toContain('Lamp')
+  })
+
+  it('prints one from an accessory of a loaded plugin once, under the name of the plugin', async () => {
+    const lamp = accessory('Lamp')
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+    const restored = accessory('Restored')
+    cache(restored)
+    service.restoreCachedPlatformAccessories()
+
+    await warn(lamp.getService(Service.Switch)!.getCharacteristic(Characteristic.On), CharacteristicWarningType.WARN_MESSAGE, 'registered warning')
+    await warn(restored.getService(Service.Switch)!.getCharacteristic(Characteristic.On), CharacteristicWarningType.WARN_MESSAGE, 'restored warning')
+
+    expect(logged('registered warning')).toHaveLength(1)
+    expect(logged('registered warning')[0]).toContain(PLUGIN)
+    expect(logged('restored warning')).toHaveLength(1)
+    expect(logged('restored warning')[0]).toContain(PLUGIN)
+  })
+})
+
 describe('loading the cached accessories from disk', () => {
   const cacheFile = () => join(storageDir, 'cachedAccessories')
   const backupFile = () => join(storageDir, '.cachedAccessories.bak')

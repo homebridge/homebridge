@@ -341,11 +341,47 @@ export class BridgeService {
     this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, this.handlePublishExternalAccessories.bind(this))
 
     this.bridge = new Bridge(bridgeConfig.name, uuid.generate('HomeBridge'))
-    this.bridge.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, () => {
+    this.bridge.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, (warning: CharacteristicWarning) => {
       // We register characteristic warning handlers on every bridged accessory (to have a reference to the plugin).
-      // For Bridges the warnings will propagate to the main Bridge accessory, thus we need to silence them here.
-      // Otherwise, those would be printed twice (by us and HAP-NodeJS as it detects no handlers on the bridge).
+      // For Bridges the warnings will propagate to the main Bridge accessory, and HAP-NodeJS only prints a warning
+      // itself when nothing listens for it. So this listener keeps those from being printed twice.
+      //
+      // It must not hide the warnings nobody else prints, though: one from a service of the bridge itself (a
+      // manufacturer or serial number from the config that HomeKit does not accept), or from an accessory whose
+      // plugin was not found. The handler of the accessory may run after this listener, so look once it has.
+      queueMicrotask(() => {
+        if (!BridgeService.printedWarnings.has(warning)) {
+          BridgeService.printUnclaimedCharacteristicWarning(warning)
+        }
+      })
     })
+  }
+
+  /** The warnings {@link printCharacteristicWriteWarning} has taken, so the bridge does not print them again. */
+  private static readonly printedWarnings = new WeakSet<CharacteristicWarning>()
+
+  /**
+   * Print a characteristic warning that no plugin's accessory has taken, the
+   * way HAP-NodeJS prints one nobody listens for.
+   */
+  private static printUnclaimedCharacteristicWarning(warning: CharacteristicWarning): void {
+    const message = `[${warning.originatorChain.join('@')}] ${warning.message}`
+    switch (warning.type) {
+      case CharacteristicWarningType.ERROR_MESSAGE:
+      case CharacteristicWarningType.TIMEOUT_READ:
+      case CharacteristicWarningType.TIMEOUT_WRITE:
+        log.error(message)
+        break
+      case CharacteristicWarningType.DEBUG_MESSAGE:
+        log.debug(message)
+        break
+      default:
+        log.warn(message)
+        break
+    }
+    if (warning.stack) {
+      log.debug(warning.stack)
+    }
   }
 
   /**
@@ -372,6 +408,7 @@ export class BridgeService {
   // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
   public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, opts: CharacteristicWarningOpts, warning: CharacteristicWarning): void {
     const wikiInfo = 'See https://homebridge.io/w/JtMGR for more info.'
+    BridgeService.printedWarnings.add(warning)
     switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
