@@ -19,6 +19,7 @@ describe('logger', () => {
   afterEach(() => {
     consoleLogSpy.mockRestore()
     consoleErrorSpy.mockRestore()
+    Logger.setDebugEnabled(false) // back to the default, also when a test failed
   })
 
   it('should create a new logger with a prefix', () => {
@@ -61,7 +62,6 @@ describe('logger', () => {
     const logger = Logger.withPrefix('test')
     logger.debug('test message')
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('test message'))
-    Logger.setDebugEnabled(false) // reset debug setting
   })
 
   it('should log debug level messages when debug is enabled (via method, with param)', () => {
@@ -69,30 +69,50 @@ describe('logger', () => {
     const logger = Logger.withPrefix('test')
     logger.debug('test message')
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('test message'))
-    Logger.setDebugEnabled(false) // reset debug setting
   })
 
-  it('should not include timestamps in log messages when timestamp is disabled (via method)', () => {
-    Logger.setTimestampEnabled(false)
-    const logger = Logger.withPrefix('test')
-    logger.info('test message')
-    expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringMatching(/\[\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} (AM|PM)\].*/))
-  })
+  describe('timestamps', () => {
+    // The real timestamp follows the locale of the machine (`3/1/2026, 4:05:06 PM` in the US,
+    // `01/03/2026, 16:05:06` in the UK), so the tests give the date a fixed text of their own.
+    const STAMP = 'the-time-now'
+    let localeStringSpy: MockInstance
 
-  it('should include timestamps in log messages when timestamp is enabled (via method, no param)', () => {
-    Logger.setTimestampEnabled()
-    const logger = Logger.withPrefix('test')
-    logger.info('test message')
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringMatching(/\[\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} (AM|PM)\].*/))
-    Logger.setTimestampEnabled(false) // reset timestamp setting
-  })
+    beforeEach(() => {
+      localeStringSpy = vi.spyOn(Date.prototype, 'toLocaleString').mockReturnValue(STAMP)
+    })
 
-  it('should include timestamps in log messages when timestamp is enabled (via method, with param)', () => {
-    Logger.setTimestampEnabled(true)
-    const logger = Logger.withPrefix('test')
-    logger.info('test message')
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringMatching(/\[\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} (AM|PM)\].*/))
-    Logger.setTimestampEnabled(false) // reset timestamp setting
+    afterEach(() => {
+      localeStringSpy.mockRestore()
+      Logger.setTimestampEnabled(true) // back to the default, also when a test failed
+    })
+
+    it('should include timestamps in log messages by default', () => {
+      expect(Logger.isTimestampEnabled()).toBe(true)
+      Logger.withPrefix('test').info('test message')
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringMatching(/\[the-time-now\] .*\[test\].* test message/))
+    })
+
+    it('should not include timestamps in log messages when timestamp is disabled (via method)', () => {
+      Logger.setTimestampEnabled(false)
+      Logger.withPrefix('test').info('test message')
+      expect(Logger.isTimestampEnabled()).toBe(false)
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('test message'))
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining(STAMP))
+    })
+
+    it('should include timestamps in log messages when timestamp is enabled (via method, no param)', () => {
+      Logger.setTimestampEnabled(false)
+      Logger.setTimestampEnabled()
+      Logger.withPrefix('test').info('test message')
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringMatching(/\[the-time-now\] .*test message/))
+    })
+
+    it('should include timestamps in log messages when timestamp is enabled (via method, with param)', () => {
+      Logger.setTimestampEnabled(false)
+      Logger.setTimestampEnabled(true)
+      Logger.withPrefix('test').info('test message')
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringMatching(/\[the-time-now\] .*test message/))
+    })
   })
 
   it('should set chalk level to 1 when forceColor is enabled (via method)', () => {
@@ -111,7 +131,6 @@ describe('logger', () => {
     log('info' as LogLevel, 'log message')
     warn('warn message')
     await Promise.reject(new Error('lost device')).catch(error)
-    Logger.setDebugEnabled(false) // reset debug setting
 
     for (const message of [
       'info message',
