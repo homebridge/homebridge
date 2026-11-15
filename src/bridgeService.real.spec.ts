@@ -659,6 +659,32 @@ describe('publishExternalAccessories on the real bridge', () => {
     expect(speaker.publish).toHaveBeenCalledTimes(1)
   })
 
+  it('publishes an accessory once when two calls for it run at the same time', async () => {
+    const { port, close } = await holdPort()
+    await close()
+    const tv = external('TV')
+    // with a port from the pool, each call first checks the port is free
+    vi.spyOn(ExternalPortService.prototype, 'requestPort').mockResolvedValue(port)
+
+    // a plugin that does not await the first call
+    await Promise.all([
+      service.handlePublishExternalAccessories([tv.accessory]),
+      service.handlePublishExternalAccessories([tv.accessory]),
+    ])
+
+    expect(tv.publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('publishes an accessory later when no port could be had for it the first time', async () => {
+    const tv = external('TV')
+    vi.spyOn(ExternalPortService.prototype, 'requestPort').mockRejectedValueOnce(new Error('parent did not answer'))
+
+    await service.handlePublishExternalAccessories([tv.accessory])
+    await service.handlePublishExternalAccessories([tv.accessory])
+
+    expect(tv.publish).toHaveBeenCalledTimes(1)
+  })
+
   it('publishes the others when no port can be had for one accessory', async () => {
     const [tv, speaker] = [
       external('TV'),

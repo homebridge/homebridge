@@ -249,6 +249,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): keep every cached accessory when homebridge stops while the cache is being restored
 - fix(matter): stop a command hanging when its handler awaits an update of the same cluster
 - fix: stop with an error when -U or -P is followed by another option in place of a path
+- fix: publish an external accessory once when a plugin publishes it twice at the same time
 
 ### Homebridge Dependencies
 

@@ -1016,6 +1016,19 @@ export class BridgeService {
       const hapAccessory = accessory._associatedHAPAccessory
       const advertiseAddress = generate(hapAccessory.UUID)
 
+      if (this.publishedExternalAccessories.has(advertiseAddress)) {
+        log.error(
+          'The external accessory \'%s\' is not published: an external accessory with the same UUID (%s) is published already.',
+          hapAccessory.displayName,
+          hapAccessory.UUID,
+        )
+        continue
+      }
+      // Taken now, before the waits below: a second call for the same
+      // accessory that runs at the same time (a plugin that does not await
+      // the first) is then refused above, and does not publish it again.
+      this.publishedExternalAccessories.set(advertiseAddress, accessory)
+
       // This handler runs from an event, so the plugin can not catch what it
       // throws: an error here became an unhandled rejection, which shuts
       // Homebridge down. A problem with one accessory is logged, and the
@@ -1030,15 +1043,7 @@ export class BridgeService {
           hapAccessory.displayName,
           errorMessage(error),
         )
-        continue
-      }
-
-      if (this.publishedExternalAccessories.has(advertiseAddress)) {
-        log.error(
-          'The external accessory \'%s\' is not published: an external accessory with the same UUID (%s) is published already.',
-          hapAccessory.displayName,
-          hapAccessory.UUID,
-        )
+        this.publishedExternalAccessories.delete(advertiseAddress)
         continue
       }
 
@@ -1054,7 +1059,6 @@ export class BridgeService {
         accessoryPort = undefined
       }
 
-      this.publishedExternalAccessories.set(advertiseAddress, accessory)
       this.publishedExternalAccessoriesMetadata.set(advertiseAddress, {
         username: advertiseAddress,
         plugin: accessory._associatedPlugin!,
