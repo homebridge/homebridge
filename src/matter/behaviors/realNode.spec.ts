@@ -2713,7 +2713,8 @@ describe('a handler that answers the command itself, on a real node', () => {
             { operationalStateId: 2 },
             { operationalStateId: 3 },
           ],
-          operationalState: 0,
+          // 1 = running, a state pause and resume are allowed in
+          operationalState: 1,
         },
       },
       handlers: {
@@ -2783,5 +2784,73 @@ describe('a handler that answers the command itself, on a real node', () => {
     expect(stateOf(endpoint, 'mediaPlayback').currentState).toBe(1)
 
     expect(await invoke(endpoint, 'keypadInput', 'sendKey', { keyCode: 0 })).toEqual({ status: 2 })
+  })
+})
+
+describe('a vacuum command in a state Matter does not allow it in, on a real node', () => {
+  it('refuses to pause or send home a vacuum that is on its dock, and does not call the plugin', async () => {
+    const calls: string[] = []
+    const modes = [
+      {
+        label: 'Idle',
+        mode: 0,
+        modeTags: [
+          { value: 16384 },
+        ],
+      },
+      {
+        label: 'Cleaning',
+        mode: 1,
+        modeTags: [
+          { value: 16385 },
+        ],
+      },
+    ]
+    const endpoint = await register({
+      deviceType: deviceTypes.RoboticVacuumCleaner,
+      clusters: {
+        rvcRunMode: { supportedModes: modes, currentMode: 0 },
+        rvcOperationalState: {
+          operationalStateList: [
+            { operationalStateId: 0 },
+            { operationalStateId: 1 },
+            { operationalStateId: 2 },
+            { operationalStateId: 3 },
+            { operationalStateId: 64 },
+            { operationalStateId: 65 },
+            { operationalStateId: 66 },
+          ],
+          // 66 = docked
+          operationalState: 66,
+        },
+      },
+      handlers: {
+        rvcOperationalState: {
+          pause: async () => {
+            calls.push('pause')
+          },
+          resume: async () => {
+            calls.push('resume')
+          },
+          goHome: async () => {
+            calls.push('goHome')
+          },
+        },
+      },
+    })
+    // 3 = the command is not valid in this state
+    const invalidInState = {
+      commandResponseState: { errorStateId: 3 },
+    }
+
+    expect(await invoke(endpoint, 'rvcOperationalState', 'pause')).toEqual(invalidInState)
+    expect(await invoke(endpoint, 'rvcOperationalState', 'goHome')).toEqual(invalidInState)
+    expect(calls).toEqual([])
+
+    // resume is allowed on the dock (it goes back to the paused clean)
+    expect(await invoke(endpoint, 'rvcOperationalState', 'resume')).toEqual({
+      commandResponseState: { errorStateId: 0 },
+    })
+    expect(calls).toEqual(['resume'])
   })
 })

@@ -4,11 +4,19 @@
  * Handles robotic vacuum cleaner operational state commands
  */
 
+import { OperationalStateUtils } from '@matter/main/behaviors/operational-state'
 import { RvcOperationalStateServer } from '@matter/main/behaviors/rvc-operational-state'
 import { RvcOperationalState } from '@matter/main/clusters/rvc-operational-state'
 
 import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
+
+/** The matter.js check of the current state for each command. */
+const STATE_CHECKS = {
+  pause: OperationalStateUtils.assertRvcPause,
+  resume: OperationalStateUtils.assertRvcResume,
+  goHome: OperationalStateUtils.assertRvcGoHome,
+}
 
 /**
  * Custom RvcOperationalState Server that calls plugin handlers
@@ -68,7 +76,8 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
   /**
    * Run one of the operational commands through the plugin's handler.
    *
-   * All three commands behave identically: the plugin handler does the real
+   * All three commands behave identically: the command is refused in a state
+   * Matter does not allow it in, otherwise the plugin handler does the real
    * work (and is expected to report the new state with updateAccessoryState;
    * nothing here changes the operational state, and the base implementation is not
    * called), the resulting state is synced to the cache, and a handler error
@@ -80,6 +89,16 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
   ): Promise<RvcOperationalState.OperationalCommandResponse> {
     const endpointId = this.endpoint.id
     const registry = registryOf(this.endpoint)
+
+    // Matter names the states each command is not allowed in (a vacuum that
+    // is on its dock can not be paused or sent home, one that is stopped can
+    // not be paused or resumed, and so on). matter.js has that check; in such
+    // a state the command is answered "not valid in this state" and the
+    // plugin is not called.
+    const refusal = STATE_CHECKS[command](this.state.operationalState)
+    if (refusal.commandResponseState.errorStateId !== RvcOperationalState.ErrorState.NoError) {
+      return refusal
+    }
 
     // Execute user handler
     const { response } = await registry.runHandler(endpointId, 'rvcOperationalState', command)

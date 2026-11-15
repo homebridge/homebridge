@@ -239,6 +239,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): keep every feature a plugin composed on a thermostat that has handlers
 - refactor(matter): find the handler registry of an endpoint in one shared helper
 - fix(matter): erase what matter.js stored for an accessory when a plugin unregisters it
+- fix(matter): refuse a vacuum pause, resume or go home in a state matter does not allow it in
 
 ### Homebridge Dependencies
 
