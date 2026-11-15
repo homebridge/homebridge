@@ -509,6 +509,81 @@ describe('the port of the bridge', () => {
   })
 })
 
+describe('teardown on the real bridge', () => {
+  /** An external accessory that is published, with its unpublish replaced. */
+  async function publishedExternal(name: string, unpublish: () => Promise<void>): Promise<void> {
+    const externalAccessory = accessory(name)
+    externalAccessory._associatedPlugin = PLUGIN
+    vi.spyOn(externalAccessory._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+    vi.spyOn(externalAccessory._associatedHAPAccessory, 'unpublish').mockImplementation(unpublish)
+    await service.handlePublishExternalAccessories([externalAccessory])
+  }
+
+  it('waits until the bridge and the external accessories are off the network', async () => {
+    let finishBridge = () => {}
+    let finishExternal = () => {}
+    vi.spyOn(service.bridge, 'unpublish').mockImplementation(() => new Promise<void>((resolve) => {
+      finishBridge = resolve
+    }))
+    await publishedExternal('TV', () => new Promise<void>((resolve) => {
+      finishExternal = resolve
+    }))
+    let done = false
+
+    const teardown = Promise.resolve(service.teardown()).then(() => {
+      done = true
+    })
+    await new Promise(resolve => setImmediate(resolve))
+    expect(done).toBe(false)
+    finishBridge()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(done).toBe(false)
+    finishExternal()
+    await teardown
+
+    expect(done).toBe(true)
+  })
+
+  it('logs an accessory that could not be unpublished, and still resolves', async () => {
+    vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
+    await publishedExternal('TV', () => Promise.reject(new Error('advertiser is gone')))
+    const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+    await expect(service.teardown()).resolves.toBeUndefined()
+
+    expect(warnings.mock.calls.map(call => call.join(' ')).join('\n')).toContain('advertiser is gone')
+  })
+
+  it('stops waiting after two seconds', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.spyOn(service.bridge, 'unpublish').mockImplementation(() => new Promise<void>(() => {}))
+      let done = false
+      const teardown = service.teardown().then(() => {
+        done = true
+      })
+
+      await vi.advanceTimersByTimeAsync(1999)
+      expect(done).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      await teardown
+      expect(done).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('saves the cache and signals the plugins before it returns', () => {
+    vi.spyOn(service.bridge, 'unpublish').mockImplementation(() => new Promise<void>(() => {}))
+    const shutdown = vi.fn()
+    api.on('shutdown', shutdown)
+
+    void service.teardown()
+
+    expect(shutdown).toHaveBeenCalledTimes(1)
+  })
+})
+
 /** Listen on a free port, as another program would, until `close` is called. */
 function holdPort(): Promise<{ port: number, close: () => Promise<void> }> {
   return new Promise((resolve) => {

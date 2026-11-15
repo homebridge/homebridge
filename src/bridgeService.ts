@@ -59,6 +59,9 @@ const log = Logger.internal
 /** The most accessories HAP-NodeJS puts on one bridge (the HomeKit limit of 150, less the bridge itself). */
 const MAX_BRIDGED_ACCESSORIES = 149
 
+/** The longest a shutdown waits for the accessories to be taken off the network, in milliseconds. */
+const UNPUBLISH_TIMEOUT = 2000
+
 /**
  * HAP-specific configuration for a bridge. Mirrors the shape of `MatterConfig`
  * so the two protocol blocks are symmetric and can be reasoned about uniformly.
@@ -1029,11 +1032,34 @@ export class BridgeService {
     })
   }
 
-  teardown(): void {
-    void this.bridge.unpublish()
-    for (const accessory of this.publishedExternalAccessories.values()) {
-      void accessory._associatedHAPAccessory.unpublish()
-    }
+  /**
+   * Take the bridge and its external accessories off the network, save the
+   * cache and tell the plugins that Homebridge is shutting down.
+   *
+   * Everything but the wait happens before this returns. The promise is for
+   * the goodbye that HAP-NodeJS sends for each accessory: it resolves when
+   * they are all sent, or after {@link UNPUBLISH_TIMEOUT} at the latest, and
+   * never rejects (a failed unpublish is logged).
+   */
+  teardown(): Promise<void> {
+    const accessories = [
+      this.bridge,
+      ...Array.from(this.publishedExternalAccessories.values(), accessory => accessory._associatedHAPAccessory),
+    ]
+    const unpublished = Promise.allSettled(accessories.map(async accessory => accessory.unpublish()))
+      .then((results) => {
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            log.warn(
+              'Could not take \'%s\' off the network cleanly: %s',
+              accessories[index].displayName,
+              result.reason instanceof Error
+                ? result.reason.message
+                : result.reason,
+            )
+          }
+        })
+      })
 
     this.saveCachedPlatformAccessoriesOnDisk()
 
@@ -1043,6 +1069,13 @@ export class BridgeService {
     // call api.updatePlatformAccessories() afterwards; that call needs the
     // handler in place to persist any context updates to disk.
     this.api.signalShutdown()
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, UNPUBLISH_TIMEOUT)
+      timer.unref()
+    })
+    return Promise.race([unpublished, timeout]).finally(() => clearTimeout(timer))
   }
 
   private static strippingPinCode(publishInfo: PublishInfo): PublishInfo {
