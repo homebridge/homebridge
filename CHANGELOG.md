@@ -226,6 +226,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): give a command sent from the ui a request object when it has request fields
 - fix(matter): answer not mine before mapping a ui command on a bridge without the accessory
 - fix(matter): let the ui send media playback, key press and identify commands
+- fix(matter): export the newer state types, the answering handler types and two cluster names
 
 ### Homebridge Dependencies
 
