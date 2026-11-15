@@ -1007,9 +1007,16 @@ export const clusterNames = {
   ElectricalPowerMeasurement: 'electricalPowerMeasurement',
   ElectricalEnergyMeasurement: 'electricalEnergyMeasurement',
 
+  // Which endpoints an electrical sensor measures
+  PowerTopology: 'powerTopology',
+
   // Device Information (read-only, set during registration)
   BasicInformation: 'basicInformation',
   BridgedDeviceBasicInformation: 'bridgedDeviceBasicInformation',
+
+  // What an endpoint is: its device types, parts and tags. Homebridge fills
+  // this in at registration.
+  Descriptor: 'descriptor',
 } as const
 
 /**

@@ -1,16 +1,38 @@
 import type {
+  ClosureControlState as MainClosureControlState,
+  EnergyMeasurementStruct as MainEnergyMeasurementStruct,
   MatterHandlerContext as MainHandlerContext,
   KeypadInputHandlers as MainKeypadInputHandlers,
+  MeasurementAccuracyRangeStruct as MainMeasurementAccuracyRangeStruct,
+  MeasurementAccuracyStruct as MainMeasurementAccuracyStruct,
+  MediaPlaybackState as MainMediaPlaybackState,
+  MatterModeChangeHandler as MainModeChangeHandler,
   MatterAccessoryPart as MainPart,
+  MatterPlaybackHandler as MainPlaybackHandler,
+  PumpConfigurationAndControlState as MainPumpState,
+  MatterResponseHandler as MainResponseHandler,
+  RvcOperationalStateState as MainRvcOperationalStateState,
+  SmokeCoAlarmState as MainSmokeCoAlarmState,
   ValveConfigurationAndControlState as MainValveState,
 } from './index.js'
 import type {
+  ClosureControlState,
+  EnergyMeasurementStruct,
   MatterAccessoryEventEmitter,
   MatterAccessoryFeatures,
   MatterAccessoryPart,
   MatterAPI,
+  MatterModeChangeHandler,
+  MatterPlaybackHandler,
+  MatterResponseHandler,
+  MeasurementAccuracyRangeStruct,
+  MeasurementAccuracyStruct,
   MediaPlaybackHandlers,
+  MediaPlaybackState,
   PowerSourceState,
+  PumpConfigurationAndControlState,
+  RvcOperationalStateState,
+  SmokeCoAlarmState,
 } from './matterExports.js'
 
 import { readFileSync } from 'node:fs'
@@ -72,6 +94,31 @@ describe('the homebridge/matter entry', () => {
       emitter,
     ]).toHaveLength(7)
     expect(matterEntry.deviceRequirements.Thermostat).toBeDefined()
+  })
+
+  it('offers the newer state types and the handler types that return an answer, from both entries', () => {
+    // Checked by the compiler: this does not build when one of them is not exported.
+    const states: Array<
+      | Partial<ClosureControlState & MainClosureControlState>
+      | Partial<MediaPlaybackState & MainMediaPlaybackState>
+      | Partial<PumpConfigurationAndControlState & MainPumpState>
+      | Partial<RvcOperationalStateState & MainRvcOperationalStateState>
+      | Partial<SmokeCoAlarmState & MainSmokeCoAlarmState>
+      | Partial<EnergyMeasurementStruct & MainEnergyMeasurementStruct>
+      | Partial<MeasurementAccuracyStruct & MainMeasurementAccuracyStruct>
+      | Partial<MeasurementAccuracyRangeStruct & MainMeasurementAccuracyRangeStruct>
+    > = []
+    const respond: MatterResponseHandler<{ keyCode: number }, { status: number }> & MainResponseHandler<{ keyCode: number }, { status: number }> = async () => ({ status: 0 })
+    const changeMode: MatterModeChangeHandler & MainModeChangeHandler = async () => ({ status: 0, statusText: '' })
+    const play: MatterPlaybackHandler & MainPlaybackHandler = async () => {}
+
+    expect(states).toHaveLength(0)
+    expect([respond, changeMode, play].every(handler => typeof handler === 'function')).toBe(true)
+  })
+
+  it('names the descriptor and power topology clusters', () => {
+    expect(matterEntry.clusterNames.Descriptor).toBe('descriptor')
+    expect(matterEntry.clusterNames.PowerTopology).toBe('powerTopology')
   })
 
   it('is published as homebridge/matter next to an unchanged main entry', () => {
