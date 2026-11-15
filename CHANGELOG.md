@@ -164,6 +164,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: stop with an error when -U or -P is given without a path instead of using the default
 - docs: say when a hap enum imported from homebridge stays in a plugin at run time
 - docs: say what a plugin built with isolatedModules can use in place of homebridge's const enums
+- feat: export more hap-nodejs enums and types from homebridge, like MDNSAdvertiser and HAPConnection
 
 ### Homebridge Dependencies
 
