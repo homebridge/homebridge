@@ -75,6 +75,10 @@ export class ChildBridgeFork {
 
   private pendingPortRequests = new Map<MacAddress, PendingPortRequest>()
 
+  // Set by shutdown(). A load or start that is under way stops at its next
+  // step: nothing new is started for a process that is ending.
+  private shuttingDown = false
+
   constructor() {
     // tell the parent process we are ready to accept plugin config
     this.sendMessage(ChildProcessMessageEventType.READY)
@@ -138,10 +142,23 @@ export class ChildBridgeFork {
       this.matterLoaded = await this.api.tryLoadMatterAPI()
     }
 
+    if (this.shuttingDown) {
+      return
+    }
+
     // load plugin
     this.plugin = this.pluginManager.loadPlugin(data.pluginPath)
     await this.plugin.load()
+    if (this.shuttingDown) {
+      return
+    }
     await this.pluginManager.initializePlugin(this.plugin, data.identifier)
+
+    // A signal that arrived while the plugin was loading: do not report it as
+    // loaded, or the parent tells this process to start the bridge.
+    if (this.shuttingDown) {
+      return
+    }
 
     // change process title to include plugin name
     process.title = `homebridge: ${this.plugin.getPluginIdentifier()}`
@@ -152,6 +169,10 @@ export class ChildBridgeFork {
   }
 
   async startBridge(): Promise<void> {
+    if (this.shuttingDown) {
+      return
+    }
+
     // Conditionally load Matter support only if this child bridge has Matter active
     // (configured + enabled OR externalsOnly). Prevents loading heavy Matter.js
     // libraries for child bridges that don't use it.
@@ -185,6 +206,14 @@ export class ChildBridgeFork {
       await this.matterManager.initialize(() => {
         this.sendPairedStatusEvent()
       })
+
+      // A signal that arrived while the Matter server was starting: shutdown()
+      // tore the manager down before it had a server, so stop the server it
+      // has now, and start nothing else.
+      if (this.shuttingDown) {
+        await this.matterManager.teardown()
+        return
+      }
 
       // Create Matter message handler to delegate IPC handling
       matterLogger.debug('Creating ChildBridgeMatterMessageHandler...')
@@ -223,6 +252,9 @@ export class ChildBridgeFork {
 
     // load the cached accessories
     await this.bridgeService.loadCachedPlatformAccessoriesFromDisk()
+    if (this.shuttingDown) {
+      return
+    }
 
     for (const config of this.pluginConfig) {
       if (this.type === PluginType.PLATFORM) {
@@ -268,6 +300,12 @@ export class ChildBridgeFork {
           logger.info('Accessory %s returned empty set of services; not adding it to the bridge.', this.identifier)
         }
       }
+    }
+
+    // A signal that arrived while a platform was loading its accessories: the
+    // bridge is not published for a process that is ending.
+    if (this.shuttingDown) {
+      return
     }
 
     // restore the cached accessories
@@ -463,6 +501,8 @@ export class ChildBridgeFork {
   }
 
   shutdown(): void {
+    this.shuttingDown = true
+
     // bridgeService is only assigned once the bridge has started, and a signal
     // can arrive before that.
     this.bridgeService?.teardown()
@@ -482,6 +522,11 @@ export class ChildBridgeFork {
 const childPluginFork = new ChildBridgeFork()
 
 /**
+ * True once the process has been told to end: see shutdownAndExit().
+ */
+let shuttingDown = false
+
+/**
  * Handle incoming IPC messages from the parent Homebridge process
  */
 process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
@@ -491,6 +536,13 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
 
   switch (message.id) {
     case ChildProcessMessageEventType.LOAD: {
+      // The process is ending (a signal, or the parent has gone): do not
+      // load a plugin or start a bridge now. Before, a signal during the load
+      // was followed by the bridge being published, then cut off five seconds
+      // later with no goodbye.
+      if (shuttingDown) {
+        break
+      }
       childPluginFork.loadPlugin(message.data as ChildProcessLoadEventData).catch((error: unknown) => {
         Logger.internal.error('Child bridge failed to load plugin:', error)
         process.exit(1)
@@ -498,6 +550,9 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
       break
     }
     case ChildProcessMessageEventType.START: {
+      if (shuttingDown) {
+        break
+      }
       childPluginFork.startBridge().catch((error: unknown) => {
         Logger.internal.error('Child bridge failed to start:', error)
         process.exit(1)
@@ -552,7 +607,6 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
  * seconds. The timer stays as the upper limit, for a plugin that leaves
  * something running.
  */
-let shuttingDown = false
 function shutdownAndExit(reason: string, exitCode: number): void {
   if (shuttingDown) {
     return
