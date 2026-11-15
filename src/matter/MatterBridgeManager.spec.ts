@@ -497,5 +497,22 @@ describe('matterBridgeManager', () => {
         onOff: { onOff: false },
       })
     })
+
+    it('lists the external accessories in externalsOnly mode, where there is no bridge server', () => {
+      const manager = buildManager({ enabled: false, externalsOnly: true })
+      ;(manager as any).externalMatterServers.set('switch-uuid', {
+        ...buildServer(),
+        username: 'AA:BB:CC:DD:EE:FF',
+        bridgeName: 'Matter Bridge Vacuum',
+      })
+
+      const accessories = manager.collectAllAccessories()
+
+      expect(accessories).toHaveLength(1)
+      expect(accessories[0]).toMatchObject({
+        uuid: 'switch-uuid',
+        bridge: { username: 'AA:BB:CC:DD:EE:FF', type: 'external', name: 'Matter Bridge Vacuum' },
+      })
+    })
   })
 })
