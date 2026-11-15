@@ -209,6 +209,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs(matter): say in the plugin api docs where matter differs from hap and what really happens
 - fix(matter): keep the pairing code when the credentials file is there but can not be read
 - fix(matter): make the matter error handler safe for any thrown value and name the kind once
+- fix(matter): colour matter.js info lines grey and show warnings from its commissioning code
 
 ### Homebridge Dependencies
 

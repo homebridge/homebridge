@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { LogLevel } from '@matter/main'
+import chalk from 'chalk'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../logger.js'
 import { createHomebridgeLogFormatter } from './logFormatter.js'
@@ -19,7 +21,7 @@ describe('logFormatter', () => {
         now: new Date('2025-01-15T10:30:00.000Z'),
         facility: 'TestFacility',
         values: ['Test message'],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
@@ -40,7 +42,7 @@ describe('logFormatter', () => {
         now: new Date('2025-01-15T10:30:00.000Z'),
         facility: 'TestFacility',
         values: ['Test message'],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
@@ -50,99 +52,66 @@ describe('logFormatter', () => {
       expect(result).not.toMatch(/\[.*\d\/\d{1,2}\/\d{4}/)
     })
 
-    it('should apply gray color for debug level messages', () => {
-      const formatter = createHomebridgeLogFormatter()
+    describe('the colour of a line, by its matter.js level', () => {
+      // chalk leaves colours out when the output is not a terminal, as in a test run
+      let levelBefore: typeof chalk.level
 
-      const diagnostic = {
+      beforeAll(() => {
+        levelBefore = chalk.level
+        chalk.level = 1
+      })
+
+      afterAll(() => {
+        chalk.level = levelBefore
+      })
+
+      const GRAY = '\x1B[90m'
+      const YELLOW = '\x1B[33m'
+      const RED = '\x1B[31m'
+      const line = (level: number): string => createHomebridgeLogFormatter()({
         now: new Date(),
         facility: 'Test',
-        values: ['debug message'],
-        level: 'debug',
-      }
+        values: ['the message'],
+        level,
+      })
 
-      const result = formatter(diagnostic)
-      // Chalk colors may be stripped in test environment, just check the message is there
-      expect(result).toContain('debug message')
-      expect(result).toContain('[Matter/Test]')
+      it.each([
+        ['DEBUG', LogLevel.DEBUG, GRAY],
+        ['INFO', LogLevel.INFO, GRAY],
+        ['WARN', LogLevel.WARN, YELLOW],
+        ['ERROR', LogLevel.ERROR, RED],
+        ['FATAL', LogLevel.FATAL, RED],
+      ])('%s is coloured', (_name, level, colour) => {
+        expect(line(level)).toContain(`${colour}the message`)
+      })
+
+      it('nOTICE has no colour, like a homebridge info line', () => {
+        const result = line(LogLevel.NOTICE)
+
+        expect(result).toContain('the message')
+        for (const colour of [GRAY, YELLOW, RED]) {
+          expect(result).not.toContain(colour)
+        }
+      })
     })
 
-    it('should apply gray color for info level messages', () => {
-      const formatter = createHomebridgeLogFormatter()
-
-      const diagnostic = {
+    describe('the Commissioning facility', () => {
+      const line = (level: number): string => createHomebridgeLogFormatter()({
         now: new Date(),
-        facility: 'Test',
-        values: ['info message'],
-        level: 'info',
-      }
+        facility: 'Commissioning',
+        values: ['the message'],
+        level,
+      })
 
-      const result = formatter(diagnostic)
-      expect(result).toContain('info message')
-      expect(result).toContain('[Matter/Test]')
-    })
+      it('is left out for the pairing codes and state, which homebridge prints itself', () => {
+        expect(line(LogLevel.NOTICE)).toBe('')
+        expect(line(LogLevel.INFO)).toBe('')
+      })
 
-    it('should apply yellow color for warn level messages', () => {
-      const formatter = createHomebridgeLogFormatter()
-
-      const diagnostic = {
-        now: new Date(),
-        facility: 'Test',
-        values: ['warning message'],
-        level: 'warn',
-      }
-
-      const result = formatter(diagnostic)
-      // Chalk colors may be stripped in test environment, just check the message is there
-      expect(result).toContain('warning message')
-      expect(result).toContain('[Matter/Test]')
-    })
-
-    it('should apply red color for error level messages', () => {
-      const formatter = createHomebridgeLogFormatter()
-
-      const diagnostic = {
-        now: new Date(),
-        facility: 'Test',
-        values: ['error message'],
-        level: 'error',
-      }
-
-      const result = formatter(diagnostic)
-      // Chalk colors may be stripped in test environment, just check the message is there
-      expect(result).toContain('error message')
-      expect(result).toContain('[Matter/Test]')
-    })
-
-    it('should apply red color for fatal level messages', () => {
-      const formatter = createHomebridgeLogFormatter()
-
-      const diagnostic = {
-        now: new Date(),
-        facility: 'Test',
-        values: ['fatal message'],
-        level: 'fatal',
-      }
-
-      const result = formatter(diagnostic)
-      expect(result).toContain('fatal message')
-      expect(result).toContain('[Matter/Test]')
-    })
-
-    it('should not apply color for notice level messages', () => {
-      const formatter = createHomebridgeLogFormatter()
-
-      const diagnostic = {
-        now: new Date(),
-        facility: 'Test',
-        values: ['notice message'],
-        level: 'notice',
-      }
-
-      const result = formatter(diagnostic)
-      // Should not contain common ANSI color codes (except for cyan facility)
-      expect(result).not.toContain('\x1B[90m') // gray
-      expect(result).not.toContain('\x1B[33m') // yellow
-      expect(result).not.toContain('\x1B[31m') // red
+      it('is shown for a warning or an error', () => {
+        expect(line(LogLevel.WARN)).toContain('the message')
+        expect(line(LogLevel.ERROR)).toContain('the message')
+      })
     })
 
     it('should trim long MessageChannel messages', () => {
@@ -153,7 +122,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'MessageChannel',
         values: [longMessage],
-        level: 'debug',
+        level: LogLevel.DEBUG,
       }
 
       const result = formatter(diagnostic)
@@ -176,7 +145,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'MessageChannel',
         values: [reportData],
-        level: 'debug',
+        level: LogLevel.DEBUG,
       }
 
       const result = formatter(diagnostic)
@@ -192,7 +161,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'OtherFacility',
         values: [longMessage],
-        level: 'debug',
+        level: LogLevel.DEBUG,
       }
 
       const result = formatter(diagnostic)
@@ -207,7 +176,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'Test',
         values: ['first', 'second', 'third'],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
@@ -224,7 +193,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'Test',
         values: [lazyFn],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
@@ -239,7 +208,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'Test',
         values: [null],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
@@ -253,7 +222,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'Test',
         values: [undefined],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
@@ -268,7 +237,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'Test',
         values: [error],
-        level: 'error',
+        level: LogLevel.ERROR,
       }
 
       const result = formatter(diagnostic)
@@ -286,7 +255,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'Test',
         values: [obj],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
@@ -309,7 +278,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'Test',
         values: [],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
@@ -326,7 +295,7 @@ describe('logFormatter', () => {
         now: new Date(),
         facility: 'Test',
         values: [objectValue],
-        level: 'notice',
+        level: LogLevel.NOTICE,
       }
 
       const result = formatter(diagnostic)
