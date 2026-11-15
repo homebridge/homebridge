@@ -897,6 +897,40 @@ describe('childBridgeService', () => {
   })
 
   describe('refreshConfig', () => {
+    // Homebridge upper-cases the username in memory; the file keeps the user's spelling.
+    it.each([
+      {
+        type: PluginType.PLATFORM,
+        key: 'platforms',
+        entry: { platform: 'TestPlatform' },
+      },
+      {
+        type: PluginType.ACCESSORY,
+        key: 'accessories',
+        entry: { accessory: 'TestPlatform' },
+      },
+    ])('finds its $key entry when the username in config.json is lower case', async ({ type, key, entry }) => {
+      const { service } = buildService({
+        type,
+        identifier: 'TestPlatform',
+        bridgeConfig: makeBridgeConfig({ username: '0E:DC:5D:BE:D6:75' }),
+      })
+      const updated = {
+        ...entry,
+        name: 'Renamed',
+        _bridge: { username: '0e:dc:5d:be:d6:75' },
+      }
+      vi.mocked(fs.readJson).mockResolvedValue({
+        [key]: [updated],
+      } as any)
+
+      await service.refreshConfig()
+
+      expect((service as any).pluginConfig[0].name).toBe('Renamed')
+      // the bridge keeps its identity: the username it started with
+      expect((service as any).bridgeConfig.username).toBe('0E:DC:5D:BE:D6:75')
+    })
+
     it('updates pluginConfig from the on-disk config when entries match', async () => {
       const { service } = buildService({
         identifier: 'TestPlatform',
