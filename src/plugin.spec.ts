@@ -72,4 +72,59 @@ describe('plugin', () => {
       expect(message).toMatch(/type 'number'/i)
     })
   })
+
+  /**
+   * A plugin folder on disk with the given package.json fields and files.
+   * Returns the loaded Plugin, after calling its initializer.
+   */
+  async function loadPluginFrom(packageJSON: Record<string, unknown>, files: Record<string, string>): Promise<{ plugin: Plugin, initialized: unknown }> {
+    const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { dirname, join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'homebridge-plugin-spec-'))
+    try {
+      const fullPackageJSON = {
+        name: 'homebridge-test',
+        version: '1.0.0',
+        engines: { homebridge: '>=2.0.0' },
+        ...packageJSON,
+      }
+      writeFileSync(join(dir, 'package.json'), JSON.stringify(fullPackageJSON))
+      for (const [file, content] of Object.entries(files)) {
+        mkdirSync(dirname(join(dir, file)), { recursive: true })
+        writeFileSync(join(dir, file), content)
+      }
+      const plugin = new Plugin('homebridge-test', dir, fullPackageJSON as never)
+      await plugin.load()
+      return {
+        plugin,
+        initialized: plugin.initialize({} as never),
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  const commonJsPlugin = 'module.exports = () => \'cjs plugin ran\'\n'
+
+  // Homebridge 1 loaded a CommonJS plugin with require(), which adds ".js" and
+  // finds index.js in a folder. import() does neither.
+  describe('a CommonJS main that is not a full file name', () => {
+    it.each([
+      { main: 'dist/index.js', why: 'a full file name' },
+      { main: 'dist/index', why: 'no extension' },
+      { main: 'dist', why: 'a folder' },
+      { main: './dist/', why: 'a folder with slashes' },
+    ])('loads a plugin whose main is $why ($main)', async ({ main }) => {
+      const { initialized } = await loadPluginFrom({ main }, { 'dist/index.js': commonJsPlugin })
+
+      expect(initialized).toBe('cjs plugin ran')
+    })
+
+    it('loads a plugin with no main from its index.js', async () => {
+      const { initialized } = await loadPluginFrom({}, { 'index.js': commonJsPlugin })
+
+      expect(initialized).toBe('cjs plugin ran')
+    })
+  })
 })
