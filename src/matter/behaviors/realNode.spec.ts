@@ -2556,6 +2556,71 @@ describe('a command sent from the UI, on a real node', () => {
   })
 })
 
+describe('identify on a real node', () => {
+  it('tells the plugin about an identify effect, and still calls the identify handler for the command', async () => {
+    const calls: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: false },
+      },
+      handlers: {
+        identify: {
+          identify: async (request) => {
+            calls.push(['identify', request])
+          },
+          triggerEffect: async (request) => {
+            calls.push(['triggerEffect', request])
+          },
+        },
+      },
+    })
+
+    // 0 = blink, 0 = the default variant
+    await invoke(endpoint, 'identify', 'triggerEffect', { effectIdentifier: 0, effectVariant: 0 })
+    await settle()
+    await invoke(endpoint, 'identify', 'identify', { identifyTime: 3 })
+    await settle()
+
+    expect(calls).toEqual([
+      [
+        'triggerEffect',
+        { effectIdentifier: 0, effectVariant: 0 },
+      ],
+      [
+        'identify',
+        { identifyTime: 3 },
+      ],
+    ])
+    expect(stateOf(endpoint, 'identify').identifyTime).toBe(3)
+    // stop the one-second identify timer
+    await invoke(endpoint, 'identify', 'identify', { identifyTime: 0 })
+  })
+
+  it('answers the effect command when the plugin handler fails, and logs the failure', async () => {
+    const warn = vi.spyOn(Logger.withPrefix('Matter/Identify'), 'warn').mockImplementation(() => {})
+    const endpoint = await register({
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: false },
+      },
+      handlers: {
+        identify: {
+          triggerEffect: async () => {
+            throw new Error('lamp offline')
+          },
+        },
+      },
+    })
+
+    await invoke(endpoint, 'identify', 'triggerEffect', { effectIdentifier: 0, effectVariant: 0 })
+    await settle()
+
+    expect(warn).toHaveBeenCalledOnce()
+    expect(String(warn.mock.calls[0][0])).toContain('triggerEffect handler')
+  })
+})
+
 describe('a handler that answers the command itself, on a real node', () => {
   // These handlers are not cast on purpose: a typed handler that returns an
   // answer has to compile, which it did not while the fallback handler type
