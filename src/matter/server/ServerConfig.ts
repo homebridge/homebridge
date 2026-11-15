@@ -105,6 +105,7 @@ export function validateAndSanitizeConfig(config: MatterServerConfig): MatterSer
     firmwareRevision,
     serialNumber,
     debugModeEnabled,
+    hideQRCode: config.hideQRCode,
     externalAccessory,
     networkInterfaces: config.networkInterfaces,
     disableIpv4: config.disableIpv4,

@@ -38,6 +38,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): let a window covering that declares its position register without configStatus
 - fix(matter): stop writing an internal window covering flag into the plugin's context
 - fix(matter): stop each matter server adding its own shutdown signal listeners
+- fix(matter): show the pairing codes in one banner only and keep the passcode files private
 
 ### Homebridge Dependencies
 

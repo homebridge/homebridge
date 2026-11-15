@@ -12,7 +12,7 @@ import type { MatterServerConfig } from '../sharedTypes.js'
 import type { CommissioningSnapshot, FabricManager } from './FabricManager.js'
 
 import { randomBytes } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
+import { rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { SubscriptionsServer } from '@matter/node'
@@ -36,6 +36,17 @@ export interface CommissioningDeps {
   serialNumber?: string
   emitter: EventEmitter
   fabricManager: FabricManager
+}
+
+/**
+ * Write a file that holds the pairing passcode: readable by the Homebridge
+ * user only, and swapped into place in one step so a reader (the UI) never
+ * sees half of it. The rename also replaces an older, world-readable file.
+ */
+async function writePrivateFile(path: string, content: string): Promise<void> {
+  const temporaryPath = `${path}.tmp`
+  await writeFile(temporaryPath, content, { encoding: 'utf-8', mode: 0o600 })
+  await rename(temporaryPath, path)
 }
 
 export class CommissioningManager {
@@ -210,11 +221,7 @@ export class CommissioningManager {
     this.discriminator = this.generateRandomDiscriminator()
 
     // Store for future use
-    await writeFile(
-      credentialsPath,
-      JSON.stringify({ passcode: this.passcode, discriminator: this.discriminator }, null, 2),
-      'utf-8',
-    )
+    await writePrivateFile(credentialsPath, JSON.stringify({ passcode: this.passcode, discriminator: this.discriminator }, null, 2))
     log.info('Commissioning credentials saved to storage')
   }
 
@@ -222,7 +229,6 @@ export class CommissioningManager {
    * Generate and display commissioning information
    */
   async generateCommissioningInfo(deps: CommissioningDeps): Promise<void> {
-    const passcode = this.passcode.toString().padStart(8, '0')
     const discriminator = this.discriminator
     const vendorId = this.vendorId
     const productId = this.productId
@@ -236,8 +242,6 @@ export class CommissioningManager {
     // Format as XXXX-XXX-XXXX for display
     const manualPairingCode = `${manualCode.slice(0, 4)}-${manualCode.slice(4, 7)}-${manualCode.slice(7, 11)}`
 
-    log.info(`Encoding QR code with: passcode=${this.passcode}, discriminator=${discriminator}, vendorId=${vendorId}, productId=${productId}`)
-
     const qrCodePayload = QrPairingCodeCodec.encode([
       {
         version: 0,
@@ -249,9 +253,6 @@ export class CommissioningManager {
         passcode: this.passcode,
       },
     ])
-
-    log.info(`Generated QR code: ${qrCodePayload}`)
-    log.info(`Generated manual code: ${manualPairingCode}`)
 
     // Store commissioning info
     this.commissioningInfo = {
@@ -273,7 +274,7 @@ export class CommissioningManager {
         discriminator: this.discriminator,
         commissioned: deps.fabricManager.isCommissioned(),
       }
-      await writeFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2), 'utf-8')
+      await writePrivateFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2))
       log.debug(`Saved commissioning info to ${commissioningFilePath}`)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error
@@ -282,18 +283,28 @@ export class CommissioningManager {
       log.warn(`Failed to save commissioning info to disk: ${errorMessage}`)
     }
 
-    // Display commissioning information
+    // The pairing codes let anybody on the network add this bridge, and logs
+    // get shared. So they are shown in one place only, and only while there is
+    // something to pair: a bridge that already has a controller says so in one
+    // line. The codes stay available in the Homebridge UI either way.
+    if (deps.fabricManager.isCommissioned()) {
+      log.info('Matter is paired with a controller. The pairing codes are not shown; find them in the Homebridge UI.')
+      return
+    }
+
     log.info(`${'='.repeat(60)}`)
     log.info('📱 MATTER COMMISSIONING INFORMATION')
     log.info('='.repeat(60))
     log.info(`Manual Pairing Code: ${manualPairingCode}`)
-    log.info(`Passcode: ${passcode}`)
-    log.info(`Discriminator: ${discriminator}`)
-    log.info('QR Code for commissioning:')
 
-    // Generate and display QR code in terminal using matter.js native QR renderer
-    const qrCodeString = QrCode.get(qrCodePayload)
-    log.info(`\n${qrCodeString}`)
+    // -Q / --no-qrcode: no QR code in the log, as for HomeKit
+    if (!deps.config.hideQRCode) {
+      log.info('QR Code for commissioning:')
+
+      // Generate and display QR code in terminal using matter.js native QR renderer
+      const qrCodeString = QrCode.get(qrCodePayload)
+      log.info(`\n${qrCodeString}`)
+    }
 
     log.info(`${'='.repeat(60)}`)
   }
@@ -458,7 +469,7 @@ export class CommissioningManager {
         fabricCount,
         fabrics,
       }
-      await writeFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2), 'utf-8')
+      await writePrivateFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2))
       log.debug('Updated commissioning info file')
     } catch (error: unknown) {
       const errorMessage = error instanceof Error

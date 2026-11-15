@@ -186,6 +186,9 @@ export interface MatterServerConfig {
   /** Enable debug mode for verbose logging */
   debugModeEnabled?: boolean
 
+  /** Do not draw the pairing QR code in the log (the `-Q` / `--no-qrcode` flag) */
+  hideQRCode?: boolean
+
   /** Display name for the Matter bridge/device */
   displayName?: string
 

@@ -262,6 +262,7 @@ export class MatterBridgeManager extends BaseMatterManager {
         firmwareRevision: this.config.bridge.firmwareRevision || getVersion(),
         serialNumber,
         debugModeEnabled: this.options.debugModeEnabled,
+        hideQRCode: this.options.hideQRCode,
         networkInterfaces,
         disableIpv4: this.config.bridge.matter?.disableIpv4,
       })
@@ -355,6 +356,7 @@ export class MatterBridgeManager extends BaseMatterManager {
             portService: this.externalPortService,
             networkInterfaces,
             debugModeEnabled: this.options.debugModeEnabled,
+            hideQRCode: this.options.hideQRCode,
             disableIpv4: this.config.bridge.matter?.disableIpv4,
           })
 
