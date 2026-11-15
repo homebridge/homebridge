@@ -11,6 +11,7 @@ import { join } from 'node:path'
 
 import { Filesystem } from '@matter/general'
 import { Endpoint, Environment, ServerNode } from '@matter/main'
+import { ThermostatRequirements } from '@matter/main/devices/thermostat'
 import { AggregatorEndpoint } from '@matter/main/endpoints'
 import { NodeJsFilesystem } from '@matter/nodejs'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,7 +21,7 @@ import { mapAttributesToCommand } from '../ClusterCommandMapper.js'
 import { MatterStatus } from '../errors.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
 import { StateManager } from '../server/StateManager.js'
-import { deviceRequirements, deviceTypes } from '../types.js'
+import { deviceRequirements, devices, deviceTypes } from '../types.js'
 import { BehaviorRegistry, HomebridgeDoorLockServer, HomebridgeOnOffServer, HomebridgeThermostatServer, HomebridgeWindowCoveringServer, RegistryManager } from './index.js'
 
 /**
@@ -2553,6 +2554,43 @@ describe('a command sent from the UI, on a real node', () => {
 
     expect(await errorOf(stateManager.triggerCommand('test-uuid', 'doorLock', 'lockDoor'))).toMatch(/^Failed to trigger command: .*doorLock/)
     expect(await errorOf(stateManager.triggerCommand('test-uuid', 'onOff', 'blink'))).toMatch(/^Failed to trigger command: .*blink/)
+  })
+})
+
+describe('a thermostat a plugin composed with its own features, on a real node', () => {
+  it('keeps a feature outside heating, cooling, occupancy and auto, and still calls the handlers', async () => {
+    const calls: unknown[] = []
+    const endpoint = await register({
+      deviceType: devices.ThermostatDevice.with(
+        ThermostatRequirements.ThermostatServer.with('Heating', 'LocalTemperatureNotExposed'),
+      ),
+      clusters: {
+        thermostat: {
+          systemMode: 4,
+          controlSequenceOfOperation: 2,
+          occupiedHeatingSetpoint: 2000,
+          minHeatSetpointLimit: 700,
+          maxHeatSetpointLimit: 3000,
+        },
+      },
+      handlers: {
+        thermostat: {
+          occupiedHeatingSetpointChange: async (request) => {
+            calls.push(request)
+          },
+        },
+      },
+    })
+
+    expect(stateOf(endpoint, 'thermostat').featureMap).toMatchObject({ heating: true, localTemperatureNotExposed: true, cooling: false })
+
+    await write(endpoint, {
+      thermostat: { occupiedHeatingSetpoint: 2200 },
+    })
+    await settle()
+
+    expect(calls).toHaveLength(1)
+    expect(stateOf(endpoint, 'thermostat').occupiedHeatingSetpoint).toBe(2200)
   })
 })
 

@@ -237,6 +237,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): let matter.js drop the log lines of its quiet facilities by facility level
 - fix(matter): tell a plugin about an identify effect through a new triggerEffect handler
 - refactor(matter): leave the saved subscriptions of a removed fabric to matter.js
+- fix(matter): keep every feature a plugin composed on a thermostat that has handlers
 
 ### Homebridge Dependencies
 

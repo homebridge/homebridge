@@ -3,11 +3,13 @@ import type { EndpointType } from '@matter/main'
 import type { MatterAccessory } from '../types.js'
 
 import { FanRequirements } from '@matter/main/devices/fan'
+import { ThermostatRequirements } from '@matter/main/devices/thermostat'
 import { describe, expect, it } from 'vitest'
 
 import { DefaultDeviceEnergyManagementServer, HomebridgeDeviceEnergyManagementServer } from '../behaviors/DeviceEnergyManagementBehavior.js'
 import { HomebridgeEnergyEvseServer } from '../behaviors/EnergyEvseBehavior.js'
 import { HomebridgeFanControlServer } from '../behaviors/FanControlBehavior.js'
+import { HomebridgeThermostatServer } from '../behaviors/ThermostatBehavior.js'
 import { deviceRequirements, devices, deviceTypes } from '../types.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
@@ -83,6 +85,48 @@ describe('features a plugin chose survive the handler swap', () => {
     const fanControl = (deviceType as { behaviors: Record<string, unknown> }).behaviors.fanControl as typeof HomebridgeFanControlServer
     const isOrExtends = fanControl === HomebridgeFanControlServer || fanControl.prototype instanceof HomebridgeFanControlServer
     expect(isOrExtends).toBe(true)
+  })
+})
+
+/**
+ * A thermostat with handlers used to keep only four named features (Heating,
+ * Cooling, Occupancy, AutoMode). Any other feature a plugin composed was
+ * dropped by the handler swap, and the state that belongs to it with it.
+ */
+describe('the thermostat features a plugin chose', () => {
+  const composed = devices.ThermostatDevice.with(
+    ThermostatRequirements.ThermostatServer.with('Heating', 'LocalTemperatureNotExposed'),
+  )
+  const clusters = {
+    thermostat: {
+      systemMode: 4,
+      controlSequenceOfOperation: 2,
+      occupiedHeatingSetpoint: 2000,
+      minHeatSetpointLimit: 700,
+      maxHeatSetpointLimit: 3000,
+    },
+  }
+
+  it('keeps a feature outside the four once handlers swap the behavior in', async () => {
+    const deviceType = await prepare({
+      deviceType: composed,
+      clusters,
+      handlers: { thermostat: {} },
+    })
+
+    expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['heating', 'localTemperatureNotExposed'])
+    const thermostat = (deviceType as { behaviors: Record<string, unknown> }).behaviors.thermostat as typeof HomebridgeThermostatServer
+    expect(thermostat === HomebridgeThermostatServer || thermostat.prototype instanceof HomebridgeThermostatServer).toBe(true)
+  })
+
+  it('still gives a stock thermostat the features its setpoints ask for', async () => {
+    const deviceType = await prepare({
+      deviceType: deviceTypes.Thermostat,
+      clusters,
+      handlers: { thermostat: {} },
+    })
+
+    expect(enabledFeatures(deviceType, 'thermostat')).toEqual(['heating'])
   })
 })
 
