@@ -189,6 +189,20 @@ function knownAttributeNames(endpoint: Endpoint | undefined, clusterName: string
   }
 }
 
+/**
+ * Whether the endpoint is known not to have the cluster. False when that can
+ * not be told (no endpoint yet, or one that does not list its behaviors).
+ */
+function lacksCluster(endpoint: Endpoint | undefined, clusterName: string): boolean {
+  try {
+    const supported = endpoint?.behaviors.supported
+    return !!supported && !(clusterName in supported)
+  } catch {
+    // never let a check that only warns stop a registration
+    return false
+  }
+}
+
 export class AccessoryManager {
   /**
    * Register a single Matter accessory
@@ -490,10 +504,11 @@ export class AccessoryManager {
   }
 
   /**
-   * Warn for each attribute a plugin declared that its cluster does not have.
-   * matter.js leaves such a name out without a word when the endpoint is
-   * built, and the plugin's state then seems to be lost. A typo is the usual
-   * cause. The registration still goes ahead.
+   * Warn for each attribute a plugin declared that its cluster does not have,
+   * and for each cluster the endpoint does not have at all. matter.js leaves
+   * such a name out without a word when the endpoint is built, and the
+   * plugin's state then seems to be lost. A typo is the usual cause. The
+   * registration still goes ahead.
    *
    * Only a name that is not in the cluster at all is reported. An attribute
    * that belongs to a feature the endpoint does not have is a real attribute,
@@ -507,6 +522,14 @@ export class AccessoryManager {
     const check = (label: string, clusters: Record<string, unknown> | undefined, target: Endpoint | undefined) => {
       for (const [clusterName, declared] of Object.entries(clusters ?? {})) {
         if (!declared || typeof declared !== 'object') {
+          continue
+        }
+        // A cluster the endpoint does not have: its device type does not carry
+        // it. matter.js drops the whole block without a word, and every later
+        // update for it fails with "Behavior ... is not present".
+        if (lacksCluster(target, clusterName)) {
+          log.warn(`Matter accessory "${label}": the device type has no ${clusterName} cluster, so its state was left out. `
+            + 'Use a device type that carries this cluster.')
           continue
         }
         const known = knownAttributeNames(target, clusterName)

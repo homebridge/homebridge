@@ -244,6 +244,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - chore: use an https repository url, drop the stale maintainers field and correct the labeler job
 - fix: warn at start-up when a bridge uses the well-known default pin 031-45-154
 - chore: add the homepage url to package.json
+- fix(matter): warn when a plugin declares a cluster its device type does not carry
 
 ### Homebridge Dependencies
 
