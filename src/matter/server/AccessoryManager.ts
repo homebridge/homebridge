@@ -171,6 +171,32 @@ interface BuiltAccessoryPart {
   hasElectrical: boolean
 }
 
+/**
+ * The attribute names a cluster on an endpoint knows: every attribute in the
+ * cluster's Matter definition (whatever its feature), plus the extra state
+ * matter.js keeps for the cluster. Undefined when the endpoint does not have
+ * the cluster, or when it is not a Matter cluster (nothing to compare with).
+ */
+function knownAttributeNames(endpoint: Endpoint | undefined, clusterName: string): Set<string> | undefined {
+  try {
+    const type = endpoint?.behaviors.supported[clusterName] as (Behavior.Type & {
+      schema?: { attributes?: Iterable<{ propertyName: string }> }
+    }) | undefined
+    const attributes = type?.schema?.attributes
+    if (!type || !attributes) {
+      return undefined
+    }
+    const names = new Set<string>(Object.keys(new type.State()))
+    for (const attribute of attributes) {
+      names.add(attribute.propertyName)
+    }
+    return names
+  } catch {
+    // never let a check that only warns stop a registration
+    return undefined
+  }
+}
+
 export class AccessoryManager {
   /**
    * Register a single Matter accessory
@@ -271,6 +297,7 @@ export class AccessoryManager {
             registered: true,
             _restoredFromCache: false,
           })
+          this.warnForUnknownAttributes(accessory, existing.endpoint, existing._parts)
           this.registerAccessoryHandlers(accessory, deps)
           for (const part of accessory.parts ?? []) {
             if (!part.handlers) {
@@ -456,6 +483,10 @@ export class AccessoryManager {
 
       this.registerAccessoryHandlers(accessory, deps)
       const internalParts = await this.finishAccessoryParts(accessory, builtParts, deps)
+      // A restore registers what the cache holds, not what a plugin wrote now
+      if (!(accessory as InternalMatterAccessory)._restoredFromCache) {
+        this.warnForUnknownAttributes(accessory, endpoint, internalParts)
+      }
 
       await this.finalizeAccessoryRegistration(accessory, endpoint, internalParts, deps)
       deps.accessoryCache?.release(accessory.UUID)
@@ -463,6 +494,45 @@ export class AccessoryManager {
       log.error(`Failed to register Matter accessory ${accessory.displayName}:`, error)
       this.forgetFailedRegistration(accessory.UUID, deps)
       throw deviceErrorFrom('Failed to register accessory', error)
+    }
+  }
+
+  /**
+   * Warn for each attribute a plugin declared that its cluster does not have.
+   * matter.js leaves such a name out without a word when the endpoint is
+   * built, and the plugin's state then seems to be lost. A typo is the usual
+   * cause. The registration still goes ahead.
+   *
+   * Only a name that is not in the cluster at all is reported. An attribute
+   * that belongs to a feature the endpoint does not have is a real attribute,
+   * and matter.js reports that case itself.
+   */
+  private warnForUnknownAttributes(
+    accessory: MatterAccessory,
+    endpoint: Endpoint | undefined,
+    parts: InternalMatterAccessoryPart[] | undefined,
+  ): void {
+    const check = (label: string, clusters: Record<string, unknown> | undefined, target: Endpoint | undefined) => {
+      for (const [clusterName, declared] of Object.entries(clusters ?? {})) {
+        if (!declared || typeof declared !== 'object') {
+          continue
+        }
+        const known = knownAttributeNames(target, clusterName)
+        if (!known) {
+          continue
+        }
+        const unknown = Object.keys(declared).filter(name => !known.has(name))
+        if (unknown.length > 0) {
+          log.warn(`Matter accessory "${label}": the ${clusterName} cluster has no attribute named ${unknown.map(name => `"${name}"`).join(', ')}. `
+            + 'It was left out. Please check the spelling.')
+        }
+      }
+    }
+
+    check(accessory.displayName, accessory.clusters, endpoint)
+    for (const part of accessory.parts ?? []) {
+      const partEndpoint = parts?.find(internal => internal.id === part.id)?.endpoint
+      check(`${accessory.displayName}" part "${part.displayName || part.id}`, part.clusters, partEndpoint)
     }
   }
 

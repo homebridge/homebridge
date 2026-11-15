@@ -1,3 +1,5 @@
+import type { MockInstance } from 'vitest'
+
 import type { AccessoryManagerDeps } from '../server/AccessoryManager.js'
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 
@@ -2432,6 +2434,76 @@ describe('a thermostat with unoccupied setpoints, on a real node', () => {
     await settle()
 
     expect(stateOf(endpoint, 'thermostat').unoccupiedHeatingSetpoint).toBe(1600)
+  })
+})
+
+describe('an attribute the cluster does not have, on a real node', () => {
+  // The typed clusters refuse these names at compile time, so the accessories
+  // are cast: a JavaScript plugin, or state built as a plain record, gets no such help.
+  let warn: MockInstance<(...args: unknown[]) => void>
+  const warnings = () => warn.mock.calls.map(call => String(call[0]))
+
+  beforeEach(() => {
+    warn = vi.spyOn(Logger.withPrefix('Matter/Server'), 'warn').mockImplementation(() => {})
+  })
+
+  it('warns for a misspelled attribute, and still registers the accessory', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff: true, bogus: 5 },
+        levelControl: { currentLevel: 100, curentLevel: 50 },
+      },
+    } as never)
+
+    expect(stateOf(endpoint, 'onOff').onOff).toBe(true)
+    expect(warnings()).toEqual([
+      'Matter accessory "Test": the onOff cluster has no attribute named "bogus". It was left out. Please check the spelling.',
+      'Matter accessory "Test": the levelControl cluster has no attribute named "curentLevel". It was left out. Please check the spelling.',
+    ])
+  })
+
+  it('names the part that has the misspelled attribute', async () => {
+    await register({
+      deviceType: deviceTypes.OnOffOutlet,
+      clusters: {
+        onOff: { onOff: false },
+      },
+      parts: [
+        {
+          id: 'one',
+          displayName: 'Socket one',
+          deviceType: deviceTypes.OnOffOutlet,
+          clusters: {
+            onOff: { onOf: true },
+          },
+        },
+      ],
+    } as never)
+
+    expect(warnings()).toEqual([
+      'Matter accessory "Test" part "Socket one": the onOff cluster has no attribute named "onOf". It was left out. Please check the spelling.',
+    ])
+  })
+
+  it('does not warn for real attributes or for state matter.js keeps itself', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        // startUpOnOff belongs to the Lighting feature
+        onOff: { onOff: true, startUpOnOff: null },
+        // managedTransitionTimeHandling is state matter.js keeps itself
+        levelControl: {
+          currentLevel: 100,
+          minLevel: 1,
+          maxLevel: 254,
+          managedTransitionTimeHandling: false,
+        },
+      },
+    } as never)
+
+    expect(stateOf(endpoint, 'onOff').onOff).toBe(true)
+    expect(warnings()).toEqual([])
   })
 })
 
