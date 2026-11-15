@@ -257,9 +257,15 @@ export class ChildBridgeFork {
         const accessory = this.bridgeService.createHAPAccessory(plugin, accessoryInstance, displayName, this.identifier, config.uuid_base)
 
         if (accessory) {
-          this.bridgeService.bridge.addBridgedAccessory(accessory)
+          try {
+            this.bridgeService.bridge.addBridgedAccessory(accessory)
+          } catch (error: unknown) {
+            logger.error(`Error loading the accessory "${this.identifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, error instanceof Error
+              ? error.message
+              : error)
+          }
         } else {
-          logger('Accessory %s returned empty set of services. Won\'t adding it to the bridge!', this.identifier)
+          logger.info('Accessory %s returned empty set of services; not adding it to the bridge.', this.identifier)
         }
       }
     }
