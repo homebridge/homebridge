@@ -549,6 +549,7 @@ export class MatterServer extends EventEmitter {
               _restoredFromCache: true,
               _associatedPlugin: serialized.plugin,
               _associatedPlatform: serialized.platform,
+              _declared: serialized.declared,
             }
             if (parts.length > 0) {
               accessory.parts = parts

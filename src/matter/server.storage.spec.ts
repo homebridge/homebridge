@@ -222,6 +222,64 @@ describe('matterServer storage on real matter.js nodes', () => {
     expect(dimmable.context).toEqual({ room: 'hall' })
   }, 30000)
 
+  describe('a new setting the plugin declares for a restored accessory', () => {
+    const dimmer = (levelControl: Record<string, unknown>, extra: Partial<MatterAccessory> = {}): MatterAccessory => ({
+      UUID: 'uuid-dimmer',
+      displayName: 'Dimmer',
+      deviceType: deviceTypes.DimmableLight,
+      serialNumber: 'S',
+      manufacturer: 'Test',
+      model: 'Test',
+      context: {},
+      clusters: {
+        // "off" at every start, whatever the light is doing
+        onOff: { onOff: false },
+        levelControl: { currentLevel: 100, minLevel: 1, ...levelControl },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+          off: async () => {},
+        },
+      },
+      ...extra,
+    })
+
+    async function firstSession(uniqueId: string, port: number): Promise<void> {
+      const before = bridgeServer(uniqueId, port)
+      await before.start()
+      await before.registerPlatformAccessories('plugin', 'Platform', [
+        dimmer({ maxLevel: 254 }),
+      ])
+      await before.updateAccessoryState('uuid-dimmer', 'onOff', { onOff: true })
+      const cacheFile = join(matterPath, uniqueId, 'accessories.json')
+      await vi.waitFor(() => expect(existsSync(cacheFile) && readFileSync(cacheFile, 'utf-8')).toMatch(/"onOff":\s*true/), { timeout: 5000, interval: 100 })
+      await before.stop()
+    }
+
+    it('takes the new value, and keeps the saved state of what the plugin declares as before', async () => {
+      await firstSession('FFFFFFFFFFA2', 55962)
+
+      // the plugin now limits the light to 200
+      const after = bridgeServer('FFFFFFFFFFA2', 55962)
+      await after.start()
+      await after.registerPlatformAccessories('plugin', 'Platform', [
+        dimmer({ maxLevel: 200 }),
+      ])
+
+      expect(after.getLiveState('uuid-dimmer').levelControl?.maxLevel).toBe(200)
+      expect(after.getAccessory('uuid-dimmer')?.clusters?.levelControl).toMatchObject({ maxLevel: 200 })
+      // the light was on: "off" is only the plugin's start-up default
+      expect(after.getLiveState('uuid-dimmer').onOff?.onOff).toBe(true)
+      await after.stop()
+
+      // and it stays: the cache holds the new value
+      const again = bridgeServer('FFFFFFFFFFA2', 55962)
+      await again.start()
+      expect(again.getLiveState('uuid-dimmer').levelControl?.maxLevel).toBe(200)
+    }, 30000)
+  })
+
   describe('which controllers a bridge is paired with', () => {
     /** Pair the server with a matter.js test controller (a real fabric with made-up keys). */
     async function pair(server: MatterServer): Promise<void> {

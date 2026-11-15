@@ -483,6 +483,16 @@ export interface InternalMatterAccessoryPart extends MatterAccessoryPart {
 }
 
 /**
+ * The cluster state a plugin declared for an accessory and for each of its parts.
+ *
+ * @internal
+ */
+export interface DeclaredClusterState {
+  clusters?: MatterAccessory['clusters']
+  parts?: Record<string, MatterAccessory['clusters']>
+}
+
+/**
  * Internal Matter accessory representation
  * (Used internally by MatterServer)
  *
@@ -510,6 +520,14 @@ export interface InternalMatterAccessory extends MatterAccessory {
 
   /** Internal part endpoints (if using parts) */
   _parts?: InternalMatterAccessoryPart[]
+
+  /**
+   * The cluster state the plugin declared when it last registered the
+   * accessory (and its parts, by part id), before any value known from the
+   * cache was put over it. Compared at the next registration: a value the
+   * plugin declares differently now is a new setting, and it is used.
+   */
+  _declared?: DeclaredClusterState
 
   // Note: _eventEmitter is now inherited from MatterAccessory (available on public interface)
 }
