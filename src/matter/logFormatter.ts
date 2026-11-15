@@ -5,7 +5,9 @@
  * This ensures consistent logging output across Homebridge and Matter.js.
  */
 
-import { LogFormat } from '@matter/main'
+import type { Diagnostic } from '@matter/main'
+
+import { LogFormat, LogLevel } from '@matter/main'
 import chalk from 'chalk'
 
 import { Logger } from '../logger.js'
@@ -53,13 +55,19 @@ export function createHomebridgeLogFormatter(options: { debug?: boolean } = {}):
   return (diagnostic: unknown): string => {
     // Check if this is a Matter.js log message
     if (typeof diagnostic === 'object' && diagnostic !== null) {
-      const msg = diagnostic as any
+      const msg = diagnostic as Partial<Diagnostic.Message>
 
       // If it's a log message with the expected structure
       if (msg.now && msg.facility && msg.values) {
         // Suppress ValidatedElements logs - these are just validation warnings about
         // optional Matter.js features that aren't implemented (and don't need to be)
-        if (msg.facility === 'ValidatedElements' || msg.facility === 'Commissioning') {
+        if (msg.facility === 'ValidatedElements') {
+          return ''
+        }
+        // The Commissioning facility prints the pairing codes and the pairing
+        // state, which Homebridge prints itself. Its warnings and errors are
+        // kept: they are not about the codes, and were hidden with the rest.
+        if (msg.facility === 'Commissioning' && (msg.level === undefined || msg.level < LogLevel.WARN)) {
           return ''
         }
 
@@ -80,7 +88,7 @@ export function createHomebridgeLogFormatter(options: { debug?: boolean } = {}):
           if (!options.debug) {
             return ''
           }
-          level = 0
+          level = LogLevel.DEBUG
         }
 
         // Trim excessively long messages from verbose facilities like MessageChannel
@@ -88,32 +96,21 @@ export function createHomebridgeLogFormatter(options: { debug?: boolean } = {}):
           messageText = `${messageText.substring(0, MESSAGE_CHANNEL_MAX_LENGTH)} [trimmed...]`
         }
 
-        // Apply color based on Matter log level
-        // Matter DEBUG/INFO → gray (Homebridge debug).
-        // Matter NOTICE → no color (Homebridge info).
-        // Matter WARN → yellow (Homebridge warn).
-        // Matter ERROR/FATAL → red (Homebridge error).
-        // For 'notice' or anything else, leave it uncolored (Homebridge info style).
+        // Apply color based on Matter log level (see the table above).
+        // NOTICE, and anything unknown, is left uncolored (Homebridge info style).
         let coloredMessage = messageText
-        if (level !== undefined) {
-          switch (level) {
-            //     export const DEBUG: LogLevel = 0;
-            //     export const INFO: LogLevel = 1;
-            //     export const NOTICE: LogLevel = 2;
-            //     export const WARN: LogLevel = 3;
-            //     export const ERROR: LogLevel = 4;
-            //     export const FATAL: LogLevel = 5;
-            case 5: // FATAL
-            case 4: // ERROR
-              coloredMessage = chalk.red(messageText)
-              break
-            case 3: // WARN
-              coloredMessage = chalk.yellow(messageText)
-              break
-            case 0: // DEBUG
-              coloredMessage = chalk.gray(messageText)
-              break
-          }
+        switch (level) {
+          case LogLevel.FATAL:
+          case LogLevel.ERROR:
+            coloredMessage = chalk.red(messageText)
+            break
+          case LogLevel.WARN:
+            coloredMessage = chalk.yellow(messageText)
+            break
+          case LogLevel.INFO:
+          case LogLevel.DEBUG:
+            coloredMessage = chalk.gray(messageText)
+            break
         }
 
         // Check if timestamps are enabled (respects --no-timestamp flag)
