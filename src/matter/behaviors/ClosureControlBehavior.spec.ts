@@ -42,24 +42,74 @@ describe('defaultClosureControlServer', () => {
     await behavior.moveTo({ position: 1 } as any)
 
     expect(state.overallTargetState).toEqual({ position: 1 })
-    expect(state.overallCurrentState).toEqual({ position: 1 })
+    expect(state.overallCurrentState).toEqual({ position: 1, secureState: false })
+  })
+
+  // The target and the current position are two different lists in Matter
+  it.each([
+    [0, 0],
+    [1, 1],
+    [2, 3],
+    [3, 4],
+    [4, 5],
+  ])('should store target position %i as current position %i', async (target, current) => {
+    await behavior.moveTo({ position: target } as any)
+
+    expect(state.overallTargetState).toEqual({ position: target })
+    expect(state.overallCurrentState).toMatchObject({ position: current })
+  })
+
+  it('should say the closure is secure only when it is fully closed, and latched if it has a latch', async () => {
+    await behavior.moveTo({ position: 0 } as any)
+    expect(state.overallCurrentState).toEqual({ position: 0, secureState: true })
+
+    await behavior.moveTo({ latch: false } as any)
+    expect(state.overallCurrentState).toEqual({ position: 0, latch: false, secureState: false })
+
+    await behavior.moveTo({ latch: true } as any)
+    expect(state.overallCurrentState).toEqual({ position: 0, latch: true, secureState: true })
+
+    await behavior.moveTo({ position: 1 } as any)
+    expect(state.overallCurrentState).toEqual({ position: 1, latch: true, secureState: false })
   })
 
   it('should keep fields the request did not mention', async () => {
     state.overallTargetState = { position: 0, latch: true }
+    state.overallCurrentState = {
+      position: 0,
+      latch: true,
+      speed: 2,
+      secureState: true,
+    }
 
     await behavior.moveTo({ position: 1 } as any)
 
     expect(state.overallTargetState).toEqual({ position: 1, latch: true })
+    expect(state.overallCurrentState).toEqual({
+      position: 1,
+      latch: true,
+      speed: 2,
+      secureState: false,
+    })
   })
 
   it('should pull the target back to the current position on stop', async () => {
-    state.overallCurrentState = { position: 2 }
+    // current 3 = opened for pedestrians, which is target 2
+    state.overallCurrentState = { position: 3, secureState: false }
     state.overallTargetState = { position: 1 }
 
     await behavior.stop()
 
     expect(state.overallTargetState).toEqual({ position: 2 })
+  })
+
+  it('should leave no target position on stop when the closure is partially opened', async () => {
+    state.overallCurrentState = { position: 2, secureState: false }
+    state.overallTargetState = { position: 1 }
+
+    await behavior.stop()
+
+    expect(state.overallTargetState).toEqual({ position: null })
   })
 })
 
