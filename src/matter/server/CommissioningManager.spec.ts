@@ -8,13 +8,9 @@ vi.mock('node:fs/promises', () => ({
   writeFile: vi.fn(),
   rename: vi.fn(),
 }))
-vi.mock('@matter/types/schema', () => ({
-  ManualPairingCodeCodec: {
-    encode: vi.fn(() => '12345678901'),
-  },
-  QrPairingCodeCodec: {
-    encode: vi.fn(() => 'MT:Y.K9042C00KA0648G00'),
-  },
+// only the QR code drawing is replaced; the rest of the module stays real
+vi.mock('@matter/main/types', async importOriginal => ({
+  ...await importOriginal<object>(),
   QrCode: {
     get: vi.fn(() => '(QR code)'),
   },

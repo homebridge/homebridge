@@ -5,7 +5,7 @@
  * Consolidates the duplicate maps that existed in server.ts and serverHelpers.ts.
  */
 
-import type { Behavior } from '@matter/node'
+import type { Behavior } from '@matter/main'
 
 import {
   HomebridgeClosureControlServer,

@@ -1,8 +1,7 @@
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 import type { AccessoryManagerDeps } from './AccessoryManager.js'
 
-import { DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
-import { PowerSourceServer } from '@matter/node/behaviors'
+import { DescriptorServer, FixedLabelServer, PowerSourceServer } from '@matter/main/behaviors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../../logger.js'
@@ -68,8 +67,6 @@ vi.mock('@matter/main/behaviors', () => ({
     with: vi.fn((...args: any[]) => ({ name: `DescriptorServer.with(${args.join(',')})` })),
   },
   FixedLabelServer: { name: 'FixedLabelServer' },
-}))
-vi.mock('@matter/node/behaviors', () => ({
   PowerSourceServer: {
     name: 'PowerSourceServer',
     with: vi.fn((...args: any[]) => ({ name: `PowerSourceServer.with(${args.join(',')})` })),

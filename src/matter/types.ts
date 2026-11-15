@@ -5,8 +5,7 @@
  * to create Matter-compatible accessories.
  */
 
-import type { Endpoint, EndpointType } from '@matter/main'
-import type { Behavior } from '@matter/node'
+import type { Behavior, Endpoint, EndpointType } from '@matter/main'
 
 import type { UnknownContext } from '../platformAccessory.js'
 import type { ClusterHandlerMap } from './clusterHandlerMap.js'
