@@ -45,6 +45,7 @@ import { PlatformAccessory } from './platformAccessory.js'
 import { PluginManager } from './pluginManager.js'
 import { StorageService } from './storageService.js'
 import { generate } from './util/mac.js'
+import { isPortInUse } from './util/port.js'
 import getVersion from './version.js'
 
 export const DEFAULT_BRIDGE_DEFAULTS = {
@@ -393,6 +394,23 @@ export class BridgeService {
     }
     if (warning.stack) {
       log.debug(getLogPrefix(plugin.getPluginIdentifier()), warning.stack)
+    }
+  }
+
+  /**
+   * Say so in plain words when the port set for the bridge is in use by
+   * another program. HAP-NodeJS can not listen on it then, and Homebridge
+   * stops with an EADDRINUSE error that does not name the setting.
+   */
+  public async checkBridgePort(): Promise<void> {
+    const port = this.bridgeConfig.port
+    if (typeof port === 'number' && port > 0 && await isPortInUse(port)) {
+      log.error(
+        'The port %d set for the bridge \'%s\' is in use by another program, so the bridge can not start on it. '
+        + 'Stop the other program, or set a different port for this bridge in the config.',
+        port,
+        this.bridgeConfig.name,
+      )
     }
   }
 
@@ -856,6 +874,18 @@ export class BridgeService {
           hapAccessory.UUID,
         )
         continue
+      }
+
+      // A port from the pool that another program holds would end Homebridge
+      // with an uncaught EADDRINUSE. Use a random free port for this accessory
+      // instead, as is done when the pool has run out.
+      if (accessoryPort !== undefined && await isPortInUse(accessoryPort)) {
+        log.warn(
+          'The port %d from the \'ports\' range in the config is in use by another program. The external accessory \'%s\' is given a random port instead.',
+          accessoryPort,
+          hapAccessory.displayName,
+        )
+        accessoryPort = undefined
       }
 
       this.publishedExternalAccessories.set(advertiseAddress, accessory)

@@ -287,6 +287,7 @@ export class Server {
     await Promise.all(promises)
 
     if (Server.isHapEnabled(this.config.bridge)) {
+      await this.bridgeService.checkBridgePort()
       this.publishBridge()
     } else {
       // HAP is opted out (or externalsOnly mode is set). The bridge ADVERTISED
