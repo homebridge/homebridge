@@ -556,6 +556,21 @@ describe('pluginManager', () => {
         message: 'contains an invalid package.json.',
       },
       {
+        why: 'a package.json that holds null',
+        folder: 'homebridge-null',
+        packageJSON: 'null',
+        message: 'does not have a package name that begins with \'homebridge-\'',
+      },
+      {
+        why: 'a name that is a number',
+        folder: 'homebridge-number',
+        packageJSON: {
+          name: 5,
+          keywords: ['homebridge-plugin'],
+        },
+        message: 'does not have a package name that begins with \'homebridge-\'',
+      },
+      {
         why: 'no name',
         folder: 'homebridge-noname',
         packageJSON: {
@@ -609,6 +624,26 @@ describe('pluginManager', () => {
 
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('does not contain the keyword \'homebridge-plugin\''))
       expect(manager.hasPluginRegistered('homebridge-nokeyword')).toBe(false)
+    })
+
+    it.each([
+      { thrown: '\'device list is empty\'', shows: 'A value that is not an Error was thrown: \'device list is empty\'' },
+      { thrown: '{ code: 42 }', shows: 'A value that is not an Error was thrown: { code: 42 }' },
+      { thrown: 'null', shows: 'A value that is not an Error was thrown: null' },
+    ])('says what a plugin threw when it is not an Error ($thrown)', async ({ thrown, shows }) => {
+      writePlugin('homebridge-load', validPackage('homebridge-load'), `throw ${thrown}\n`)
+      writePlugin('homebridge-init', validPackage('homebridge-init'), `export default () => { throw ${thrown} }\n`)
+      const manager = managerFor()
+
+      await manager.initializeInstalledPlugins()
+
+      const logged: unknown[] = errorSpy.mock.calls.map((call: unknown[]) => call[0])
+      expect(logged).toContain('ERROR LOADING PLUGIN homebridge-load:')
+      expect(logged).toContain('ERROR INITIALIZING PLUGIN homebridge-init:')
+      expect(logged.filter(line => line === shows)).toHaveLength(2)
+      expect(logged).not.toContain(undefined)
+      expect(manager.hasPluginRegistered('homebridge-load')).toBe(false)
+      expect(manager.hasPluginRegistered('homebridge-init')).toBe(false)
     })
 
     it('does not load the same plugin a second time from another folder', () => {
