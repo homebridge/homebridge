@@ -222,6 +222,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): give the port back when an external accessory's server refuses its config
 - test(matter): cover a state update for an unknown accessory, an unknown part and a refused value
 - fix(matter): register a window covering that can only open and close
+- fix(matter): let a typescript handler return its own answer to a command
 
 ### Homebridge Dependencies
 
