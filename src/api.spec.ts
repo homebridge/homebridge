@@ -56,6 +56,38 @@ describe('homebridgeAPI', () => {
     })
   })
 
+  describe('listener limit', () => {
+    // Almost every platform listens for `didFinishLaunching`. Node's default limit of 10 listeners
+    // per event made a bridge with 11 platforms print a memory leak warning.
+    it('gives no Node warning when more than 10 plugins listen for the same event', () => {
+      const api = new HomebridgeAPI()
+      const warnings = vi.spyOn(process, 'emitWarning').mockImplementation(() => {})
+
+      for (let i = 0; i < 25; i++) {
+        api.on('didFinishLaunching', () => {})
+        api.on('shutdown', () => {})
+      }
+
+      expect(warnings).not.toHaveBeenCalled()
+      expect(api.listenerCount('didFinishLaunching')).toBe(25)
+      warnings.mockRestore()
+    })
+
+    it('stays unlimited when a child bridge raises and lowers the limit by one', () => {
+      const api = new HomebridgeAPI()
+      const warnings = vi.spyOn(process, 'emitWarning').mockImplementation(() => {})
+
+      api.setMaxListeners(api.getMaxListeners() + 1)
+      api.setMaxListeners(Math.max(0, api.getMaxListeners() - 1))
+      for (let i = 0; i < 25; i++) {
+        api.on('shutdown', () => {})
+      }
+
+      expect(warnings).not.toHaveBeenCalled()
+      warnings.mockRestore()
+    })
+  })
+
   describe('signalShutdown', () => {
     it('still calls the other shutdown listeners when one throws or rejects', async () => {
       const api = new HomebridgeAPI()

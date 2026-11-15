@@ -770,6 +770,11 @@ export class HomebridgeAPI extends EventEmitter implements API {
 
   constructor() {
     super()
+    // Every platform adds its own `didFinishLaunching` (and often `shutdown`) listener, so a bridge
+    // with 11 or more platforms went past Node's default of 10 listeners per event and Node printed a
+    // "possible EventEmitter memory leak" warning for something that is not a leak.
+    // `Infinity` (not `0`) so the `+ 1` / `- 1` a child bridge does on this limit keeps it unlimited.
+    this.setMaxListeners(Number.POSITIVE_INFINITY)
   }
 
   /**
