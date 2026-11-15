@@ -36,7 +36,15 @@ describe('homebridgeServiceAreaServer', () => {
       configurable: true,
     })
     Object.defineProperty(behavior, 'state', {
-      get: () => ({ selectedAreas: [] }),
+      // the vacuum has areas 0, 1 and 2
+      get: () => ({
+        selectedAreas: [],
+        supportedAreas: [
+          { areaId: 0 },
+          { areaId: 1 },
+          { areaId: 2 },
+        ],
+      }),
       configurable: true,
     })
 

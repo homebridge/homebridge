@@ -63,6 +63,13 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
     const registry = this.getRegistry()
 
     try {
+      // Check the request first, with matter.js's own rules: an area the
+      // device does not have is refused without the plugin being called.
+      const { result: checked } = this.assertSelectServiceArea(request)
+      if (checked.status !== ServiceArea.SelectAreasStatus.Success) {
+        return checked
+      }
+
       // Execute user handler
       await registry.executeHandler(endpointId, 'serviceArea', 'selectAreas', request)
 
