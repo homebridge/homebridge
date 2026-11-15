@@ -28,7 +28,7 @@ const log = Logger.withPrefix('Matter/Server')
  * Number.MAX_SAFE_INTEGER (2^53 mWh is around nine billion kWh), so the
  * conversion is lossless in practice.
  */
-function coerceBigintsToNumbers(value: unknown): unknown {
+export function coerceBigintsToNumbers(value: unknown): unknown {
   if (typeof value === 'bigint') {
     return Number(value)
   }
