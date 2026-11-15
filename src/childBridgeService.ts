@@ -879,6 +879,27 @@ export class ChildBridgeService {
   }
 
   /**
+   * Whether a `_bridge.username` read from config.json is this child bridge's.
+   * The username in memory is upper case (it is normalised at start-up), while
+   * the file keeps the user's own spelling.
+   */
+  private isOwnUsername(username: unknown): boolean {
+    return typeof username === 'string' && username.toUpperCase() === this.bridgeConfig.username.toUpperCase()
+  }
+
+  /**
+   * Take the `_bridge` block read again from config.json as this child
+   * bridge's config. The username stays the one already in use: it is this
+   * bridge's identity, and the file may spell it in lower case.
+   */
+  private useRefreshedBridgeConfig(bridgeConfig?: BridgeConfiguration): void {
+    if (bridgeConfig) {
+      bridgeConfig.username = this.bridgeConfig.username
+      this.bridgeConfig = bridgeConfig
+    }
+  }
+
+  /**
    * Read the config.json file from disk and refresh the plugin config block for just this plugin
    */
   public async refreshConfig(): Promise<void> {
@@ -889,18 +910,18 @@ export class ChildBridgeService {
         // The on-disk config may be missing `platforms`/`accessories` entirely
         // (we're reading via fs.readJson, not loadConfig, so the defaults
         // don't apply). Coalesce to [] before filtering.
-        const config = (homebridgeConfig.platforms ?? []).filter(x => x.platform === this.identifier && x._bridge?.username === this.bridgeConfig.username)
+        const config = (homebridgeConfig.platforms ?? []).filter(x => x.platform === this.identifier && this.isOwnUsername(x._bridge?.username))
         if (config.length) {
           this.pluginConfig = config
-          this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig
+          this.useRefreshedBridgeConfig(this.pluginConfig[0]._bridge)
         } else {
           this.log.warn('Platform config could not be found, using existing config.')
         }
       } else if (this.type === PluginType.ACCESSORY) {
-        const config = (homebridgeConfig.accessories ?? []).filter(x => x.accessory === this.identifier && x._bridge?.username === this.bridgeConfig.username)
+        const config = (homebridgeConfig.accessories ?? []).filter(x => x.accessory === this.identifier && this.isOwnUsername(x._bridge?.username))
         if (config.length) {
           this.pluginConfig = config
-          this.bridgeConfig = this.pluginConfig[0]._bridge || this.bridgeConfig
+          this.useRefreshedBridgeConfig(this.pluginConfig[0]._bridge)
         } else {
           this.log.warn('Accessory config could not be found, using existing config.')
         }

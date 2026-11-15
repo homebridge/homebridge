@@ -66,6 +66,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: start without the global npm folder when npm can not be run to find it
 - fix: log what stopped homebridge when the thrown value is not an error object
 - fix: end with exit code 1 after a fatal error so a supervisor restarts homebridge
+- fix: refresh a child bridge's config on restart when its username is lower case in config.json
 
 ### Homebridge Dependencies
 
