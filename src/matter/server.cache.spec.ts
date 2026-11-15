@@ -1,7 +1,7 @@
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { MatterAccessory } from './types.js'
 
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -126,4 +126,57 @@ describe('matterServer accessory cache on real matter.js nodes', () => {
     // the entry of the last good save is kept for the one that can not be written
     expect(entries.find(entry => entry.uuid === 'bigint-2')?.context).toEqual({ room: 'hall' })
   }, 30000)
+
+  describe('a cached accessory that can not be rebuilt at start', () => {
+    const entry = (uuid: string, deviceTypeName: string): SerializedMatterAccessory => ({
+      plugin: 'homebridge-test',
+      platform: 'Test',
+      uuid,
+      displayName: `Cached ${uuid}`,
+      deviceType: { name: deviceTypeName },
+      serialNumber: 'S',
+      manufacturer: 'Test',
+      model: 'Test',
+      context: { token: 'kept' },
+      clusters: {
+        onOff: { onOff: true },
+      },
+    })
+
+    function writeCache(uniqueId: string): void {
+      mkdirSync(bridgeFolder(uniqueId), { recursive: true })
+      writeFileSync(cacheFile(uniqueId), JSON.stringify([
+        entry('rebuild-good', 'OnOffLight'),
+        // a device type this version of Homebridge does not know
+        entry('rebuild-unknown', 'DeviceTypeFromTheFuture'),
+      ]))
+    }
+
+    it('keeps its cache entry through the saves of that run', async () => {
+      writeCache('cache-rebuild-bridge')
+      const server = bridgeServer('cache-rebuild-bridge', 5602)
+      await server.start()
+      expect(server.getAccessories().map(accessory => accessory.UUID)).toEqual(['rebuild-good'])
+
+      await server.registerPlatformAccessories('homebridge-test', 'Test', [
+        light('rebuild-new'),
+      ])
+      await server.stop()
+
+      expect(cachedUuids('cache-rebuild-bridge')).toEqual(['rebuild-good', 'rebuild-new', 'rebuild-unknown'])
+      expect(cachedEntries('cache-rebuild-bridge').find(cached => cached.uuid === 'rebuild-unknown')).toEqual(entry('rebuild-unknown', 'DeviceTypeFromTheFuture'))
+    }, 30000)
+
+    it('drops its cache entry when the accessory is unregistered', async () => {
+      writeCache('cache-rebuild-drop-bridge')
+      const server = bridgeServer('cache-rebuild-drop-bridge', 5603)
+      await server.start()
+
+      // what the orphan clean-up does for an accessory whose plugin is gone
+      await server.unregisterAccessory('rebuild-unknown')
+      await server.stop()
+
+      expect(cachedUuids('cache-rebuild-drop-bridge')).toEqual(['rebuild-good'])
+    }, 30000)
+  })
 })

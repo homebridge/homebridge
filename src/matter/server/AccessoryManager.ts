@@ -497,10 +497,14 @@ export class AccessoryManager {
     if (!accessory) {
       log.debug(`Accessory ${uuid} not found or not registered`)
 
-      if (deps.accessoryCache && deps.accessoryCache.getCached(uuid)) {
-        log.debug(`Removing ${uuid} from cache`)
-        deps.accessoryCache.removeCached(uuid)
-        deps.accessoryCache.requestSave(deps.accessories)
+      if (deps.accessoryCache) {
+        // An entry held for an accessory that could not be restored goes too
+        const wasHeld = deps.accessoryCache.release(uuid)
+        if (wasHeld || deps.accessoryCache.getCached(uuid)) {
+          log.debug(`Removing ${uuid} from cache`)
+          deps.accessoryCache.removeCached(uuid)
+          deps.accessoryCache.requestSave(deps.accessories)
+        }
       }
       return
     }
