@@ -132,18 +132,14 @@ describe('bridgeService', () => {
   describe('handleRegisterPlatformAccessories', () => {
     it('registers a new accessory and adds it to the bridge', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      const addBridgedAccessoriesSpy = vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
       const accessory = makePlatformAccessory('Light')
       service.handleRegisterPlatformAccessories([accessory])
-      expect(addBridgedAccessoriesSpy).toHaveBeenCalledTimes(1)
-      const passed = addBridgedAccessoriesSpy.mock.calls[0][0] as Accessory[]
-      expect(passed).toHaveLength(1)
-      expect(passed[0]).toBe(accessory._associatedHAPAccessory)
+      expect(service.bridge.bridgedAccessories).toEqual([accessory._associatedHAPAccessory])
+      expect((service as any).cachedPlatformAccessories).toEqual([accessory])
     })
 
     it('skips a duplicate-UUID accessory and logs a warning', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
       const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
       const original = makePlatformAccessory('Original')
       const duplicate = makePlatformAccessory('Duplicate')
@@ -164,7 +160,6 @@ describe('bridgeService', () => {
 
     it('skips duplicate UUIDs within the same registration batch', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      const addBridgedAccessoriesSpy = vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
       const original = makePlatformAccessory('Original')
       const duplicate = makePlatformAccessory('Duplicate')
       ;(duplicate as any)._associatedHAPAccessory.UUID = original._associatedHAPAccessory.UUID
@@ -172,7 +167,7 @@ describe('bridgeService', () => {
 
       service.handleRegisterPlatformAccessories([original, duplicate])
 
-      expect(addBridgedAccessoriesSpy.mock.calls[0][0]).toEqual([original._associatedHAPAccessory])
+      expect(service.bridge.bridgedAccessories).toEqual([original._associatedHAPAccessory])
       expect((service as any).cachedPlatformAccessories).toEqual([original])
     })
 
@@ -180,7 +175,6 @@ describe('bridgeService', () => {
       const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
       pluginManager.getPlugin.mockReturnValue(undefined)
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
 
       service.handleRegisterPlatformAccessories([
         makePlatformAccessory('Orphan'),
@@ -194,14 +188,13 @@ describe('bridgeService', () => {
 
     it('also rejects collisions with accessories already on the bridge from the legacy load path', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      const addBridgedAccessoriesSpy = vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
       const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
 
-      // Simulate an accessory already on the bridge — the legacy
+      // An accessory already on the bridge — the legacy
       // \`config.accessories[]\` flow adds via \`addBridgedAccessory\` directly,
       // so it lives on \`bridge.bridgedAccessories\` but not in the cache map.
       const staticAccessory = makePlatformAccessory('Static')
-      ;(service.bridge as any).bridgedAccessories = [staticAccessory._associatedHAPAccessory]
+      service.bridge.addBridgedAccessory(staticAccessory._associatedHAPAccessory)
 
       const dynamic = makePlatformAccessory('Dynamic')
       ;(dynamic as any)._associatedHAPAccessory.UUID = staticAccessory._associatedHAPAccessory.UUID
@@ -209,11 +202,10 @@ describe('bridgeService', () => {
 
       service.handleRegisterPlatformAccessories([dynamic])
 
-      // Filtered out before reaching addBridgedAccessories (which is what
-      // threw deep in HAP-NodeJS before the fix).
-      expect(addBridgedAccessoriesSpy).toHaveBeenCalledTimes(1)
-      const passed = addBridgedAccessoriesSpy.mock.calls[0][0] as Accessory[]
-      expect(passed).toHaveLength(0)
+      // Filtered out before it reaches the bridge (which is what threw deep
+      // in HAP-NodeJS before the fix).
+      expect(service.bridge.bridgedAccessories).toEqual([staticAccessory._associatedHAPAccessory])
+      expect((service as any).cachedPlatformAccessories).toEqual([])
       const warned = warnSpy.mock.calls.some(call =>
         typeof call[0] === 'string' && call[0].includes('existing bridged accessory'),
       )
@@ -224,7 +216,6 @@ describe('bridgeService', () => {
   describe('handleUpdatePlatformAccessories', () => {
     it('is a no-op for non-array input', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
 
       // Cast through unknown to bypass the type system; the runtime guard is the contract.
       service.handleUpdatePlatformAccessories('not-an-array' as unknown as PlatformAccessory[])
@@ -235,7 +226,6 @@ describe('bridgeService', () => {
 
     it('replaces matching cached accessories by UUID', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
 
       const a = makePlatformAccessory('A')
       const b = makePlatformAccessory('B')
@@ -288,12 +278,6 @@ describe('bridgeService', () => {
         bridgedUuids.add(accessory.UUID)
         return accessory
       })
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation((accessories: any) => {
-        for (const accessory of accessories) {
-          service.bridge.addBridgedAccessory(accessory)
-        }
-      })
-
       const cachedA = makePlatformAccessory('A')
       const cachedB = makePlatformAccessory('B')
       ;(service as any).cachedPlatformAccessories = [cachedA, cachedB]
