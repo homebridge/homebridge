@@ -64,6 +64,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: load a commonjs plugin whose main has no file extension or names a folder
 - fix: read nested conditions, fallback lists and sub-path maps in a plugin's exports field
 - fix: start without the global npm folder when npm can not be run to find it
+- fix: log what stopped homebridge when the thrown value is not an error object
 
 ### Homebridge Dependencies
 
