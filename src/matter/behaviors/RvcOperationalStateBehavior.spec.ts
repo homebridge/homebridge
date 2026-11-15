@@ -12,9 +12,11 @@ describe('homebridgeRvcOperationalStateServer', () => {
   let mockRegistry: BehaviorRegistry
   let behavior: HomebridgeRvcOperationalStateServer
   let mockEndpoint: any
+  let operationalState: number
   const testEndpointId = 'test-endpoint-123'
 
   beforeEach(() => {
+    operationalState = 1
     // Create mock registry
     mockRegistry = {
       runHandler: vi.fn().mockResolvedValue({ handled: true }),
@@ -37,9 +39,50 @@ describe('homebridgeRvcOperationalStateServer', () => {
       get: () => mockEndpoint,
       configurable: true,
     })
+    // 1 = running: every command is allowed
     Object.defineProperty(behavior, 'state', {
-      get: () => ({ operationalState: 0 }),
+      get: () => ({ operationalState }),
       configurable: true,
+    })
+  })
+
+  describe('a state the command is not allowed in', () => {
+    const invalidInState = {
+      commandResponseState: { errorStateId: RvcOperationalState.ErrorState.CommandInvalidInState },
+    }
+    const { Stopped, Error: ErrorState, Paused } = { Stopped: 0, Error: 3, Paused: 2 }
+    const { SeekingCharger, Charging, Docked } = RvcOperationalState.OperationalState
+
+    it.each([
+      ['pause', Stopped],
+      ['pause', ErrorState],
+      ['pause', Charging],
+      ['pause', Docked],
+      ['resume', Stopped],
+      ['resume', ErrorState],
+      ['resume', SeekingCharger],
+      ['goHome', Charging],
+      ['goHome', Docked],
+    ] as const)('refuses %s in state %s without calling the plugin', async (command, state) => {
+      operationalState = state
+
+      expect(await behavior[command]()).toEqual(invalidInState)
+      expect(mockRegistry.runHandler).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['pause', SeekingCharger],
+      ['resume', Paused],
+      ['resume', Docked],
+      ['goHome', Stopped],
+      ['goHome', Paused],
+    ] as const)('runs %s in state %s', async (command, state) => {
+      operationalState = state
+
+      expect(await behavior[command]()).toEqual({
+        commandResponseState: { errorStateId: 0 },
+      })
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(testEndpointId, 'rvcOperationalState', command)
     })
   })
 
