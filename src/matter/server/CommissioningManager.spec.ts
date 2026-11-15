@@ -404,6 +404,32 @@ describe('commissioningManager', () => {
       )
     })
 
+    it('writes the file once at a time when two updates come together', async () => {
+      const steps: string[] = []
+      mockedWriteFile.mockImplementation(async () => {
+        steps.push('write')
+        await new Promise(resolve => setTimeout(resolve, 5))
+      })
+      mockedRename.mockImplementation(async () => {
+        steps.push('rename')
+      })
+      const deps = {
+        matterStoragePath: '/mock/storage',
+        serialNumber: 'SN-001',
+        fabricManager: {
+          getCommissioningSnapshot: vi.fn(() => ({ commissioned: false, fabricCount: 0, fabrics: [] })),
+        },
+      } as any
+
+      await Promise.all([
+        manager.updateCommissioningFile(deps),
+        manager.updateCommissioningFile(deps),
+      ])
+
+      // both use the same temporary file: the second write must wait for the first rename
+      expect(steps).toEqual(['write', 'rename', 'write', 'rename'])
+    })
+
     it('should reuse a precomputed snapshot when provided', async () => {
       manager.commissioningInfo = { qrCode: 'MT:test', manualPairingCode: '1234-567-8901' }
       manager.passcode = 12345678
