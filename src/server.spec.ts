@@ -487,6 +487,8 @@ describe('server', () => {
 
       expect((server as any).config.bridge.pin).toBe('031-45-154')
       expect(warnings.mock.calls.flat().join(' ')).toMatch(/bridge\.pin is 031-45-154, the well-known default setup code/)
+      // only an unpaired bridge can be paired with it
+      expect(warnings.mock.calls.flat().join(' ')).toContain('While the bridge is not paired, anyone on your network who knows it can pair with it')
     })
 
     it('warns about the default pin when the config has no bridge section at all', async () => {

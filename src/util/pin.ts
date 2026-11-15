@@ -15,7 +15,7 @@ const REFUSED_PINS = new Set([
 /**
  * The setup code Homebridge uses when the config has none, and the one in
  * `config-sample.json`. It is public, so every bridge that keeps it can be
- * paired by anyone on the same network who knows it.
+ * paired, while it is not paired yet, by anyone on the same network who knows it.
  */
 export const DEFAULT_PIN = '031-45-154'
 
@@ -40,6 +40,6 @@ export function validatePin(pin: unknown, setting: string): void {
   } else if (REFUSED_PINS.has(pin)) {
     log.warn(`The pin in ${setting} is one that HomeKit refuses, as it is too easy to guess. The Home app may not pair with it: choose another one.`)
   } else if (pin === DEFAULT_PIN) {
-    log.warn(`${setting} is ${DEFAULT_PIN}, the well-known default setup code. Anyone on your network who knows it can pair with this bridge: set a pin of your own in config.json.`)
+    log.warn(`${setting} is ${DEFAULT_PIN}, the well-known default setup code. While the bridge is not paired, anyone on your network who knows it can pair with it: set a pin of your own in config.json.`)
   }
 }
