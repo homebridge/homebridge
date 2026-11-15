@@ -133,6 +133,57 @@ describe('unregisterPlatformAccessories on the real bridge', () => {
   })
 })
 
+describe('registerPlatformAccessories on the real bridge', () => {
+  /** Fill the bridge up to the most accessories HAP-NodeJS allows on it. */
+  function fillBridge(): void {
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, Array.from({ length: 149 }, (_, index) => accessory(`Filler ${index}`)))
+  }
+
+  it('keeps an accessory the bridge refuses out of the cache, and does not throw into the plugin', () => {
+    fillBridge()
+    const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+
+    // one more than the bridge can hold
+    expect(() => api.registerPlatformAccessories(PLUGIN, PLATFORM, [
+      accessory('One Too Many'),
+    ])).not.toThrow()
+
+    expect(bridged()).toHaveLength(149)
+    expect(cached()).toHaveLength(149)
+    expect(cached()).not.toContain('One Too Many')
+    // the log line names the accessory and the limit
+    const logged = errors.mock.calls.map(call => call.join(' ')).join('\n')
+    expect(logged).toContain('One Too Many')
+    expect(logged).toContain('149 accessories at most')
+  })
+
+  it('registers the others of a batch when the bridge refuses one', () => {
+    const [lamp, published, fan] = [
+      accessory('Lamp'),
+      accessory('Published'),
+      accessory('Fan'),
+    ]
+    // HAP-NodeJS refuses to bridge an accessory that was published on its own before
+    ;(published._associatedHAPAccessory as unknown as { initialized: boolean }).initialized = true
+
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp, published, fan])
+
+    expect(bridged()).toEqual(['Lamp', 'Fan'])
+    expect(cached()).toEqual(['Lamp', 'Fan'])
+  })
+
+  it('tells HomeKit about a batch of new accessories once', () => {
+    const update = vi.spyOn(service.bridge as unknown as { enqueueConfigurationUpdate: () => void }, 'enqueueConfigurationUpdate')
+
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [
+      accessory('Lamp'),
+      accessory('Fan'),
+    ])
+
+    expect(update).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('a platform that only does Matter, on the real bridge', () => {
   it('gets its cached HAP accessories on the bridge without a configureAccessory method', () => {
     const pluginManager = (service as unknown as { pluginManager: { getPlugin: () => unknown } }).pluginManager

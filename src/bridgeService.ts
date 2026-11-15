@@ -55,6 +55,9 @@ export const DEFAULT_BRIDGE_DEFAULTS = {
 
 const log = Logger.internal
 
+/** The most accessories HAP-NodeJS puts on one bridge (the HomeKit limit of 150, less the bridge itself). */
+const MAX_BRIDGED_ACCESSORIES = 149
+
 /**
  * HAP-specific configuration for a bridge. Mirrors the shape of `MatterConfig`
  * so the two protocol blocks are symmetric and can be reasoned about uniformly.
@@ -674,7 +677,7 @@ export class BridgeService {
     const bridgedAccessories = new Map(
       this.bridge.bridgedAccessories.map(accessory => [accessory.UUID, accessory]),
     )
-    const hapAccessories: Accessory[] = []
+    let added = false
 
     for (const accessory of accessories) {
       const newUUID = accessory._associatedHAPAccessory.UUID
@@ -707,6 +710,33 @@ export class BridgeService {
         continue
       }
 
+      // Into the cache only once HAP-NodeJS has taken the accessory. It refuses
+      // more than its limit of accessories on one bridge, and one that was
+      // published on its own before. That throw went back into the plugin
+      // (from didFinishLaunching it stopped Homebridge starting), with the
+      // refused accessory and the rest of the batch in the cache but not on
+      // the bridge.
+      try {
+        this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory, true)
+      } catch (error: unknown) {
+        log.error(
+          '%s The accessory \'%s\' could not be added to the bridge \'%s\' and is not registered: %s%s',
+          accessory._associatedPlugin
+            ? getLogPrefix(accessory._associatedPlugin)
+            : '',
+          accessory.displayName,
+          this.bridge.displayName,
+          error instanceof Error
+            ? error.message
+            : error,
+          this.bridge.bridgedAccessories.length >= MAX_BRIDGED_ACCESSORIES
+            ? `. A bridge can hold ${MAX_BRIDGED_ACCESSORIES} accessories at most: run the plugin as a child bridge, or remove accessories.`
+            : '',
+        )
+        continue
+      }
+      added = true
+
       this.cachedPlatformAccessories.push(accessory)
       cachedAccessories.set(newUUID, accessory)
 
@@ -722,11 +752,13 @@ export class BridgeService {
       } else {
         log.warn('A platform configured a new accessory under the plugin name \'%s\'. However no loaded plugin could be found for the name!', accessory._associatedPlugin)
       }
-
-      hapAccessories.push(accessory._associatedHAPAccessory)
     }
 
-    this.bridge.addBridgedAccessories(hapAccessories)
+    if (added) {
+      // The accessories were added one by one with the update of the
+      // configuration put off; adding an empty list sends that one update.
+      this.bridge.addBridgedAccessories([])
+    }
     this.saveCachedPlatformAccessoriesOnDisk()
   }
 
