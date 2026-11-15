@@ -20,6 +20,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: tell a child bridge started again after a manual stop when homebridge shuts down
 - fix: skip only the accessory with no name when a child bridge loads its accessories
 - fix: keep a child bridge running when the bridge refuses one of its accessories
+- fix(matter): keep the storage of matter servers that start together in their own folders
 
 ### Homebridge Dependencies
 

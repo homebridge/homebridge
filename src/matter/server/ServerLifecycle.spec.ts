@@ -84,12 +84,15 @@ vi.mock('@matter/main', () => ({
       this.options = options
     }
   },
-  Environment: {
-    default: {
+  Environment: class MockEnvironment {
+    static default = {
       vars: sharedVars,
       set: vi.fn(),
       get: vi.fn(),
-    },
+    }
+
+    set = vi.fn()
+    get = vi.fn()
   },
   ServerNode: {
     create: vi.fn(async () => {
