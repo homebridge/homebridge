@@ -151,6 +151,31 @@ describe('baseMatterManager', () => {
     })
   })
 
+  describe('hasBridgeServerStopped', () => {
+    it('is false when there is no bridge server, and for a server that never stopped', () => {
+      expect(manager.hasBridgeServerStopped()).toBe(false)
+
+      manager.setMatterServer(new MatterServer({ uniqueId: 'test-bridge' }) as any)
+      expect(manager.hasBridgeServerStopped()).toBe(false)
+    })
+
+    it('is true after matter.js shut the server down, also for a child bridge that starts its server late', () => {
+      const server = new MatterServer({ uniqueId: 'test-bridge', deferOnline: true })
+      manager.setMatterServer(server as any)
+      ;(server as any).aggregator = {}
+      ;(server as any).isRunning = true
+
+      // what the lifecycle does when the node goes offline unasked
+      const deps = (server as any).getLifecycleDeps()
+      deps.setIsRunning(false)
+      deps.noteStoppedByItself()
+
+      expect(manager.hasBridgeServerStopped()).toBe(true)
+      // not the "waiting for registrations" window, where registrations are accepted
+      expect(server.isDeferredPreOnline()).toBe(false)
+    })
+  })
+
   describe('handleTriggerCommand', () => {
     it('should route commands to external server if accessory is external', async () => {
       const uuid = 'test-uuid'

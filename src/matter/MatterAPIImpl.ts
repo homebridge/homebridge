@@ -336,6 +336,11 @@ export class MatterAPIImpl implements MatterAPI {
           `${pluginIdentifier}: Cannot register Matter accessories — the Matter server for this bridge failed to start (${startFailure}). See the error at start-up in the log. HomeKit accessories are not affected.`,
         )
       }
+      if (matterManager?.hasBridgeServerStopped()) {
+        throw new Error(
+          `${pluginIdentifier}: Cannot register Matter accessories — the Matter server for this bridge has stopped. matter.js shut it down after an internal error; see the error in the log. Restart Homebridge to start it again. HomeKit accessories are not affected.`,
+        )
+      }
       if (matterManager && matterManager.isBridgeServerStarting()) {
         throw new Error(
           `${pluginIdentifier}: Cannot register Matter accessories yet — the Matter server for this bridge is still starting. Register from your platform's 'didFinishLaunching' event; if you already do, this is transient and the accessories are restored from cache on the next start.`,

@@ -79,6 +79,15 @@ export abstract class BaseMatterManager {
     return this.bridgeStartFailure
   }
 
+  /**
+   * Whether the bridge's Matter server was running and matter.js then shut it
+   * down by itself. Like a failed start, this is not "still starting":
+   * nothing brings the server back in this run.
+   */
+  hasBridgeServerStopped(): boolean {
+    return this.matterServer?.hasStoppedByItself() ?? false
+  }
+
   isBridgeServerStarting(): boolean {
     // In deferOnline mode the server is deliberately built but kept offline
     // until the initial registration burst settles, so registrations MUST be
