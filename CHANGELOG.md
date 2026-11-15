@@ -125,6 +125,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: save the other cached accessories when one accessory has a context that can not be written
 - fix: leave the accessory cache file alone when it could not be read, instead of overwriting it
 - fix: write the accessory cache through a temporary file so a crash can not leave half a file
+- fix: print the warnings of the bridge itself and of accessories whose plugin is not loaded
 
 ### Homebridge Dependencies
 
