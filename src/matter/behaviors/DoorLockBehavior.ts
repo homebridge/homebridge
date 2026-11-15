@@ -10,7 +10,7 @@
 import { DoorLockBehavior } from '@matter/main/behaviors/door-lock'
 import { DoorLock } from '@matter/main/clusters/door-lock'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -24,16 +24,9 @@ import { lockStateForWrite } from './stateLock.js'
  * set `lockState` here themselves. No LockOperation event is raised.
  */
 export class HomebridgeDoorLockServer extends DoorLockBehavior {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async lockDoor(request: DoorLock.LockDoorRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler. A controller always sends a request; the
     // Homebridge UI calls the command with none, so the handler is given an
@@ -52,7 +45,7 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
 
   override async unlockDoor(request: DoorLock.UnlockDoorRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler (with an empty request from the UI, see lockDoor)
     await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request ?? {})

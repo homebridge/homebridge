@@ -10,7 +10,7 @@ import { MediaPlayback } from '@matter/main/clusters/media-playback'
 
 import { MatterStatus } from '../errors.js'
 import { HandlerFailure } from './BehaviorRegistry.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { statusResponse } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
 
@@ -101,13 +101,6 @@ const PLAYBACK_COMMANDS = {
  */
 export class HomebridgeMediaPlaybackServer extends DefaultMediaPlaybackServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Run a plugin handler and reflect the resulting playback state.
    *
    * A handler that throws a Matter protocol error is propagated as-is so the
@@ -120,7 +113,7 @@ export class HomebridgeMediaPlaybackServer extends DefaultMediaPlaybackServer {
     request?: unknown,
   ): Promise<MediaPlayback.PlaybackResponse> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     try {
       const { response: handlerResponse } = await registry.runHandler(endpointId, 'mediaPlayback', commandName, request)

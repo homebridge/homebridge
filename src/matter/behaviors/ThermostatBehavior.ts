@@ -9,7 +9,7 @@ import type { Thermostat } from '@matter/main/clusters'
 import { Node } from '@matter/main'
 import { ThermostatServer } from '@matter/main/behaviors/thermostat'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { isPluginUpdate } from './pluginUpdates.js'
 import { revertFailedChange } from './revertFailedChange.js'
 import { lockStateForWrite } from './stateLock.js'
@@ -18,13 +18,6 @@ import { lockStateForWrite } from './stateLock.js'
  * Custom Thermostat Server that calls plugin handlers
  */
 export class HomebridgeThermostatServer extends ThermostatServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async initialize(): Promise<void> {
     // matter.js's own set-up can be async and can fail (it refuses a thermostat
     // whose limits it can not make sense of). Waited for, the failure fails
@@ -109,7 +102,7 @@ export class HomebridgeThermostatServer extends ThermostatServer {
 
   async #handleSystemModeChange(value: number, oldValue: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // The plugin reported this change itself (updateAccessoryState): its
     // device is already there, so there is nothing to ask the plugin for.
@@ -159,7 +152,7 @@ export class HomebridgeThermostatServer extends ThermostatServer {
    */
   private async setpointChanging(attribute: string, oldName: string, value: number, oldValue: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // The plugin reported this change itself (updateAccessoryState): its
     // device is already there, so there is nothing to ask the plugin for.
@@ -188,7 +181,7 @@ export class HomebridgeThermostatServer extends ThermostatServer {
 
   override async setpointRaiseLower(request: Thermostat.SetpointRaiseLowerRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // The handler is optional. matter.js moves the setpoints itself, and each
     // move reaches the plugin through its setpoint-change handler, so a plugin

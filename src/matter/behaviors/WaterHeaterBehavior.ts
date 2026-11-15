@@ -12,7 +12,7 @@ import { WaterHeaterManagementServer } from '@matter/main/behaviors/water-heater
 import { WaterHeaterModeServer } from '@matter/main/behaviors/water-heater-mode'
 import { WaterHeaterManagement } from '@matter/main/clusters/water-heater-management'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { changeToModeWithHandler } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
 
@@ -57,13 +57,9 @@ export class DefaultWaterHeaterManagementServer extends WaterHeaterManagementSer
  * default so the super calls record the boost.
  */
 export class HomebridgeWaterHeaterManagementServer extends DefaultWaterHeaterManagementServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async boost(request: WaterHeaterManagement.BoostRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     await registry.executeHandler(endpointId, 'waterHeaterManagement', 'boost', request)
     await lockStateForWrite(this)
@@ -73,7 +69,7 @@ export class HomebridgeWaterHeaterManagementServer extends DefaultWaterHeaterMan
 
   override async cancelBoost(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     await registry.executeHandler(endpointId, 'waterHeaterManagement', 'cancelBoost')
     await lockStateForWrite(this)

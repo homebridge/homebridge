@@ -7,7 +7,7 @@
 import { RvcOperationalStateServer } from '@matter/main/behaviors/rvc-operational-state'
 import { RvcOperationalState } from '@matter/main/clusters/rvc-operational-state'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -20,19 +20,12 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
   events: { operationCompletion: true },
 }) {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Sync current operational state to cache for UI updates
    * Helper method to avoid code duplication across command handlers
    */
   private syncOperationalStateToCache(): void {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
     const currentState = this.state
 
     if (currentState.operationalState !== undefined) {
@@ -86,7 +79,7 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
     command: 'pause' | 'resume' | 'goHome',
   ): Promise<RvcOperationalState.OperationalCommandResponse> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     const { response } = await registry.runHandler(endpointId, 'rvcOperationalState', command)

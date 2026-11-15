@@ -7,7 +7,7 @@
 import { ValveConfigurationAndControlServer } from '@matter/main/behaviors/valve-configuration-and-control'
 import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -41,18 +41,11 @@ export class DefaultValveConfigurationAndControlServer extends ValveConfiguratio
  */
 export class HomebridgeValveConfigurationAndControlServer extends DefaultValveConfigurationAndControlServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Handle 'open' command
    */
   override async open(request: ValveConfigurationAndControl.OpenRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler. A controller always sends a request; the
     // Homebridge UI calls the command with none, so the handler is given an
@@ -75,7 +68,7 @@ export class HomebridgeValveConfigurationAndControlServer extends DefaultValveCo
    */
   override async close(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'close')

@@ -6,7 +6,7 @@
 
 import { FanControlServer } from '@matter/main/behaviors/fan-control'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { isPluginUpdate } from './pluginUpdates.js'
 import { revertFailedChange } from './revertFailedChange.js'
 
@@ -14,13 +14,6 @@ import { revertFailedChange } from './revertFailedChange.js'
  * Custom FanControl Server that calls plugin handlers
  */
 export class HomebridgeFanControlServer extends FanControlServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async initialize(): Promise<void> {
     await super.initialize()
 
@@ -33,7 +26,7 @@ export class HomebridgeFanControlServer extends FanControlServer {
 
   async #handleFanModeChange(value: number, oldValue: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // The plugin reported this change itself (updateAccessoryState): its
     // device is already there, so there is nothing to ask the plugin for.
@@ -64,7 +57,7 @@ export class HomebridgeFanControlServer extends FanControlServer {
 
   async #handlePercentSettingChange(value: number | null, oldValue: number | null): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // The plugin reported this change itself (updateAccessoryState): its
     // device is already there, so there is nothing to ask the plugin for.

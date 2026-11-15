@@ -7,6 +7,7 @@
 
 import type { Endpoint } from '@matter/main'
 
+import type { BehaviorRegistry } from './BehaviorRegistry.js'
 import type { RegistryManager } from './RegistryManager.js'
 
 /**
@@ -40,4 +41,13 @@ export function getRegistryManager(endpoint: EndpointWithContext): RegistryManag
     throw new Error(`No RegistryManager attached to endpoint ${endpoint.id}. This is a programming error.`)
   }
   return registryManager
+}
+
+/**
+ * The handler registry of the server an endpoint belongs to. Every Homebridge
+ * behavior reaches its plugin handlers through this, so the way the registry
+ * is found lives in one place.
+ */
+export function registryOf(endpoint: EndpointWithContext): BehaviorRegistry {
+  return getRegistryManager(endpoint).getRegistry(endpoint.id)
 }

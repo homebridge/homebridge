@@ -6,17 +6,10 @@
 
 import { OnOffServer } from '@matter/main/behaviors/on-off'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 export class HomebridgeOnOffServer extends OnOffServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async initialize(): Promise<void> {
     await super.initialize()
 
@@ -34,7 +27,7 @@ export class HomebridgeOnOffServer extends OnOffServer {
    * actually committed, rather than a value predicted before the fact.
    */
   private syncOnOffToCache(onOff: boolean): void {
-    this.getRegistry().syncStateToCache(this.endpoint.id, 'onOff', { onOff })
+    registryOf(this.endpoint).syncStateToCache(this.endpoint.id, 'onOff', { onOff })
   }
 
   /**
@@ -42,7 +35,7 @@ export class HomebridgeOnOffServer extends OnOffServer {
    */
   override async on(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'onOff', 'on')
@@ -60,7 +53,7 @@ export class HomebridgeOnOffServer extends OnOffServer {
    */
   override async off(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'onOff', 'off')
@@ -78,7 +71,7 @@ export class HomebridgeOnOffServer extends OnOffServer {
    */
   override async toggle(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // A toggle handler is optional. matter.js's toggle() calls on() or off(),
     // which are the overrides above, so with no toggle handler the plugin's on

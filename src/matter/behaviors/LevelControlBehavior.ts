@@ -8,17 +8,10 @@ import { LevelControlServer } from '@matter/main/behaviors/level-control'
 import { OnOffServer } from '@matter/main/behaviors/on-off'
 import { LevelControl } from '@matter/main/clusters/level-control'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 export class HomebridgeLevelControlServer extends LevelControlServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async initialize(): Promise<void> {
     await super.initialize()
 
@@ -31,7 +24,7 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
 
   /** Mirror the level matter.js stored into the accessory cache, whatever changed it. */
   private syncLevelToCache(currentLevel: number | null): void {
-    this.getRegistry().syncStateToCache(this.endpoint.id, 'levelControl', { currentLevel })
+    registryOf(this.endpoint).syncStateToCache(this.endpoint.id, 'levelControl', { currentLevel })
   }
 
   /**
@@ -65,7 +58,7 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    */
   private async runHandler(handlerNames: string[], request: unknown, target?: { handlerNames: string[], request: () => LevelControl.MoveToLevelRequest }): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
     const registered = (names: string[]) => names.find(name => registry.getHandler(endpointId, 'levelControl', name))
 
     const handlerName = registered(handlerNames)

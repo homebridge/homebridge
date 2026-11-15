@@ -13,7 +13,7 @@ import { EnergyEvseModeServer } from '@matter/main/behaviors/energy-evse-mode'
 import { EnergyEvse } from '@matter/main/clusters/energy-evse'
 import { Status, StatusResponseError } from '@matter/main/types'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { changeToModeWithHandler } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
 
@@ -118,10 +118,6 @@ export class DefaultEnergyEvseServer extends FeatureRichEnergyEvseServer {
  * the super calls record each command.
  */
 export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   /**
    * Run the plugin's handler, then the default server's command, then sync
    * the attributes the command can change to the cache. The targets commands
@@ -129,7 +125,7 @@ export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
    */
   private async run(commandName: string, apply: () => Promise<void>, request?: unknown, syncState = true): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Every handler here is optional - a charger that only switches charging
     // on and off has no use for the targets commands - and a missing one is
