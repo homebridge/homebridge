@@ -8,8 +8,11 @@
  * - Window coverings, door locks and water valves
  * - Robotic vacuums
  * - The mode clusters of water heaters, energy devices and EV chargers
+ * - Media players (playback and key presses), and identify
  *
  * A cluster that is not listed here has no mapping, and asking for one throws.
+ * Not mapped yet, as their commands need arguments the UI has no agreed shape
+ * for: closureControl, waterHeaterManagement, deviceEnergyManagement, energyEvse.
  *
  * When a mapping returns null there is no command for the attributes, and the
  * caller writes them to the cluster state instead. So for a mapped cluster the
@@ -32,6 +35,16 @@ interface AttributeToCommandMapping {
  * options at all failed outright reading `optionsMask.executeIfOff` (#4029)
  */
 const EXECUTE_IF_OFF = { executeIfOff: true }
+
+/** The media playback commands that take no request. */
+const MEDIA_PLAYBACK_COMMANDS = [
+  'play',
+  'pause',
+  'stop',
+  'startOver',
+  'previous',
+  'next',
+]
 
 /** Every Matter mode cluster changes its mode with the same command. */
 function mapModeChange(attributes: Record<string, unknown>): { command: string, args?: Record<string, unknown> } | null {
@@ -369,6 +382,62 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
   waterHeaterMode: { map: mapModeChange },
   deviceEnergyManagementMode: { map: mapModeChange },
   energyEvseMode: { map: mapModeChange },
+
+  // ============================================================================
+  // MEDIA PLAYERS AND IDENTIFY
+  // ============================================================================
+
+  // MediaPlayback Cluster - the commands that take no request
+  mediaPlayback: {
+    map: (attributes) => {
+      if ('_command' in attributes) {
+        const cmd = attributes._command
+        if (typeof cmd === 'string' && MEDIA_PLAYBACK_COMMANDS.includes(cmd)) {
+          return { command: cmd }
+        }
+        return null
+      }
+
+      // Or via currentState (0 = Playing, 1 = Paused, 2 = NotPlaying). The
+      // other value (3 = Buffering) is not something to ask for.
+      switch (attributes.currentState) {
+        case 0:
+          return { command: 'play' }
+        case 1:
+          return { command: 'pause' }
+        case 2:
+          return { command: 'stop' }
+        default:
+          return null
+      }
+    },
+  },
+
+  // KeypadInput Cluster - one key press
+  keypadInput: {
+    map: (attributes) => {
+      if (typeof attributes.keyCode === 'number') {
+        return {
+          command: 'sendKey',
+          args: { keyCode: attributes.keyCode },
+        }
+      }
+      return null
+    },
+  },
+
+  // Identify Cluster - identify for a number of seconds (0 stops it)
+  identify: {
+    map: (attributes) => {
+      if (typeof attributes.identifyTime === 'number') {
+        return {
+          command: 'identify',
+          args: { identifyTime: attributes.identifyTime },
+        }
+      }
+      return null
+    },
+  },
 }
 
 /**
