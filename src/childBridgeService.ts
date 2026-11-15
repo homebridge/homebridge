@@ -278,6 +278,10 @@ export class ChildBridgeService {
   // after the one-shot enable broadcast.
   public isMatterMonitoringActive?: () => boolean
 
+  // Set when the user asked for a restart, so the exit that follows is not
+  // counted as a crash by handleProcessClose().
+  private restartRequested = false
+
   // Stored shutdown listener so it can be removed in teardown(),
   // matching the pattern used by MatterBridgeManager (#3915).
   private readonly _onApiShutdown = (): void => {
@@ -573,6 +577,17 @@ export class ChildBridgeService {
       return
     }
 
+    // A restart the user asked for is not a crash: start again straight away
+    // and do not count it toward maxRestarts.
+    if (this.restartRequested) {
+      this.restartRequested = false
+      this.restartCount = 0
+      this.childOnlineSince = undefined
+      this.bridgeStatus = ChildBridgeStatus.DOWN
+      this.startChildProcess()
+      return
+    }
+
     // A child that ran stably for a while before dying is "unlucky", not
     // "broken": reset the restart cap so an occasional transient crash on a
     // long-lived bridge doesn't slowly accumulate toward a permanent shutdown.
@@ -805,6 +820,7 @@ export class ChildBridgeService {
     } else {
       this.log.warn('Child bridge restarting...')
       void this.refreshConfig()
+      this.restartRequested = !!this.child?.connected
       this.teardown()
     }
   }

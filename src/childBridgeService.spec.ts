@@ -687,6 +687,42 @@ describe('childBridgeService', () => {
     })
   })
 
+  describe('restartChildBridge — a requested restart is not a crash', () => {
+    it('keeps restarting however often the user asks, and leaves the crash count at zero', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      service.start()
+
+      for (let restart = 1; restart <= 6; restart++) {
+        const child = childProcesses.list[childProcesses.list.length - 1]
+        service.restartChildBridge()
+        expect(child.killCalls).toEqual(['SIGTERM'])
+        // The child exits with 128 + 15 after it handled the SIGTERM.
+        child.emit('close', 143, null)
+        expect(forkMock).toHaveBeenCalledTimes(restart + 1)
+      }
+
+      expect((service as any).restartCount).toBe(0)
+      expect((service as any).manuallyStopped).toBe(false)
+    })
+
+    it('still counts a crash that follows a requested restart', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+
+      service.restartChildBridge()
+      childProcesses.list[0].emit('close', 143, null)
+      childProcesses.list[1].emit('close', 1, null)
+
+      expect((service as any).restartCount).toBe(1)
+    })
+  })
+
   describe('teardown — listener cleanup (M3) and SIGKILL fallback (M4)', () => {
     it('removes the shutdown listener on teardown', async () => {
       const { service, api } = buildService()
