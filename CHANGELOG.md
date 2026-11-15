@@ -119,6 +119,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: give an external accessory a random port when its port is in use, and name a taken bridge port
 - fix: name the pin in the error for a pin that is not a text, and warn about one homekit can not use
 - fix: log that the bridge was not published instead of failing start-up on its setup payload
+- fix: read port numbers written as text as numbers, and ignore a port that is not 1 to 65535
 
 ### Homebridge Dependencies
 

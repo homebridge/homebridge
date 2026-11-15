@@ -436,6 +436,97 @@ describe('server', () => {
       expect(warnings).not.toHaveBeenCalled()
     })
 
+    it.each([
+      {
+        ports: { start: '52100', end: '52110' },
+        expected: { start: 52100, end: 52110 },
+        what: 'numbers written as texts',
+      },
+      {
+        ports: { start: 52100, end: 52110 },
+        expected: { start: 52100, end: 52110 },
+        what: 'numbers',
+      },
+      {
+        ports: { start: 52100.5, end: 52110 },
+        expected: undefined,
+        what: 'a number that is not whole',
+      },
+      {
+        ports: { start: -5, end: 52110 },
+        expected: undefined,
+        what: 'a negative number',
+      },
+      {
+        ports: { start: 52100, end: 70000 },
+        expected: undefined,
+        what: 'a number above 65535',
+      },
+      {
+        ports: { start: 'abc', end: 'def' },
+        expected: undefined,
+        what: 'texts that are not numbers',
+      },
+      {
+        ports: { start: 52110, end: 52100 },
+        expected: undefined,
+        what: 'an end before the start',
+      },
+      { ports: null, expected: undefined, what: 'null' },
+    ])('reads a ports range of $what as $expected', async ({ ports, expected }) => {
+      vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      await fs.writeJson(configPath, { ...mockConfig, ports })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.ports).toEqual(expected)
+    })
+
+    it('hands out numbers, one apart, from a ports range written as texts', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        ports: { start: '52100', end: '52110' },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const portService = (server as any).externalPortService
+
+      expect([
+        await portService.requestPort('AA:AA:AA:AA:AA:01'),
+        await portService.requestPort('AA:AA:AA:AA:AA:02'),
+        await portService.requestPort('AA:AA:AA:AA:AA:03'),
+      ]).toEqual([52100, 52101, 52102])
+    })
+
+    it.each([
+      { port: '51826', expected: 51826 },
+      { port: 51826, expected: 51826 },
+      { port: 0, expected: 0 },
+      { port: 70000, expected: undefined },
+      { port: 518.26, expected: undefined },
+      { port: 'http', expected: undefined },
+    ])('reads a bridge port of $port as $expected', async ({ port, expected }) => {
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, port },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.port).toBe(expected)
+      expect(errors.mock.calls.flat().join(' ').includes('bridge.port')).toBe(expected === undefined)
+    })
+
     it('accepts main bridge with externalsOnly: true + enabled: false (canonical form)', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
