@@ -6,6 +6,8 @@
  * pause, or start later. DeviceEnergyManagementMode picks how freely it may do so.
  */
 
+import type { Behavior } from '@matter/main'
+
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { DeviceEnergyManagementServer } from '@matter/main/behaviors/device-energy-management'
@@ -15,6 +17,7 @@ import { ModeBase } from '@matter/main/clusters'
 import { DeviceEnergyManagement } from '@matter/main/clusters/device-energy-management'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Run the plugin's handler for a command, if it registered one. Every handler
@@ -22,9 +25,10 @@ import { getRegistryManager } from './EndpointContext.js'
  * commands - so a missing one falls through to the default behavior instead of
  * failing the command.
  */
-async function runOptionalHandler(registry: BehaviorRegistry, endpointId: string, clusterName: string, commandName: string, args?: unknown): Promise<void> {
+async function runOptionalHandler(behavior: Behavior, registry: BehaviorRegistry, endpointId: string, clusterName: string, commandName: string, args?: unknown): Promise<void> {
   if (registry.getHandler(endpointId, clusterName, commandName)) {
     await registry.executeHandler(endpointId, clusterName, commandName, args)
+    await lockStateForWrite(behavior)
   }
 }
 
@@ -125,7 +129,7 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    await runOptionalHandler(registry, endpointId, 'deviceEnergyManagement', commandName, request)
+    await runOptionalHandler(this, registry, endpointId, 'deviceEnergyManagement', commandName, request)
     await apply()
     registry.syncStateToCache(endpointId, 'deviceEnergyManagement', { esaState: this.state.esaState })
   }
@@ -162,7 +166,7 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
     // Not routed through run(): super.cancelRequest() calls the overridden
     // cancel/resume methods, which ask the plugin themselves
     const endpointId = this.endpoint.id
-    await runOptionalHandler(this.getRegistry(), endpointId, 'deviceEnergyManagement', 'cancelRequest')
+    await runOptionalHandler(this, this.getRegistry(), endpointId, 'deviceEnergyManagement', 'cancelRequest')
     await super.cancelRequest()
   }
 }
@@ -190,6 +194,7 @@ export class HomebridgeDeviceEnergyManagementModeServer extends DeviceEnergyMana
     }
 
     await registry.executeHandler(endpointId, 'deviceEnergyManagementMode', 'changeToMode', request)
+    await lockStateForWrite(this)
 
     // Only reached if the handler succeeded
     const result = await super.changeToMode(request)

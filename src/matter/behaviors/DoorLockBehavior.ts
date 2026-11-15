@@ -10,6 +10,7 @@ import { DoorLockBehavior } from '@matter/main/behaviors/door-lock'
 import { DoorLock } from '@matter/main/clusters/door-lock'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom DoorLock Server that calls plugin handlers.
@@ -32,6 +33,7 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update the Matter attribute.
     // We extend the featureless DoorLockBehavior (not DoorLockServer) to avoid
@@ -50,6 +52,7 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update the Matter attribute.
     // See lockDoor() above: the featureless base has no working super.unlockDoor(),

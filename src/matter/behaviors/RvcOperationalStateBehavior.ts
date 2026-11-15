@@ -8,6 +8,7 @@ import { RvcOperationalStateServer } from '@matter/main/behaviors/rvc-operationa
 import { RvcOperationalState } from '@matter/main/clusters/rvc-operational-state'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom RvcOperationalState Server that calls plugin handlers
@@ -88,6 +89,7 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'rvcOperationalState', command)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - the plugin handler already
     // updated state via the API, so the base implementation is not called

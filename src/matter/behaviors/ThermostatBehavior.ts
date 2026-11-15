@@ -12,6 +12,7 @@ import { ThermostatServer } from '@matter/main/behaviors/thermostat'
 import { getRegistryManager } from './EndpointContext.js'
 import { isPluginUpdate } from './pluginUpdates.js'
 import { revertFailedChange } from './revertFailedChange.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom Thermostat Server that calls plugin handlers
@@ -210,6 +211,7 @@ export class HomebridgeThermostatServer extends ThermostatServer {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'thermostat', 'setpointRaiseLower', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state
     await super.setpointRaiseLower(request)

@@ -9,6 +9,7 @@ import type { WindowCovering } from '@matter/main/clusters'
 import { WindowCoveringServer } from '@matter/main/behaviors/window-covering'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Feature-rich variant of the public WindowCoveringServer.
@@ -89,18 +90,22 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     const registry = this.getRegistry()
     if (registry.getHandler(endpointId, 'windowCovering', commandName)) {
       await registry.executeHandler(endpointId, 'windowCovering', commandName)
+      await lockStateForWrite(this)
       return
     }
     const lift = registry.getHandler(endpointId, 'windowCovering', 'goToLiftPercentage')
     const tilt = registry.getHandler(endpointId, 'windowCovering', 'goToTiltPercentage')
     if (lift) {
       await registry.executeHandler(endpointId, 'windowCovering', 'goToLiftPercentage', { liftPercent100thsValue: percent100ths })
+      await lockStateForWrite(this)
     }
     if (tilt) {
       await registry.executeHandler(endpointId, 'windowCovering', 'goToTiltPercentage', { tiltPercent100thsValue: percent100ths })
+      await lockStateForWrite(this)
     }
     if (!lift && !tilt) {
       await registry.executeHandler(endpointId, 'windowCovering', commandName)
+      await lockStateForWrite(this)
     }
   }
 
@@ -144,6 +149,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'windowCovering', 'stopMotion')
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state
     await super.stopMotion()
@@ -167,6 +173,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
       'goToLiftPercentage',
       request,
     )
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state
     await super.goToLiftPercentage(request)
@@ -190,6 +197,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
       'goToTiltPercentage',
       request,
     )
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state
     await super.goToTiltPercentage(request)

@@ -13,6 +13,7 @@ import { ModeBase } from '@matter/main/clusters'
 import { WaterHeaterManagement } from '@matter/main/clusters/water-heater-management'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom WaterHeaterMode Server that calls plugin handlers.
@@ -38,6 +39,7 @@ export class HomebridgeWaterHeaterModeServer extends WaterHeaterModeServer {
     }
 
     await registry.executeHandler(endpointId, 'waterHeaterMode', 'changeToMode', request)
+    await lockStateForWrite(this)
 
     // Only reached if the handler succeeded
     const result = await super.changeToMode(request)
@@ -86,6 +88,7 @@ export class HomebridgeWaterHeaterManagementServer extends DefaultWaterHeaterMan
     const registry = this.getRegistry()
 
     await registry.executeHandler(endpointId, 'waterHeaterManagement', 'boost', request)
+    await lockStateForWrite(this)
     await super.boost(request)
     registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Active })
   }
@@ -95,6 +98,7 @@ export class HomebridgeWaterHeaterManagementServer extends DefaultWaterHeaterMan
     const registry = this.getRegistry()
 
     await registry.executeHandler(endpointId, 'waterHeaterManagement', 'cancelBoost')
+    await lockStateForWrite(this)
     await super.cancelBoost()
     registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Inactive })
   }

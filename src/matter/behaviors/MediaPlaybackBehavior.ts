@@ -11,6 +11,7 @@ import { MediaPlayback } from '@matter/main/clusters/media-playback'
 import { MatterStatus } from '../errors.js'
 import { HandlerFailure } from './BehaviorRegistry.js'
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Default MediaPlayback Server.
@@ -122,6 +123,7 @@ export class HomebridgeMediaPlaybackServer extends DefaultMediaPlaybackServer {
 
     try {
       await registry.executeHandler(endpointId, 'mediaPlayback', commandName, request)
+      await lockStateForWrite(this)
 
       // Only reached if the handler succeeded - update Matter state
       const response = this.reflect(PLAYBACK_COMMANDS[commandName])
