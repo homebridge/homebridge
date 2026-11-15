@@ -261,6 +261,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): make each attribute of the four new cluster state types optional, like the others
 - fix(matter): read only a matter answer from what a handler returns, not an http response
 - fix(matter): tell the ui when matter refuses a command it sent, in place of success
+- fix(matter): stop a slow child bridge handler showing as accessory not found in the ui
 
 ### Homebridge Dependencies
 

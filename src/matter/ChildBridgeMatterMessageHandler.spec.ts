@@ -22,6 +22,7 @@ describe('childBridgeMatterMessageHandler', () => {
       collectAllAccessories: vi.fn(),
       getAccessoryInfo: vi.fn(),
       handleTriggerCommand: vi.fn(),
+      ownsAccessory: vi.fn(() => false),
     }
 
     mockSendMessage = vi.fn<(type: string, data: unknown) => void>()
@@ -335,6 +336,47 @@ describe('childBridgeMatterMessageHandler', () => {
         },
       }
       expect(mockSendMessage).toHaveBeenCalledWith('matterEvent', expectedEvent)
+    })
+
+    it('says at once that it has the accessory, before a slow handler is done', async () => {
+      mockMatterManager.hasActiveMatter.mockReturnValue(true)
+      mockMatterManager.ownsAccessory.mockReturnValue(true)
+      let finish!: () => void
+      mockMatterManager.handleTriggerCommand.mockReturnValue(new Promise<void>((resolve) => {
+        finish = resolve
+      }))
+
+      handler.handleMatterAccessoryControl({ ...mockControlData, correlationId: 'corr-slow' })
+
+      // the main process answers "not found" when no child says this within two seconds
+      expect(mockSendMessage.mock.calls).toEqual([
+        [
+          'matterEvent',
+          {
+            type: 'accessoryControlClaimed',
+            correlationId: 'corr-slow',
+            data: { uuid: 'test-uuid' },
+          },
+        ],
+      ])
+
+      finish()
+      await new Promise(resolve => setTimeout(resolve, 10))
+      expect(mockSendMessage).toHaveBeenLastCalledWith('matterEvent', {
+        type: 'accessoryControlResponse',
+        correlationId: 'corr-slow',
+        data: { success: true, uuid: 'test-uuid' },
+      })
+    })
+
+    it('does not claim an accessory it does not have', () => {
+      mockMatterManager.hasActiveMatter.mockReturnValue(true)
+      mockMatterManager.ownsAccessory.mockReturnValue(false)
+      mockMatterManager.handleTriggerCommand.mockReturnValue(new Promise(() => {}))
+
+      handler.handleMatterAccessoryControl({ ...mockControlData, correlationId: 'corr-other' })
+
+      expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
     // `null.message` threw inside the catch: an unhandled rejection, which ends

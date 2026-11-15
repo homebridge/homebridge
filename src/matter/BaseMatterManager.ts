@@ -132,6 +132,14 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Whether this bridge has the accessory: on an external accessory's own
+   * server, or on the bridge server.
+   */
+  ownsAccessory(uuid: string): boolean {
+    return this.externalMatterServers.has(uuid) || !!this.matterServer?.getAccessoryInfo(uuid)
+  }
+
+  /**
    * Handle Matter accessory command (triggers user handlers)
    * This is for UI/external control that should invoke plugin handlers
    * Checks both external servers and bridge server
