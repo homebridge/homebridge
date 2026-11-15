@@ -213,6 +213,27 @@ describe('baseMatterManager', () => {
       expect(mockMatterServer.triggerCommand).not.toHaveBeenCalled()
     })
 
+    it('says "not mine" for a cluster with no command mapping when it does not have the accessory', async () => {
+      // closureControl has no mapping, and asking for one throws. A bridge
+      // that does not have the accessory must not report that error: the
+      // bridge that has it will.
+      const { MatterAccessoryNotOnBridgeError } = await import('./types.js')
+      manager.setMatterServer(mockMatterServer)
+      ;(mockMatterServer.getAccessoryInfo as any).mockReturnValue(undefined)
+
+      await expect(manager.handleTriggerCommand('foreign-uuid', 'closureControl', { mainState: 0 }))
+        .rejects
+        .toBeInstanceOf(MatterAccessoryNotOnBridgeError)
+    })
+
+    it('reports a cluster with no command mapping on the bridge that has the accessory', async () => {
+      manager.setMatterServer(mockMatterServer)
+
+      await expect(manager.handleTriggerCommand('test-uuid', 'closureControl', { mainState: 0 }))
+        .rejects
+        .toThrow('Command mapping not implemented for cluster: closureControl')
+    })
+
     it('handleUpdateAccessoryState throws sentinel when matterServer does not own the UUID', async () => {
       const { MatterAccessoryNotOnBridgeError } = await import('./types.js')
       manager.setMatterServer(mockMatterServer)
