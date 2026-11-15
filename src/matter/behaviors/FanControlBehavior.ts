@@ -4,7 +4,7 @@
  * Handles fan control commands for fans
  */
 
-import { FanControlBehavior, FanControlServer } from '@matter/main/behaviors/fan-control'
+import { FanControlServer } from '@matter/main/behaviors/fan-control'
 
 import { getRegistryManager } from './EndpointContext.js'
 import { isPluginUpdate } from './pluginUpdates.js'
@@ -50,15 +50,10 @@ export class HomebridgeFanControlServer extends FanControlServer {
         { fanMode: value, oldFanMode: oldValue },
       )
 
-      // Sync state to cache
-      // When turning off (fanMode = 0), also set percentSetting and percentCurrent to 0
-      // This ensures the UI correctly reflects the off state
-      const stateUpdate: Partial<FanControlBehavior.State> = { fanMode: value }
-      if (value === 0) {
-        stateUpdate.percentSetting = 0
-        stateUpdate.percentCurrent = 0
-      }
-      registry.syncStateToCache(endpointId, 'fanControl', stateUpdate)
+      // Sync state to cache: only the attribute that changed. Matter does
+      // not tie the mode and the speed together (turning the fan off leaves
+      // the speed setting as it was), so the cache says what controllers read.
+      registry.syncStateToCache(endpointId, 'fanControl', { fanMode: value })
     } catch (error) {
       // The write is already accepted, so an error can not refuse it any more:
       // put the old value back, so controllers show what the device really does.
@@ -86,16 +81,9 @@ export class HomebridgeFanControlServer extends FanControlServer {
         { percentSetting: value, oldPercentSetting: oldValue },
       )
 
-      // Sync state to cache
-      // When setting to 0%, also set fanMode to 0 (Off) for UI consistency
-      const stateUpdate: Partial<FanControlBehavior.State> = {
-        percentSetting: value ?? undefined,
-        percentCurrent: value ?? undefined,
-      }
-      if (value === 0) {
-        stateUpdate.fanMode = 0
-      }
-      registry.syncStateToCache(endpointId, 'fanControl', stateUpdate)
+      // Sync state to cache: only the attribute that changed. The current
+      // speed and the mode are the plugin's to report (updateAccessoryState).
+      registry.syncStateToCache(endpointId, 'fanControl', { percentSetting: value })
     } catch (error) {
       // The write is already accepted, so an error can not refuse it any more:
       // put the old value back, so controllers show what the device really does.
