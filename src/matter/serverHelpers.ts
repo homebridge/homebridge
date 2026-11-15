@@ -399,18 +399,16 @@ export function detectWindowCoveringFeatures(accessory: MatterAccessory): string
     + `hasTiltAttrs=${hasTiltAttrs}, hasConfigTilt=${hasConfigTilt}`,
   )
 
+  // The position attributes this goes by only exist on a position-aware
+  // covering: Matter refuses them with Lift (or Tilt) alone. So a covering
+  // that declares them is position aware, whether or not its plugin also said
+  // so in configStatus.
   if (hasLiftAttrs) {
-    features.push('Lift')
-    if (hasConfigLift) {
-      features.push('PositionAwareLift')
-    }
+    features.push('Lift', 'PositionAwareLift')
   }
 
   if (hasTiltAttrs) {
-    features.push('Tilt')
-    if (hasConfigTilt) {
-      features.push('PositionAwareTilt')
-    }
+    features.push('Tilt', 'PositionAwareTilt')
   }
 
   return features
@@ -833,6 +831,21 @@ export function applyWindowCoveringFeatures(
   // Add WindowCoveringServer with features to the device type
   const windowCoveringWithFeatures = (HomebridgeWindowCoveringServer as any).with(...features)
   const modifiedDeviceType = (deviceType as any).with(windowCoveringWithFeatures)
+
+  // Say in configStatus what the features say, for a plugin that left it out.
+  const windowCovering = accessory.clusters?.windowCovering as Record<string, unknown> | undefined
+  if (windowCovering) {
+    const configStatus = { ...(windowCovering.configStatus as Record<string, unknown> | undefined) }
+    if (features.includes('PositionAwareLift')) {
+      configStatus.liftPositionAware = true
+    }
+    if (features.includes('PositionAwareTilt')) {
+      configStatus.tiltPositionAware = true
+    }
+    if (Object.keys(configStatus).length > 0) {
+      windowCovering.configStatus = configStatus
+    }
+  }
 
   // Matter only allows some covering types and end product types for a
   // covering with tilt, and matter.js's defaults (both 0, a roller shade) are

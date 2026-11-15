@@ -830,6 +830,39 @@ describe('window coverings on a real node', () => {
   const lift = { currentPositionLiftPercent100ths: 0, targetPositionLiftPercent100ths: 0 }
   const tilt = { currentPositionTiltPercent100ths: 0, targetPositionTiltPercent100ths: 0 }
 
+  it('registers a blind that declares its lift position and no configStatus', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: { ...lift },
+      },
+      handlers,
+    })
+
+    expect(stateOf(endpoint, 'windowCovering')).toMatchObject({
+      currentPositionLiftPercent100ths: 0,
+      configStatus: expect.objectContaining({ liftPositionAware: true }),
+    })
+  })
+
+  it('registers a blind that declares lift and tilt positions and no configStatus', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: {
+          ...lift,
+          ...tilt,
+        },
+      },
+      handlers,
+    })
+
+    expect(stateOf(endpoint, 'windowCovering')).toMatchObject({
+      currentPositionTiltPercent100ths: 0,
+      configStatus: expect.objectContaining({ liftPositionAware: true, tiltPositionAware: true }),
+    })
+  })
+
   it('registers a tilt-only blind and keeps the type its plugin set', async () => {
     const endpoint = await register({
       deviceType: deviceTypes.WindowCovering,
