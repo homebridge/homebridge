@@ -403,6 +403,70 @@ describe('childBridgeService', () => {
       expect(metadata.matterSetupUri).toBeUndefined()
     })
 
+    describe('matter pairing details of an earlier process', () => {
+      const matter = {
+        qrCode: 'MT:OLD',
+        manualPairingCode: '1234',
+        serialNumber: 'SN',
+        commissioned: true,
+        deviceCount: 2,
+        fabricCount: 1,
+        fabrics: [],
+      }
+
+      function startedWithMatterStatus() {
+        const built = buildService({
+          bridgeConfig: makeBridgeConfig({
+            matter: { port: 5540 },
+          }),
+        })
+        built.service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+        built.service.start()
+        childProcesses.list[0].emit('message', {
+          id: ChildProcessMessageEventType.STATUS_UPDATE,
+          data: { paired: true, setupUri: 'X-HM://old', matter },
+        })
+        expect(built.service.getMetadata()).toMatchObject({
+          matterSetupUri: 'MT:OLD',
+          matterPin: '1234',
+          matterCommissioned: true,
+          paired: true,
+          setupUri: 'X-HM://old',
+        })
+        return built
+      }
+
+      it('are gone once a new process is started', () => {
+        const { service } = startedWithMatterStatus()
+
+        // the user takes the matter block out and restarts the child bridge
+        service.restartChildBridge()
+        childProcesses.list[0].emit('close', 143, null)
+        expect(childProcesses.list).toHaveLength(2)
+
+        const metadata = service.getMetadata()
+        expect(metadata.matterSetupUri).toBeUndefined()
+        expect(metadata.matterPin).toBeUndefined()
+        expect(metadata.matterCommissioned).toBeUndefined()
+        expect(metadata.paired).toBeNull()
+        expect(metadata.setupUri).toBeNull()
+      })
+
+      it('are gone when the child reports a status with no Matter part', () => {
+        const { service } = startedWithMatterStatus()
+
+        childProcesses.list[0].emit('message', {
+          id: ChildProcessMessageEventType.STATUS_UPDATE,
+          data: { paired: true, setupUri: 'X-HM://old' },
+        })
+
+        const metadata = service.getMetadata()
+        expect(metadata.matterSetupUri).toBeUndefined()
+        expect(metadata.matterCommissioned).toBeUndefined()
+        expect(metadata.setupUri).toBe('X-HM://old')
+      })
+    })
+
     it('on PORT_REQUEST, forwards to externalPortService and replies with PORT_ALLOCATED', async () => {
       const { service, externalPortService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)

@@ -451,6 +451,13 @@ export class ChildBridgeService {
    * Start the child bridge process
    */
   private startChildProcess(): void {
+    // What the last process reported is not true of the new one: it may have
+    // been started with Matter (or HAP) taken out of its config. The new
+    // process sends its own status once it is up.
+    this.pairedStatus = null
+    this.setupUri = null
+    this.matterCommissioningInfo = undefined
+
     this.bridgeStatus = ChildBridgeStatus.PENDING
     // A freshly (re)started process has not reported ONLINE yet.
     this.childOnlineSince = undefined
@@ -533,19 +540,20 @@ export class ChildBridgeService {
           this.pairedStatus = statusData.paired
           this.setupUri = statusData.setupUri
 
-          // Update Matter commissioning info if included
-          if (statusData.matter) {
-            this.matterCommissioningInfo = {
-              qrCode: statusData.matter.qrCode,
-              manualPairingCode: statusData.matter.manualPairingCode,
-              serialNumber: statusData.matter.serialNumber,
-              commissioned: statusData.matter.commissioned || false,
-              deviceCount: statusData.matter.deviceCount,
-              fabricCount: statusData.matter.fabricCount,
-              fabrics: statusData.matter.fabrics,
-              ...(statusData.matter.startFailed && { startFailed: true }),
-            }
-          }
+          // Update Matter commissioning info. A status with no Matter part
+          // means the child has no Matter server now, so the old details go.
+          this.matterCommissioningInfo = statusData.matter
+            ? {
+                qrCode: statusData.matter.qrCode,
+                manualPairingCode: statusData.matter.manualPairingCode,
+                serialNumber: statusData.matter.serialNumber,
+                commissioned: statusData.matter.commissioned || false,
+                deviceCount: statusData.matter.deviceCount,
+                fabricCount: statusData.matter.fabricCount,
+                fabrics: statusData.matter.fabrics,
+                ...(statusData.matter.startFailed && { startFailed: true }),
+              }
+            : undefined
 
           // Send unified status update
           this.sendStatusUpdate()
