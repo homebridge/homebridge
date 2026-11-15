@@ -54,6 +54,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): take the pairing codes from matter.js instead of encoding them by hand
 - fix(matter): save and report a pairing change once instead of twice for the first controller
 - fix: let a plugin unregister an accessory that is not on the bridge without an error
+- fix: keep one characteristic warning listener on an accessory that is registered again
 
 ### Homebridge Dependencies
 
