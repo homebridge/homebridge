@@ -121,6 +121,15 @@ const TAGGED_POWER_SOURCE_DEVICE_TYPES = new Set<number>([
 ].filter((code): code is NonNullable<typeof code> => code !== undefined))
 
 /**
+ * A closure must carry exactly one descriptor tag from the Closure namespace,
+ * saying what kind of closure it is. Without one matter.js refuses the
+ * endpoint. A plugin that gives none gets the garage door tag.
+ */
+const CLOSURE_DEVICE_TYPE = devices.ClosureDevice?.deviceType
+const CLOSURE_TAG_NAMESPACE = 0x44
+const CLOSURE_TAG_GARAGE_DOOR = 0x5
+
+/**
  * Clusters whose Homebridge behavior is declared with every optional feature
  * (so the feature-gated commands exist to override), and so must always be
  * narrowed to the features the device type chose.
@@ -323,6 +332,19 @@ export class AccessoryManager {
       }
 
       const endpointOptions = this.createEndpointOptions(accessory, deps.config, preservedUniqueId)
+
+      if (CLOSURE_DEVICE_TYPE !== undefined && Number(deviceType.deviceType) === CLOSURE_DEVICE_TYPE) {
+        const tagList: { namespaceId?: number }[] = endpointOptions.descriptor?.tagList ?? []
+        if (!tagList.some(tag => tag.namespaceId === CLOSURE_TAG_NAMESPACE)) {
+          endpointOptions.descriptor = {
+            ...endpointOptions.descriptor,
+            tagList: [
+              ...tagList,
+              { mfgCode: null, namespaceId: CLOSURE_TAG_NAMESPACE, tag: CLOSURE_TAG_GARAGE_DOOR },
+            ],
+          }
+        }
+      }
 
       // Composed parents carry a FixedLabel marking the composition, matching
       // known-good bridges - Apple's controller needs it to bind child endpoints
