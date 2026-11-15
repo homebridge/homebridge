@@ -543,6 +543,12 @@ export class BridgeService {
         // We set a placeholder for FirmwareRevision before configureAccessory is called so the plugin has the opportunity to override it.
         accessory.getService(Service.AccessoryInformation)?.setCharacteristic(Characteristic.FirmwareRevision, '0')
         platformPlugins.configureAccessory(accessory)
+
+        // The plugin may have unregistered this very accessory while it was
+        // being configured: it is out of the cache then, and must stay off the bridge.
+        if (!this.cachedPlatformAccessories.includes(accessory)) {
+          continue
+        }
       }
 
       try {
@@ -692,9 +698,19 @@ export class BridgeService {
     this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(
       accessory => !removedAccessories.has(accessory),
     )
-    const hapAccessories = accessories.map(accessory => accessory._associatedHAPAccessory)
+    // Only what is really on the bridge. HAP-NodeJS throws for anything else,
+    // and a plugin may well unregister an accessory that is not there (yet):
+    // a cached one from inside configureAccessory(), before the restore has
+    // reached it, or the same accessory twice. That throw went back into the
+    // plugin, and from configureAccessory() it stopped Homebridge starting.
+    const bridgedAccessories = new Set(this.bridge.bridgedAccessories)
+    const hapAccessories = accessories
+      .map(accessory => accessory._associatedHAPAccessory)
+      .filter(hapAccessory => bridgedAccessories.has(hapAccessory))
 
-    this.bridge.removeBridgedAccessories(hapAccessories)
+    if (hapAccessories.length > 0) {
+      this.bridge.removeBridgedAccessories(hapAccessories)
+    }
     this.saveCachedPlatformAccessoriesOnDisk()
   }
 

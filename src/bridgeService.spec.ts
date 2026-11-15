@@ -261,16 +261,15 @@ describe('bridgeService', () => {
   describe('handleUnregisterPlatformAccessories', () => {
     it('removes accessories from the cache and the bridge', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
-      const removeSpy = vi.spyOn(service.bridge, 'removeBridgedAccessories').mockImplementation(() => {})
 
       const a = makePlatformAccessory('A')
       service.handleRegisterPlatformAccessories([a])
       expect((service as any).cachedPlatformAccessories).toHaveLength(1)
+      expect(service.bridge.bridgedAccessories).toHaveLength(1)
 
       service.handleUnregisterPlatformAccessories([a])
       expect((service as any).cachedPlatformAccessories).toHaveLength(0)
-      expect(removeSpy).toHaveBeenCalledTimes(1)
+      expect(service.bridge.bridgedAccessories).toHaveLength(0)
     })
   })
 

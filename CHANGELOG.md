@@ -53,6 +53,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): read a cluster's state from its entries instead of probing key by key
 - refactor(matter): take the pairing codes from matter.js instead of encoding them by hand
 - fix(matter): save and report a pairing change once instead of twice for the first controller
+- fix: let a plugin unregister an accessory that is not on the bridge without an error
 
 ### Homebridge Dependencies
 
