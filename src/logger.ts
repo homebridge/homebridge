@@ -78,12 +78,15 @@ export class Logger {
       const logger = new Logger(prefix)
 
       const log: IntermediateLogging = logger.info.bind(logger)
-      log.info = logger.info
-      log.success = logger.success
-      log.warn = logger.warn
-      log.error = logger.error
-      log.debug = logger.debug
-      log.log = logger.log
+      // Bind every method to the logging device, so it still works when a plugin passes it around
+      // on its own (`promise.catch(log.error)`, `emitter.on('error', log.warn)`, `const { debug } = log`).
+      // The device itself is the `this`, as it is for `log.info('x')`, so `log.prefix` stays the prefix in use.
+      log.info = logger.info.bind(log)
+      log.success = logger.success.bind(log)
+      log.warn = logger.warn.bind(log)
+      log.error = logger.error.bind(log)
+      log.debug = logger.debug.bind(log)
+      log.log = logger.log.bind(log)
 
       log.prefix = logger.prefix
 

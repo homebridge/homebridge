@@ -156,6 +156,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs(matter): correct comments on color transition times, the door lock base and the vacuum state
 - refactor(matter): drop an unused registry method and three copies of the optional handler helper
 - test(matter): replace behavior tests that could not fail, cover the ui mapping of blinds and areas
+- fix: let a plugin pass log.info, log.warn, log.error and the other log methods around as functions
 
 ### Homebridge Dependencies
 
