@@ -675,6 +675,9 @@ export class BridgeService {
         }
       } else {
         // We set a placeholder for FirmwareRevision before configureAccessory is called so the plugin has the opportunity to override it.
+        // This means the firmware revision of a cached accessory is NOT kept over a restart: a plugin that sets it
+        // only when it first creates the accessory shows '0' from the next start on. A plugin has to set it again
+        // in configureAccessory(), or later. Kept as it is, since plugins may rely on the reset by now.
         accessory.getService(Service.AccessoryInformation)?.setCharacteristic(Characteristic.FirmwareRevision, '0')
         // A platform that only does Matter may have no configureAccessory
         if (typeof platformPlugins.configureAccessory === 'function') {
