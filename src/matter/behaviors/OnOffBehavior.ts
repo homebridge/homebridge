@@ -109,14 +109,28 @@ export class HomebridgeOnOffServer extends OnOffServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
+    // A toggle handler is optional. matter.js's toggle() calls on() or off(),
+    // which are the overrides above, so with no toggle handler the plugin's on
+    // or off handler does the work (and syncs the cache).
+    if (!registry.getHandler(endpointId, 'onOff', 'toggle')) {
+      return super.toggle()
+    }
+
     try {
       // Execute user handler
       await registry.executeHandler(endpointId, 'onOff', 'toggle')
 
-      // Only reached if handler succeeded - update Matter state
-      await super.toggle()
+      // Only reached if handler succeeded - update Matter state. Not through
+      // super.toggle(): it would come back through the on() / off() overrides
+      // and call the plugin a second time. super.on() and super.off() are
+      // matter.js's own, and keep its extra work (timed on, scene control).
+      if (this.state.onOff) {
+        await super.off()
+      } else {
+        await super.on()
+      }
 
-      // Sync state to cache (super.toggle() already updated this.state.onOff)
+      // Sync state to cache
       registry.syncStateToCache(endpointId, 'onOff', { onOff: this.state.onOff })
     } catch (error) {
       // If user handler already threw a StatusResponseError, propagate it as-is

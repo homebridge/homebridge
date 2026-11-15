@@ -24,6 +24,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): stop reporting an unpaired bridge as paired once its accessory cache is saved
 - fix(matter): keep calling the handlers of a cluster with no state after a restart
 - fix(matter): report a matter server that fails to go online as a failed start
+- fix(matter): make toggle work without a toggle handler and call the plugin only once
 
 ### Homebridge Dependencies
 
