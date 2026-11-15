@@ -14,6 +14,7 @@ import { NodeJsFilesystem } from '@matter/nodejs'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../../logger.js'
+import { mapAttributesToCommand } from '../ClusterCommandMapper.js'
 import { MatterStatus } from '../errors.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
 import { StateManager } from '../server/StateManager.js'
@@ -2062,5 +2063,70 @@ describe('the cached state of a blind with lift and tilt, on a real node', () =>
     await invoke(endpoint, 'windowCovering', 'stopMotion')
     expect(matter()).toMatchObject({ liftTarget: 3000, tiltTarget: 4000 })
     expect(cached()).toEqual(matter())
+  })
+})
+
+describe('a command sent from the homebridge ui, on a real node', () => {
+  /** Send what the UI sends: attributes, mapped to a command, then triggered. */
+  async function sendFromUi(cluster: string, attributes: Record<string, unknown>): Promise<void> {
+    const mapping = mapAttributesToCommand(cluster, attributes)
+    await stateManager.triggerCommand('test-uuid', cluster, mapping!.command, mapping!.args)
+  }
+
+  it('gives a lock handler a request object, as a controller does', async () => {
+    const requests: unknown[] = []
+    await register({
+      deviceType: deviceTypes.DoorLock,
+      clusters: {
+        doorLock: {
+          lockState: 2,
+          lockType: 0,
+          actuatorEnabled: true,
+          operatingMode: 0,
+        },
+      },
+      handlers: {
+        doorLock: {
+          lockDoor: async (request) => {
+            requests.push(request)
+          },
+          unlockDoor: async (request) => {
+            requests.push(request)
+          },
+        },
+      },
+    })
+
+    await sendFromUi('doorLock', { lockState: 1 })
+    await sendFromUi('doorLock', { _command: 'unlockDoor' })
+
+    expect(requests).toEqual([{}, {}])
+  })
+
+  it('gives a valve open handler a request object, as a controller does', async () => {
+    const requests: unknown[] = []
+    await register({
+      deviceType: deviceTypes.WaterValve,
+      clusters: {
+        valveConfigurationAndControl: {
+          openDuration: null,
+          defaultOpenDuration: null,
+          remainingDuration: null,
+          currentState: 0,
+          targetState: 0,
+        },
+      },
+      handlers: {
+        valveConfigurationAndControl: {
+          open: async (request) => {
+            requests.push(request)
+          },
+        },
+      },
+    })
+
+    await sendFromUi('valveConfigurationAndControl', { targetState: 1 })
+
+    expect(requests).toEqual([{}])
   })
 })

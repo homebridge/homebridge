@@ -145,6 +145,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): cache only the fan attribute a controller changed, as matter holds it
 - fix(matter): cache the tilt position too after a blind with lift and tilt opens, closes or stops
 - fix(matter): keep an energy device paused or adjusting when a controller cancels a forecast change
+- fix(matter): give a lock or valve handler a request object when the command comes from the ui
 
 ### Homebridge Dependencies
 
