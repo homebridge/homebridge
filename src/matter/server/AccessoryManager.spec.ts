@@ -567,7 +567,7 @@ describe('accessoryManager', () => {
           },
         } as any), deps)
 
-        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps, { keepStorage: true })
         expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toEqual(expect.objectContaining({ marker: 'restored-endpoint' }))
       })
 
@@ -728,7 +728,7 @@ describe('accessoryManager', () => {
 
         await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
 
-        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps, { keepStorage: true })
         expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toBe(restored.endpoint)
       })
 
@@ -787,7 +787,7 @@ describe('accessoryManager', () => {
 
         await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
 
-        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps, { keepStorage: true })
         expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toBe(restored.endpoint)
       })
 
@@ -831,7 +831,7 @@ describe('accessoryManager', () => {
         // Plugin registers the same UUID but as a different device type.
         await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)
 
-        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps, { keepStorage: true })
         const stored = deps.accessories.get('test-uuid-001') as any
         expect(stored).toBeDefined()
         expect((stored.deviceType as any).name).toBe('OnOffLight')

@@ -515,7 +515,14 @@ export interface MatterAPI {
    * Unregister Matter platform accessories by UUID
    *
    * The accessory is taken off the bridge and out of the cache, and what the bridge stored
-   * for it is erased. An accessory that is not registered is ignored without an error.
+   * for it is erased, its Matter identity included. An accessory that is not registered is
+   * ignored without an error.
+   *
+   * Unregister an accessory only when it is gone for good. Registering the same UUID again
+   * later makes a NEW device as far as a controller can tell: it may lose its room, name and
+   * automations there. To change an accessory that stays, use `updatePlatformAccessories()`
+   * (name and device information) or register it again WITHOUT unregistering first: Homebridge
+   * then rebuilds it and keeps its identity.
    *
    * This also works for an external accessory (a robot vacuum cleaner), which HAP can not
    * unregister. Its own Matter server is stopped and **its pairing is deleted**: registering
