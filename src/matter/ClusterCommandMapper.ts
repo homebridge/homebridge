@@ -2,14 +2,20 @@
  * Maps cluster attributes to Matter.js commands
  * This centralizes the logic for converting UI attribute updates to behavior commands
  *
- * Supports all Matter device types including:
- * - Lights (OnOff, Dimmable, Color Temperature, Color, Extended Color)
- * - Switches and Outlets
- * - Fans
- * - Window Coverings (Blinds)
- * - Door Locks
- * - Thermostats
- * - Robotic Vacuums
+ * Covers the clusters the Homebridge UI controls:
+ * - Lights, switches and outlets (onOff, levelControl, colorControl)
+ * - Fans and thermostats (attribute writes, which call the change handlers)
+ * - Window coverings, door locks and water valves
+ * - Robotic vacuums
+ * - The mode clusters of water heaters, energy devices and EV chargers
+ *
+ * A cluster that is not listed here has no mapping, and asking for one throws.
+ *
+ * When a mapping returns null there is no command for the attributes, and the
+ * caller writes them to the cluster state instead. So for a mapped cluster the
+ * UI can write any attribute this file does not turn into a command (for
+ * example doorLock lockState 0). The plugin is only told when the attribute
+ * has a change handler (fan and thermostat).
  */
 
 interface AttributeToCommandMapping {
@@ -27,6 +33,17 @@ interface AttributeToCommandMapping {
  */
 const EXECUTE_IF_OFF = { executeIfOff: true }
 
+/** Every Matter mode cluster changes its mode with the same command. */
+function mapModeChange(attributes: Record<string, unknown>): { command: string, args?: Record<string, unknown> } | null {
+  if ('currentMode' in attributes) {
+    return {
+      command: 'changeToMode',
+      args: { newMode: attributes.currentMode },
+    }
+  }
+  return null
+}
+
 /**
  * Central registry of attribute-to-command mappings for each cluster
  */
@@ -38,10 +55,13 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
   // OnOff Cluster - Used by lights, switches, outlets
   onOff: {
     map: (attributes) => {
-      if ('onOff' in attributes) {
-        return {
-          command: attributes.onOff ? 'on' : 'off',
-        }
+      // Only a real boolean is a command. Anything else (the text "false",
+      // for one) is left to the state write, where matter.js refuses it.
+      if (attributes.onOff === true) {
+        return { command: 'on' }
+      }
+      if (attributes.onOff === false) {
+        return { command: 'off' }
       }
       return null
     },
@@ -100,15 +120,40 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
       }
 
       // Hue & Saturation control
-      if ('currentHue' in attributes || 'currentSaturation' in attributes) {
+      if ('currentHue' in attributes && 'currentSaturation' in attributes) {
         return {
           command: 'moveToHueAndSaturation',
           args: {
-            hue: attributes.currentHue ?? 0,
-            saturation: attributes.currentSaturation ?? 0,
+            hue: attributes.currentHue,
+            saturation: attributes.currentSaturation,
             transitionTime: attributes.transitionTime ?? 0,
             optionsMask: EXECUTE_IF_OFF,
             optionsOverride: EXECUTE_IF_OFF, // Execute even if light is off
+          },
+        }
+      }
+
+      // Only one of the two: move that one and leave the other as it is
+      if ('currentHue' in attributes) {
+        return {
+          command: 'moveToHue',
+          args: {
+            hue: attributes.currentHue,
+            direction: 0, // shortest way round
+            transitionTime: attributes.transitionTime ?? 0,
+            optionsMask: EXECUTE_IF_OFF,
+            optionsOverride: EXECUTE_IF_OFF,
+          },
+        }
+      }
+      if ('currentSaturation' in attributes) {
+        return {
+          command: 'moveToSaturation',
+          args: {
+            saturation: attributes.currentSaturation,
+            transitionTime: attributes.transitionTime ?? 0,
+            optionsMask: EXECUTE_IF_OFF,
+            optionsOverride: EXECUTE_IF_OFF,
           },
         }
       }
@@ -122,25 +167,11 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
   // ============================================================================
 
   // FanControl Cluster - Used by fans
-  // Fan mode and percent changes trigger change handlers automatically via attribute updates
+  // There is no command for the fan mode or the speed: the attribute is
+  // written, and the write calls the fanModeChange / percentSettingChange
+  // handler.
   fanControl: {
-    map: (attributes) => {
-      // Fan mode change
-      if ('fanMode' in attributes) {
-        // This triggers fanModeChange handler automatically
-        // No explicit command needed - just update the attribute
-        return null
-      }
-
-      // Percent setting change
-      if ('percentSetting' in attributes) {
-        // This triggers percentSettingChange handler automatically
-        // No explicit command needed - just update the attribute
-        return null
-      }
-
-      return null
-    },
+    map: () => null,
   },
 
   // ============================================================================
@@ -260,25 +291,8 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
         }
       }
 
-      // System mode change
-      if ('systemMode' in attributes) {
-        // This triggers systemModeChange handler automatically
-        // No explicit command needed - just update the attribute
-        return null
-      }
-
-      // Heating setpoint change
-      if ('occupiedHeatingSetpoint' in attributes) {
-        // This triggers occupiedHeatingSetpointChange handler automatically
-        return null
-      }
-
-      // Cooling setpoint change
-      if ('occupiedCoolingSetpoint' in attributes) {
-        // This triggers occupiedCoolingSetpointChange handler automatically
-        return null
-      }
-
+      // The system mode and the setpoints have no command: the attribute is
+      // written, and the write calls the plugin's change handler.
       return null
     },
   },
@@ -322,30 +336,10 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
   },
 
   // Robotic Vacuum Run Mode - for mode selection (Idle, Cleaning, Mapping)
-  rvcRunMode: {
-    map: (attributes) => {
-      if ('currentMode' in attributes) {
-        return {
-          command: 'changeToMode',
-          args: { newMode: attributes.currentMode },
-        }
-      }
-      return null
-    },
-  },
+  rvcRunMode: { map: mapModeChange },
 
   // Robotic Vacuum Clean Mode - for cleaning method selection (Vacuum, Mop, etc.)
-  rvcCleanMode: {
-    map: (attributes) => {
-      if ('currentMode' in attributes) {
-        return {
-          command: 'changeToMode',
-          args: { newMode: attributes.currentMode },
-        }
-      }
-      return null
-    },
-  },
+  rvcCleanMode: { map: mapModeChange },
 
   // Service Area - for room/zone selection
   serviceArea: {
@@ -367,17 +361,25 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
       return null
     },
   },
+
+  // ============================================================================
+  // WATER HEATERS, ENERGY DEVICES, EV CHARGERS
+  // ============================================================================
+
+  // The mode clusters all work like the vacuum's
+  waterHeaterMode: { map: mapModeChange },
+  deviceEnergyManagementMode: { map: mapModeChange },
+  energyEvseMode: { map: mapModeChange },
 }
 
 /**
  * Maps attributes to a Matter.js command for a given cluster
  * @param cluster The cluster name (e.g., 'onOff', 'levelControl')
  * @param attributes The attributes to map
- * @returns Command name and optional arguments, or throws if mapping not found
- *
- * Note: Some attribute changes trigger handlers automatically without explicit commands.
- * In these cases, the mapper returns null, which should be handled by the caller
- * to update state directly instead of invoking a command.
+ * @returns Command name and optional arguments, or null when the attributes
+ * have no command and the caller should write them to the state instead
+ * (for a fan mode or a thermostat setpoint, that write calls the handler)
+ * @throws when the cluster has no mapping at all
  */
 export function mapAttributesToCommand(
   cluster: string,
@@ -389,14 +391,5 @@ export function mapAttributesToCommand(
     throw new Error(`Command mapping not implemented for cluster: ${cluster}`)
   }
 
-  const result = mapping.map(attributes)
-
-  if (result === null) {
-    // Some clusters trigger change handlers automatically via attribute updates
-    // These don't need explicit commands (e.g., fanMode, systemMode changes)
-    // The caller should handle null by updating state directly
-    return null
-  }
-
-  return result
+  return mapping.map(attributes)
 }

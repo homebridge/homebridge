@@ -2103,6 +2103,57 @@ describe('a command sent from the homebridge ui, on a real node', () => {
     expect(requests).toEqual([{}, {}])
   })
 
+  it('changes only the hue of a color light when the ui sends only a hue', async () => {
+    const calls: string[] = []
+    const handlers: Record<string, () => Promise<void>> = {}
+    for (const name of [
+      'moveToColorTemperatureLogic',
+      'moveToHueAndSaturationLogic',
+      'moveToColorLogic',
+      'moveToHueLogic',
+      'moveToSaturationLogic',
+      'stopAllColorMovement',
+    ]) {
+      handlers[name] = async () => {
+        calls.push(name)
+      }
+    }
+    // colorMode 0 = hue and saturation
+    const colorState = {
+      colorMode: 0,
+      enhancedColorMode: 0,
+      colorTemperatureMireds: 250,
+      colorTempPhysicalMinMireds: 147,
+      colorTempPhysicalMaxMireds: 454,
+      coupleColorTempToLevelMinMireds: 147,
+      startUpColorTemperatureMireds: 250,
+      currentHue: 10,
+      currentSaturation: 150,
+      currentX: 24939,
+      currentY: 24701,
+      numberOfPrimaries: 0,
+      colorCapabilities: { hueSaturation: true, xy: true, colorTemperature: true },
+      remainingTime: 0,
+    }
+    const endpoint = await register({
+      deviceType: deviceTypes.ExtendedColorLight,
+      clusters: {
+        onOff: { onOff: true },
+        levelControl: { currentLevel: 100 },
+        colorControl: colorState,
+      },
+      handlers: { colorControl: handlers },
+    })
+
+    await sendFromUi('colorControl', { currentHue: 100 })
+    expect(stateOf(endpoint, 'colorControl')).toMatchObject({ currentHue: 100, currentSaturation: 150 })
+
+    await sendFromUi('colorControl', { currentSaturation: 200 })
+    expect(stateOf(endpoint, 'colorControl')).toMatchObject({ currentHue: 100, currentSaturation: 200 })
+
+    expect(calls).toEqual(['moveToHueLogic', 'moveToSaturationLogic'])
+  })
+
   it('gives a valve open handler a request object, as a controller does', async () => {
     const requests: unknown[] = []
     await register({

@@ -13,6 +13,10 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('onOff', { onOff: false })
       expect(result).toEqual({ command: 'off' })
     })
+
+    it.each(['false', 'true', 0, 1, null])('does not turn a light on or off for the value %j, which is not a boolean', (onOff) => {
+      expect(mapAttributesToCommand('onOff', { onOff })).toBeNull()
+    })
   })
 
   describe('levelControl cluster', () => {
@@ -171,16 +175,33 @@ describe('clusterCommandMapper', () => {
         })
       })
 
-      it('should default to 0 for missing hue or saturation', () => {
+      // It used to send the missing one as 0, which turned the light red or white
+      it('moves only the hue when no saturation is given', () => {
         const result = mapAttributesToCommand('colorControl', {
           currentHue: 100,
         })
         expect(result).toEqual({
-          command: 'moveToHueAndSaturation',
+          command: 'moveToHue',
           args: {
             hue: 100,
-            saturation: 0,
+            direction: 0,
             transitionTime: 0,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
+          },
+        })
+      })
+
+      it('moves only the saturation when no hue is given', () => {
+        const result = mapAttributesToCommand('colorControl', {
+          currentSaturation: 200,
+          transitionTime: 5,
+        })
+        expect(result).toEqual({
+          command: 'moveToSaturation',
+          args: {
+            saturation: 200,
+            transitionTime: 5,
             optionsMask: { executeIfOff: true },
             optionsOverride: { executeIfOff: true },
           },
@@ -409,6 +430,21 @@ describe('clusterCommandMapper', () => {
         command: 'changeToMode',
         args: { newMode: 0 },
       })
+    })
+  })
+
+  describe('the mode clusters of water heaters, energy devices and ev chargers', () => {
+    it.each([
+      'rvcCleanMode',
+      'waterHeaterMode',
+      'deviceEnergyManagementMode',
+      'energyEvseMode',
+    ])('should map currentMode of %s to "changeToMode"', (cluster) => {
+      expect(mapAttributesToCommand(cluster, { currentMode: 2 })).toEqual({
+        command: 'changeToMode',
+        args: { newMode: 2 },
+      })
+      expect(mapAttributesToCommand(cluster, { supportedModes: [] })).toBeNull()
     })
   })
 
