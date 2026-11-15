@@ -106,7 +106,10 @@ vi.mock('@matter/main', () => ({
         mdnsIpv4AtCreate: mdnsVars?.ipv4,
       })
       return {
-        run: vi.fn(() => Promise.resolve()),
+        start: vi.fn(async () => {}),
+        construction: {
+          closed: new Promise<void>(() => {}),
+        },
         add: vi.fn(),
         close: vi.fn(),
       }
@@ -168,9 +171,6 @@ vi.mock('../types.js', () => {
 })
 
 vi.mock('./ServerConfig.js', () => ({
-  SERVER_INIT_DELAY_MS: 0,
-  SERVER_READY_POLL_INTERVAL_MS: 0,
-  SERVER_READY_TIMEOUT_MS: 1000,
   STORAGE_LOCK_RETRY_ATTEMPTS: 3,
   STORAGE_LOCK_RETRY_DELAY_MS: 0,
 }))
@@ -869,7 +869,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const close = vi.fn(async () => {})
     const { ServerNode } = await import('@matter/main')
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -906,7 +909,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     })
     const { ServerNode } = await import('@matter/main')
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -939,7 +945,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const { ServerNode } = await import('@matter/main')
     // Make sure no node is created — but if it were, close would be observable.
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -976,7 +985,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const close = vi.fn(async () => {})
     const { ServerNode } = await import('@matter/main')
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -1028,7 +1040,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     // succeeds — masking the close-failure path under test.
     vi.mocked(ServerNode.create).mockReset()
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -1100,7 +1115,10 @@ describe('serverLifecycle.start — port-binding signal when the half-built node
   // and avoids leaking a once-mock on the shared ServerNode.create.
   function depsThatFailAfterNodeCreation(close: () => Promise<void>): ServerLifecycleDeps {
     const partialNode = {
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close: vi.fn(close),
     }
@@ -1283,7 +1301,10 @@ describe('serverLifecycle — BasicInformation identity (#3996)', () => {
     // create() permanently rejecting via mockRejectedValue, so put a working
     // one back rather than inheriting it
     vi.mocked(MatterServerNode.create).mockImplementation(async () => ({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close: vi.fn(),
     }) as never)
@@ -1374,5 +1395,64 @@ describe('serverLifecycle — BasicInformation identity (#3996)', () => {
     })
 
     expect(basicInformation.productName).toHaveLength(32)
+  })
+})
+
+/**
+ * A node that cannot go online (its port is taken, say) used to be reported as
+ * started: run() was not awaited, so its failure was only logged.
+ */
+describe('serverLifecycle — a node that fails to go online', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+  let close: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    close = vi.fn(async () => {})
+    vi.mocked(MatterServerNode.create).mockImplementation(async () => ({
+      start: vi.fn(async () => {
+        throw new Error('bind EADDRINUSE 0.0.0.0:5540')
+      }),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
+      add: vi.fn(),
+      close,
+    }) as never)
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+    lifecycle = new ServerLifecycle()
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return {
+        load: vi.fn(async () => new Map()),
+        cancelPendingSave: vi.fn(),
+      } as never
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('rejects start() and is not marked as running', async () => {
+    const deps = createMockDeps()
+
+    await expect(lifecycle.start(deps)).rejects.toThrow('EADDRINUSE')
+
+    expect(deps.getIsRunning()).toBe(false)
+    expect(deps.setIsRunning).not.toHaveBeenCalledWith(true)
+    // the half-built node is closed again
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects runServer() for a deferred server and is not marked as running', async () => {
+    const deps = createMockDeps()
+    deps.config.deferOnline = true
+    await lifecycle.start(deps)
+
+    await expect(lifecycle.runServer(deps)).rejects.toThrow('EADDRINUSE')
+
+    expect(deps.getIsRunning()).toBe(false)
   })
 })

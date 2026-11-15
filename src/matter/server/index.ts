@@ -9,9 +9,6 @@ export {
   DEFAULT_VENDOR_ID,
   MAX_DEVICES_PER_BRIDGE,
   MAX_PASSCODE_ATTEMPTS,
-  SERVER_INIT_DELAY_MS,
-  SERVER_READY_POLL_INTERVAL_MS,
-  SERVER_READY_TIMEOUT_MS,
   validateAndSanitizeConfig,
 } from './ServerConfig.js'
 export { ServerLifecycle } from './ServerLifecycle.js'
