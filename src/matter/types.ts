@@ -723,6 +723,13 @@ export const deviceTypes = {
   // matter.js's own ClosureControlServer leaves every command unimplemented, so
   // use ours: it records the move, and is replaced by the handler-calling
   // version when a plugin supplies closureControl handlers.
+  //
+  // Matter also wants one descriptor tag that says what kind of closure this
+  // is. Homebridge adds the garage door tag when a plugin gives none. To pick
+  // another, declare it in the accessory's clusters:
+  //   descriptor: { tagList: [{ mfgCode: null, namespaceId: 0x44, tag: 4 }] }
+  // Tags of namespace 0x44: 0 covering, 1 window, 2 barrier, 3 cabinet,
+  // 4 gate, 5 garage door, 6 door.
   Closure: devices.ClosureDevice.with(DefaultClosureControlServer.with('Positioning')),
 
   // Media — the name says video, but nothing in the device type is video-only:

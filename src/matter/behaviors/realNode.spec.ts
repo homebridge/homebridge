@@ -779,3 +779,44 @@ describe('an attribute-change handler that fails, on a real node', () => {
     expect(stateOf(endpoint, 'fanControl').fanMode).toBe(0)
   })
 })
+
+describe('a closure on a real node', () => {
+  const closureControl = {
+    mainState: 0,
+    currentErrorList: [],
+    overallCurrentState: { position: 0, secureState: true },
+    overallTargetState: { position: 0 },
+  }
+
+  it('registers from closureControl state alone, tagged as a garage door', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.Closure,
+      clusters: { closureControl },
+    })
+
+    expect(stateOf(endpoint, 'closureControl').mainState).toBe(0)
+    // Matter wants exactly one tag from the Closure namespace (0x44); 5 = garage door
+    expect(stateOf(endpoint, 'descriptor').tagList).toEqual([
+      expect.objectContaining({ namespaceId: 0x44, tag: 5 }),
+    ])
+  })
+
+  it('keeps the closure tag a plugin chose', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.Closure,
+      clusters: {
+        closureControl,
+        // 4 = gate
+        descriptor: {
+          tagList: [
+            { mfgCode: null, namespaceId: 0x44, tag: 4 },
+          ],
+        },
+      },
+    })
+
+    expect(stateOf(endpoint, 'descriptor').tagList).toEqual([
+      expect.objectContaining({ namespaceId: 0x44, tag: 4 }),
+    ])
+  })
+})
