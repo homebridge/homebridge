@@ -29,8 +29,9 @@ export class HandlerFailure extends StatusResponseError {
 }
 
 /**
- * Handler function signature
- * Matches the signature from types.ts to maintain compatibility with user-defined handlers
+ * A handler as the registry stores it: any command's handler, so the request
+ * is not typed. The typed one a plugin writes is MatterCommandHandler in
+ * types.ts (the same name, for a plugin's handler of one known command).
  */
 export type MatterCommandHandler = (args?: unknown, context?: MatterHandlerContext) => unknown
 
@@ -61,13 +62,6 @@ export class BehaviorRegistry {
 
   constructor(accessoriesMap: MatterAccessoryMap, server?: MatterServer) {
     this.accessoriesMap = accessoriesMap
-    this.server = server
-  }
-
-  /**
-   * Set the MatterServer reference (called after server is created)
-   */
-  setServer(server: MatterServer): void {
     this.server = server
   }
 
@@ -207,65 +201,35 @@ export class BehaviorRegistry {
 
   /**
    * Sync cluster state to cache
-   * Updates the accessory's cached cluster state when values change
+   * Updates the cached cluster state of the accessory, or of the part the
+   * endpoint belongs to, and tells the server (for UI updates)
    */
   syncStateToCache(
     endpointId: string,
     clusterName: string,
     attributes: Record<string, unknown>,
   ): void {
-    // Check if this is a part endpoint
     const partInfo = this.partEndpoints.get(endpointId)
+    const uuid = partInfo?.parentUuid ?? endpointId
+    const accessory = this.accessoriesMap.get(uuid)
+    const target = partInfo
+      ? accessory?._parts?.find(part => part.id === partInfo.partId)
+      : accessory
+    if (!target?.clusters) {
+      return
+    }
+
+    target.clusters[clusterName] = {
+      ...target.clusters[clusterName],
+      ...attributes,
+    }
 
     if (partInfo) {
-      // Update part cluster state
-      const accessory = this.accessoriesMap.get(partInfo.parentUuid)
-      if (!accessory?._parts) {
-        return
-      }
-
-      const part = accessory._parts.find(p => p.id === partInfo.partId)
-      if (!part?.clusters) {
-        return
-      }
-
-      if (!part.clusters[clusterName]) {
-        part.clusters[clusterName] = {}
-      }
-
-      part.clusters[clusterName] = {
-        ...part.clusters[clusterName],
-        ...attributes,
-      }
-
       log.debug(`Synced ${clusterName} state to cache for part ${partInfo.partId}:`, attributes)
-
-      // Notify server of state change (for UI updates)
-      if (this.server) {
-        this.server.notifyStateChange(partInfo.parentUuid, clusterName, attributes, partInfo.partId)
-      }
+      this.server?.notifyStateChange(uuid, clusterName, attributes, partInfo.partId)
     } else {
-      // Update main accessory cluster state
-      const accessory = this.accessoriesMap.get(endpointId)
-      if (!accessory?.clusters) {
-        return
-      }
-
-      if (!accessory.clusters[clusterName]) {
-        accessory.clusters[clusterName] = {}
-      }
-
-      accessory.clusters[clusterName] = {
-        ...accessory.clusters[clusterName],
-        ...attributes,
-      }
-
       log.debug(`Synced ${clusterName} state to cache for ${endpointId}:`, attributes)
-
-      // Notify server of state change (for UI updates)
-      if (this.server) {
-        this.server.notifyStateChange(endpointId, clusterName, attributes)
-      }
+      this.server?.notifyStateChange(uuid, clusterName, attributes)
     }
   }
 
@@ -289,12 +253,12 @@ export class BehaviorRegistry {
     }
     // Sweep any part endpoints whose parent matches the unregistering UUID,
     // and drop their handler tables too.
-    for (const [partId, info] of this.partEndpoints) {
-      if (info.parentUuid === endpointId || partId === endpointId) {
-        this.partEndpoints.delete(partId)
-        this.handlers.delete(partId)
-        if (partId !== endpointId) {
-          removed.push(partId)
+    for (const [partEndpointId, info] of this.partEndpoints) {
+      if (info.parentUuid === endpointId || partEndpointId === endpointId) {
+        this.partEndpoints.delete(partEndpointId)
+        this.handlers.delete(partEndpointId)
+        if (partEndpointId !== endpointId) {
+          removed.push(partEndpointId)
         }
       }
     }
