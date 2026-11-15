@@ -568,6 +568,40 @@ describe('matterAccessoryCache', () => {
       expect(savedData[0].parts![1].handlerClusters).toBeUndefined()
     })
 
+    it('keeps writing a retained entry while its accessory is off the bridge, until it is released', async () => {
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+      mockedReadFile.mockResolvedValue(JSON.stringify([
+        {
+          plugin: 'homebridge-test',
+          platform: 'TestPlatform',
+          uuid: 'held-uuid',
+          displayName: 'Held',
+          deviceType: { name: 'OnOffLight' },
+          serialNumber: 'S',
+          manufacturer: 'M',
+          model: 'X',
+          context: { room: 'hall' },
+          clusters: {
+            onOff: { onOff: true },
+          },
+        },
+      ]))
+      await cache.load()
+      const savedUuids = () => (JSON.parse(mockedWriteFile.mock.calls.at(-1)![1] as string) as SerializedMatterAccessory[]).map(entry => entry.uuid)
+
+      // taken off the bridge to be registered again: the live map no longer has it
+      cache.retain('held-uuid')
+      cache.removeCached('held-uuid')
+      await cache.save(new Map())
+      expect(savedUuids()).toEqual(['held-uuid'])
+
+      cache.release('held-uuid')
+      await cache.save(new Map())
+      expect(savedUuids()).toEqual([])
+    })
+
     it('should ensure directory exists on first save', async () => {
       mockedMkdir.mockResolvedValue(undefined as any)
       mockedWriteFile.mockResolvedValue(undefined)

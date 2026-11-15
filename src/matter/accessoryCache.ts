@@ -93,6 +93,7 @@ export function handlerClusterNames(handlers?: Record<string, unknown>): string[
 export class MatterAccessoryCache {
   private readonly cacheFilePath: string
   private cachedAccessories: Map<string, SerializedMatterAccessory> = new Map()
+  private readonly retained: Map<string, SerializedMatterAccessory> = new Map()
   private cacheLoaded = false
   private cacheReadFailed = false
   private saveQueue: Promise<void> = Promise.resolve()
@@ -258,6 +259,12 @@ export class MatterAccessoryCache {
     try {
       // Serialize accessories (strip out functions and non-serializable objects)
       const serialized: SerializedMatterAccessory[] = Array.from(accessories.values(), accessory => this.serializeAccessory(accessory))
+      // Entries held for an accessory that is being registered again
+      for (const [uuid, entry] of this.retained) {
+        if (!accessories.has(uuid)) {
+          serialized.push(entry)
+        }
+      }
 
       // Ensure directory exists (only check once, not on every save)
       if (!this.directoryEnsured) {
@@ -317,6 +324,24 @@ export class MatterAccessoryCache {
    */
   removeCached(uuid: string): void {
     this.cachedAccessories.delete(uuid)
+  }
+
+  /**
+   * Hold on to an accessory's cached entry while the accessory is taken off
+   * the bridge to be registered again with a new structure. A save in that
+   * window still writes the entry, so if the new registration fails the cache
+   * keeps what it had, and the next start can restore the accessory.
+   */
+  retain(uuid: string): void {
+    const entry = this.cachedAccessories.get(uuid)
+    if (entry) {
+      this.retained.set(uuid, entry)
+    }
+  }
+
+  /** Let go of an entry held with retain(), once the accessory is registered again. */
+  release(uuid: string): void {
+    this.retained.delete(uuid)
   }
 
   /**
