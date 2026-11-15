@@ -803,13 +803,31 @@ describe('childBridgeMatterManager', () => {
       expect(server.runServer).toHaveBeenCalledTimes(1)
     })
 
-    it('stops polling if the server is torn down mid-wait', async () => {
+    it('stops polling when the manager is torn down mid-wait', async () => {
+      mockApi.removeListener = vi.fn() as any
+      const manager = makeManager()
+      const server = makeServer({ inFlight: 1 })
+      server.removeListener = vi.fn()
+      server.stop = vi.fn().mockResolvedValue(undefined)
+      ;(manager as any).matterServer = server
+      ;(manager as any).runServerWhenSettled(server)
+
+      // A quick restart: the signal arrives while the node is still offline.
+      await manager.teardown()
+      expect(server.stop).toHaveBeenCalledTimes(1)
+      expect(vi.getTimerCount()).toBe(0)
+
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + CAP_MS)
+      expect(server.runServer).not.toHaveBeenCalled()
+      expect(manager.isMatterEnabled()).toBe(false)
+    })
+
+    it('stops polling if the server is replaced mid-wait', async () => {
       const manager = makeManager()
       const server = makeServer()
       ;(manager as any).matterServer = server
       ;(manager as any).runServerWhenSettled(server)
 
-      // A restart mid-wait replaces the server reference.
       ;(manager as any).matterServer = makeServer()
       await vi.advanceTimersByTimeAsync(SETTLE_MS + CAP_MS)
       expect(server.runServer).not.toHaveBeenCalled()
