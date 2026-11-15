@@ -31,8 +31,42 @@ export class StorageService {
     return await fs.readJson(filePath)
   }
 
+  /**
+   * Write an item as JSON, so that the file always holds either the old
+   * content or the new content in full.
+   *
+   * The text goes to a temporary file in the same folder first, which then
+   * takes the place of the item with a rename. Writing straight to the item
+   * left half a file behind when Homebridge (or the power) stopped mid-write.
+   * The content is byte for byte what `fs.writeJsonSync` wrote before.
+   */
   public setItemSync(itemName: string, data: Record<any, any> | Array<any>): void {
-    return fs.writeJsonSync(resolve(this.baseDirectory, itemName), data)
+    const filePath = resolve(this.baseDirectory, itemName)
+    const tempPath = resolve(this.baseDirectory, `.${itemName}.tmp`)
+    const content = `${JSON.stringify(data)}\n`
+
+    try {
+      const file = fs.openSync(tempPath, 'w')
+      try {
+        fs.writeFileSync(file, content)
+        // on the disk before the rename, or a power cut could leave an empty file under the real name
+        fs.fsyncSync(file)
+      } finally {
+        fs.closeSync(file)
+      }
+    } catch (error: unknown) {
+      fs.removeSync(tempPath)
+      throw error
+    }
+
+    try {
+      fs.renameSync(tempPath, filePath)
+    } catch {
+      // Some systems refuse to rename over a file another program has open.
+      // Writing the item directly, as before, is better than not saving.
+      fs.removeSync(tempPath)
+      fs.writeFileSync(filePath, content)
+    }
   }
 
   public setItem(itemName: string, data: Record<any, any> | Array<any>): Promise<void> {
