@@ -156,6 +156,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): use real types in place of casts in the registry, thermostat and command mapper
 - docs(matter): correct comments on color transition times, the door lock base and the vacuum state
 - refactor(matter): drop an unused registry method and three copies of the optional handler helper
+- test(matter): replace behavior tests that could not fail, cover the ui mapping of blinds and areas
 
 ### Homebridge Dependencies
 
