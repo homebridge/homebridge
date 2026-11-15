@@ -34,6 +34,7 @@ import { ChildBridgeMatterMessageHandler } from './matter/ChildBridgeMatterMessa
 import { isMatterActive, isMatterExternalsOnly } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
+import { sendToParent } from './util/ipc.js'
 
 import 'source-map-support/register.js'
 
@@ -77,12 +78,7 @@ export class ChildBridgeFork {
   }
 
   sendMessage<T = unknown>(type: ChildProcessMessageEventType, data?: T): void {
-    if (process.send) {
-      process.send({
-        id: type,
-        data,
-      })
-    }
+    sendToParent({ id: type, data })
   }
 
   async loadPlugin(data: ChildProcessLoadEventData): Promise<void> {
