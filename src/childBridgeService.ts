@@ -1011,6 +1011,14 @@ export class ChildBridgeService {
           : 'platform', this.identifier)
         const port = bridgeConfig.matter.port
 
+        // Each message says what is wrong: at a full start the collector logs
+        // them, and this path got only the line below.
+        for (const error of validation.errors) {
+          this.log.error(error)
+        }
+        for (const warning of validation.warnings) {
+          this.log.warn(warning)
+        }
         if (!validation.isValid) {
           this.log.error('The Matter configuration of this child bridge is invalid. Matter will not be enabled for it.')
           delete bridgeConfig.matter

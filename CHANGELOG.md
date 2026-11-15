@@ -252,6 +252,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: publish an external accessory once when a plugin publishes it twice at the same time
 - fix(matter): turn a bigint inside a struct into a number too, so the ui gets the state
 - fix(matter): report a child bridge whose matter port is taken as a failed start
+- fix: say what is wrong with a child bridge's matter settings read again at a restart
 
 ### Homebridge Dependencies
 

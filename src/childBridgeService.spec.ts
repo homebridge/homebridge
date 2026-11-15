@@ -1201,6 +1201,35 @@ describe('childBridgeService', () => {
         expect(externalPortService.reserveMatterPort).not.toHaveBeenCalled()
       })
 
+      it('says what is wrong with the matter block it drops', async () => {
+        const { service } = refreshWith({
+          matter: { port: 80 },
+        })
+        const error = vi.spyOn((service as any).log, 'error').mockImplementation(() => {})
+
+        await service.refreshConfig()
+
+        expect(error.mock.calls.map(call => String(call[0]))).toEqual([
+          expect.stringContaining('Port must be between 1025 and 65534 (got: 80)'),
+          'The Matter configuration of this child bridge is invalid. Matter will not be enabled for it.',
+        ])
+      })
+
+      it('warns about a matter port next to the hap port of the bridge', async () => {
+        const { service } = refreshWith({
+          port: 51830,
+          matter: { port: 51831 },
+        })
+        const warn = vi.spyOn((service as any).log, 'warn').mockImplementation(() => {})
+
+        await service.refreshConfig()
+
+        expect(warn.mock.calls.map(call => String(call[0]))).toEqual([
+          expect.stringContaining('HAP port 51830 and Matter port 51831 are very close'),
+        ])
+        expect((service as any).bridgeConfig.matter).toEqual({ port: 51831 })
+      })
+
       it.each([
         [
           'the main bridge',
