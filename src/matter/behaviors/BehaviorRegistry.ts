@@ -50,6 +50,9 @@ export class BehaviorRegistry {
   // Part endpoint mapping: endpointId -> { parentUuid, partId }
   private partEndpoints = new Map<string, { parentUuid: string, partId: string }>()
 
+  /** The commands already reported as having no handler, so each is said once. */
+  private reportedMissing = new Set<string>()
+
   // Reference to accessories map (not owned by registry)
   private accessoriesMap: MatterAccessoryMap
 
@@ -122,8 +125,8 @@ export class BehaviorRegistry {
    * @param commandName - Command name
    * @param args - Optional arguments to pass to the handler
    * @param context - Passed to the handler in place of the endpoint's own context
-   * @returns True once the handler has run successfully
-   * @throws a Matter status error: the plugin's own, or Failure when the handler threw anything else or is not registered
+   * @returns True once the handler has run successfully, false when the plugin has no handler for the command
+   * @throws a Matter status error: the plugin's own, or Failure when the handler threw anything else
    */
   async executeHandler(
     endpointId: string,
@@ -134,7 +137,16 @@ export class BehaviorRegistry {
   ): Promise<boolean> {
     const handler = this.getHandler(endpointId, clusterName, commandName)
     if (!handler) {
-      throw new HandlerFailure(`No handler registered for ${endpointId}.${clusterName}.${commandName}`)
+      // Every handler is optional. With none, the command is not failed: the
+      // caller carries on and matter.js updates the state, as HAP accepts a
+      // write to a characteristic that has no onSet. Said once per command,
+      // at debug level, for the plugin author who forgot one.
+      const key = `${endpointId}.${clusterName}.${commandName}`
+      if (!this.reportedMissing.has(key)) {
+        this.reportedMissing.add(key)
+        log.debug(`No handler registered for ${key}: the state is updated without calling the plugin`)
+      }
+      return false
     }
 
     try {
@@ -250,6 +262,11 @@ export class BehaviorRegistry {
     // (e.g. RegistryManager, which has no parent-aware sweep of its own).
     const removed: string[] = [endpointId]
     this.handlers.delete(endpointId)
+    for (const key of this.reportedMissing) {
+      if (key.startsWith(`${endpointId}.`) || key.startsWith(`${endpointId}-part-`)) {
+        this.reportedMissing.delete(key)
+      }
+    }
     // Sweep any part endpoints whose parent matches the unregistering UUID,
     // and drop their handler tables too.
     for (const [partId, info] of this.partEndpoints) {
@@ -270,6 +287,7 @@ export class BehaviorRegistry {
   clear(): void {
     this.handlers.clear()
     this.partEndpoints.clear()
+    this.reportedMissing.clear()
   }
 
   /**

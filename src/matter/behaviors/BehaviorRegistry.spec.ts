@@ -144,10 +144,8 @@ describe('behaviorRegistry', () => {
       expect(result).toBe(true)
     })
 
-    it('should throw when handler does not exist', async () => {
-      await expect(registry.executeHandler('nonexistent', 'onOff', 'toggle'))
-        .rejects
-        .toThrow('No handler registered for nonexistent.onOff.toggle')
+    it('returns false, and does not throw, when the plugin has no handler for the command', async () => {
+      await expect(registry.executeHandler('nonexistent', 'onOff', 'toggle')).resolves.toBe(false)
     })
 
     it('should log and rethrow errors from handlers', async () => {
@@ -211,10 +209,6 @@ describe('behaviorRegistry', () => {
 
       await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toBe(busy)
       expect(busy).not.toBeInstanceOf(HandlerFailure)
-    })
-
-    it('answers a command with no handler with a matter failure', async () => {
-      await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toBeInstanceOf(HandlerFailure)
     })
   })
 

@@ -47,8 +47,13 @@ export class HomebridgeKeypadInputServer extends DefaultKeypadInputServer {
     const registry = this.getRegistry()
 
     try {
-      await registry.executeHandler(endpointId, 'keypadInput', 'sendKey', request)
-      return { status: KeypadInput.Status.Success }
+      // A key press has no state to update: with no handler nothing can act on it
+      const handled = await registry.executeHandler(endpointId, 'keypadInput', 'sendKey', request)
+      return {
+        status: handled
+          ? KeypadInput.Status.Success
+          : KeypadInput.Status.UnsupportedKey,
+      }
     } catch (error) {
       // A Matter status the plugin threw on purpose goes to the controller as it is
       if (MatterStatus.isMatterProtocolError(error) && !(error instanceof HandlerFailure)) {

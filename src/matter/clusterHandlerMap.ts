@@ -7,6 +7,14 @@
  *
  * Handler argument types are derived from @matter/main/clusters where possible,
  * so they automatically update when matter.js is bumped.
+ *
+ * Every handler is optional. A command the plugin has no handler for is not
+ * failed: the state changes in Matter and the plugin is not called, as HAP
+ * accepts a write to a characteristic that has no onSet. Where another handler
+ * can do the job it is called instead, so the plugin still hears about it:
+ * a level command reaches the move-to-level handler, and a blind's open or
+ * close reaches the go-to-percentage handlers (0 = open, 10000 = closed).
+ * A key press with no `sendKey` handler is answered as an unsupported key.
  */
 
 import type { ClosureControl, ColorControl, DeviceEnergyManagement, DoorLock, EnergyEvse, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WaterHeaterManagement, WindowCovering } from '@matter/main/clusters'
