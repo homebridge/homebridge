@@ -205,6 +205,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): report a matter server that matter.js shut down by itself, and stop calling it running
 - fix(matter): do not bring a matter server online that was told to stop while it was starting
 - fix(matter): make the enums of ten more clusters reachable through api.matter.types
+- fix(matter): export the types of accessory parts, handler context and the newer clusters
 
 ### Homebridge Dependencies
 
