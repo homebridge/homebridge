@@ -43,14 +43,24 @@ import { KeypadInput } from '@matter/main/clusters/keypad-input'
 import { LevelControl } from '@matter/main/clusters/level-control'
 import { MediaPlayback } from '@matter/main/clusters/media-playback'
 import { NitrogenDioxideConcentrationMeasurement } from '@matter/main/clusters/nitrogen-dioxide-concentration-measurement'
+import { OccupancySensing } from '@matter/main/clusters/occupancy-sensing'
 import { OnOff } from '@matter/main/clusters/on-off'
 import { OzoneConcentrationMeasurement } from '@matter/main/clusters/ozone-concentration-measurement'
 import { Pm10ConcentrationMeasurement } from '@matter/main/clusters/pm10-concentration-measurement'
 import { Pm25ConcentrationMeasurement } from '@matter/main/clusters/pm25-concentration-measurement'
+import { PowerSource } from '@matter/main/clusters/power-source'
 import { PowerTopology } from '@matter/main/clusters/power-topology'
+import { PumpConfigurationAndControl } from '@matter/main/clusters/pump-configuration-and-control'
+import { RvcCleanMode } from '@matter/main/clusters/rvc-clean-mode'
 import { RvcOperationalState } from '@matter/main/clusters/rvc-operational-state'
+import { RvcRunMode } from '@matter/main/clusters/rvc-run-mode'
+import { ServiceArea } from '@matter/main/clusters/service-area'
+import { SmokeCoAlarm } from '@matter/main/clusters/smoke-co-alarm'
+import { Switch } from '@matter/main/clusters/switch'
 import { Thermostat } from '@matter/main/clusters/thermostat'
 import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
+import { WaterHeaterManagement } from '@matter/main/clusters/water-heater-management'
+import { WaterHeaterMode } from '@matter/main/clusters/water-heater-mode'
 import { WindowCovering } from '@matter/main/clusters/window-covering'
 // Direct imports from individual device files
 import { AirQualitySensorDevice, AirQualitySensorRequirements } from '@matter/main/devices/air-quality-sensor'
@@ -567,7 +577,13 @@ const devices = {
 /**
  * Matter cluster types
  *
- * All supported Matter cluster types, imported from individual files for optimal performance.
+ * The matter.js definitions (enums, feature names, request types) of the
+ * clusters a plugin works with, imported from individual files for optimal
+ * performance. This one object is `api.matter.clusters` and also
+ * `api.matter.types`.
+ *
+ * It does not hold every cluster in `clusterNames`: those that are missing
+ * (the plain measurement clusters, say) have no enum a plugin needs.
  */
 const clusters = {
   AirQuality,
@@ -585,14 +601,24 @@ const clusters = {
   LevelControl,
   MediaPlayback,
   NitrogenDioxideConcentrationMeasurement,
+  OccupancySensing,
   OnOff,
   OzoneConcentrationMeasurement,
   Pm10ConcentrationMeasurement,
   Pm25ConcentrationMeasurement,
+  PowerSource,
   PowerTopology,
+  PumpConfigurationAndControl,
+  RvcCleanMode,
   RvcOperationalState,
+  RvcRunMode,
+  ServiceArea,
+  SmokeCoAlarm,
+  Switch,
   Thermostat,
   ValveConfigurationAndControl,
+  WaterHeaterManagement,
+  WaterHeaterMode,
   WindowCovering,
 }
 
