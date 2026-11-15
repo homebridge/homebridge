@@ -183,6 +183,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - build: remove eslint settings that do nothing, and the global comment they forced on cli.ts
 - ci: pin the wiki notification action to a commit and keep the npm publish token to the publish job
 - fix: say what a plugin threw at load or start when it is not an Error, in place of undefined
+- refactor: type the prefixed logger, the plugin module and the matter state event without any
 
 ### Homebridge Dependencies
 

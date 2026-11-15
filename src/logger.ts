@@ -45,17 +45,6 @@ export interface Logging {
   log: (level: LogLevel, message: string, ...parameters: any[]) => void
 }
 
-interface IntermediateLogging { // some auxiliary interface used to correctly type stuff happening in "withPrefix"
-  prefix?: string
-  (message: string, ...parameters: any[]): void
-  info?: (message: string, ...parameters: any[]) => void
-  success?: (message: string, ...parameters: any[]) => void
-  warn?: (message: string, ...parameters: any[]) => void
-  error?: (message: string, ...parameters: any[]) => void
-  debug?: (message: string, ...parameters: any[]) => void
-  log?: (level: LogLevel, message: string, ...parameters: any[]) => void
-}
-
 /**
  * Logger class
  */
@@ -84,21 +73,20 @@ export class Logger {
     } else {
       const logger = new Logger(prefix)
 
-      const log: IntermediateLogging = logger.info.bind(logger)
-      // Bind every method to the logging device, so it still works when a plugin passes it around
+      // The device is a function (INFO logging) that also carries a method for each level.
+      // Every method is bound to the device, so it still works when a plugin passes it around
       // on its own (`promise.catch(log.error)`, `emitter.on('error', log.warn)`, `const { debug } = log`).
       // The device itself is the `this`, as it is for `log.info('x')`, so `log.prefix` stays the prefix in use.
-      log.info = logger.info.bind(log)
-      log.success = logger.success.bind(log)
-      log.warn = logger.warn.bind(log)
-      log.error = logger.error.bind(log)
-      log.debug = logger.debug.bind(log)
-      log.log = logger.log.bind(log)
-
-      log.prefix = logger.prefix
-
-      // @ts-expect-error: I aimed to not use ts-ignore in this project, but this evil "thing" above is hell
-      const logging: Logging = log
+      const device = logger.info.bind(logger)
+      const logging: Logging = Object.assign(device, {
+        prefix,
+        info: logger.info.bind(device),
+        success: logger.success.bind(device),
+        warn: logger.warn.bind(device),
+        error: logger.error.bind(device),
+        debug: logger.debug.bind(device),
+        log: logger.log.bind(device),
+      })
       Logger.loggerCache.set(prefix, logging)
       return logging
     }
