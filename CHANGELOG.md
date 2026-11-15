@@ -209,6 +209,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): export the types of accessory parts, handler context and the newer clusters
 - docs(matter): say in the plugin api docs where matter differs from hap and what really happens
 - fix(matter): keep the pairing code when the credentials file is there but can not be read
+- fix(matter): make the matter error handler safe for any thrown value and name the kind once
 
 ### Homebridge Dependencies
 
