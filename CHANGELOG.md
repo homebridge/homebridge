@@ -118,6 +118,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - test: cover the child process message switch, and replace two tests that checked their own setup
 - fix: keep an accessory the bridge refuses out of the cache, and log it instead of throwing
 - fix: give an external accessory a random port when its port is in use, and name a taken bridge port
+- fix: name the pin in the error for a pin that is not a text, and warn about one homekit can not use
 
 ### Homebridge Dependencies
 
