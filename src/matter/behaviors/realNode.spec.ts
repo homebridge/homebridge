@@ -320,6 +320,59 @@ describe('levelControl on a real node', () => {
     expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(level)
   })
 
+  it.each([
+    ['move', 'stop'],
+    ['moveWithOnOff', 'stopWithOnOff'],
+  ])('tells the move-to-level handler where a %s ended when a %s came', async (move, stop) => {
+    const levels: number[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff: true },
+        // matter.js runs a move over time only when it is asked to
+        levelControl: {
+          currentLevel: 100,
+          minLevel: 1,
+          maxLevel: 254,
+          managedTransitionTimeHandling: true,
+        },
+      },
+      handlers: {
+        levelControl: {
+          moveToLevelWithOnOff: async (moveToLevel: { level: number }) => {
+            levels.push(moveToLevel.level)
+          },
+        },
+      },
+    } as never)
+    const start = stateOf(endpoint, 'levelControl').currentLevel as number
+
+    // hold the dimmer up, and let go
+    await invoke(endpoint, 'levelControl', move, { moveMode: 0, rate: 50, ...options })
+    await new Promise(resolve => setTimeout(resolve, 400))
+    await invoke(endpoint, 'levelControl', stop, { ...options })
+
+    const stoppedAt = stateOf(endpoint, 'levelControl').currentLevel as number
+    expect(stoppedAt).toBeGreaterThan(start)
+    expect(stoppedAt).toBeLessThan(254)
+    // first the end of the move, then where it stopped
+    expect(levels).toEqual([254, stoppedAt])
+  })
+
+  it('does not tell the move-to-level handler about a stop when matter.js jumped to the end of the move', async () => {
+    const levels: number[] = []
+    const endpoint = await dimmableLight({
+      moveToLevelWithOnOff: async (moveToLevel) => {
+        levels.push(moveToLevel.level)
+      },
+    })
+
+    await invoke(endpoint, 'levelControl', 'move', { moveMode: 0, rate: 50, ...options })
+    await invoke(endpoint, 'levelControl', 'stop', { ...options })
+
+    expect(levels).toEqual([254])
+  })
+
   // #3905: a pump's level control has no Lighting feature, so level 0 is allowed
   it('registers a pump whose level control starts at 0 and calls its handler', async () => {
     const levels: number[] = []

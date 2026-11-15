@@ -51,12 +51,13 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    * handler of its own name is not failed. The first registered name in
    * `handlerNames` is called with the request (a command and its "with on/off"
    * twin take the same request). When none of those is registered and the
-   * command works out to one target level (step, move), the plugin's
+   * command works out to one target level (step, move, and a stop of a move
+   * matter.js runs over time), the plugin's
    * move-to-level handler is called with that level, so the level never
    * changes without the plugin being told. With no handler at all, matter.js
    * carries on alone.
    */
-  private async runHandler(handlerNames: string[], request: unknown, target?: { handlerNames: string[], request: () => LevelControl.MoveToLevelRequest }): Promise<void> {
+  private async runHandler(handlerNames: string[], request: unknown, target?: { handlerNames: string[], request: () => LevelControl.MoveToLevelRequest | undefined }): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = registryOf(this.endpoint)
     const registered = (names: string[]) => names.find(name => registry.getHandler(endpointId, 'levelControl', name))
@@ -69,8 +70,11 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
     }
 
     const targetHandlerName = target && registered(target.handlerNames)
-    if (target && targetHandlerName) {
-      await registry.executeHandler(endpointId, 'levelControl', targetHandlerName, target.request())
+    const targetRequest = targetHandlerName
+      ? target.request()
+      : undefined
+    if (targetHandlerName && targetRequest) {
+      await registry.executeHandler(endpointId, 'levelControl', targetHandlerName, targetRequest)
       await lockStateForWrite(this)
     }
   }
@@ -101,6 +105,27 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
         ? this.maxLevel
         : this.minLevel,
       transitionTime: null,
+      optionsMask: request.optionsMask,
+      optionsOverride: request.optionsOverride,
+    }
+  }
+
+  /**
+   * The move-to-level request a stop works out to: the level the light is at
+   * now. A plugin with only a move-to-level handler was sent to the end of a
+   * move (the maximum level), and never heard where the move stopped.
+   *
+   * Only when matter.js runs the move over time (the plugin turned on
+   * `managedTransitionTimeHandling`). Otherwise matter.js jumps to the end of
+   * the move at once, and the plugin already has that level.
+   */
+  private stopTarget(request: LevelControl.StopRequest): LevelControl.MoveToLevelRequest | undefined {
+    if (!this.state.managedTransitionTimeHandling) {
+      return undefined
+    }
+    return {
+      level: this.currentLevel,
+      transitionTime: 0,
       optionsMask: request.optionsMask,
       optionsOverride: request.optionsOverride,
     }
@@ -159,7 +184,10 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
   override async stop(request: LevelControl.StopRequest): Promise<void> {
     // Execute user handler, falling back to the handler of the twin command
     if (!this.ignoredWhileOff(request)) {
-      await this.runHandler(['stop', 'stopWithOnOff'], request)
+      await this.runHandler(['stop', 'stopWithOnOff'], request, {
+        handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
+        request: () => this.stopTarget(request),
+      })
     }
 
     // Only reached if handler succeeded
@@ -226,7 +254,10 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    */
   override async stopWithOnOff(request: LevelControl.StopRequest): Promise<void> {
     // Execute user handler, falling back to the plain stop handler
-    await this.runHandler(['stopWithOnOff', 'stop'], request)
+    await this.runHandler(['stopWithOnOff', 'stop'], request, {
+      handlerNames: ['moveToLevelWithOnOff', 'moveToLevel'],
+      request: () => this.stopTarget(request),
+    })
 
     // Only reached if handler succeeded
     await super.stopWithOnOff(request)
