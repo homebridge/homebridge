@@ -3,6 +3,7 @@ import type { BridgeConfiguration, BridgeOptions } from '../bridgeService.js'
 import type { ChildBridgeExternalPortService } from '../externalPortService.js'
 import type { MatterConfig } from './types.js'
 
+import { AddressInUseError } from '@matter/main'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InternalAPIEvent } from '../api.js'
@@ -854,6 +855,32 @@ describe('childBridgeMatterManager', () => {
       // Past the settle window -> online.
       await vi.advanceTimersByTimeAsync(600)
       expect(server.runServer).toHaveBeenCalledTimes(1)
+    })
+
+    it('reports a failed start when the port is in use as the node goes online', async () => {
+      const manager = makeManager()
+      const server = {
+        ...makeServer(),
+        // what matter.js throws for a port another program holds
+        runServer: vi.fn().mockRejectedValue(new AddressInUseError('Cannot bind {::}:5677 because port is already in use')),
+        stop: vi.fn().mockResolvedValue(undefined),
+      }
+      const statusChanged = vi.fn()
+      ;(manager as any).onStatusChanged = statusChanged
+      ;(manager as any).matterConfig = { port: 5677 }
+      ;(manager as any).matterServer = server
+      const errorSpy = vi.spyOn(Logger.withPrefix('Matter/ChildManager'), 'error').mockImplementation(() => {})
+      ;(manager as any).runServerWhenSettled(server)
+
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + 600)
+
+      expect(manager.getBridgeStartFailure()).toContain('port is already in use')
+      expect(manager.getMatterStatusInfo()?.startFailed).toBe(true)
+      expect((manager as any).matterServer).toBeUndefined()
+      expect(server.stop).toHaveBeenCalledTimes(1)
+      expect(statusChanged).toHaveBeenCalledTimes(1)
+      expect(mockApi._setMatterServer).toHaveBeenCalledWith(null)
+      expect(errorSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('Matter port 5677 is already in use'))).toBe(true)
     })
 
     it('goes online promptly when no registrations ever arrive', async () => {

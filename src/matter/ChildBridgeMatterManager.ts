@@ -21,10 +21,11 @@ import { User } from '../user.js'
 import { sendToParent } from '../util/ipc.js'
 import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
+import { isPortInUseError } from './errorHandler.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 import { MatterServer } from './server.js'
-import { appendUsernameSuffix, getErrorCode, getMatterJsVersion, normalizeBindConfig } from './utils.js'
+import { appendUsernameSuffix, getMatterJsVersion, normalizeBindConfig } from './utils.js'
 
 const log = Logger.withPrefix('Matter/ChildManager')
 const COLON_RE = /:/g
@@ -165,6 +166,9 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   // which listeners were attached, so teardown removes the correct ones.
   private externalsOnlyMode = false
 
+  // Tells the parent process the status changed (given to initialize())
+  private onStatusChanged?: () => void
+
   // The pending poll of runServerWhenSettled(), so teardown() can stop it.
   private deferOnlineTimer?: ReturnType<typeof setTimeout>
 
@@ -183,6 +187,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * @param onCommissioningChanged Optional callback when commissioning status changes
    */
   async initialize(onCommissioningChanged?: () => void): Promise<void> {
+    this.onStatusChanged = onCommissioningChanged
     // 1. Disabled or absent → nothing to do.
     if (!this.matterConfig) {
       return
@@ -283,7 +288,8 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       this.setupEventListeners()
     }
 
-    if (getErrorCode(error) === 'EADDRINUSE' || errorMessage.includes('address already in use')) {
+    // matter.js says so with its own AddressInUseError, which has no code
+    if (isPortInUseError(error)) {
       log.error(`Matter port ${this.matterConfig?.port} is already in use by another application.`)
       log.error('To fix this, stop the application using this port, or set a different port for this child bridge in your config.json: "_bridge": { "matter": { "port": <different-port> } }')
     }
@@ -382,8 +388,18 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       if (capped && !settled) {
         log.warn(`Deferred Matter start: no registrations settled within ${DEFER_ONLINE_CAP_MS / 1000}s - going online anyway`)
       }
-      server.runServer().catch((error) => {
-        log.error('Deferred Matter server start failed:', error)
+      server.runServer().catch((error: unknown) => {
+        // The node is only put on the network now, so this is where a port
+        // that another program holds shows up. It is the same failed start as
+        // one in initialize(): before, it was one log line, and the bridge kept
+        // reporting its pairing codes for a server that was not running.
+        if (this.matterServer !== server) {
+          log.debug('Deferred Matter server start failed after the server was replaced:', error)
+          return
+        }
+        this.api._setMatterServer(null)
+        this.handleBridgeStartFailure(error)
+        this.onStatusChanged?.()
       })
     }
 
