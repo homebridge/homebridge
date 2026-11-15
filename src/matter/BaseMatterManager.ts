@@ -134,8 +134,8 @@ export abstract class BaseMatterManager {
         // After a command, read back the current state and notify so the UI updates
         this.notifyCurrentState(externalServer, uuid, cluster, partId)
       } else {
-        // State-only update (triggers change handlers automatically)
-        await externalServer.updateAccessoryState(uuid, cluster, attributes, partId)
+        // State-only update: the change is asked for, so the plugin's change handlers are called
+        await externalServer.updateAccessoryState(uuid, cluster, attributes, partId, { callHandlers: true })
       }
       return
     }
@@ -157,8 +157,8 @@ export abstract class BaseMatterManager {
       // After a command, read back the current state and notify so the UI updates
       this.notifyCurrentState(this.matterServer, uuid, cluster, partId)
     } else {
-      // State-only update (triggers change handlers automatically)
-      await this.matterServer.updateAccessoryState(uuid, cluster, attributes, partId)
+      // State-only update: the change is asked for, so the plugin's change handlers are called
+      await this.matterServer.updateAccessoryState(uuid, cluster, attributes, partId, { callHandlers: true })
     }
   }
 

@@ -12,6 +12,7 @@ import { Status, StatusResponseError } from '@matter/main/types'
 
 import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
+import { isPluginUpdate } from './pluginUpdates.js'
 
 /**
  * Custom Thermostat Server that calls plugin handlers
@@ -106,6 +107,12 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'thermostat', 'systemMode', value)) {
+      return
+    }
+
     try {
       // Execute user handler
       await registry.executeHandler(
@@ -139,6 +146,12 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     // Using 'as any' because occupiedHeatingSetpoint is feature-dependent (Heating feature)
     const oldValue = (this.state as any).occupiedHeatingSetpoint
 
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'thermostat', 'occupiedHeatingSetpoint', value)) {
+      return
+    }
+
     try {
       // Execute user handler
       await registry.executeHandler(
@@ -171,6 +184,12 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     const registry = this.getRegistry()
     // Using 'as any' because occupiedCoolingSetpoint is feature-dependent (Cooling feature)
     const oldValue = (this.state as any).occupiedCoolingSetpoint
+
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'thermostat', 'occupiedCoolingSetpoint', value)) {
+      return
+    }
 
     try {
       // Execute user handler

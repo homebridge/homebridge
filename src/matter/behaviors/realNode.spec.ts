@@ -1,6 +1,7 @@
 import type { AccessoryManagerDeps } from '../server/AccessoryManager.js'
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 
+import { EventEmitter } from 'node:events'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,6 +14,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { Logger } from '../../logger.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
+import { StateManager } from '../server/StateManager.js'
 import { deviceTypes } from '../types.js'
 import { BehaviorRegistry, RegistryManager } from './index.js'
 
@@ -30,6 +32,7 @@ let storageRoot: string
 let node: ServerNode
 let accessories: Map<string, InternalMatterAccessory>
 let deps: AccessoryManagerDeps
+let stateManager: StateManager
 let nodeCount = 0
 
 beforeAll(() => {
@@ -53,6 +56,7 @@ beforeEach(async () => {
   const aggregator = new Endpoint(AggregatorEndpoint, { id: 'aggregator' })
   await node.add(aggregator)
   accessories = new Map()
+  stateManager = new StateManager(accessories, new EventEmitter(), () => false)
   deps = {
     config: {} as AccessoryManagerDeps['config'],
     accessories,
@@ -98,6 +102,16 @@ function invoke(endpoint: Endpoint, cluster: string, command: string, request?: 
       ? behavior[command]()
       : behavior[command](request)
   }) as Promise<unknown>
+}
+
+/** Give the reactions to a change (they run on their own, after the write) time to finish. */
+function settle(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 30))
+}
+
+/** Write attributes straight to the endpoint, which is what a controller's write comes down to. */
+function write(endpoint: Endpoint, patch: Record<string, Record<string, unknown>>): Promise<void> {
+  return endpoint.set(patch as never)
 }
 
 /** The live state of one cluster on the endpoint. */
@@ -451,5 +465,152 @@ describe('serviceArea on a real node', () => {
     // 3 = InvalidSkippedArea
     expect(response).toMatchObject({ status: 3 })
     expect(requests).toEqual([])
+  })
+})
+
+describe('attribute-change handlers on a real node', () => {
+  /** A fan that is off, recording the calls of its two change handlers. */
+  async function fan(calls: unknown[]) {
+    return register({
+      deviceType: deviceTypes.Fan,
+      clusters: {
+        fanControl: {
+          fanMode: 0,
+          fanModeSequence: 0,
+          percentSetting: 0,
+          percentCurrent: 0,
+        },
+      },
+      handlers: {
+        fanControl: {
+          fanModeChange: async (request) => {
+            calls.push(request)
+          },
+          percentSettingChange: async (request) => {
+            calls.push(request)
+          },
+        },
+      },
+    })
+  }
+
+  /** A thermostat that is off, recording the calls of its change handlers. */
+  async function thermostat(calls: unknown[]) {
+    return register({
+      deviceType: deviceTypes.Thermostat,
+      clusters: {
+        thermostat: {
+          localTemperature: 2000,
+          occupiedHeatingSetpoint: 2000,
+          occupiedCoolingSetpoint: 2600,
+          systemMode: 0,
+          controlSequenceOfOperation: 4,
+          minSetpointDeadBand: 20,
+        },
+      },
+      handlers: {
+        thermostat: {
+          systemModeChange: async (request) => {
+            calls.push(request)
+          },
+          occupiedHeatingSetpointChange: async (request) => {
+            calls.push(request)
+          },
+          occupiedCoolingSetpointChange: async (request) => {
+            calls.push(request)
+          },
+        },
+      },
+    })
+  }
+
+  it('does not call the fan handlers for the state a plugin reports', async () => {
+    const calls: unknown[] = []
+    const endpoint = await fan(calls)
+
+    await stateManager.updateAccessoryState('test-uuid', 'fanControl', { fanMode: 3, percentSetting: 100, percentCurrent: 100 })
+    await settle()
+
+    expect(calls).toEqual([])
+    expect(stateOf(endpoint, 'fanControl')).toMatchObject({ fanMode: 3, percentSetting: 100 })
+  })
+
+  it('does not call the thermostat handlers for the state a plugin reports', async () => {
+    const calls: unknown[] = []
+    const endpoint = await thermostat(calls)
+
+    await stateManager.updateAccessoryState('test-uuid', 'thermostat', { systemMode: 4, occupiedHeatingSetpoint: 2150, occupiedCoolingSetpoint: 2500 })
+    await settle()
+
+    expect(calls).toEqual([])
+    expect(stateOf(endpoint, 'thermostat')).toMatchObject({ systemMode: 4, occupiedHeatingSetpoint: 2150, occupiedCoolingSetpoint: 2500 })
+  })
+
+  it('calls the handlers for a change the homebridge ui asks for', async () => {
+    const calls: unknown[] = []
+    await fan(calls)
+
+    await stateManager.updateAccessoryState('test-uuid', 'fanControl', { fanMode: 3 }, undefined, { callHandlers: true })
+    await settle()
+
+    expect(calls).toEqual([
+      { fanMode: 3, oldFanMode: 0 },
+    ])
+  })
+
+  it('calls the handlers for a change a controller writes', async () => {
+    const calls: unknown[] = []
+    const endpoint = await thermostat(calls)
+
+    await write(endpoint, {
+      thermostat: { occupiedHeatingSetpoint: 2100 },
+    })
+    await settle()
+
+    expect(calls).toEqual([
+      { occupiedHeatingSetpoint: 2100, oldOccupiedHeatingSetpoint: 2000 },
+    ])
+  })
+
+  it('calls the handler again when a controller asks for the value a plugin reported earlier', async () => {
+    const calls: unknown[] = []
+    const endpoint = await fan(calls)
+
+    await stateManager.updateAccessoryState('test-uuid', 'fanControl', { fanMode: 3 })
+    await settle()
+    await write(endpoint, {
+      fanControl: { fanMode: 0 },
+    })
+    await settle()
+    await write(endpoint, {
+      fanControl: { fanMode: 3 },
+    })
+    await settle()
+
+    expect(calls).toEqual([
+      { fanMode: 0, oldFanMode: 3 },
+      { fanMode: 3, oldFanMode: 0 },
+    ])
+  })
+
+  it('does not hold a report back for the next request when the reported value is the current one', async () => {
+    const calls: unknown[] = []
+    const endpoint = await fan(calls)
+
+    // nothing changes, so no change event comes to use the note up
+    await stateManager.updateAccessoryState('test-uuid', 'fanControl', { fanMode: 0 })
+    await write(endpoint, {
+      fanControl: { fanMode: 3 },
+    })
+    await settle()
+    await write(endpoint, {
+      fanControl: { fanMode: 0 },
+    })
+    await settle()
+
+    expect(calls).toEqual([
+      { fanMode: 3, oldFanMode: 0 },
+      { fanMode: 0, oldFanMode: 3 },
+    ])
   })
 })
