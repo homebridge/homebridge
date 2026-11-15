@@ -1,4 +1,4 @@
-import type { AccessoryPlugin, DynamicPlatformPlugin } from './api.js'
+import type { AccessoryPlugin, API, DynamicPlatformPlugin } from './api.js'
 import type { MatterAccessory } from './matter/index.js'
 
 import { Service } from '@homebridge/hap-nodejs'
@@ -85,6 +85,31 @@ describe('homebridgeAPI', () => {
 
       expect(warnings).not.toHaveBeenCalled()
       warnings.mockRestore()
+    })
+  })
+
+  describe('the event methods of the public API type', () => {
+    // `api` is typed as the public `API` here on purpose: this must compile without a cast.
+    it('lets a plugin listen once and remove a listener', () => {
+      const api: API = new HomebridgeAPI()
+      const launched = vi.fn()
+      const removed = vi.fn()
+      const alsoRemoved = vi.fn()
+
+      api.once('didFinishLaunching', launched)
+      api.on('shutdown', removed)
+      api.on('didFinishLaunching', alsoRemoved)
+      api.off('shutdown', removed)
+      api.removeListener('didFinishLaunching', alsoRemoved)
+
+      const homebridgeApi = api as HomebridgeAPI
+      homebridgeApi.signalFinished()
+      homebridgeApi.signalFinished()
+      homebridgeApi.emit('shutdown')
+
+      expect(launched).toHaveBeenCalledOnce()
+      expect(removed).not.toHaveBeenCalled()
+      expect(alsoRemoved).not.toHaveBeenCalled()
     })
   })
 

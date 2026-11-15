@@ -659,7 +659,25 @@ export interface API {
    */
   isMatterExternalsOnly: () => boolean
 
+  /**
+   * Listen for an event of Homebridge: `didFinishLaunching` or `shutdown` (see {@link APIEvent}).
+   */
   on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
+
+  /**
+   * Like {@link on}, but the listener is called at most once.
+   */
+  once: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
+
+  /**
+   * Remove a listener that was added with {@link on} or {@link once}.
+   */
+  off: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
+
+  /**
+   * The same as {@link off}.
+   */
+  removeListener: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
