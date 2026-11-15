@@ -6,9 +6,7 @@
 
 import { LevelControlServer } from '@matter/main/behaviors/level-control'
 import { LevelControl } from '@matter/main/clusters/level-control'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 export class HomebridgeLevelControlServer extends LevelControlServer {
@@ -87,115 +85,55 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler, falling back to the handler of the twin command
-      await this.runHandler(['moveToLevel', 'moveToLevelWithOnOff'], request)
+    // Execute user handler, falling back to the handler of the twin command
+    await this.runHandler(['moveToLevel', 'moveToLevelWithOnOff'], request)
 
-      // Only reached if handler succeeded - update Matter state
-      await super.moveToLevel(request)
+    // Only reached if handler succeeded - update Matter state
+    await super.moveToLevel(request)
 
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'levelControl', {
-        currentLevel: request.level,
-      })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set level: ${message}`, Status.Failure)
-    }
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'levelControl', {
+      currentLevel: request.level,
+    })
   }
 
   /**
    * Handle move command
    */
   override async move(request: LevelControl.MoveRequest): Promise<void> {
-    try {
-      // Execute user handler, falling back to the handler of the twin command
-      await this.runHandler(['move', 'moveWithOnOff'], request, {
-        handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
-        request: () => this.moveTarget(request),
-      })
+    // Execute user handler, falling back to the handler of the twin command
+    await this.runHandler(['move', 'moveWithOnOff'], request, {
+      handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
+      request: () => this.moveTarget(request),
+    })
 
-      // Only reached if handler succeeded
-      await super.move(request)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to move level: ${message}`, Status.Failure)
-    }
+    // Only reached if handler succeeded
+    await super.move(request)
   }
 
   /**
    * Handle step command
    */
   override async step(request: LevelControl.StepRequest): Promise<void> {
-    try {
-      // Execute user handler, falling back to the handler of the twin command
-      await this.runHandler(['step', 'stepWithOnOff'], request, {
-        handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
-        request: () => this.stepTarget(request),
-      })
+    // Execute user handler, falling back to the handler of the twin command
+    await this.runHandler(['step', 'stepWithOnOff'], request, {
+      handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
+      request: () => this.stepTarget(request),
+    })
 
-      // Only reached if handler succeeded
-      await super.step(request)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to step level: ${message}`, Status.Failure)
-    }
+    // Only reached if handler succeeded
+    await super.step(request)
   }
 
   /**
    * Handle stop command
    */
   override async stop(request: LevelControl.StopRequest): Promise<void> {
-    try {
-      // Execute user handler, falling back to the handler of the twin command
-      await this.runHandler(['stop', 'stopWithOnOff'], request)
+    // Execute user handler, falling back to the handler of the twin command
+    await this.runHandler(['stop', 'stopWithOnOff'], request)
 
-      // Only reached if handler succeeded
-      await super.stop(request)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to stop level change: ${message}`, Status.Failure)
-    }
+    // Only reached if handler succeeded
+    await super.stop(request)
   }
 
   /**
@@ -205,126 +143,66 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler, falling back to the handler of the twin command
-      await this.runHandler(['moveToLevelWithOnOff', 'moveToLevel'], request)
+    // Execute user handler, falling back to the handler of the twin command
+    await this.runHandler(['moveToLevelWithOnOff', 'moveToLevel'], request)
 
-      // Only reached if handler succeeded - update Matter state.
-      //
-      // This also turns the OnOff cluster on or off where the device type
-      // couples them: matter.js does that itself, from inside this command's
-      // transaction, and its rule is `off` only when the target is minLevel
-      // (deferred to commit) rather than anything at or below zero.
-      //
-      // ⚠️ Do NOT write the OnOff cluster here as well. `endpoint.set()` opens
-      // a SECOND transaction, and the one running this command already holds
-      // the lock on `onOff.state` - matter.js then throws
-      // "Cannot lock <endpoint>.onOff.state synchronously" and the whole
-      // command fails, after the plugin's handler has already run (#3993).
-      // HomebridgeOnOffServer reports the coupled change to the cache instead.
-      await super.moveToLevelWithOnOff(request)
+    // Only reached if handler succeeded - update Matter state.
+    //
+    // This also turns the OnOff cluster on or off where the device type
+    // couples them: matter.js does that itself, from inside this command's
+    // transaction, and its rule is `off` only when the target is minLevel
+    // (deferred to commit) rather than anything at or below zero.
+    //
+    // ⚠️ Do NOT write the OnOff cluster here as well. `endpoint.set()` opens
+    // a SECOND transaction, and the one running this command already holds
+    // the lock on `onOff.state` - matter.js then throws
+    // "Cannot lock <endpoint>.onOff.state synchronously" and the whole
+    // command fails, after the plugin's handler has already run (#3993).
+    // HomebridgeOnOffServer reports the coupled change to the cache instead.
+    await super.moveToLevelWithOnOff(request)
 
-      // Sync level state to cache
-      registry.syncStateToCache(endpointId, 'levelControl', {
-        currentLevel: request.level,
-      })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set level with on/off: ${message}`, Status.Failure)
-    }
+    // Sync level state to cache
+    registry.syncStateToCache(endpointId, 'levelControl', {
+      currentLevel: request.level,
+    })
   }
 
   /**
    * Handle moveWithOnOff command
    */
   override async moveWithOnOff(request: LevelControl.MoveRequest): Promise<void> {
-    try {
-      // Execute user handler, falling back to the plain move handler
-      await this.runHandler(['moveWithOnOff', 'move'], request, {
-        handlerNames: ['moveToLevelWithOnOff', 'moveToLevel'],
-        request: () => this.moveTarget(request),
-      })
+    // Execute user handler, falling back to the plain move handler
+    await this.runHandler(['moveWithOnOff', 'move'], request, {
+      handlerNames: ['moveToLevelWithOnOff', 'moveToLevel'],
+      request: () => this.moveTarget(request),
+    })
 
-      // Only reached if handler succeeded
-      await super.moveWithOnOff(request)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to move level with on/off: ${message}`, Status.Failure)
-    }
+    // Only reached if handler succeeded
+    await super.moveWithOnOff(request)
   }
 
   /**
    * Handle stepWithOnOff command
    */
   override async stepWithOnOff(request: LevelControl.StepRequest): Promise<void> {
-    try {
-      // Execute user handler, falling back to the plain step handler
-      await this.runHandler(['stepWithOnOff', 'step'], request, {
-        handlerNames: ['moveToLevelWithOnOff', 'moveToLevel'],
-        request: () => this.stepTarget(request),
-      })
+    // Execute user handler, falling back to the plain step handler
+    await this.runHandler(['stepWithOnOff', 'step'], request, {
+      handlerNames: ['moveToLevelWithOnOff', 'moveToLevel'],
+      request: () => this.stepTarget(request),
+    })
 
-      // Only reached if handler succeeded
-      await super.stepWithOnOff(request)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to step level with on/off: ${message}`, Status.Failure)
-    }
+    // Only reached if handler succeeded
+    await super.stepWithOnOff(request)
   }
 
   /**
    * Handle stopWithOnOff command
    */
   override async stopWithOnOff(request: LevelControl.StopRequest): Promise<void> {
-    try {
-      // Execute user handler, falling back to the plain stop handler
-      await this.runHandler(['stopWithOnOff', 'stop'], request)
+    // Execute user handler, falling back to the plain stop handler
+    await this.runHandler(['stopWithOnOff', 'stop'], request)
 
-      // Only reached if handler succeeded
-      await super.stopWithOnOff(request)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to stop level change with on/off: ${message}`, Status.Failure)
-    }
+    // Only reached if handler succeeded
+    await super.stopWithOnOff(request)
   }
 }
