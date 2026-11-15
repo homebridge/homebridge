@@ -76,6 +76,64 @@ describe('childBridgeFork — messages from the parent', () => {
 
     expect(() => registered.message[0](message)).not.toThrow()
   })
+
+  // Each id the parent sends goes to one method of the fork, with its data.
+  it.each([
+    [
+      'load',
+      'loadPlugin',
+      { type: 'platform' },
+    ],
+    ['start', 'startBridge', undefined],
+    [
+      'portAllocated',
+      'handleExternalResponse',
+      { username: '0E:DC:5D:BE:D6:75', port: 50001 },
+    ],
+    ['startMatterMonitoring', 'handleStartMatterMonitoring', undefined],
+    ['stopMatterMonitoring', 'handleStopMatterMonitoring', undefined],
+    ['getMatterAccessories', 'handleGetMatterAccessories', undefined],
+    [
+      'getMatterAccessoryInfo',
+      'handleGetMatterAccessoryInfo',
+      { uuid: 'u', correlationId: 'c' },
+    ],
+    [
+      'matterAccessoryControl',
+      'handleMatterAccessoryControl',
+      {
+        uuid: 'u',
+        cluster: 'onOff',
+        attributes: { onOff: true },
+      },
+    ],
+  ] as const)('hands a "%s" message to %s', async (id, method, data) => {
+    vi.resetModules()
+    const fork = await import('./childBridgeFork.js')
+    const handler = vi.spyOn(fork.ChildBridgeFork.prototype, method).mockImplementation((() => Promise.resolve()) as never)
+
+    registered.message[0]({ id, data })
+
+    expect(handler.mock.calls).toEqual([
+      data === undefined
+        ? []
+        : [data],
+    ])
+    handler.mockRestore()
+  })
+
+  it('warns about a message with an id it does not know', async () => {
+    vi.resetModules()
+    await import('./childBridgeFork.js')
+    // the logger module the freshly imported fork uses
+    const fresh = await import('./logger.js')
+    const warn = vi.spyOn(fresh.Logger.internal, 'warn').mockImplementation(() => {})
+
+    registered.message[0]({ id: 'somethingNew' })
+
+    expect(warn).toHaveBeenCalledWith('Received unknown message type from parent process: somethingNew')
+    warn.mockRestore()
+  })
 })
 
 describe('childBridgeFork — ending the process', () => {
@@ -388,42 +446,6 @@ describe('childBridgeFork - matter.js that can not be loaded', () => {
   })
 })
 
-describe('childBridgeFork - Matter Accessory Guard', () => {
-  it('should not have matterManager when type is ACCESSORY even with matter config', () => {
-    const fork = new ChildBridgeFork()
-    ;(fork as any).type = PluginType.ACCESSORY
-    ;(fork as any).bridgeConfig = {
-      username: '0E:DC:5D:BE:D6:75',
-      name: 'Test Accessory Bridge',
-      port: 51826,
-      matter: { enabled: true },
-    }
-
-    // Verify initial state - matterManager should not be set
-    expect((fork as any).matterManager).toBeUndefined()
-
-    // The guard in startBridge() checks: this.bridgeConfig.matter && this.type === PluginType.ACCESSORY
-    // Verify the condition is true (guard would fire)
-    expect((fork as any).bridgeConfig.matter).toBeTruthy()
-    expect((fork as any).type).toBe(PluginType.ACCESSORY)
-  })
-
-  it('should allow matter config for platform type child bridges', () => {
-    const fork = new ChildBridgeFork()
-    ;(fork as any).type = PluginType.PLATFORM
-    ;(fork as any).bridgeConfig = {
-      username: '0E:DC:5D:BE:D6:75',
-      name: 'Test Platform Bridge',
-      port: 51826,
-      matter: { enabled: true },
-    }
-
-    // The guard should NOT fire for platform type
-    expect((fork as any).bridgeConfig.matter).toBeTruthy()
-    expect((fork as any).type).not.toBe(PluginType.ACCESSORY)
-  })
-})
-
 describe('childBridgeFork - startBridge with accessory plugins', () => {
   let storageDir: string
 
@@ -474,6 +496,24 @@ describe('childBridgeFork - startBridge with accessory plugins', () => {
 
     return { fork, sendMessage }
   }
+
+  // Matter is not supported on an accessory child bridge. loadPlugin() never
+  // loads the Matter API for one, so startBridge() must warn and go on with
+  // HAP only.
+  it('warns about a matter block, starts no Matter manager, and comes online', async () => {
+    const { fork, sendMessage } = buildAccessoryFork([
+      { accessory: 'ExampleAccessory', name: 'Lamp' },
+    ])
+    ;(fork as any).bridgeConfig.matter = { enabled: true }
+    const warn = vi.spyOn(Logger.withPrefix('Matter/ChildManager'), 'warn').mockImplementation(() => {})
+
+    await fork.startBridge()
+
+    expect(warn).toHaveBeenCalledWith('Matter is not supported on accessory child bridges. Ignoring matter configuration.')
+    expect((fork as any).matterManager).toBeUndefined()
+    expect((fork as any).matterMessageHandler).toBeUndefined()
+    expect(sendMessage).toHaveBeenCalledWith(ChildProcessMessageEventType.ONLINE)
+  })
 
   it('skips an accessory with no name and still loads the others and comes online', async () => {
     const { fork, sendMessage } = buildAccessoryFork([
