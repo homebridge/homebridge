@@ -377,6 +377,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenLastCalledWith(
           InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
           matterAccessories,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
 
@@ -407,6 +408,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenLastCalledWith(
           InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
           matterAccessories,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
 
@@ -427,6 +429,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenLastCalledWith(
           InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
           [accessory],
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
     })
@@ -730,6 +733,7 @@ describe('homebridgeAPI', () => {
           cluster,
           attributes,
           undefined, // no partId
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
 
@@ -747,6 +751,7 @@ describe('homebridgeAPI', () => {
           cluster,
           attributes,
           partId,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
 
@@ -761,6 +766,7 @@ describe('homebridgeAPI', () => {
           matter.clusterNames.OnOff,
           { onOff: true },
           undefined,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
 
         // Update LevelControl cluster
@@ -771,6 +777,7 @@ describe('homebridgeAPI', () => {
           matter.clusterNames.LevelControl,
           { currentLevel: 200 },
           undefined,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
     })

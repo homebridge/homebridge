@@ -88,10 +88,11 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     }))
   }
 
-  private readonly _onUpdateMatterPlatformAccessories = (accessories: MatterAccessory[]): void => {
-    this.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
+  private readonly _onUpdateMatterPlatformAccessories = (accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
+    const work = this.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
       log.error('Failed to update Matter platform accessories:', error)
     })
+    track?.(work)
   }
 
   private readonly _onUnregisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
@@ -106,18 +107,25 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     }))
   }
 
-  private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): void => {
-    this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
+  private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, track?: MatterWorkTracker): void => {
+    const work = this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
       // In externalsOnly mode the real handler is attached but the bridge node
       // never started, so a state update for a non-external accessory is an
       // expected "wrong target", not a failure. Mirror the message-handler path
       // and log it at debug instead of surfacing a red error line.
       if (error instanceof MatterAccessoryNotOnBridgeError) {
-        log.debug(`Ignoring Matter state update for ${uuid}: accessory is not on this bridge`)
+        // Without a bridge node that is the normal case. With one, the plugin
+        // has updated an accessory it never registered (or has unregistered).
+        if (this.externalsOnlyMode) {
+          log.debug(`Ignoring Matter state update for ${uuid}: accessory is not on this bridge`)
+        } else {
+          log.warn(`Ignoring Matter state update for ${uuid} (${cluster}): no accessory with this UUID is registered on this bridge`)
+        }
         return
       }
       log.error(`Failed to update Matter accessory state for ${uuid}:`, error)
     })
+    track?.(work)
   }
 
   // Stored references so listeners can be removed in teardown()

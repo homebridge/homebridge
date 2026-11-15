@@ -87,6 +87,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): give every handler the context the docs promise, with the accessory and the part
 - fix: give a platform that only does matter its cached accessories back, and warn on a wrong name
 - fix(matter): report a bridge whose matter server failed to start as failed, not as still starting
+- fix(matter): resolve updateAccessoryState and updatePlatformAccessories when the update is done
 
 ### Homebridge Dependencies
 
