@@ -647,7 +647,12 @@ export interface API {
   isHapExternalsOnly: () => boolean
 
   /**
-   * Check if Matter is available in this version of Homebridge
+   * Check if Matter is available in this version of Homebridge.
+   *
+   * This is always true on Homebridge v2 (it only checks that the version is >= 2.0.0-alpha.0).
+   * It does not say that Matter is switched on for this bridge: use {@link isMatterEnabled} for that.
+   * A plugin that also runs on Homebridge v1 must first check that the method exists
+   * (`api.isMatterAvailable?.()`).
    * @returns true if Homebridge version is >= 2.0.0-alpha.0
    */
   isMatterAvailable: () => boolean
@@ -1013,7 +1018,8 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   /**
-   * Check if Matter is available in this version of Homebridge
+   * Check if Matter is available in this version of Homebridge (always true on v2)
+   * @see API.isMatterAvailable
    * @returns true if Homebridge version satisfies >= 2.0.0-alpha.0
    */
   isMatterAvailable(): boolean {
