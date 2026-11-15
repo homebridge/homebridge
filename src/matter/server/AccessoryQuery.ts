@@ -54,6 +54,41 @@ function withFeatureMaps(
   return enriched
 }
 
+/** The fields of the public MatterAccessory type. */
+const PUBLIC_ACCESSORY_FIELDS = [
+  'UUID',
+  'displayName',
+  'deviceType',
+  'features',
+  'serialNumber',
+  'manufacturer',
+  'model',
+  'firmwareRevision',
+  'hardwareRevision',
+  'softwareVersion',
+  'context',
+  'clusters',
+  'handlers',
+  'getState',
+  'parts',
+] as const satisfies ReadonlyArray<keyof MatterAccessory>
+
+/**
+ * The public view of an accessory record: the fields of MatterAccessory and
+ * nothing else. The record also holds the live matter.js endpoints (its own
+ * and one per part), which are not for a caller to hold and which can not be
+ * written as JSON (they refer back to themselves).
+ */
+function toPublicAccessory(accessory: InternalMatterAccessory): MatterAccessory {
+  const publicAccessory: Partial<Record<keyof MatterAccessory, unknown>> = {}
+  for (const field of PUBLIC_ACCESSORY_FIELDS) {
+    if (accessory[field] !== undefined) {
+      publicAccessory[field] = accessory[field]
+    }
+  }
+  return publicAccessory as unknown as MatterAccessory
+}
+
 export class AccessoryQuery {
   constructor(
     private readonly accessories: Map<string, InternalMatterAccessory>,
@@ -64,11 +99,7 @@ export class AccessoryQuery {
    * Get all registered accessories (Plugin API)
    */
   getAccessories(): MatterAccessory[] {
-    return Array.from(this.accessories.values(), (acc) => {
-      // eslint-disable-next-line unused-imports/no-unused-vars
-      const { endpoint, registered, ...publicAccessory } = acc
-      return publicAccessory
-    })
+    return Array.from(this.accessories.values(), toPublicAccessory)
   }
 
   /**
@@ -76,13 +107,7 @@ export class AccessoryQuery {
    */
   getAccessory(uuid: string): MatterAccessory | undefined {
     const accessory = this.accessories.get(uuid)
-    if (!accessory) {
-      return undefined
-    }
-
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    const { endpoint, registered, ...publicAccessory } = accessory
-    return publicAccessory
+    return accessory && toPublicAccessory(accessory)
   }
 
   /**

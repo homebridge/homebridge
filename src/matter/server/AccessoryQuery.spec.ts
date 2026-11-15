@@ -188,3 +188,70 @@ describe('accessory information for the UI payload', () => {
     expect(entry.firmwareRevision).toBeUndefined()
   })
 })
+
+describe('the accessory handed out by getAccessory() and getAccessories()', () => {
+  // A matter.js endpoint refers back to itself, like this one
+  const liveEndpoint = (): Record<string, unknown> => {
+    const endpoint: Record<string, unknown> = { state: {} }
+    endpoint.owner = endpoint
+    return endpoint
+  }
+  const record = (): InternalMatterAccessory => makeAccessory({
+    context: { room: 'hall' },
+    parts: [
+      {
+        id: 'one',
+        deviceType: { name: 'OnOffLightDevice' },
+        clusters: {},
+      },
+    ],
+    endpoint: liveEndpoint(),
+    _parts: [
+      {
+        id: 'one',
+        deviceType: { name: 'OnOffLightDevice' },
+        clusters: {},
+        endpoint: liveEndpoint(),
+      },
+    ],
+    _eventEmitter: {},
+    _restoredFromCache: false,
+    _associatedPlugin: 'homebridge-test',
+    _associatedPlatform: 'Test',
+  } as unknown as Partial<InternalMatterAccessory>)
+
+  it('has the public fields only, with no live endpoint anywhere in it', () => {
+    const query = new AccessoryQuery(new Map([
+      [
+        'uuid-1',
+        record(),
+      ],
+    ]), () => null)
+
+    for (const accessory of [
+      query.getAccessory('uuid-1')!,
+      query.getAccessories()[0],
+    ]) {
+      expect(Object.keys(accessory).sort()).toEqual([
+        'UUID',
+        'clusters',
+        'context',
+        'deviceType',
+        'displayName',
+        'manufacturer',
+        'model',
+        'parts',
+        'serialNumber',
+      ])
+      // it can be written as JSON: nothing in it refers back to itself
+      expect(JSON.parse(JSON.stringify(accessory))).toMatchObject({
+        UUID: 'uuid-1',
+        context: { room: 'hall' },
+      })
+    }
+  })
+
+  it('is undefined for an accessory that is not registered', () => {
+    expect(new AccessoryQuery(new Map(), () => null).getAccessory('nope')).toBeUndefined()
+  })
+})
