@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/homebridge/homebridge.git"
+    "url": "git+https://github.com/homebridge/homebridge.git"
   },
   "bugs": {
     "url": "https://github.com/homebridge/homebridge/issues"
@@ -31,10 +31,6 @@
       ]
     }
   },
-  "maintainers": [
-    "oznu <dev@oz.nu>",
-    "Andreas Bauer <mail@anderl-bauer.de>"
-  ],
   "bin": {
     "homebridge": "bin/homebridge.js"
   },

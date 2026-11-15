@@ -241,6 +241,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): find the handler registry of an endpoint in one shared helper
 - fix(matter): erase what matter.js stored for an accessory when a plugin unregisters it
 - fix(matter): refuse a vacuum pause, resume or go home in a state matter does not allow it in
+- chore: use an https repository url, drop the stale maintainers field and correct the labeler job
 
 ### Homebridge Dependencies
 
