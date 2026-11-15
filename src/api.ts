@@ -787,6 +787,9 @@ export class HomebridgeAPI extends EventEmitter implements API {
     }
     if (!this._matterAPILoadPromise) {
       this._matterAPILoadPromise = (async () => {
+        // Before matter.js itself is loaded: it reads these switches once, then
+        const { configureMatterJsProcess } = await import('./matter/processConfig.js')
+        await configureMatterJsProcess()
         const { MatterAPIImpl } = await import('./matter/MatterAPIImpl.js')
         this._matterAPI = new MatterAPIImpl(this)
         // Mark Matter as enabled here, before plugins initialise. The later
