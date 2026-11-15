@@ -36,6 +36,14 @@ describe('homebridgeLevelControlServer', () => {
       get: () => mockEndpoint,
       configurable: true,
     })
+    // A level control without the on/off coupling, so no command is ignored
+    // for a device that is off (realNode.spec.ts covers that on a real light)
+    Object.defineProperty(behavior, 'state', {
+      value: { options: {} },
+    })
+    Object.defineProperty(behavior, 'features', {
+      value: { onOff: false },
+    })
 
     // Mock super methods to prevent actual execution
     vi.spyOn(Object.getPrototypeOf(HomebridgeLevelControlServer.prototype), 'moveToLevel').mockReturnValue(undefined)
@@ -67,7 +75,7 @@ describe('homebridgeLevelControlServer', () => {
       )
     })
 
-    it('should sync currentLevel to cache', async () => {
+    it('leaves the cache to the level-changed reaction, which reports the level matter.js stored', async () => {
       const request = {
         level: 200,
         transitionTime: 10,
@@ -76,41 +84,9 @@ describe('homebridgeLevelControlServer', () => {
       }
 
       await behavior.moveToLevel(request)
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
 
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
-        testEndpointId,
-        'levelControl',
-        { currentLevel: 200 },
-      )
-    })
-
-    it('should handle level 0', async () => {
-      const request = {
-        level: 0,
-        transitionTime: 0,
-        optionsMask: {},
-        optionsOverride: {},
-      }
-
-      await behavior.moveToLevel(request)
-
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
-        testEndpointId,
-        'levelControl',
-        { currentLevel: 0 },
-      )
-    })
-
-    it('should handle level 254 (max)', async () => {
-      const request = {
-        level: 254,
-        transitionTime: 0,
-        optionsMask: {},
-        optionsOverride: {},
-      }
-
-      await behavior.moveToLevel(request)
-
+      ;(behavior as any).syncLevelToCache(254)
       expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
         testEndpointId,
         'levelControl',
@@ -282,23 +258,6 @@ describe('homebridgeLevelControlServer', () => {
       )
     })
 
-    it('should sync currentLevel to cache', async () => {
-      const request = {
-        level: 180,
-        transitionTime: 10,
-        optionsMask: {},
-        optionsOverride: {},
-      }
-
-      await behavior.moveToLevelWithOnOff(request)
-
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
-        testEndpointId,
-        'levelControl',
-        { currentLevel: 180 },
-      )
-    })
-
     /**
      * ⚠️ #3993. This used to write the OnOff cluster itself, through
      * `endpoint.set()`. That opens a second transaction, and the one running
@@ -325,7 +284,7 @@ describe('homebridgeLevelControlServer', () => {
       expect(mockEndpoint.set).not.toHaveBeenCalled()
     })
 
-    it('syncs only its own cluster, leaving onOff to the cluster that owns it', async () => {
+    it('writes no cache itself, leaving onOff and the level to the reactions of their clusters', async () => {
       const request = {
         level: 180,
         transitionTime: 10,
@@ -335,12 +294,7 @@ describe('homebridgeLevelControlServer', () => {
 
       await behavior.moveToLevelWithOnOff(request)
 
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledTimes(1)
-      expect(mockRegistry.syncStateToCache).toHaveBeenCalledWith(
-        testEndpointId,
-        'levelControl',
-        { currentLevel: 180 },
-      )
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
     it('should pass a handler error on to matter.js', async () => {

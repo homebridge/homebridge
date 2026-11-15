@@ -141,6 +141,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - test: cover storage, mac addresses, ports and the parts of a platform accessory that had no test
 - fix(matter): refuse ev charger diagnostics on an enabled charger before calling the plugin
 - fix(matter): wait for the open or close handler of a blind with no position on a percentage command
+- fix(matter): skip the level handler for a command matter ignores, and cache the level it stored
 
 ### Homebridge Dependencies
 

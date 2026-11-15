@@ -5,6 +5,7 @@
  */
 
 import { LevelControlServer } from '@matter/main/behaviors/level-control'
+import { OnOffServer } from '@matter/main/behaviors/on-off'
 import { LevelControl } from '@matter/main/clusters/level-control'
 
 import { getRegistryManager } from './EndpointContext.js'
@@ -16,6 +17,37 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    */
   private getRegistry() {
     return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
+  }
+
+  override async initialize(): Promise<void> {
+    await super.initialize()
+
+    // Report every change of the level, not only the level a command asked
+    // for. matter.js keeps the level within the minimum and maximum, ignores
+    // some commands while the light is off, and moves to the "on level" when
+    // the light turns on - so the level it stored is the one to report.
+    this.reactTo(this.events.currentLevel$Changed, this.syncLevelToCache)
+  }
+
+  /** Mirror the level matter.js stored into the accessory cache, whatever changed it. */
+  private syncLevelToCache(currentLevel: number | null): void {
+    this.getRegistry().syncStateToCache(this.endpoint.id, 'levelControl', { currentLevel })
+  }
+
+  /**
+   * Whether matter.js is going to ignore this command: Matter says a level
+   * command without on/off does nothing while the device is off, unless the
+   * ExecuteIfOff option is set (in the request, or else in the options
+   * attribute). The plugin is not told about a command that changes nothing.
+   */
+  private ignoredWhileOff(request: { optionsMask: LevelControl.Options, optionsOverride: LevelControl.Options }): boolean {
+    const executeIfOff = request.optionsMask.executeIfOff
+      ? request.optionsOverride.executeIfOff
+      : this.state.options?.executeIfOff
+    if (executeIfOff || !(this.features as { onOff?: boolean }).onOff || !this.agent.has(OnOffServer)) {
+      return false
+    }
+    return !this.agent.get(OnOffServer).state.onOff
   }
 
   /**
@@ -85,30 +117,28 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    * Handle moveToLevel command
    */
   override async moveToLevel(request: LevelControl.MoveToLevelRequest): Promise<void> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
     // Execute user handler, falling back to the handler of the twin command
-    await this.runHandler(['moveToLevel', 'moveToLevelWithOnOff'], request)
+    if (!this.ignoredWhileOff(request)) {
+      await this.runHandler(['moveToLevel', 'moveToLevelWithOnOff'], request)
+    }
 
-    // Only reached if handler succeeded - update Matter state
+    // Only reached if handler succeeded - update Matter state. The cache
+    // follows from syncLevelToCache, with the level matter.js stored.
     await super.moveToLevel(request)
-
-    // Sync state to cache
-    registry.syncStateToCache(endpointId, 'levelControl', {
-      currentLevel: request.level,
-    })
   }
 
   /**
    * Handle move command
    */
   override async move(request: LevelControl.MoveRequest): Promise<void> {
-    // Execute user handler, falling back to the handler of the twin command
-    await this.runHandler(['move', 'moveWithOnOff'], request, {
-      handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
-      request: () => this.moveTarget(request),
-    })
+    // Execute user handler, falling back to the handler of the twin command.
+    // matter.js refuses a rate of 0, so the plugin is not told about that one.
+    if (request.rate !== 0 && !this.ignoredWhileOff(request)) {
+      await this.runHandler(['move', 'moveWithOnOff'], request, {
+        handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
+        request: () => this.moveTarget(request),
+      })
+    }
 
     // Only reached if handler succeeded
     await super.move(request)
@@ -119,10 +149,12 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    */
   override async step(request: LevelControl.StepRequest): Promise<void> {
     // Execute user handler, falling back to the handler of the twin command
-    await this.runHandler(['step', 'stepWithOnOff'], request, {
-      handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
-      request: () => this.stepTarget(request),
-    })
+    if (!this.ignoredWhileOff(request)) {
+      await this.runHandler(['step', 'stepWithOnOff'], request, {
+        handlerNames: ['moveToLevel', 'moveToLevelWithOnOff'],
+        request: () => this.stepTarget(request),
+      })
+    }
 
     // Only reached if handler succeeded
     await super.step(request)
@@ -133,7 +165,9 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    */
   override async stop(request: LevelControl.StopRequest): Promise<void> {
     // Execute user handler, falling back to the handler of the twin command
-    await this.runHandler(['stop', 'stopWithOnOff'], request)
+    if (!this.ignoredWhileOff(request)) {
+      await this.runHandler(['stop', 'stopWithOnOff'], request)
+    }
 
     // Only reached if handler succeeded
     await super.stop(request)
@@ -143,9 +177,6 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
    * Handle moveToLevelWithOnOff command
    */
   override async moveToLevelWithOnOff(request: LevelControl.MoveToLevelRequest): Promise<void> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
     // Execute user handler, falling back to the handler of the twin command
     await this.runHandler(['moveToLevelWithOnOff', 'moveToLevel'], request)
 
@@ -162,23 +193,22 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
     // "Cannot lock <endpoint>.onOff.state synchronously" and the whole
     // command fails, after the plugin's handler has already run (#3993).
     // HomebridgeOnOffServer reports the coupled change to the cache instead.
+    // The level cache follows from syncLevelToCache, with the level matter.js stored.
     await super.moveToLevelWithOnOff(request)
-
-    // Sync level state to cache
-    registry.syncStateToCache(endpointId, 'levelControl', {
-      currentLevel: request.level,
-    })
   }
 
   /**
    * Handle moveWithOnOff command
    */
   override async moveWithOnOff(request: LevelControl.MoveRequest): Promise<void> {
-    // Execute user handler, falling back to the plain move handler
-    await this.runHandler(['moveWithOnOff', 'move'], request, {
-      handlerNames: ['moveToLevelWithOnOff', 'moveToLevel'],
-      request: () => this.moveTarget(request),
-    })
+    // Execute user handler, falling back to the plain move handler.
+    // matter.js refuses a rate of 0, so the plugin is not told about that one.
+    if (request.rate !== 0) {
+      await this.runHandler(['moveWithOnOff', 'move'], request, {
+        handlerNames: ['moveToLevelWithOnOff', 'moveToLevel'],
+        request: () => this.moveTarget(request),
+      })
+    }
 
     // Only reached if handler succeeded
     await super.moveWithOnOff(request)

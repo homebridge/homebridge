@@ -1818,3 +1818,127 @@ describe('a window covering that can only open and close, on a real node', () =>
       .toThrow('The windowCovering.downOrClose handler failed: motor jammed')
   })
 })
+
+describe('level commands matter.js ignores or adjusts, on a real node', () => {
+  const options = { optionsMask: {}, optionsOverride: {} }
+
+  /** A dimmable light at level 100, with a handler that records the levels it is told. */
+  async function light(onOff: boolean, levelControl: Record<string, unknown> = {}) {
+    const levels: number[] = []
+    const calls: string[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff },
+        levelControl: {
+          currentLevel: 100,
+          minLevel: 1,
+          maxLevel: 254,
+          ...levelControl,
+        },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+          off: async () => {},
+        },
+        levelControl: {
+          moveToLevel: async (request: { level: number }) => {
+            levels.push(request.level)
+          },
+          moveToLevelWithOnOff: async (request: { level: number }) => {
+            levels.push(request.level)
+          },
+          move: async () => {
+            calls.push('move')
+          },
+          step: async () => {
+            calls.push('step')
+          },
+          stop: async () => {
+            calls.push('stop')
+          },
+        },
+      },
+    })
+    const cachedLevel = () => accessories.get('test-uuid')?.clusters?.levelControl?.currentLevel
+    return { endpoint, levels, calls, cachedLevel }
+  }
+
+  it('does not tell the plugin about a level command for a light that is off', async () => {
+    const { endpoint, levels, calls, cachedLevel } = await light(false)
+
+    await invoke(endpoint, 'levelControl', 'moveToLevel', { level: 200, transitionTime: 0, ...options })
+    await invoke(endpoint, 'levelControl', 'step', {
+      stepMode: 0,
+      stepSize: 40,
+      transitionTime: 0,
+      ...options,
+    })
+    await invoke(endpoint, 'levelControl', 'move', { moveMode: 0, rate: null, ...options })
+    await invoke(endpoint, 'levelControl', 'stop', options)
+
+    expect(levels).toEqual([])
+    expect(calls).toEqual([])
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(100)
+    expect(cachedLevel()).toBe(100)
+  })
+
+  it('tells the plugin about a level command for a light that is off when the request says to run it anyway', async () => {
+    const { endpoint, levels, cachedLevel } = await light(false)
+
+    await invoke(endpoint, 'levelControl', 'moveToLevel', {
+      level: 200,
+      transitionTime: 0,
+      optionsMask: { executeIfOff: true },
+      optionsOverride: { executeIfOff: true },
+    })
+
+    expect(levels).toEqual([200])
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(200)
+    expect(cachedLevel()).toBe(200)
+  })
+
+  it('caches the level matter.js stored, not the level that was asked for', async () => {
+    const { endpoint, cachedLevel } = await light(true)
+
+    await invoke(endpoint, 'levelControl', 'moveToLevelWithOnOff', { level: 0, transitionTime: 0, ...options })
+
+    // a light can not go below its minimum level
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(1)
+    expect(cachedLevel()).toBe(1)
+  })
+
+  it('caches the level a step ended at', async () => {
+    const { endpoint, cachedLevel } = await light(true)
+
+    await invoke(endpoint, 'levelControl', 'step', {
+      stepMode: 0,
+      stepSize: 40,
+      transitionTime: 0,
+      ...options,
+    })
+
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(140)
+    expect(cachedLevel()).toBe(140)
+  })
+
+  it('caches the level a light goes to when it turns on', async () => {
+    const { endpoint, cachedLevel } = await light(false, { onLevel: 180 })
+
+    await invoke(endpoint, 'onOff', 'on')
+    await settle()
+
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(180)
+    expect(cachedLevel()).toBe(180)
+  })
+
+  it('refuses a move at rate 0 without calling the plugin', async () => {
+    const { endpoint, calls } = await light(true)
+
+    await expect(invoke(endpoint, 'levelControl', 'move', { moveMode: 0, rate: 0, ...options })).rejects.toThrow('Illegal move rate of 0')
+    await expect(invoke(endpoint, 'levelControl', 'moveWithOnOff', { moveMode: 0, rate: 0, ...options })).rejects.toThrow('Illegal move rate of 0')
+
+    expect(calls).toEqual([])
+  })
+})
