@@ -81,6 +81,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): remove the handlers and part mappings a failed registration left behind
 - fix(matter): register the other accessories of a call when the bridge refuses one of them
 - fix(matter): apply an update that comes straight after a new accessory is registered
+- fix(matter): take only the name, device information and context from updatePlatformAccessories
 
 ### Homebridge Dependencies
 

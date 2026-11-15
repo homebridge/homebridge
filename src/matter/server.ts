@@ -39,6 +39,18 @@ import {
 } from './types.js'
 
 const log = Logger.withPrefix('Matter/Server')
+
+/** The fields `updatePlatformAccessories` takes from the plugin's object. */
+const UPDATABLE_ACCESSORY_FIELDS = [
+  'displayName',
+  'context',
+  'manufacturer',
+  'model',
+  'serialNumber',
+  'firmwareRevision',
+  'hardwareRevision',
+  'softwareVersion',
+] as const satisfies readonly (keyof MatterAccessory)[]
 const NON_HEX_RE = /[^A-F0-9]/gi
 const HEX_PAIR_RE = /.{1,2}/g
 
@@ -237,24 +249,27 @@ export class MatterServer extends EventEmitter {
     }
 
     for (const accessory of accessories) {
-      const internal = accessory as InternalMatterAccessory
-
       if (!this.accessories.has(accessory.UUID)) {
         log.warn(`Cannot update Matter accessory ${accessory.UUID} - not registered in current session`)
         continue
       }
 
+      // An update is for the name, the device information and the context,
+      // as it is for a HAP accessory. Nothing else is taken: a plugin often
+      // passes the object it was given in configureMatterAccessory, which has
+      // the cache's plain copy of the device type, parts with no handlers and
+      // the state of the last save. Those replaced the live ones, and the
+      // next save wrote the damage to the cache.
       const existing = this.accessories.get(accessory.UUID)!
-      this.accessories.set(accessory.UUID, {
-        ...existing,
-        ...internal,
-        endpoint: existing.endpoint,
-        _parts: existing._parts,
-        _eventEmitter: existing._eventEmitter,
-        registered: existing.registered,
-        _restoredFromCache: existing._restoredFromCache,
-      })
-      log.debug(`Updated Matter accessory ${accessory.UUID} (${accessory.displayName})`)
+      const updated: InternalMatterAccessory = { ...existing }
+      for (const field of UPDATABLE_ACCESSORY_FIELDS) {
+        if (accessory[field] !== undefined) {
+          (updated as unknown as Record<string, unknown>)[field] = accessory[field]
+        }
+      }
+      this.accessories.set(accessory.UUID, updated)
+      await this.accessoryManager.updateBridgedInformation(updated.endpoint, updated, this.config)
+      log.debug(`Updated Matter accessory ${accessory.UUID} (${updated.displayName})`)
     }
 
     this.accessoryCache.requestSave(this.accessories)
