@@ -15,9 +15,8 @@ import { randomBytes } from 'node:crypto'
 import { rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { ObserverGroup } from '@matter/main'
-import { SubscriptionsServer } from '@matter/node'
-import { QrCode } from '@matter/types/schema'
+import { ObserverGroup, SubscriptionsServer } from '@matter/main'
+import { QrCode } from '@matter/main/types'
 
 import { Logger } from '../../logger.js'
 import { MatterDeviceError } from '../types.js'

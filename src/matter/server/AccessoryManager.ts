@@ -6,8 +6,7 @@
  * and restoring cached state.
  */
 
-import type { EndpointType, ServerNode } from '@matter/main'
-import type { Behavior } from '@matter/node'
+import type { Behavior, EndpointType, ServerNode } from '@matter/main'
 
 import type { MatterAccessoryCache } from '../accessoryCache.js'
 import type { BehaviorRegistry, RegistryManager } from '../behaviors/index.js'
@@ -24,8 +23,7 @@ import type {
 import { EventEmitter } from 'node:events'
 
 import { Endpoint } from '@matter/main'
-import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
-import { PowerSourceServer } from '@matter/node/behaviors'
+import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer, FixedLabelServer, PowerSourceServer } from '@matter/main/behaviors'
 
 import { IpcOutgoingEvent } from '../../ipcService.js'
 import { Logger } from '../../logger.js'

@@ -3,8 +3,7 @@
  * Extracted from the monolithic 521-line function for better maintainability
  */
 
-import type { EndpointType } from '@matter/main'
-import type { Behavior } from '@matter/node'
+import type { Behavior, EndpointType } from '@matter/main'
 
 import type { MatterAccessory } from './types.js'
 

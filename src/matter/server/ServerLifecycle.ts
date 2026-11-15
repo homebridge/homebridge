@@ -5,8 +5,7 @@
  * runServer(), createServerNodeWithRecovery(), and storage setup.
  */
 
-import type { VariableService } from '@matter/general'
-import type { ServerNode } from '@matter/main'
+import type { ServerNode, VariableService } from '@matter/main'
 
 import type { MatterAccessoryCache } from '../accessoryCache.js'
 import type { MatterServerConfig } from '../sharedTypes.js'
@@ -19,13 +18,11 @@ import { homedir, release } from 'node:os'
 import { isAbsolute, join, normalize, relative, resolve } from 'node:path'
 import process from 'node:process'
 
-import { Filesystem } from '@matter/general'
-import {
-  Endpoint,
+import { Endpoint,
   Environment,
+  Filesystem,
   ServerNode as MatterServerNode,
-  VendorId,
-} from '@matter/main'
+  VendorId } from '@matter/main'
 import { AggregatorEndpoint as AggregatorEndpointType } from '@matter/main/endpoints'
 import { NodeJsFilesystem } from '@matter/nodejs'
 

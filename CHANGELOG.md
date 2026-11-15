@@ -73,6 +73,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): never hand the main bridge's matter port out to a child bridge or accessory as well
 - fix(matter): only remove the vendor from a product label where it is a word of its own
 - fix(matter): set unreadable stored data aside instead of deleting it, and never for a system error
+- build: declare @matter/nodejs and import the other matter packages through @matter/main
 
 ### Homebridge Dependencies
 

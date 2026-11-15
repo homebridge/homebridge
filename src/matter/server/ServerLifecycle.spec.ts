@@ -71,11 +71,8 @@ const sharedVars = makeFakeVars(sharedVarsState)
 const serverNodeCreateCalls: Array<{ t: number, networkInterfaceAtCreate: unknown, mdnsIpv4AtCreate: unknown }> = []
 let serverNodeCreateInvocationIndex = 0
 
-vi.mock('@matter/general', () => ({
-  Filesystem: { name: 'Filesystem' },
-}))
-
 vi.mock('@matter/main', () => ({
+  Filesystem: { name: 'Filesystem' },
   Endpoint: class MockEndpoint {
     deviceType: unknown
     options: unknown

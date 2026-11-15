@@ -5,7 +5,7 @@
  * This ensures consistent logging output across Homebridge and Matter.js.
  */
 
-import { LogFormat } from '@matter/general'
+import { LogFormat } from '@matter/main'
 import chalk from 'chalk'
 
 import { Logger } from '../logger.js'
