@@ -13,6 +13,13 @@ import chalk from 'chalk'
  * - DEBUG: gray
  *
  * Messages with DEBUG level are only displayed if explicitly enabled.
+ *
+ * This is a `const enum`. A plugin built with plain `tsc` gets the value written into its code at
+ * compile time. A plugin built with `isolatedModules` or `verbatimModuleSyntax` (esbuild, tsx, swc,
+ * Vite) can not use it: TypeScript reports TS2748 ("Cannot access ambient const enums"). Call the
+ * method of the level instead: `log.info(...)`, `log.warn(...)`, `log.error(...)`, `log.debug(...)`.
+ * It stays a `const enum` for now: as a normal enum, every plugin built with plain `tsc` would start
+ * to import the `homebridge` package at run time.
  */
 // eslint-disable-next-line no-restricted-syntax
 export const enum LogLevel {
