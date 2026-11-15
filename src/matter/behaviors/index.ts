@@ -3,18 +3,10 @@
  *
  * Exports all behavior classes and the registry
  */
-export { HomebridgeAirQualityServer } from './AirQualityBehavior.js'
 export type { MatterAccessoryMap, MatterCommandHandler } from './BehaviorRegistry.js'
 export { BehaviorRegistry } from './BehaviorRegistry.js'
 export { DefaultClosureControlServer, HomebridgeClosureControlServer } from './ClosureControlBehavior.js'
 export { HomebridgeColorControlServer } from './ColorControlBehavior.js'
-export {
-  HomebridgeCarbonMonoxideConcentrationMeasurementServer,
-  HomebridgeNitrogenDioxideConcentrationMeasurementServer,
-  HomebridgeOzoneConcentrationMeasurementServer,
-  HomebridgePm10ConcentrationMeasurementServer,
-  HomebridgePm25ConcentrationMeasurementServer,
-} from './ConcentrationMeasurementBehavior.js'
 export { DefaultDeviceEnergyManagementServer, HomebridgeDeviceEnergyManagementModeServer, HomebridgeDeviceEnergyManagementServer } from './DeviceEnergyManagementBehavior.js'
 export { HomebridgeDoorLockServer } from './DoorLockBehavior.js'
 export { DefaultEnergyEvseServer, HomebridgeEnergyEvseModeServer, HomebridgeEnergyEvseServer } from './EnergyEvseBehavior.js'

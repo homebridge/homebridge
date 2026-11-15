@@ -8,8 +8,6 @@
 import type { Behavior } from '@matter/node'
 
 import {
-  HomebridgeAirQualityServer,
-  HomebridgeCarbonMonoxideConcentrationMeasurementServer,
   HomebridgeClosureControlServer,
   HomebridgeColorControlServer,
   HomebridgeDeviceEnergyManagementModeServer,
@@ -22,11 +20,7 @@ import {
   HomebridgeKeypadInputServer,
   HomebridgeLevelControlServer,
   HomebridgeMediaPlaybackServer,
-  HomebridgeNitrogenDioxideConcentrationMeasurementServer,
   HomebridgeOnOffServer,
-  HomebridgeOzoneConcentrationMeasurementServer,
-  HomebridgePm10ConcentrationMeasurementServer,
-  HomebridgePm25ConcentrationMeasurementServer,
   HomebridgeRvcCleanModeServer,
   HomebridgeRvcOperationalStateServer,
   HomebridgeRvcRunModeServer,
@@ -89,26 +83,4 @@ export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
   deviceEnergyManagementMode: HomebridgeDeviceEnergyManagementModeServer,
   energyEvse: HomebridgeEnergyEvseServer,
   energyEvseMode: HomebridgeEnergyEvseModeServer,
-} as const
-
-/**
- * Full cluster behavior map including sensor/measurement behaviors.
- *
- * ⚠️ Nothing consumes this. Every entry below is a no-op subclass that only calls
- * `super.initialize()`, and on their own they carry no features, which matter.js
- * refuses for a concentration cluster. Kept for now because the classes are
- * exported API. The air quality sensor carries only its AirQuality cluster; the
- * concentration readings are optional, and applyOptionalMeasurementClusters in
- * serverHelpers.ts composes them from the declared state.
- */
-export const FULL_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
-  ...CORE_CLUSTER_BEHAVIOR_MAP,
-
-  // Air quality & concentration measurement sensors
-  airQuality: HomebridgeAirQualityServer,
-  carbonMonoxideConcentrationMeasurement: HomebridgeCarbonMonoxideConcentrationMeasurementServer,
-  nitrogenDioxideConcentrationMeasurement: HomebridgeNitrogenDioxideConcentrationMeasurementServer,
-  ozoneConcentrationMeasurement: HomebridgeOzoneConcentrationMeasurementServer,
-  pm10ConcentrationMeasurement: HomebridgePm10ConcentrationMeasurementServer,
-  pm25ConcentrationMeasurement: HomebridgePm25ConcentrationMeasurementServer,
 } as const
