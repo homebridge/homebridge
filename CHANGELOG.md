@@ -216,6 +216,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): send the ui the live state of an accessory when a value is held as a bigint
 - fix(matter): warn once for a cluster name homebridge does not know, not at every update
 - refactor(matter): log the set-up steps of each accessory at debug level and correct two messages
+- docs(matter): correct comments that described how the matter code used to work
 
 ### Homebridge Dependencies
 

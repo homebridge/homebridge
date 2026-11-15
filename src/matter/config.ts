@@ -208,9 +208,9 @@ export class MatterConfigCollector {
       return
     }
 
-    // externalsOnly coherence checks run first so misconfigurations throw with
-    // a clear message before downstream validators get the chance to silently
-    // strip the matter block on unrelated errors. Accessory child bridges have
+    // externalsOnly coherence checks run first, so a misconfiguration is
+    // warned about and put right in place before downstream validators get the
+    // chance to silently strip the matter block on unrelated errors. Accessory child bridges have
     // externalsOnly stripped with a warning here too (mirrors hap.externalsOnly).
     if (config.bridge.matter) {
       validateMatterExternalsOnly(config.bridge.matter, 'main bridge')
