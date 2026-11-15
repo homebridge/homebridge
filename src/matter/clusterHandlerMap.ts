@@ -17,9 +17,24 @@
  * A key press with no `sendKey` handler is answered as an unsupported key.
  */
 
-import type { ClosureControl, ColorControl, DeviceEnergyManagement, DoorLock, EnergyEvse, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WaterHeaterManagement, WindowCovering } from '@matter/main/clusters'
+import type { ClosureControl, ColorControl, DeviceEnergyManagement, DoorLock, EnergyEvse, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, RvcOperationalState, ServiceArea, Thermostat, ValveConfigurationAndControl, WaterHeaterManagement, WindowCovering } from '@matter/main/clusters'
 
-import type { MatterCommandHandler } from './types.js'
+import type { MatterCommandHandler, MatterHandlerContext } from './types.js'
+
+/**
+ * A handler for a command that answers with a status of its own. The handler
+ * may return that answer, to say why it can not do what was asked (a vacuum
+ * that is stuck, a mode that is not possible right now, a key the player does
+ * not have). Returning nothing means the command was done, as for every other
+ * handler. Throwing still fails the command as a whole.
+ */
+export type MatterResponseHandler<TArgs, TResponse> = (args: TArgs, context: MatterHandlerContext) => Promise<TResponse | void> | TResponse | void
+
+/** A ChangeToMode handler. It may refuse the mode by returning an answer whose status is not 0 (Success). */
+export type MatterModeChangeHandler = MatterResponseHandler<ModeBase.ChangeToModeRequest, ModeBase.ChangeToModeResponse>
+
+/** A media playback handler. It may refuse by returning an answer whose status is not 0 (Success). */
+export type MatterPlaybackHandler<TArgs = unknown> = MatterResponseHandler<TArgs, MediaPlayback.PlaybackResponse>
 
 /**
  * OnOff cluster handler methods
@@ -185,31 +200,34 @@ export interface IdentifyHandlers {
  * RvcRunMode cluster handler methods
  */
 export interface RvcRunModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**
  * RvcCleanMode cluster handler methods
  */
 export interface RvcCleanModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**
  * RvcOperationalState cluster handler methods
+ *
+ * A handler may return `{ commandResponseState: { errorStateId, ... } }` to
+ * say what is stopping the vacuum. Returning nothing answers "no error".
  */
 export interface RvcOperationalStateHandlers {
-  pause?: MatterCommandHandler
-  resume?: MatterCommandHandler
-  goHome?: MatterCommandHandler
+  pause?: MatterResponseHandler<unknown, RvcOperationalState.OperationalCommandResponse>
+  resume?: MatterResponseHandler<unknown, RvcOperationalState.OperationalCommandResponse>
+  goHome?: MatterResponseHandler<unknown, RvcOperationalState.OperationalCommandResponse>
 }
 
 /**
  * ServiceArea cluster handler methods
  */
 export interface ServiceAreaHandlers {
-  selectAreas?: MatterCommandHandler<ServiceArea.SelectAreasRequest>
-  skipArea?: MatterCommandHandler<ServiceArea.SkipAreaRequest>
+  selectAreas?: MatterResponseHandler<ServiceArea.SelectAreasRequest, ServiceArea.SelectAreasResponse>
+  skipArea?: MatterResponseHandler<ServiceArea.SkipAreaRequest, ServiceArea.SkipAreaResponse>
 }
 
 /**
@@ -239,21 +257,21 @@ export interface ClosureControlHandlers {
  * composes those features needs to supply its own behavior for them.
  */
 export interface MediaPlaybackHandlers {
-  play?: MatterCommandHandler
-  pause?: MatterCommandHandler
-  stop?: MatterCommandHandler
-  startOver?: MatterCommandHandler
-  previous?: MatterCommandHandler
-  next?: MatterCommandHandler
-  skipForward?: MatterCommandHandler<MediaPlayback.SkipForwardRequest>
-  skipBackward?: MatterCommandHandler<MediaPlayback.SkipBackwardRequest>
+  play?: MatterPlaybackHandler
+  pause?: MatterPlaybackHandler
+  stop?: MatterPlaybackHandler
+  startOver?: MatterPlaybackHandler
+  previous?: MatterPlaybackHandler
+  next?: MatterPlaybackHandler
+  skipForward?: MatterPlaybackHandler<MediaPlayback.SkipForwardRequest>
+  skipBackward?: MatterPlaybackHandler<MediaPlayback.SkipBackwardRequest>
 }
 
 /**
  * KeypadInput cluster handler methods
  */
 export interface KeypadInputHandlers {
-  sendKey?: MatterCommandHandler<KeypadInput.SendKeyRequest>
+  sendKey?: MatterResponseHandler<KeypadInput.SendKeyRequest, KeypadInput.SendKeyResponse>
 }
 
 /**
@@ -274,7 +292,7 @@ export interface ValveConfigurationAndControlHandlers {
  * WaterHeaterMode cluster handler methods
  */
 export interface WaterHeaterModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**
@@ -309,7 +327,7 @@ export interface DeviceEnergyManagementHandlers {
  * DeviceEnergyManagementMode cluster handler methods
  */
 export interface DeviceEnergyManagementModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**
@@ -331,7 +349,7 @@ export interface EnergyEvseHandlers {
  * EnergyEvseMode cluster handler methods
  */
 export interface EnergyEvseModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**

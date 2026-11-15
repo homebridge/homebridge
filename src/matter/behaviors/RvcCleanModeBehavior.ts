@@ -4,25 +4,16 @@
  * Handles robotic vacuum cleaner cleaning mode changes
  */
 
-import { ModeUtils } from '@matter/main/behaviors/mode-base'
 import { RvcCleanModeServer } from '@matter/main/behaviors/rvc-clean-mode'
 import { RvcRunModeBehavior } from '@matter/main/behaviors/rvc-run-mode'
 import { ModeBase, RvcRunMode } from '@matter/main/clusters'
 
-import { getRegistryManager } from './EndpointContext.js'
-import { lockStateForWrite } from './stateLock.js'
+import { changeToModeWithHandler } from './handlerResponse.js'
 
 /**
  * Custom RvcCleanMode Server that calls plugin handlers
  */
 export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   /**
    * Whether the RvcRunMode cluster's current mode carries the Idle tag.
    * An endpoint without a run mode cluster counts as idle - there is nothing to check against.
@@ -45,35 +36,14 @@ export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
    * @returns Response indicating success or failure
    */
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
-    // matter.js only checks the mode in super.changeToMode, after the handler has run
-    const modeCheck = ModeUtils.assertModeChange(this.state.supportedModes, this.state.currentMode, request.newMode)
-    if (modeCheck.status !== ModeBase.ModeChangeStatus.Success) {
-      return modeCheck
-    }
-
-    // Without DirectModeChange the spec only allows clean-mode changes while the run mode is idle
-    if (!(this.features as { directModeChange?: boolean }).directModeChange && !this.isRunModeIdle()) {
-      return {
-        status: ModeBase.ModeChangeStatus.InvalidInMode,
-        statusText: 'Cannot change clean mode while the device is not idle',
+    return changeToModeWithHandler(this, 'rvcCleanMode', request, () => super.changeToMode(request), () => {
+      // Without DirectModeChange the spec only allows clean-mode changes while the run mode is idle
+      if (!(this.features as { directModeChange?: boolean }).directModeChange && !this.isRunModeIdle()) {
+        return {
+          status: ModeBase.ModeChangeStatus.InvalidInMode,
+          statusText: 'Cannot change clean mode while the device is not idle',
+        }
       }
-    }
-
-    // Execute user handler
-    await registry.executeHandler(endpointId, 'rvcCleanMode', 'changeToMode', request)
-    await lockStateForWrite(this)
-
-    // Only reached if handler succeeded - call base implementation
-    const result = await super.changeToMode(request)
-
-    // Sync state to cache (the current mode is in request.newMode)
-    if (request?.newMode !== undefined) {
-      registry.syncStateToCache(endpointId, 'rvcCleanMode', { currentMode: request.newMode })
-    }
-
-    return result
+    })
   }
 }

@@ -15,7 +15,7 @@ describe('homebridgeServiceAreaServer', () => {
   beforeEach(() => {
     // Create mock registry
     mockRegistry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -63,7 +63,7 @@ describe('homebridgeServiceAreaServer', () => {
 
       await behavior.selectAreas(request)
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'serviceArea',
         'selectAreas',
@@ -76,7 +76,7 @@ describe('homebridgeServiceAreaServer', () => {
 
       await behavior.selectAreas(request)
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'serviceArea',
         'selectAreas',
@@ -84,8 +84,20 @@ describe('homebridgeServiceAreaServer', () => {
       )
     })
 
+    it('answers with the status the handler returned, and does not store the selection', async () => {
+      // 3 = the vacuum is in a mode that does not allow a new selection
+      const answer = { status: 3, statusText: 'Cleaning already' }
+      mockRegistry.runHandler = vi.fn().mockResolvedValue({ handled: true, response: answer })
+
+      await expect(behavior.selectAreas({
+        newAreas: [0],
+      })).resolves.toEqual(answer)
+
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+    })
+
     it('should pass a handler error on to matter.js', async () => {
-      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+      mockRegistry.runHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         newAreas: [0, 1],
       }

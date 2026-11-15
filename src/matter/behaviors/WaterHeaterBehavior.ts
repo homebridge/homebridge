@@ -6,13 +6,14 @@
  * heating-only thermostat.
  */
 
-import { ModeUtils } from '@matter/main/behaviors/mode-base'
+import type { ModeBase } from '@matter/main/clusters'
+
 import { WaterHeaterManagementServer } from '@matter/main/behaviors/water-heater-management'
 import { WaterHeaterModeServer } from '@matter/main/behaviors/water-heater-mode'
-import { ModeBase } from '@matter/main/clusters'
 import { WaterHeaterManagement } from '@matter/main/clusters/water-heater-management'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { changeToModeWithHandler } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -24,31 +25,8 @@ import { lockStateForWrite } from './stateLock.js'
  * is checked here first and the plugin only hears about a mode the device lists.
  */
 export class HomebridgeWaterHeaterModeServer extends WaterHeaterModeServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
-    // matter.js only checks the mode in super.changeToMode, after the handler has run
-    const modeCheck = ModeUtils.assertModeChange(this.state.supportedModes, this.state.currentMode, request.newMode)
-    if (modeCheck.status !== ModeBase.ModeChangeStatus.Success) {
-      return modeCheck
-    }
-
-    await registry.executeHandler(endpointId, 'waterHeaterMode', 'changeToMode', request)
-    await lockStateForWrite(this)
-
-    // Only reached if the handler succeeded
-    const result = await super.changeToMode(request)
-
-    if (request?.newMode !== undefined) {
-      registry.syncStateToCache(endpointId, 'waterHeaterMode', { currentMode: request.newMode })
-    }
-
-    return result
+    return changeToModeWithHandler(this, 'waterHeaterMode', request, () => super.changeToMode(request))
   }
 }
 

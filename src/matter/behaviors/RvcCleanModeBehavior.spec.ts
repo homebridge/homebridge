@@ -20,7 +20,7 @@ describe('homebridgeRvcCleanModeServer', () => {
   beforeEach(() => {
     // Create mock registry
     mockRegistry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -96,7 +96,7 @@ describe('homebridgeRvcCleanModeServer', () => {
 
       await behavior.changeToMode(request)
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'rvcCleanMode',
         'changeToMode',
@@ -111,7 +111,7 @@ describe('homebridgeRvcCleanModeServer', () => {
         const request = { newMode: mode }
         await behavior.changeToMode(request)
 
-        expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+        expect(mockRegistry.runHandler).toHaveBeenCalledWith(
           testEndpointId,
           'rvcCleanMode',
           'changeToMode',
@@ -123,7 +123,7 @@ describe('homebridgeRvcCleanModeServer', () => {
     })
 
     it('should pass a handler error on to matter.js', async () => {
-      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+      mockRegistry.runHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = { newMode: 0 }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
@@ -134,7 +134,7 @@ describe('homebridgeRvcCleanModeServer', () => {
       const result = await behavior.changeToMode({ newMode: 7 })
 
       expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
-      expect(mockRegistry.executeHandler).not.toHaveBeenCalled()
+      expect(mockRegistry.runHandler).not.toHaveBeenCalled()
       expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
 
@@ -145,7 +145,7 @@ describe('homebridgeRvcCleanModeServer', () => {
         const result = await behavior.changeToMode({ newMode: 1 })
 
         expect(result.status).toBe(ModeBase.ModeChangeStatus.InvalidInMode)
-        expect(mockRegistry.executeHandler).not.toHaveBeenCalled()
+        expect(mockRegistry.runHandler).not.toHaveBeenCalled()
         expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
       })
 
@@ -154,7 +154,7 @@ describe('homebridgeRvcCleanModeServer', () => {
 
         await behavior.changeToMode(request)
 
-        expect(mockRegistry.executeHandler).toHaveBeenCalledWith(testEndpointId, 'rvcCleanMode', 'changeToMode', request)
+        expect(mockRegistry.runHandler).toHaveBeenCalledWith(testEndpointId, 'rvcCleanMode', 'changeToMode', request)
       })
 
       it('should allow a change when the endpoint has no run mode cluster', async () => {
@@ -162,7 +162,7 @@ describe('homebridgeRvcCleanModeServer', () => {
 
         await behavior.changeToMode({ newMode: 1 })
 
-        expect(mockRegistry.executeHandler).toHaveBeenCalled()
+        expect(mockRegistry.runHandler).toHaveBeenCalled()
       })
     })
 
@@ -174,7 +174,7 @@ describe('homebridgeRvcCleanModeServer', () => {
 
         await behavior.changeToMode(request)
 
-        expect(mockRegistry.executeHandler).toHaveBeenCalledWith(testEndpointId, 'rvcCleanMode', 'changeToMode', request)
+        expect(mockRegistry.runHandler).toHaveBeenCalledWith(testEndpointId, 'rvcCleanMode', 'changeToMode', request)
       })
     })
   })

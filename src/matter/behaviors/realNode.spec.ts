@@ -2387,3 +2387,132 @@ describe('a thermostat with unoccupied setpoints, on a real node', () => {
     expect(stateOf(endpoint, 'thermostat').unoccupiedHeatingSetpoint).toBe(1600)
   })
 })
+
+describe('a handler that answers the command itself, on a real node', () => {
+  // The handlers are cast: MatterClusterHandlers (types.ts) still says every
+  // handler returns nothing, so a typed handler that returns an answer does
+  // not compile yet. The cast goes when that index signature allows a value.
+  type AnyHandlers = NonNullable<MatterAccessory['handlers']>
+
+  it('lets a clean mode handler refuse a mode, and leaves the mode as it was', async () => {
+    const answers: Array<{ status: number, statusText: string } | undefined> = []
+    const endpoint = await register({
+      deviceType: deviceTypes.RoboticVacuumCleaner,
+      clusters: {
+        rvcRunMode: {
+          supportedModes: [
+            {
+              label: 'Idle',
+              mode: 0,
+              modeTags: [
+                { value: 16384 },
+              ],
+            },
+            {
+              label: 'Cleaning',
+              mode: 1,
+              modeTags: [
+                { value: 16385 },
+              ],
+            },
+          ],
+          currentMode: 0,
+        },
+        rvcCleanMode: {
+          supportedModes: [
+            {
+              label: 'Vacuum',
+              mode: 0,
+              modeTags: [
+                { value: 16385 },
+              ],
+            },
+            {
+              label: 'Mop',
+              mode: 1,
+              modeTags: [
+                { value: 16386 },
+              ],
+            },
+          ],
+          currentMode: 0,
+        },
+        rvcOperationalState: {
+          operationalStateList: [
+            { operationalStateId: 0 },
+            { operationalStateId: 1 },
+            { operationalStateId: 2 },
+            { operationalStateId: 3 },
+          ],
+          operationalState: 0,
+        },
+      },
+      handlers: {
+        rvcRunMode: {
+          // 65 = stuck (a status of the run mode cluster)
+          changeToMode: async () => answers.shift(),
+        },
+        rvcCleanMode: {
+          // 64 = the cleaning pad or tank is missing, say
+          changeToMode: async () => answers.shift(),
+        },
+        rvcOperationalState: {
+          // 65 = stuck
+          pause: async () => ({
+            commandResponseState: { errorStateId: 65 },
+          }),
+          resume: async () => {},
+        },
+      } as unknown as AnyHandlers,
+    })
+
+    answers.push({ status: 64, statusText: 'No mop pad' })
+    expect(await invoke(endpoint, 'rvcCleanMode', 'changeToMode', { newMode: 1 })).toEqual({ status: 64, statusText: 'No mop pad' })
+    expect(stateOf(endpoint, 'rvcCleanMode').currentMode).toBe(0)
+
+    // a handler that returns nothing means "done"
+    answers.push(undefined)
+    expect(await invoke(endpoint, 'rvcCleanMode', 'changeToMode', { newMode: 1 })).toMatchObject({ status: 0 })
+    expect(stateOf(endpoint, 'rvcCleanMode').currentMode).toBe(1)
+
+    answers.push({ status: 65, statusText: 'Stuck' })
+    expect(await invoke(endpoint, 'rvcRunMode', 'changeToMode', { newMode: 1 })).toEqual({ status: 65, statusText: 'Stuck' })
+    expect(stateOf(endpoint, 'rvcRunMode').currentMode).toBe(0)
+
+    expect(await invoke(endpoint, 'rvcOperationalState', 'pause')).toEqual({
+      commandResponseState: { errorStateId: 65 },
+    })
+    expect(await invoke(endpoint, 'rvcOperationalState', 'resume')).toEqual({
+      commandResponseState: { errorStateId: 0 },
+    })
+  })
+
+  it('lets a play handler and a key handler answer with their own status', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.MediaPlayer,
+      clusters: {
+        onOff: { onOff: true },
+        mediaPlayback: { currentState: 2 },
+      },
+      handlers: {
+        mediaPlayback: {
+          // 2 = not allowed
+          play: async () => ({ status: 2 }),
+          pause: async () => {},
+        },
+        keypadInput: {
+          // 2 = invalid key in the current state
+          sendKey: async () => ({ status: 2 }),
+        },
+      } as unknown as AnyHandlers,
+    })
+
+    expect(await invoke(endpoint, 'mediaPlayback', 'play')).toEqual({ status: 2 })
+    expect(stateOf(endpoint, 'mediaPlayback').currentState).toBe(2)
+
+    expect(await invoke(endpoint, 'mediaPlayback', 'pause')).toMatchObject({ status: 0 })
+    expect(stateOf(endpoint, 'mediaPlayback').currentState).toBe(1)
+
+    expect(await invoke(endpoint, 'keypadInput', 'sendKey', { keyCode: 0 })).toEqual({ status: 2 })
+  })
+})

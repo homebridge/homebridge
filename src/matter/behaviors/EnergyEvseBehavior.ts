@@ -7,17 +7,17 @@
  */
 
 import type { Behavior } from '@matter/main'
+import type { ModeBase } from '@matter/main/clusters'
 
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { EnergyEvseServer } from '@matter/main/behaviors/energy-evse'
 import { EnergyEvseModeServer } from '@matter/main/behaviors/energy-evse-mode'
-import { ModeUtils } from '@matter/main/behaviors/mode-base'
-import { ModeBase } from '@matter/main/clusters'
 import { EnergyEvse } from '@matter/main/clusters/energy-evse'
 import { Status, StatusResponseError } from '@matter/main/types'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { changeToModeWithHandler } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -198,30 +198,7 @@ export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
  * only hears about a mode the device lists.
  */
 export class HomebridgeEnergyEvseModeServer extends EnergyEvseModeServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
-    // matter.js only checks the mode in super.changeToMode, after the handler has run
-    const modeCheck = ModeUtils.assertModeChange(this.state.supportedModes, this.state.currentMode, request.newMode)
-    if (modeCheck.status !== ModeBase.ModeChangeStatus.Success) {
-      return modeCheck
-    }
-
-    await registry.executeHandler(endpointId, 'energyEvseMode', 'changeToMode', request)
-    await lockStateForWrite(this)
-
-    // Only reached if the handler succeeded
-    const result = await super.changeToMode(request)
-
-    if (request?.newMode !== undefined) {
-      registry.syncStateToCache(endpointId, 'energyEvseMode', { currentMode: request.newMode })
-    }
-
-    return result
+    return changeToModeWithHandler(this, 'energyEvseMode', request, () => super.changeToMode(request))
   }
 }

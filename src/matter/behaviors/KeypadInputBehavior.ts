@@ -10,6 +10,7 @@ import { KeypadInput } from '@matter/main/clusters/keypad-input'
 import { MatterStatus } from '../errors.js'
 import { HandlerFailure } from './BehaviorRegistry.js'
 import { getRegistryManager } from './EndpointContext.js'
+import { statusResponse } from './handlerResponse.js'
 
 /**
  * Default KeypadInput Server.
@@ -48,7 +49,12 @@ export class HomebridgeKeypadInputServer extends DefaultKeypadInputServer {
 
     try {
       // A key press has no state to update: with no handler nothing can act on it
-      const handled = await registry.executeHandler(endpointId, 'keypadInput', 'sendKey', request)
+      const { handled, response } = await registry.runHandler(endpointId, 'keypadInput', 'sendKey', request)
+      // The handler may answer itself (the key is not valid in this state, say)
+      const answer = statusResponse<KeypadInput.SendKeyResponse>(response)
+      if (answer) {
+        return answer
+      }
       return {
         status: handled
           ? KeypadInput.Status.Success

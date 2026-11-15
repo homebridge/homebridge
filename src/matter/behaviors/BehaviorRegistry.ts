@@ -32,7 +32,7 @@ export class HandlerFailure extends StatusResponseError {
  * Handler function signature
  * Matches the signature from types.ts to maintain compatibility with user-defined handlers
  */
-export type MatterCommandHandler = (args?: unknown, context?: MatterHandlerContext) => void | Promise<void>
+export type MatterCommandHandler = (args?: unknown, context?: MatterHandlerContext) => unknown
 
 /**
  * Accessory map type
@@ -135,6 +135,24 @@ export class BehaviorRegistry {
     args?: unknown,
     context?: MatterHandlerContext,
   ): Promise<boolean> {
+    return (await this.runHandler(endpointId, clusterName, commandName, args, context)).handled
+  }
+
+  /**
+   * Execute a handler if it exists, and also give back what it returned. For
+   * the commands that answer with a status of their own (see
+   * handlerResponse.ts); every other command uses executeHandler().
+   *
+   * @returns `handled` as executeHandler() returns it, and `response`: what the handler returned
+   * @throws as executeHandler() does
+   */
+  async runHandler(
+    endpointId: string,
+    clusterName: string,
+    commandName: string,
+    args?: unknown,
+    context?: MatterHandlerContext,
+  ): Promise<{ handled: boolean, response?: unknown }> {
     const handler = this.getHandler(endpointId, clusterName, commandName)
     if (!handler) {
       // Every handler is optional. With none, the command is not failed: the
@@ -146,12 +164,12 @@ export class BehaviorRegistry {
         this.reportedMissing.add(key)
         log.debug(`No handler registered for ${key}: the state is updated without calling the plugin`)
       }
-      return false
+      return { handled: false }
     }
 
     try {
-      await handler(args, context ?? this.contextOf(endpointId))
-      return true
+      const response = await handler(args, context ?? this.contextOf(endpointId))
+      return { handled: true, response }
     } catch (error) {
       log.error(`Handler error for ${endpointId}.${clusterName}.${commandName}:`, error)
       // A Matter status a plugin threw on purpose (api.matter.status) goes to
