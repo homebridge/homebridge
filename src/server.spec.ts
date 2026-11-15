@@ -390,6 +390,52 @@ describe('server', () => {
       })).toThrow(/not a valid username/i)
     })
 
+    it('rejects a main bridge pin that is not a text with an error that names the pin', async () => {
+      // a pin written without quotes; this was a TypeError from inside HAP-NodeJS at publish time
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, pin: 3145154 as unknown as string },
+      })
+
+      expect(() => new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })).toThrow(/not a valid pin in bridge\.pin/i)
+    })
+
+    it.each([
+      { pin: '03145154', warning: /not in the form "031-45-154"/ },
+      { pin: '031-45-15', warning: /not in the form "031-45-154"/ },
+      { pin: '123-45-678', warning: /HomeKit refuses/ },
+      { pin: '111-11-111', warning: /HomeKit refuses/ },
+    ])('warns about the main bridge pin $pin, and still starts', async ({ pin, warning }) => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, pin },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.pin).toBe(pin)
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(warning)
+    })
+
+    it('gives no warning for a good main bridge pin', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+      // eslint-disable-next-line no-new
+      new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect(warnings).not.toHaveBeenCalled()
+    })
+
     it('accepts main bridge with externalsOnly: true + enabled: false (canonical form)', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
@@ -555,6 +601,28 @@ describe('server', () => {
         username: 123456,
         hap: { enabled: false },
       })).toThrow(/not a valid username/i)
+    })
+
+    it('rejects a child bridge pin that is not a text with an error that names the pin', () => {
+      const server = makeServer()
+      expect(() => (server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', {
+        username: childUsername,
+        pin: 3145154,
+      })).toThrow(/not a valid pin in _bridge\.pin/i)
+    })
+
+    it('warns about a child bridge pin in the wrong form, and accepts a child bridge with no pin', () => {
+      const server = makeServer()
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+      ;(server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', { username: childUsername })
+      expect(warnings).not.toHaveBeenCalled()
+
+      ;(server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', {
+        username: childUsername,
+        pin: '03145154',
+      })
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(/_bridge\.pin is not in the form/)
     })
 
     it('accepts a platform child bridge with externalsOnly: true + enabled: false (canonical form)', () => {

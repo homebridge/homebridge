@@ -41,6 +41,39 @@ qrcode.setErrorLevel('M')
 const log = Logger.internal
 const matterLogger = Logger.withPrefix('Matter/MainManager')
 
+/** The shape of a HomeKit setup code: eight digits, written as 031-45-154. */
+const PIN_FORMAT = /^\d{3}-\d{2}-\d{3}$/
+
+/** Setup codes HomeKit refuses, as they are too easy to guess. */
+const REFUSED_PINS = new Set([
+  ...Array.from({ length: 10 }, (_, digit) => `${digit}`.repeat(3).concat('-', `${digit}`.repeat(2), '-', `${digit}`.repeat(3))),
+  '123-45-678',
+  '876-54-321',
+])
+
+/**
+ * Check the setup code (`pin`) of a bridge.
+ *
+ * HAP-NodeJS stores whatever it is given. A pin that is not a text made the
+ * start-up fail with a TypeError that did not name the pin, so that is an error
+ * here. A text in the wrong shape, or a code HomeKit refuses, only gets a
+ * warning: a bridge that is paired already keeps working with it, it just can
+ * not be paired again.
+ *
+ * @param pin - the value from the config
+ * @param setting - the name of the setting, for the message (`bridge.pin`)
+ */
+function validatePin(pin: unknown, setting: string): void {
+  if (typeof pin !== 'string') {
+    throw new TypeError(`Not a valid pin in ${setting}: ${JSON.stringify(pin)}. It must be a text of 8 digits in the form "031-45-154" (in quotes).`)
+  }
+  if (!PIN_FORMAT.test(pin)) {
+    log.warn(`The pin in ${setting} is not in the form "031-45-154" (3 digits, 2 digits, 3 digits, with dashes). The Home app can not pair with a pin in another form.`)
+  } else if (REFUSED_PINS.has(pin)) {
+    log.warn(`The pin in ${setting} is one that HomeKit refuses, as it is too easy to guess. The Home app may not pair with it: choose another one.`)
+  }
+}
+
 export interface HomebridgeOptions {
   keepOrphanedCachedAccessories?: boolean
   hideQRCode?: boolean
@@ -429,6 +462,8 @@ export class Server {
       throw new Error(`Not a valid username: ${username}. Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`)
     }
 
+    validatePin(config.bridge.pin, 'bridge.pin')
+
     // Validate the main bridge HAP config (shape + externalsOnly/enabled coherence).
     validateHapConfig(config.bridge, { bridgeLabel: 'main bridge' })
 
@@ -718,6 +753,19 @@ export class Server {
         `Error loading the ${type} "${identifier}" requested in your config.json - `
         + `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have its own unique username.`,
       )
+    }
+
+    // A child bridge with no pin of its own uses the one of the main bridge
+    if (bridgeConfig.pin !== undefined && bridgeConfig.pin !== null && (bridgeConfig.pin as unknown) !== '') {
+      try {
+        validatePin(bridgeConfig.pin, '_bridge.pin')
+      } catch (error: unknown) {
+        throw new Error(
+          `Error loading the ${type} "${identifier}" requested in your config.json - ${error instanceof Error
+            ? error.message
+            : error}`,
+        )
+      }
     }
 
     // Validate the child bridge HAP config (shape + externalsOnly/enabled coherence).
