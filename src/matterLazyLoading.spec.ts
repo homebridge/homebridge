@@ -15,8 +15,9 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, relative, resolve } from 'node:path'
 
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 const SRC_DIR = resolve(import.meta.dirname)
@@ -63,46 +64,198 @@ const LIGHTWEIGHT_MATTER_MODULES = [
 ]
 
 /**
- * Parse runtime (non-type) import paths from a TypeScript source file.
- * Skips `import type` statements as they are erased at compile time.
+ * Parse the run-time (non-type) static import and re-export paths from TypeScript source text.
+ *
+ * The file is parsed with the TypeScript compiler, not line by line, so an import written over
+ * several lines is seen. Left out, as the compiler erases them:
+ * - `import type { A } from '...'` and `export type { A } from '...'`
+ * - `import { type A, type B } from '...'` (every name is marked `type`)
+ *
+ * A dynamic `import('...')` is left out too: that is how Matter is loaded on demand.
  */
-function getRuntimeImports(filePath: string): string[] {
-  const content = readFileSync(filePath, 'utf-8')
+function parseRuntimeImports(content: string, fileName = 'file.ts'): string[] {
+  const source = ts.createSourceFile(fileName, content, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS)
   const imports: string[] = []
 
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim()
-
-    // Skip type-only imports (erased at compile time)
-    if (trimmed.startsWith('import type ')) {
-      continue
-    }
-    // Skip type-only re-exports
-    if (trimmed.startsWith('export type ')) {
-      continue
-    }
-
-    // Match: import { ... } from '...'
-    // Match: import ... from '...'
-    // Match: import '...'
-    // Match: export { ... } from '...'
-    const fromMatch = trimmed.match(/(?:import|export)\s+(?:\S.*)?from\s+['"]([^'"]+)['"]/)
-    if (fromMatch) {
-      imports.push(fromMatch[1])
-      continue
-    }
-
-    // Match bare imports: import '...'
-    const bareMatch = trimmed.match(/^import\s+['"]([^'"]+)['"]/)
-    if (bareMatch) {
-      imports.push(bareMatch[1])
+  for (const statement of source.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const clause = statement.importClause
+      // no clause: a bare `import '...'`, which always runs
+      if (clause) {
+        if (clause.isTypeOnly) {
+          continue
+        }
+        const named = clause.namedBindings && ts.isNamedImports(clause.namedBindings)
+          ? clause.namedBindings.elements
+          : undefined
+        const onlyTypeNames = !clause.name && named !== undefined && named.length > 0 && named.every(element => element.isTypeOnly)
+        if (onlyTypeNames) {
+          continue
+        }
+      }
+      imports.push(statement.moduleSpecifier.text)
+    } else if (ts.isExportDeclaration(statement) && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
+      if (statement.isTypeOnly) {
+        continue
+      }
+      const named = statement.exportClause && ts.isNamedExports(statement.exportClause)
+        ? statement.exportClause.elements
+        : undefined
+      if (named !== undefined && named.length > 0 && named.every(element => element.isTypeOnly)) {
+        continue
+      }
+      imports.push(statement.moduleSpecifier.text)
     }
   }
 
   return imports
 }
 
+function getRuntimeImports(filePath: string): string[] {
+  return parseRuntimeImports(readFileSync(filePath, 'utf-8'), filePath)
+}
+
+/**
+ * Every source file a core file loads at run time through static imports, however many files
+ * lie in between, with the chain of files that leads to it.
+ */
+function walkRuntimeImports(entry: string): Array<{ specifier: string, chain: string[] }> {
+  const reached: Array<{ specifier: string, chain: string[] }> = []
+  const seen = new Set<string>()
+
+  const visit = (file: string, chain: string[]): void => {
+    if (seen.has(file)) {
+      return
+    }
+    seen.add(file)
+
+    for (const specifier of getRuntimeImports(resolve(SRC_DIR, file))) {
+      if (!specifier.startsWith('.')) {
+        reached.push({ specifier, chain })
+        continue
+      }
+      const target = relative(SRC_DIR, resolve(SRC_DIR, dirname(file), specifier)).replace(/\\/g, '/').replace(/\.js$/, '.ts')
+      reached.push({ specifier: target, chain })
+      // a heavy matter module is the end of the road: what it loads in turn adds nothing to the report
+      if (!target.startsWith('matter/') || LIGHTWEIGHT_MATTER_MODULES.includes(target)) {
+        visit(target, [...chain, target])
+      }
+    }
+  }
+
+  visit(entry, [entry])
+  return reached
+}
+
 describe('matter lazy loading', () => {
+  describe('the import scanner', () => {
+    it.each([
+      [
+        'a single-line import',
+        'import { a } from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'an import written over several lines',
+        'import {\n  a,\n  b,\n} from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'a package import written over several lines',
+        'import {\n  Endpoint,\n} from "@matter/main"',
+        ['@matter/main'],
+      ],
+      [
+        'a default import',
+        'import thing from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'a namespace import',
+        'import * as thing from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'a bare import',
+        'import \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'a re-export',
+        'export { a } from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'a re-export written over several lines',
+        'export {\n  a,\n} from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'a re-export of everything',
+        'export * from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'one type name next to a value',
+        'import { type A, b } from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+      [
+        'a default import next to type names',
+        'import thing, { type A } from \'./matter/index.js\'',
+        ['./matter/index.js'],
+      ],
+    ])('sees %s as a run-time import', (_title, code, expected) => {
+      expect(parseRuntimeImports(code)).toEqual(expected)
+    })
+
+    it.each([
+      ['a type import', 'import type { A } from \'./matter/index.js\''],
+      ['a type import written over several lines', 'import type {\n  A,\n  B,\n} from \'./matter/index.js\''],
+      ['an import of type names only', 'import { type A, type B } from \'./matter/index.js\''],
+      ['a type re-export', 'export type { A } from \'./matter/index.js\''],
+      ['a re-export of type names only', 'export { type A } from \'./matter/index.js\''],
+      ['a dynamic import', 'const m = await import(\'./matter/index.js\')'],
+      ['an import inside a comment', '// import { a } from \'./matter/index.js\'\n/* import { b } from \'@matter/main\' */'],
+      ['an import inside a text', 'const text = `\nimport { a } from \'@matter/main\'\n`'],
+    ])('does not see %s as a run-time import', (_title, code) => {
+      expect(parseRuntimeImports(code)).toEqual([])
+    })
+  })
+
+  describe('core files must not load heavy matter modules through any chain of imports', () => {
+    // The per-file checks below only look at the listed files. A core file can also reach matter.js
+    // through a file that is on no list (`src/util/*.ts`, say). This follows every static run-time
+    // import, however deep, and names the chain that leads to the heavy module.
+    for (const file of CORE_FILES) {
+      it(`${file} must not reach a heavy matter module`, () => {
+        const heavy = walkRuntimeImports(file).filter(({ specifier }) => {
+          if (specifier.startsWith('@matter/')) {
+            return true
+          }
+          return specifier.startsWith('matter/') && !LIGHTWEIGHT_MATTER_MODULES.includes(specifier)
+        })
+
+        const message = heavy.length === 0
+          ? ''
+          : [
+              `${file} would load Matter.js at start-up through:`,
+              ...heavy.map(({ specifier, chain }) => `  - ${[...chain, specifier].join(' -> ')}`),
+            ].join('\n')
+        expect(message).toBe('')
+      })
+    }
+
+    it('follows imports through files that are on no list', () => {
+      // server.ts imports ./util/mac.js and ./user.js: both must have been walked
+      const reached = walkRuntimeImports('server.ts').map(({ specifier }) => specifier)
+
+      expect(reached).toContain('util/mac.ts')
+      expect(reached).toContain('user.ts')
+      expect(reached).toContain('node:path')
+    })
+  })
+
   describe('core files must not have runtime imports from heavy matter modules', () => {
     const allowedMatterImports = new Set(
       LIGHTWEIGHT_MATTER_MODULES.map(m => `./${m.replace(/\.ts$/, '.js')}`),
