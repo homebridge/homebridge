@@ -113,6 +113,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): keep a child bridge running when a plugin handler rejects a ui control with no error
 - fix: ignore a message from the parent process whose id is not a known request
 - refactor: type the messages between a child bridge and the main process by their id
+- docs: correct the comments on child bridge messages, and two typos in config errors
 
 ### Homebridge Dependencies
 
