@@ -288,6 +288,45 @@ describe('levelControl on a real node', () => {
     expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(level)
   })
 
+  // #3905: a pump's level control has no Lighting feature, so level 0 is allowed
+  it('registers a pump whose level control starts at 0 and calls its handler', async () => {
+    const levels: number[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.Pump,
+      clusters: {
+        onOff: { onOff: true },
+        pumpConfigurationAndControl: { operationMode: 0, effectiveOperationMode: 0, effectiveControlMode: 0 },
+        levelControl: { currentLevel: 0, minLevel: 0, maxLevel: 200 },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+          off: async () => {},
+        },
+        levelControl: {
+          moveToLevel: async (request: { level: number }) => {
+            levels.push(request.level)
+          },
+        },
+      },
+    })
+
+    expect(stateOf(endpoint, 'levelControl')).toMatchObject({
+      minLevel: 0,
+      featureMap: expect.objectContaining({ lighting: false }),
+    })
+    await invoke(endpoint, 'levelControl', 'moveToLevel', { level: 80, transitionTime: 0, ...options })
+    expect(levels).toEqual([80])
+  })
+
+  it('keeps the lighting feature of a dimmable light on the homebridge behavior', async () => {
+    const endpoint = await dimmableLight({
+      moveToLevel: async () => {},
+    })
+
+    expect(stateOf(endpoint, 'levelControl').featureMap).toMatchObject({ lighting: true, onOff: true })
+  })
+
   it('prefers the handler of the command itself', async () => {
     const calls: string[] = []
     const endpoint = await dimmableLight({
