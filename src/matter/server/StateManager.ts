@@ -14,6 +14,7 @@ import type {
 } from '../types.js'
 
 import { Logger } from '../../logger.js'
+import { isInHandlerScope } from '../behaviors/handlerScope.js'
 import { forgetPluginUpdate, notePluginUpdate } from '../behaviors/pluginUpdates.js'
 import { deviceErrorFrom } from '../MatterError.js'
 import { MatterDeviceError } from '../types.js'
@@ -147,7 +148,7 @@ export class StateManager {
     // Defer the update to avoid "read-only transaction" errors when called from handlers.
     // setImmediate is enough: it runs after the current call stack and its
     // promise jobs, so the handler's own (read-only) step has returned by then.
-    return new Promise((resolve, reject) => {
+    const update = new Promise<void>((resolve, reject) => {
       setImmediate(async () => {
         try {
           if (cluster === 'electricalEnergyMeasurement') {
@@ -197,6 +198,15 @@ export class StateManager {
         }
       })
     })
+
+    // From inside a plugin's handler the update is not waited for: the
+    // command may hold the cluster's state until the handler returns, and the
+    // update can only be written after that. A failure is logged above.
+    if (isInHandlerScope()) {
+      update.catch(() => {})
+      return
+    }
+    return update
   }
 
   /**
