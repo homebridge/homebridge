@@ -107,6 +107,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: drop the pairing details of an earlier child bridge process from its status
 - fix(matter): send the ui the same accessory fields from a child bridge as from the main bridge
 - fix(matter): send ui updates for an external accessory published after monitoring was switched on
+- fix: do not load the plugin or start the bridge in a child process that was told to stop
 
 ### Homebridge Dependencies
 

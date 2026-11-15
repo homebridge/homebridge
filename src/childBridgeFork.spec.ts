@@ -9,6 +9,7 @@ import { Bridge, HAPStorage } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, PluginType } from './api.js'
+import { BridgeService } from './bridgeService.js'
 import { ChildBridgeFork } from './childBridgeFork.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { Logger } from './logger.js'
@@ -149,6 +150,34 @@ describe('childBridgeFork — ending the process', () => {
     expect(shutdown).toHaveBeenCalledTimes(1)
     expect(process.exitCode).toBe(1)
     expect(exit).not.toHaveBeenCalled()
+  })
+
+  // A signal while the plugin was loading used to be followed by the load
+  // finishing, the parent sending START, and the bridge being published: five
+  // seconds later the process was cut off with no goodbye.
+  it('ignores LOAD and START from the parent once the process is ending', async () => {
+    const fork = await import('./childBridgeFork.js')
+    const loadPlugin = vi.spyOn(fork.ChildBridgeFork.prototype, 'loadPlugin').mockResolvedValue(undefined)
+    const startBridge = vi.spyOn(fork.ChildBridgeFork.prototype, 'startBridge').mockResolvedValue(undefined)
+
+    registered.SIGTERM[0]()
+    registered.message[0]({ id: 'load', data: {} })
+    registered.message[0]({ id: 'start' })
+
+    expect(loadPlugin).not.toHaveBeenCalled()
+    expect(startBridge).not.toHaveBeenCalled()
+  })
+
+  it('still takes LOAD and START before any signal', async () => {
+    const fork = await import('./childBridgeFork.js')
+    const loadPlugin = vi.spyOn(fork.ChildBridgeFork.prototype, 'loadPlugin').mockResolvedValue(undefined)
+    const startBridge = vi.spyOn(fork.ChildBridgeFork.prototype, 'startBridge').mockResolvedValue(undefined)
+
+    registered.message[0]({ id: 'load', data: {} })
+    registered.message[0]({ id: 'start' })
+
+    expect(loadPlugin).toHaveBeenCalledTimes(1)
+    expect(startBridge).toHaveBeenCalledTimes(1)
   })
 
   it('tears down once when a signal and a disconnect both arrive', () => {
@@ -483,6 +512,143 @@ describe('childBridgeFork - startBridge with accessory plugins', () => {
     expect(bridged.map((accessory: { displayName: string }) => accessory.displayName)).toEqual(['Fan'])
     expect(sendMessage).toHaveBeenCalledWith(ChildProcessMessageEventType.ONLINE)
     expect(errors.flat().join(' ')).toContain('same UUID')
+  })
+})
+
+describe('childBridgeFork - a signal that arrives during startup', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const loadData = {
+    type: PluginType.PLATFORM,
+    identifier: 'homebridge-example',
+    pluginPath: '/unused',
+    pluginConfig: [],
+    bridgeConfig: { username: '0E:DC:5D:BE:D6:75', name: 'Child', pin: '031-45-154' },
+    homebridgeConfig: {
+      bridge: { username: 'CC:22:3D:E3:CE:30', name: 'Main', pin: '031-45-154' },
+      accessories: [],
+      platforms: [],
+    },
+    bridgeOptions: { cachedAccessoriesDir: '/unused', cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+  }
+
+  it('does not report the plugin as loaded when the signal came during the load', async () => {
+    const fork = new ChildBridgeFork()
+    const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+    vi.spyOn(HAPStorage, 'setCustomStoragePath').mockImplementation(() => {})
+    const plugin = {
+      // the signal arrives while the plugin is being loaded
+      load: vi.fn(async () => fork.shutdown()),
+      getPluginIdentifier: () => 'homebridge-example',
+      version: '1.0.0',
+    } as unknown as Plugin
+    vi.spyOn(PluginManager.prototype, 'loadPlugin').mockReturnValue(plugin)
+    const initialize = vi.spyOn(PluginManager.prototype, 'initializePlugin').mockResolvedValue(undefined)
+
+    await fork.loadPlugin(loadData)
+
+    expect(initialize).not.toHaveBeenCalled()
+    expect(sendMessage).not.toHaveBeenCalledWith(ChildProcessMessageEventType.LOADED, expect.anything())
+  })
+
+  it('reports the plugin as loaded when no signal came', async () => {
+    const fork = new ChildBridgeFork()
+    const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+    vi.spyOn(HAPStorage, 'setCustomStoragePath').mockImplementation(() => {})
+    const plugin = {
+      load: vi.fn().mockResolvedValue(undefined),
+      getPluginIdentifier: () => 'homebridge-example',
+      version: '1.0.0',
+    } as unknown as Plugin
+    vi.spyOn(PluginManager.prototype, 'loadPlugin').mockReturnValue(plugin)
+    vi.spyOn(PluginManager.prototype, 'initializePlugin').mockResolvedValue(undefined)
+
+    await fork.loadPlugin(loadData)
+
+    expect(sendMessage).toHaveBeenCalledWith(ChildProcessMessageEventType.LOADED, { version: '1.0.0' })
+  })
+
+  it('does not start the bridge after a shutdown', async () => {
+    const fork = new ChildBridgeFork()
+    const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+    const publish = vi.spyOn(fork, 'publishHapIfEnabled').mockImplementation(() => {})
+    Object.assign(fork as any, { type: PluginType.PLATFORM, bridgeConfig: loadData.bridgeConfig, pluginConfig: [] })
+
+    fork.shutdown()
+    await fork.startBridge()
+
+    expect((fork as any).bridgeService).toBeUndefined()
+    expect(publish).not.toHaveBeenCalled()
+    expect(sendMessage).not.toHaveBeenCalledWith(ChildProcessMessageEventType.ONLINE)
+  })
+
+  it('does not publish the bridge when the signal came while the accessory cache was read', async () => {
+    const storageDir = mkdtempSync(join(tmpdir(), 'hb-child-fork-'))
+    try {
+      const fork = new ChildBridgeFork()
+      const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+      const publish = vi.spyOn(fork, 'publishHapIfEnabled').mockImplementation(() => {})
+      vi.spyOn(fork, 'sendPairedStatusEvent').mockImplementation(() => {})
+      const api = new HomebridgeAPI()
+      const signalFinished = vi.spyOn(api, 'signalFinished')
+      Object.assign(fork as any, {
+        api,
+        type: PluginType.PLATFORM,
+        identifier: 'ExamplePlatform',
+        pluginConfig: [],
+        pluginManager: {},
+        externalPortService: {},
+        bridgeConfig: loadData.bridgeConfig,
+        bridgeOptions: { cachedAccessoriesDir: storageDir, cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+      })
+      // the signal arrives while the cached accessories are read from disk
+      vi.spyOn(BridgeService.prototype, 'loadCachedPlatformAccessoriesFromDisk').mockImplementation(async () => {
+        fork.shutdown()
+      })
+
+      await fork.startBridge()
+
+      expect(publish).not.toHaveBeenCalled()
+      expect(signalFinished).not.toHaveBeenCalled()
+      expect(sendMessage).not.toHaveBeenCalledWith(ChildProcessMessageEventType.ONLINE)
+    } finally {
+      rmSync(storageDir, { recursive: true, force: true })
+    }
+  })
+
+  it('stops the Matter server that came up after the signal, and starts nothing else', async () => {
+    const fork = new ChildBridgeFork()
+    const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+    const publish = vi.spyOn(fork, 'publishHapIfEnabled').mockImplementation(() => {})
+    const matter = await import('./matter/index.js')
+    const teardown = vi.spyOn(matter.ChildBridgeMatterManager.prototype, 'teardown').mockResolvedValue(undefined)
+    // the signal arrives while the Matter server is starting
+    vi.spyOn(matter.ChildBridgeMatterManager.prototype, 'initialize').mockImplementation(async () => {
+      fork.shutdown()
+    })
+    Object.assign(fork as any, {
+      api: {
+        _setMatterManager: vi.fn(),
+      },
+      type: PluginType.PLATFORM,
+      matterLoaded: true,
+      pluginConfig: [],
+      pluginManager: {},
+      externalPortService: {},
+      bridgeConfig: { ...loadData.bridgeConfig, matter: {} },
+      bridgeOptions: {},
+    })
+    vi.spyOn(Logger.withPrefix('Matter/ChildManager'), 'info').mockImplementation(() => {})
+
+    await fork.startBridge()
+
+    // once from shutdown(), once for the server that started after it
+    expect(teardown).toHaveBeenCalledTimes(2)
+    expect((fork as any).bridgeService).toBeUndefined()
+    expect(publish).not.toHaveBeenCalled()
+    expect(sendMessage).not.toHaveBeenCalledWith(ChildProcessMessageEventType.ONLINE)
   })
 })
 
