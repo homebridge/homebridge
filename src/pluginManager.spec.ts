@@ -258,6 +258,67 @@ describe('pluginManager', () => {
     })
   })
 
+  describe('a plugin whose initializer fails', () => {
+    function failingPlugin(identifier: string, initialize: (api: HomebridgeAPI) => void | Promise<void>) {
+      return {
+        getPluginIdentifier: () => identifier,
+        registerPlatform: vi.fn(),
+        registerAccessory: vi.fn(),
+        disabled: false,
+        initialize,
+      } as any
+    }
+
+    let errorSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      errorSpy.mockRestore()
+    })
+
+    it('is not found any more by the short name of what it registered before it failed', async () => {
+      const manager = new PluginManager(new HomebridgeAPI())
+      const plugin = failingPlugin('homebridge-halfinit', async (api) => {
+        api.registerPlatform('wrong-plugin-name', 'HalfPlat', class {} as any)
+        api.registerAccessory('HalfAcc', class {} as any)
+        throw new Error('boom')
+      })
+      ;(manager as any).plugins.set('homebridge-halfinit', plugin)
+
+      await manager.initializePlugin(plugin, 'homebridge-halfinit')
+
+      expect(errorSpy).toHaveBeenCalledWith('ERROR INITIALIZING PLUGIN homebridge-halfinit:')
+      expect(manager.hasPluginRegistered('homebridge-halfinit')).toBe(false)
+      expect(manager.hasPluginRegistered('wrong-plugin-name')).toBe(false)
+      expect(() => manager.getPluginForPlatform('HalfPlat')).toThrow('No plugin was found for the platform "HalfPlat"')
+      expect(() => manager.getPluginForAccessory('HalfAcc')).toThrow('No plugin was found for the accessory "HalfAcc"')
+      expect(() => manager.getPluginForPlatform('homebridge-halfinit.HalfPlat')).toThrow('was not registered')
+      expect(() => manager.getPluginForPlatform('wrong-plugin-name.HalfPlat')).toThrow('was not registered')
+    })
+
+    it('leaves a working plugin that registered the same name in place', async () => {
+      const manager = new PluginManager(new HomebridgeAPI())
+      const good = failingPlugin('homebridge-good', (api) => {
+        api.registerPlatform('SharedPlat', class {} as any)
+      })
+      const bad = failingPlugin('homebridge-bad', (api) => {
+        api.registerPlatform('SharedPlat', class {} as any)
+        throw new Error('boom')
+      })
+      ;(manager as any).plugins.set('homebridge-good', good)
+      ;(manager as any).plugins.set('homebridge-bad', bad)
+
+      await manager.initializePlugin(good, 'homebridge-good')
+      await manager.initializePlugin(bad, 'homebridge-bad')
+
+      expect(manager.getPluginForPlatform('SharedPlat')).toBe(good)
+      expect(manager.getPluginForPlatform('homebridge-good.SharedPlat')).toBe(good)
+    })
+  })
+
   describe('accessory and platform identifiers', () => {
     // [identifier as written in config.json, plugin part, accessory or platform name]
     const forms: Array<[string, string, string]> = [

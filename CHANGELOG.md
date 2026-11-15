@@ -160,6 +160,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: let a plugin pass log.info, log.warn, log.error and the other log methods around as functions
 - fix: stop node's memory leak warning when more than ten platforms listen for didFinishLaunching
 - fix: find a plugin whose scope has a dot, and keep a dot in an accessory or platform name
+- fix: do not start an accessory or platform of a plugin whose initializer failed
 
 ### Homebridge Dependencies
 
