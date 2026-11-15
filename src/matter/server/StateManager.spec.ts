@@ -255,3 +255,52 @@ describe('stateManager triggerCommand ordering (#4029)', () => {
     expect(calls).toBe(2)
   })
 })
+
+describe('stateManager updateAccessoryState when it can not be done', () => {
+  const errorOf = (work: Promise<unknown>): Promise<string> => work.then(() => 'no error', (error: Error) => error.message)
+
+  it('says the accessory is not registered', async () => {
+    const manager = createManager(createMockEndpoint())
+
+    expect(await errorOf(manager.updateAccessoryState('uuid-unknown', 'onOff', { onOff: true })))
+      .toContain('uuid-unknown not found or not registered')
+  })
+
+  it('says the part is not there', async () => {
+    const manager = createManager(createMockEndpoint())
+
+    expect(await errorOf(manager.updateAccessoryState('uuid-1', 'onOff', { onOff: true }, 'no-such-part')))
+      .toContain('Part no-such-part not found in accessory uuid-1')
+  })
+
+  it('leaves the saved state as it was when matter.js refuses the value', async () => {
+    const endpoint = createMockEndpoint({
+      set: vi.fn(async () => {
+        throw new Error('constraint: level must be 1 to 254')
+      }),
+    })
+    const accessories = new Map<string, InternalMatterAccessory>()
+    const record = {
+      UUID: 'uuid-1',
+      displayName: 'Lamp',
+      deviceType: {} as any,
+      clusters: {
+        levelControl: { currentLevel: 100 },
+      },
+      endpoint,
+    } as any
+    accessories.set('uuid-1', record)
+    const emitter = new EventEmitter()
+    const emitted = vi.spyOn(emitter, 'emit')
+    const manager = new StateManager(accessories, emitter, () => true)
+
+    expect(await errorOf(manager.updateAccessoryState('uuid-1', 'levelControl', { currentLevel: 300 })))
+      .toContain('level must be 1 to 254')
+
+    // what the cache saves and the UI lists is unchanged, and nobody is told of a change
+    expect(record.clusters).toEqual({
+      levelControl: { currentLevel: 100 },
+    })
+    expect(emitted).not.toHaveBeenCalled()
+  })
+})
