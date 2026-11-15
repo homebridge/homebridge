@@ -115,6 +115,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor: type the messages between a child bridge and the main process by their id
 - docs: correct the comments on child bridge messages, and two typos in config errors
 - refactor: drop a child bridge's pending restart timer when homebridge shuts down
+- test: cover the child process message switch, and replace two tests that checked their own setup
 
 ### Homebridge Dependencies
 
