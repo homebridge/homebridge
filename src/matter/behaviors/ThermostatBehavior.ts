@@ -35,18 +35,14 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     // React to systemMode attribute changes (off, heat, cool, auto, etc.)
     this.reactTo(this.events.systemMode$Changed, this.#handleSystemModeChange, { offline: true })
 
-    // React to occupiedHeatingSetpoint attribute changes (target heating temperature)
-    // Using 'as any' because these events are feature-dependent (Heating/Cooling features)
-    // and may not be present in the base events type at compile time
-    const events = this.events as any
-    if (events.occupiedHeatingSetpoint$Changing) {
-      this.reactTo(events.occupiedHeatingSetpoint$Changing, this.#handleOccupiedHeatingSetpointChanging, { offline: true })
-    }
-
-    // React to occupiedCoolingSetpoint attribute changes (target cooling temperature)
-    if (events.occupiedCoolingSetpoint$Changing) {
-      this.reactTo(events.occupiedCoolingSetpoint$Changing, this.#handleOccupiedCoolingSetpointChanging, { offline: true })
-    }
+    // React to changes of the setpoints (the target temperatures). Which of
+    // them exist depends on the features (Heating, Cooling, Occupancy), so the
+    // base type does not list their events.
+    const events = this.events as unknown as Record<string, Parameters<typeof this.reactTo>[0] | undefined>
+    this.maybeReactTo(events.occupiedHeatingSetpoint$Changing, this.#handleOccupiedHeatingSetpointChanging, { offline: true })
+    this.maybeReactTo(events.occupiedCoolingSetpoint$Changing, this.#handleOccupiedCoolingSetpointChanging, { offline: true })
+    this.maybeReactTo(events.unoccupiedHeatingSetpoint$Changing, this.#handleUnoccupiedHeatingSetpointChanging, { offline: true })
+    this.maybeReactTo(events.unoccupiedCoolingSetpoint$Changing, this.#handleUnoccupiedCoolingSetpointChanging, { offline: true })
 
     // matter.js links the temperature and occupancy that controllers read to
     // the state a plugin sets only at the moment the node comes online. A
@@ -136,46 +132,34 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     }
   }
 
-  async #handleOccupiedHeatingSetpointChanging(value: unknown): Promise<void> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-    // Using 'as any' because occupiedHeatingSetpoint is feature-dependent (Heating feature)
-    const oldValue = (this.state as any).occupiedHeatingSetpoint
-
-    // The plugin reported this change itself (updateAccessoryState): its
-    // device is already there, so there is nothing to ask the plugin for.
-    if (isPluginUpdate(this.endpoint, 'thermostat', 'occupiedHeatingSetpoint', value)) {
-      return
-    }
-
-    try {
-      // Execute user handler
-      await registry.executeHandler(
-        endpointId,
-        'thermostat',
-        'occupiedHeatingSetpointChange',
-        { occupiedHeatingSetpoint: value as number, oldOccupiedHeatingSetpoint: oldValue },
-      )
-
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'thermostat', { occupiedHeatingSetpoint: value })
-    } catch (error) {
-      // The write is already accepted, so an error can not refuse it any more:
-      // put the old value back, so controllers show what the device really does.
-      await revertFailedChange(this.endpoint, 'thermostat', 'occupiedHeatingSetpoint', value, oldValue, error)
-      registry.syncStateToCache(endpointId, 'thermostat', { occupiedHeatingSetpoint: oldValue })
-    }
+  // One reaction per setpoint: matter.js wants each to be a method of its own.
+  async #handleOccupiedHeatingSetpointChanging(value: number, oldValue: number): Promise<void> {
+    await this.setpointChanging('occupiedHeatingSetpoint', 'oldOccupiedHeatingSetpoint', value, oldValue)
   }
 
-  async #handleOccupiedCoolingSetpointChanging(value: unknown): Promise<void> {
+  async #handleOccupiedCoolingSetpointChanging(value: number, oldValue: number): Promise<void> {
+    await this.setpointChanging('occupiedCoolingSetpoint', 'oldOccupiedCoolingSetpoint', value, oldValue)
+  }
+
+  async #handleUnoccupiedHeatingSetpointChanging(value: number, oldValue: number): Promise<void> {
+    await this.setpointChanging('unoccupiedHeatingSetpoint', 'oldUnoccupiedHeatingSetpoint', value, oldValue)
+  }
+
+  async #handleUnoccupiedCoolingSetpointChanging(value: number, oldValue: number): Promise<void> {
+    await this.setpointChanging('unoccupiedCoolingSetpoint', 'oldUnoccupiedCoolingSetpoint', value, oldValue)
+  }
+
+  /**
+   * Tell the plugin a setpoint was changed, through its `<setpoint>Change`
+   * handler, which is given the new and the old value.
+   */
+  private async setpointChanging(attribute: string, oldName: string, value: number, oldValue: number): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
-    // Using 'as any' because occupiedCoolingSetpoint is feature-dependent (Cooling feature)
-    const oldValue = (this.state as any).occupiedCoolingSetpoint
 
     // The plugin reported this change itself (updateAccessoryState): its
     // device is already there, so there is nothing to ask the plugin for.
-    if (isPluginUpdate(this.endpoint, 'thermostat', 'occupiedCoolingSetpoint', value)) {
+    if (isPluginUpdate(this.endpoint, 'thermostat', attribute, value)) {
       return
     }
 
@@ -184,17 +168,17 @@ export class HomebridgeThermostatServer extends ThermostatServer {
       await registry.executeHandler(
         endpointId,
         'thermostat',
-        'occupiedCoolingSetpointChange',
-        { occupiedCoolingSetpoint: value as number, oldOccupiedCoolingSetpoint: oldValue },
+        `${attribute}Change`,
+        { [attribute]: value, [oldName]: oldValue },
       )
 
       // Sync state to cache
-      registry.syncStateToCache(endpointId, 'thermostat', { occupiedCoolingSetpoint: value })
+      registry.syncStateToCache(endpointId, 'thermostat', { [attribute]: value })
     } catch (error) {
       // The write is already accepted, so an error can not refuse it any more:
       // put the old value back, so controllers show what the device really does.
-      await revertFailedChange(this.endpoint, 'thermostat', 'occupiedCoolingSetpoint', value, oldValue, error)
-      registry.syncStateToCache(endpointId, 'thermostat', { occupiedCoolingSetpoint: oldValue })
+      await revertFailedChange(this.endpoint, 'thermostat', attribute, value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'thermostat', { [attribute]: oldValue })
     }
   }
 

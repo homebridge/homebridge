@@ -20,7 +20,13 @@
 /** The attributes whose change calls a plugin handler, per cluster. */
 export const HANDLED_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
   fanControl: ['fanMode', 'percentSetting'],
-  thermostat: ['systemMode', 'occupiedHeatingSetpoint', 'occupiedCoolingSetpoint'],
+  thermostat: [
+    'systemMode',
+    'occupiedHeatingSetpoint',
+    'occupiedCoolingSetpoint',
+    'unoccupiedHeatingSetpoint',
+    'unoccupiedCoolingSetpoint',
+  ],
 }
 
 const pluginUpdates = new WeakMap<object, Map<string, unknown>>()

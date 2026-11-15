@@ -18,7 +18,7 @@ import { mapAttributesToCommand } from '../ClusterCommandMapper.js'
 import { MatterStatus } from '../errors.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
 import { StateManager } from '../server/StateManager.js'
-import { deviceTypes } from '../types.js'
+import { deviceRequirements, deviceTypes } from '../types.js'
 import { BehaviorRegistry, HomebridgeThermostatServer, HomebridgeWindowCoveringServer, RegistryManager } from './index.js'
 
 /**
@@ -2326,5 +2326,64 @@ describe('the cached state of energy devices, on a real node', () => {
       ],
       cause: 0,
     })
+  })
+})
+
+describe('a thermostat with unoccupied setpoints, on a real node', () => {
+  /** A heating thermostat with the Occupancy feature, so it has a setpoint for an empty room. */
+  function thermostat(handler: (request: unknown) => Promise<void>) {
+    return register({
+      deviceType: deviceTypes.Thermostat.with(
+        deviceRequirements.Thermostat.ThermostatServer.with('Heating', 'Occupancy'),
+      ),
+      clusters: {
+        thermostat: {
+          localTemperature: 2000,
+          occupiedHeatingSetpoint: 2000,
+          unoccupiedHeatingSetpoint: 1600,
+          occupancy: { occupied: true },
+          systemMode: 4,
+          controlSequenceOfOperation: 2,
+        },
+      },
+      handlers: {
+        thermostat: {
+          unoccupiedHeatingSetpointChange: handler,
+        },
+      },
+    })
+  }
+
+  it('tells the plugin when a controller changes the unoccupied setpoint, not when the plugin reports it', async () => {
+    const calls: unknown[] = []
+    const endpoint = await thermostat(async (request) => {
+      calls.push(request)
+    })
+
+    await write(endpoint, {
+      thermostat: { unoccupiedHeatingSetpoint: 1700 },
+    })
+    await settle()
+    expect(calls).toEqual([
+      { unoccupiedHeatingSetpoint: 1700, oldUnoccupiedHeatingSetpoint: 1600 },
+    ])
+    expect(accessories.get('test-uuid')?.clusters?.thermostat).toMatchObject({ unoccupiedHeatingSetpoint: 1700 })
+
+    await stateManager.updateAccessoryState('test-uuid', 'thermostat', { unoccupiedHeatingSetpoint: 1800 })
+    await settle()
+    expect(calls).toHaveLength(1)
+  })
+
+  it('puts the unoccupied setpoint back when the handler fails', async () => {
+    const endpoint = await thermostat(async () => {
+      throw new Error('device offline')
+    })
+
+    await write(endpoint, {
+      thermostat: { unoccupiedHeatingSetpoint: 1700 },
+    })
+    await settle()
+
+    expect(stateOf(endpoint, 'thermostat').unoccupiedHeatingSetpoint).toBe(1600)
   })
 })
