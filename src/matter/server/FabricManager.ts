@@ -106,34 +106,23 @@ export class FabricManager {
         return []
       }
 
-      // Candidate files, in priority order:
-      //  1. matter.js native storage: `<storagePath>/<nodeId>/fabrics.fabrics`
-      //     (a bare JSON array, no `.json` extension, one directory down)
-      //  2. Legacy: any `*.json` in the storage root with a fabrics key
-      const entries = fs.readdirSync(storagePath, { withFileTypes: true })
-      const candidates: string[] = []
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          candidates.push(path.join(storagePath, entry.name, 'fabrics.fabrics'))
-        }
-      }
-      for (const entry of entries) {
-        if (entry.isFile() && entry.name.endsWith('.json')) {
-          candidates.push(path.join(storagePath, entry.name))
-        }
-      }
+      // matter.js keeps the fabric list in `<storagePath>/<nodeId>/fabrics.fabrics`
+      // (a bare JSON array, no `.json` extension, one directory down).
+      //
+      // Nothing else is read. The storage root also holds Homebridge's own
+      // files, and `accessories.json` (the accessory cache) is a JSON array
+      // too: reading every `*.json` here once reported an unpaired bridge as
+      // paired, with one fake fabric per cached accessory.
+      const candidates = fs.readdirSync(storagePath, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => path.join(storagePath, entry.name, 'fabrics.fabrics'))
 
       for (const file of candidates) {
         try {
           if (!fs.existsSync(file)) {
             continue
           }
-          const data = JSON.parse(fs.readFileSync(file, 'utf-8'))
-
-          // Check for fabrics data in various storage key formats
-          const fabricsData = Array.isArray(data)
-            ? data
-            : (data?.['fabrics.fabrics'] || data?.fabrics?.fabrics)
+          const fabricsData: unknown = JSON.parse(fs.readFileSync(file, 'utf-8'))
           if (Array.isArray(fabricsData) && fabricsData.length > 0) {
             return fabricsData.map((fabric: any) => ({
               fabricIndex: fabric.fabricIndex || 0,
