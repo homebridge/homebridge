@@ -678,6 +678,63 @@ describe('bridgeService', () => {
       expect(debugSpy).toHaveBeenCalled()
     })
 
+    const WIKI = 'See https://homebridge.io/w/JtMGR for more info.'
+    const PREFIX = expect.stringContaining('homebridge-test')
+
+    it('names the plugin, the characteristic and the accessory for a warning, at info level', () => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(CharacteristicWarningType.WARN_MESSAGE, 'value is out of range'))
+
+      expect(logSpy).toHaveBeenCalledExactlyOnceWith(
+        PREFIX,
+        'This plugin generated a warning from the characteristic \'FakeCharacteristic\' of the accessory \'FakeAccessory\':',
+        'value is out of range.',
+        WIKI,
+      )
+      expect(errorSpy).not.toHaveBeenCalled()
+    })
+
+    it('names the accessory for an error, at error level', () => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(CharacteristicWarningType.ERROR_MESSAGE, 'handler threw'))
+
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+        PREFIX,
+        'This plugin threw an error from the characteristic \'FakeCharacteristic\' of the accessory \'FakeAccessory\':',
+        'handler threw.',
+        WIKI,
+      )
+    })
+
+    it.each(['Adding anyway.', 'Is that right?', 'Fix it!'])('does not add a second full stop to "%s"', (message) => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(CharacteristicWarningType.WARN_MESSAGE, message))
+
+      expect(logSpy.mock.calls[0][2]).toBe(message)
+    })
+
+    it('prints a type it does not know as a warning, at info level', () => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning('some-new-type' as CharacteristicWarningType, 'new'))
+
+      expect(logSpy).toHaveBeenCalledExactlyOnceWith(PREFIX, expect.stringContaining('generated a warning'), 'new.', WIKI)
+    })
+
+    it.each([
+      CharacteristicWarningType.SLOW_READ,
+      CharacteristicWarningType.SLOW_WRITE,
+    ])('says the plugin slows down Homebridge for %s, at info level', (type) => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(type, 'took 4 seconds'))
+
+      expect(logSpy).toHaveBeenCalledExactlyOnceWith(PREFIX, 'This plugin slows down Homebridge.', 'took 4 seconds', WIKI)
+    })
+
+    it.each([
+      CharacteristicWarningType.TIMEOUT_READ,
+      CharacteristicWarningType.TIMEOUT_WRITE,
+    ])('says the plugin did not answer in time for %s, at error level', (type) => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), { ignoreSlow: true }, makeWarning(type, 'gave no answer'))
+
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(PREFIX, 'This plugin did not answer in time, which slows down Homebridge.', 'gave no answer', WIKI)
+      expect(logSpy).not.toHaveBeenCalled()
+    })
+
     it('emits a debug log when warning.stack is present', () => {
       const warning = {
         ...makeWarning(CharacteristicWarningType.WARN_MESSAGE),

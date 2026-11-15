@@ -440,32 +440,41 @@ export class BridgeService {
     hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, listener)
   }
 
-  // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
+  /**
+   * Print a characteristic warning (for a read as well as a write) under the
+   * name of the plugin, with the accessory it came from.
+   */
   public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, opts: CharacteristicWarningOpts, warning: CharacteristicWarning): void {
     const wikiInfo = 'See https://homebridge.io/w/JtMGR for more info.'
+    const prefix = getLogPrefix(plugin.getPluginIdentifier())
+    const source = `the characteristic '${warning.characteristic.displayName}' of the accessory '${accessory.displayName}'`
+    // HAP-NodeJS ends some of its messages with a full stop, and some not
+    const message = /[.!?]$/.test(warning.message)
+      ? warning.message
+      : `${warning.message}.`
     BridgeService.printedWarnings.add(warning)
     switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
         if (!opts.ignoreSlow) {
-          log.info(getLogPrefix(plugin.getPluginIdentifier()), 'This plugin slows down Homebridge.', warning.message, wikiInfo)
+          log.info(prefix, 'This plugin slows down Homebridge.', warning.message, wikiInfo)
         }
         break
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
-        log.error(getLogPrefix(plugin.getPluginIdentifier()), 'This plugin slows down Homebridge.', warning.message, wikiInfo)
+        log.error(prefix, 'This plugin did not answer in time, which slows down Homebridge.', warning.message, wikiInfo)
         break
       case CharacteristicWarningType.WARN_MESSAGE:
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, `${warning.message}.`, wikiInfo)
+        log.info(prefix, `This plugin generated a warning from ${source}:`, message, wikiInfo)
         break
       case CharacteristicWarningType.ERROR_MESSAGE:
-        log.error(getLogPrefix(plugin.getPluginIdentifier()), `This plugin threw an error from the characteristic '${warning.characteristic.displayName}':`, `${warning.message}.`, wikiInfo)
+        log.error(prefix, `This plugin threw an error from ${source}:`, message, wikiInfo)
         break
       case CharacteristicWarningType.DEBUG_MESSAGE:
-        log.debug(getLogPrefix(plugin.getPluginIdentifier()), `Characteristic '${warning.characteristic.displayName}':`, `${warning.message}.`, wikiInfo)
+        log.debug(prefix, `Characteristic '${warning.characteristic.displayName}' of the accessory '${accessory.displayName}':`, message, wikiInfo)
         break
       default: // generic message for yet unknown types
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, `${warning.message}.`, wikiInfo)
+        log.info(prefix, `This plugin generated a warning from ${source}:`, message, wikiInfo)
         break
     }
     if (warning.stack) {
