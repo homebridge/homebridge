@@ -863,6 +863,25 @@ describe('window coverings on a real node', () => {
     })
   })
 
+  it('leaves the plugin context alone', async () => {
+    const context = { mine: 1 }
+    await new AccessoryManager().registerAccessory('homebridge-test', 'Test', {
+      UUID: 'test-uuid',
+      displayName: 'Test',
+      serialNumber: 'serial',
+      manufacturer: 'maker',
+      model: 'model',
+      context,
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: { ...lift },
+      },
+      handlers,
+    }, deps)
+
+    expect(context).toEqual({ mine: 1 })
+  })
+
   it('registers a tilt-only blind and keeps the type its plugin set', async () => {
     const endpoint = await register({
       deviceType: deviceTypes.WindowCovering,
