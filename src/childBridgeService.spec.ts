@@ -1017,6 +1017,134 @@ describe('childBridgeService', () => {
       expect((service as any).bridgeConfig.username).toBe('0E:DC:5D:BE:D6:75')
     })
 
+    // A restart reads config.json again. The `_bridge` block it finds used to be
+    // taken as it was, without the checks a full start gives it.
+    describe('checks the _bridge block it reads', () => {
+      const username = '0E:DC:5D:BE:D6:75'
+
+      function refreshWith(bridge: Record<string, unknown>, rest: Record<string, unknown> = {}) {
+        const built = buildService({
+          identifier: 'TestPlatform',
+          bridgeConfig: makeBridgeConfig({
+            username,
+            hap: { enabled: true },
+          }),
+        })
+        built.externalPortService.reserveMatterPort = vi.fn()
+        vi.mocked(fs.readJson).mockResolvedValue({
+          bridge: { username: 'CC:22:3D:E3:CE:30', pin: '031-45-154' },
+          platforms: [
+            {
+              platform: 'TestPlatform',
+              name: 'Renamed',
+              _bridge: { username, ...bridge },
+            },
+          ],
+          ...rest,
+        } as any)
+        return built
+      }
+
+      it('keeps the bridge settings in use when the new hap block is not valid', async () => {
+        const { service } = refreshWith({ hap: 'yes' })
+
+        await service.refreshConfig()
+
+        // the plugin config is still refreshed; only the bridge block is refused
+        expect((service as any).pluginConfig[0].name).toBe('Renamed')
+        expect((service as any).bridgeConfig.hap).toEqual({ enabled: true })
+      })
+
+      it('turns a legacy boolean hap into the object form', async () => {
+        const { service } = refreshWith({ hap: false })
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.hap).toEqual({ enabled: false })
+      })
+
+      it('drops a matter block whose port is not valid', async () => {
+        const { service, externalPortService } = refreshWith({
+          matter: { port: 80 },
+        })
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.matter).toBeUndefined()
+        expect(externalPortService.reserveMatterPort).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        [
+          'the main bridge',
+          {
+            bridge: {
+              username: 'CC:22:3D:E3:CE:30',
+              pin: '031-45-154',
+              matter: { port: 5560 },
+            },
+          },
+        ],
+        [
+          'another child bridge',
+          {
+            accessories: [
+              {
+                accessory: 'Other',
+                name: 'O',
+                _bridge: {
+                  username: '0E:00:00:00:00:01',
+                  matter: { port: 5560 },
+                },
+              },
+            ],
+          },
+        ],
+      ])('drops a matter block whose port belongs to %s', async (_owner, rest) => {
+        const { service, externalPortService } = refreshWith({
+          matter: { port: 5560 },
+        }, rest)
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.matter).toBeUndefined()
+        expect(externalPortService.reserveMatterPort).not.toHaveBeenCalled()
+      })
+
+      it('takes a valid matter block, and keeps its port away from every other bridge', async () => {
+        const { service, externalPortService } = refreshWith({
+          matter: { port: 5560 },
+        }, {
+          // a bridge that starts no Matter server does not hold its port
+          accessories: [
+            {
+              accessory: 'Other',
+              name: 'O',
+              _bridge: {
+                username: '0E:00:00:00:00:01',
+                matter: { port: 5560, enabled: false },
+              },
+            },
+          ],
+        })
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.matter).toEqual({ port: 5560 })
+        expect(externalPortService.reserveMatterPort).toHaveBeenCalledWith(5560)
+      })
+
+      it('reads externalsOnly without enabled: false as externalsOnly mode, as a full start does', async () => {
+        const { service } = refreshWith({
+          matter: { externalsOnly: true },
+        })
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.matter).toEqual({ externalsOnly: true, enabled: false })
+      })
+    })
+
     it('updates pluginConfig from the on-disk config when entries match', async () => {
       const { service } = buildService({
         identifier: 'TestPlatform',

@@ -25,8 +25,10 @@ import { fileURLToPath } from 'node:url'
 import fs from 'fs-extra'
 
 import { PluginType } from './api.js'
+import { validateHapConfig } from './bridgeService.js'
 import { IpcOutgoingEvent } from './ipcService.js'
 import { Logger } from './logger.js'
+import { shouldStartMatterServer, stripMatterExternalsOnlyForAccessory, validateMatterExternalsOnly } from './matter/config.js'
 import { User } from './user.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -907,12 +909,80 @@ export class ChildBridgeService {
    * Take the `_bridge` block read again from config.json as this child
    * bridge's config. The username stays the one already in use: it is this
    * bridge's identity, and the file may spell it in lower case.
+   *
+   * The block gets the checks a full start gives it. Before, a `_bridge` block
+   * changed in the UI was used unchecked after a child bridge restart: a wrong
+   * `hap` block, or a Matter port another bridge already has.
    */
-  private useRefreshedBridgeConfig(bridgeConfig?: BridgeConfiguration): void {
-    if (bridgeConfig) {
-      bridgeConfig.username = this.bridgeConfig.username
-      this.bridgeConfig = bridgeConfig
+  private async useRefreshedBridgeConfig(homebridgeConfig: HomebridgeConfig): Promise<void> {
+    const config = this.pluginConfig[0]
+    const bridgeConfig = config?._bridge
+    if (!bridgeConfig) {
+      return
     }
+
+    const bridgeLabel = `${this.type} "${this.identifier}" child bridge`
+
+    try {
+      validateHapConfig(bridgeConfig, { bridgeLabel, isAccessoryPlugin: this.type === PluginType.ACCESSORY })
+    } catch (error: unknown) {
+      this.log.error(`${error instanceof Error
+        ? error.message
+        : String(error)} Using the bridge settings the child bridge started with.`)
+      return
+    }
+
+    if (bridgeConfig.matter) {
+      if (this.type === PluginType.ACCESSORY) {
+        stripMatterExternalsOnlyForAccessory(bridgeConfig.matter, bridgeLabel)
+      } else {
+        validateMatterExternalsOnly(bridgeConfig.matter, bridgeLabel)
+      }
+
+      // Same rule as a full start: a block that starts no server keeps its
+      // settings as they are, and one that is not valid is dropped.
+      if (shouldStartMatterServer(bridgeConfig.matter)) {
+        const { MatterConfigValidator } = await import('./matter/configValidator.js')
+        const validation = MatterConfigValidator.validateChildMatterConfig(config, this.type === PluginType.ACCESSORY
+          ? 'accessory'
+          : 'platform', this.identifier)
+        const port = bridgeConfig.matter.port
+
+        if (!validation.isValid) {
+          this.log.error('The Matter configuration of this child bridge is invalid. Matter will not be enabled for it.')
+          delete bridgeConfig.matter
+        } else if (port && this.isMatterPortOfAnotherBridge(homebridgeConfig, port)) {
+          this.log.error(`Matter port ${port} is already used by another bridge in your config.json. Matter will not be enabled for this child bridge.`)
+          delete bridgeConfig.matter
+        } else if (port) {
+          // A port set since Homebridge started is not known to the allocator
+          // yet: no other bridge or external accessory may be given it.
+          this.externalPortService.reserveMatterPort(port)
+        }
+      }
+    }
+
+    bridgeConfig.username = this.bridgeConfig.username
+    this.bridgeConfig = bridgeConfig
+  }
+
+  /**
+   * Whether the main bridge or another child bridge in config.json has this
+   * Matter port, and will start a Matter server on it.
+   */
+  private isMatterPortOfAnotherBridge(homebridgeConfig: HomebridgeConfig, port: number): boolean {
+    const mainMatter = homebridgeConfig.bridge?.matter
+    if (mainMatter?.port === port && shouldStartMatterServer(mainMatter)) {
+      return true
+    }
+
+    return [
+      ...(homebridgeConfig.platforms ?? []),
+      ...(homebridgeConfig.accessories ?? []),
+    ].some((entry) => {
+      const bridge = entry._bridge
+      return !!bridge && !this.isOwnUsername(bridge.username) && bridge.matter?.port === port && shouldStartMatterServer(bridge.matter)
+    })
   }
 
   /**
@@ -929,7 +999,7 @@ export class ChildBridgeService {
         const config = (homebridgeConfig.platforms ?? []).filter(x => x.platform === this.identifier && this.isOwnUsername(x._bridge?.username))
         if (config.length) {
           this.pluginConfig = config
-          this.useRefreshedBridgeConfig(this.pluginConfig[0]._bridge)
+          await this.useRefreshedBridgeConfig(homebridgeConfig)
         } else {
           this.log.warn('Platform config could not be found, using existing config.')
         }
@@ -937,7 +1007,7 @@ export class ChildBridgeService {
         const config = (homebridgeConfig.accessories ?? []).filter(x => x.accessory === this.identifier && this.isOwnUsername(x._bridge?.username))
         if (config.length) {
           this.pluginConfig = config
-          this.useRefreshedBridgeConfig(this.pluginConfig[0]._bridge)
+          await this.useRefreshedBridgeConfig(homebridgeConfig)
         } else {
           this.log.warn('Accessory config could not be found, using existing config.')
         }
