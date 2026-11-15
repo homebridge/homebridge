@@ -1,8 +1,9 @@
 import type { MatterAccessory } from './types.js'
 
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import process from 'node:process'
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -110,6 +111,25 @@ describe('matterServer storage on real matter.js nodes', () => {
     await after.triggerCommand('uuid-media-player', 'keypadInput', 'sendKey', { keyCode: 1 })
 
     expect(calls).toEqual(['before restart', 'after restart'])
+  }, 30000)
+
+  // #4047: a container killed hard leaves matter.js's lock files behind, and
+  // in the next container the process id they name belongs to another program.
+  it('starts when the storage lock was left behind by an earlier run whose process id is in use again', async () => {
+    const first = bridgeServer('DDDDDDDDDDDD', 55984)
+    await first.start()
+    await first.stop()
+    // The lock an earlier run left a day ago. The process id is a live process
+    // (the test runner's parent), and it started long after that.
+    const nodeFolder = join(matterPath, 'DDDDDDDDDDDD', 'DDDDDDDDDDDD')
+    const aDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    writeFileSync(join(nodeFolder, 'matter.lock'), '')
+    writeFileSync(join(nodeFolder, 'matter.pid'), `${process.ppid} 0123456789abcdef`)
+    utimesSync(join(nodeFolder, 'matter.pid'), aDayAgo, aDayAgo)
+
+    const second = bridgeServer('DDDDDDDDDDDD', 55984)
+
+    await expect(second.start()).resolves.toBeUndefined()
   }, 30000)
 
   it('keeps the node storage of two servers that start together in their own folders', async () => {

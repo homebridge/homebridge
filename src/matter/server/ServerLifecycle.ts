@@ -40,6 +40,7 @@ import {
   STORAGE_LOCK_RETRY_ATTEMPTS,
   STORAGE_LOCK_RETRY_DELAY_MS,
 } from './ServerConfig.js'
+import { reclaimStaleStorageLock } from './storageLock.js'
 
 const log = Logger.withPrefix('Matter/Server')
 
@@ -91,10 +92,20 @@ export class ServerLifecycle {
    * deliberately not treated as transient.
    */
   private isTransientStorageLock(error: unknown): boolean {
-    const message = error instanceof Error
-      ? error.message
-      : String(error)
-    return message.includes('locked by another process')
+    // matter.js reports the lock as the CAUSE of a "node store unavailable"
+    // error, so look down the chain and not only at the top message.
+    for (let current: unknown = error, depth = 0; current !== undefined && current !== null && depth < 10; depth++) {
+      const message = current instanceof Error
+        ? current.message
+        : String(current)
+      if (message.includes('locked by another process')) {
+        return true
+      }
+      current = current instanceof Error
+        ? current.cause
+        : undefined
+    }
+    return false
   }
 
   /**
@@ -108,11 +119,23 @@ export class ServerLifecycle {
   private async createServerNode(
     nodeOptions: Parameters<typeof MatterServerNode.create>[0],
   ): Promise<ServerNode> {
+    let lockReclaimed = false
     for (let attempt = 1; ; attempt++) {
       try {
         return await MatterServerNode.create(nodeOptions)
       } catch (error: unknown) {
-        if (!this.isTransientStorageLock(error) || attempt >= STORAGE_LOCK_RETRY_ATTEMPTS) {
+        if (!this.isTransientStorageLock(error)) {
+          throw error
+        }
+        // A lock left behind by a run that was killed, whose process id now
+        // belongs to another program, never clears by waiting (#4047). When
+        // that can be proven the lock is removed, and matter.js is asked again
+        // straight away.
+        if (!lockReclaimed && this.matterStoragePath && nodeOptions.id && await reclaimStaleStorageLock(join(this.matterStoragePath, nodeOptions.id))) {
+          lockReclaimed = true
+          continue
+        }
+        if (attempt >= STORAGE_LOCK_RETRY_ATTEMPTS) {
           throw error
         }
         log.warn(

@@ -1233,6 +1233,20 @@ describe('serverLifecycle.createServerNodeWithRecovery — transient storage-loc
     expect(MatterServerNode.create).toHaveBeenCalledTimes(2)
   })
 
+  it('retries when matter.js reports the lock as the cause of another error', async () => {
+    // What matter.js 0.18 really throws (#4047): the lock is one level down.
+    vi.mocked(MatterServerNode.create).mockRejectedValueOnce(
+      new Error('[crashed-dependency] node store unavailable due to initialization error', {
+        cause: new Error('[storage-lock] Storage is locked by another process (pid 160)'),
+      }),
+    )
+
+    const node = await lifecycle.createServerNodeWithRecovery({} as never, 'TEST0001')
+
+    expect(node).toBeDefined()
+    expect(MatterServerNode.create).toHaveBeenCalledTimes(2)
+  })
+
   it('gives up after the retry budget when the lock never clears', async () => {
     vi.mocked(MatterServerNode.create).mockRejectedValue(
       new Error('Storage is locked by another process (pid 1234)'),
