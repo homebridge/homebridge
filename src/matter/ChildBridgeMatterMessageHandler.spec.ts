@@ -2,6 +2,8 @@ import type { Mock } from 'vitest'
 
 import type { MatterEvent } from './ipc-types.js'
 
+import process from 'node:process'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChildBridgeMatterMessageHandler } from './ChildBridgeMatterMessageHandler.js'
@@ -333,6 +335,30 @@ describe('childBridgeMatterMessageHandler', () => {
         },
       }
       expect(mockSendMessage).toHaveBeenCalledWith('matterEvent', expectedEvent)
+    })
+
+    // `null.message` threw inside the catch: an unhandled rejection, which ends
+    // the child bridge process.
+    it.each([null, undefined])('answers with an error when a handler rejects with %s', async (reason) => {
+      mockMatterManager.hasActiveMatter.mockReturnValue(true)
+      mockMatterManager.handleTriggerCommand.mockRejectedValue(reason)
+      const unhandled: unknown[] = []
+      const onUnhandled = (error: unknown) => unhandled.push(error)
+      process.on('unhandledRejection', onUnhandled)
+
+      try {
+        handler.handleMatterAccessoryControl({ ...mockControlData, correlationId: 'corr-null' })
+        await new Promise(resolve => setTimeout(resolve, 20))
+      } finally {
+        process.off('unhandledRejection', onUnhandled)
+      }
+
+      expect(unhandled).toEqual([])
+      expect(mockSendMessage).toHaveBeenCalledWith('matterEvent', {
+        type: 'accessoryControlResponse',
+        correlationId: 'corr-null',
+        data: { success: false, error: 'Unknown error', uuid: mockControlData.uuid },
+      })
     })
   })
 
