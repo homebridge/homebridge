@@ -931,13 +931,13 @@ export class AccessoryManager {
       customBehaviors.push(powerSourceBehavior)
     }
 
-    if (!accessory.handlers) {
-      return customBehaviors
+    if (accessory.handlers) {
+      log.debug(`[${accessory.displayName}] Has handlers: ${Object.keys(accessory.handlers).join(', ')}`)
     }
 
-    log.debug(`[${accessory.displayName}] Has handlers: ${Object.keys(accessory.handlers).join(', ')}`)
-
-    // Handle RoboticVacuumCleaner optional clusters
+    // Handle RoboticVacuumCleaner optional clusters. A vacuum with state and no
+    // handlers gets them too (the base servers), so this comes before the
+    // "no handlers" return: after it, those clusters and their state were dropped.
     if (deviceType.deviceType === devices.RoboticVacuumCleanerDevice.deviceType) {
       const { RvcCleanModeServer, ServiceAreaServer } = devices.RoboticVacuumCleanerRequirements
 
@@ -981,7 +981,11 @@ export class AccessoryManager {
       }
     }
 
-    for (const clusterName of Object.keys(accessory.handlers || {})) {
+    if (!accessory.handlers) {
+      return customBehaviors
+    }
+
+    for (const clusterName of Object.keys(accessory.handlers)) {
       if (clusterName === 'windowCovering' && isWindowCoveringComposed(accessory)) {
         log.debug('Skipping custom WindowCovering behavior (using base server with features instead)')
         continue

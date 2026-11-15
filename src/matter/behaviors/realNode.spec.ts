@@ -1585,3 +1585,81 @@ describe('two commands sent together, on a real node', () => {
     expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled'])
   })
 })
+
+describe('a robot vacuum with state and no handlers, on a real node', () => {
+  it('keeps its clean mode and service area clusters', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.RoboticVacuumCleaner,
+      clusters: {
+        rvcRunMode: {
+          supportedModes: [
+            {
+              label: 'Idle',
+              mode: 0,
+              modeTags: [
+                { value: 16384 },
+              ],
+            },
+            {
+              label: 'Clean',
+              mode: 1,
+              modeTags: [
+                { value: 16385 },
+              ],
+            },
+          ],
+          currentMode: 0,
+        },
+        rvcOperationalState: {
+          operationalStateList: [
+            { operationalStateId: 0 },
+            { operationalStateId: 1 },
+            { operationalStateId: 2 },
+            { operationalStateId: 3 },
+            { operationalStateId: 64 },
+            { operationalStateId: 65 },
+            { operationalStateId: 66 },
+          ],
+          operationalState: 0,
+        },
+        rvcCleanMode: {
+          supportedModes: [
+            {
+              label: 'Vacuum',
+              mode: 0,
+              modeTags: [
+                { value: 16385 },
+              ],
+            },
+            {
+              label: 'Mop',
+              mode: 1,
+              modeTags: [
+                { value: 16386 },
+              ],
+            },
+          ],
+          currentMode: 1,
+        },
+        serviceArea: {
+          supportedAreas: [
+            {
+              areaId: 1,
+              mapId: null,
+              areaInfo: {
+                locationInfo: { locationName: 'Kitchen', floorNumber: 0, areaType: null },
+                landmarkInfo: null,
+              },
+            },
+          ],
+          selectedAreas: [1],
+        },
+      },
+    })
+
+    expect(stateOf(endpoint, 'rvcCleanMode')).toMatchObject({ currentMode: 1 })
+    expect(stateOf(endpoint, 'serviceArea')).toMatchObject({
+      selectedAreas: [1],
+    })
+  })
+})
