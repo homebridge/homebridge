@@ -221,6 +221,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): remove matter server methods and manager types that nothing uses
 - fix(matter): give the port back when an external accessory's server refuses its config
 - test(matter): cover a state update for an unknown accessory, an unknown part and a refused value
+- fix(matter): register a window covering that can only open and close
 
 ### Homebridge Dependencies
 

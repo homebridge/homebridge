@@ -1771,6 +1771,53 @@ describe('a window covering that can only open and close, on a real node', () =>
     })
   }
 
+  it('registers an open/close-only blind that declares no position, and opens and closes it', async () => {
+    const calls: string[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: {
+          operationalStatus: { global: 0, lift: 0, tilt: 0 },
+        },
+      },
+      handlers: {
+        windowCovering: {
+          upOrOpen: async () => {
+            calls.push('open')
+          },
+          downOrClose: async () => {
+            calls.push('close')
+          },
+        },
+      },
+    })
+
+    await invoke(endpoint, 'windowCovering', 'upOrOpen')
+    await invoke(endpoint, 'windowCovering', 'downOrClose')
+
+    expect(calls).toEqual(['open', 'close'])
+    expect(stateOf(endpoint, 'windowCovering').featureMap).toMatchObject({ lift: true, positionAwareLift: false, tilt: false })
+  })
+
+  it('registers an open/close-only blind that has handlers and no window covering state at all', async () => {
+    const calls: string[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {},
+      handlers: {
+        windowCovering: {
+          upOrOpen: async () => {
+            calls.push('open')
+          },
+        },
+      },
+    })
+
+    await invoke(endpoint, 'windowCovering', 'upOrOpen')
+
+    expect(calls).toEqual(['open'])
+  })
+
   it('calls the open handler once for open, and the close handler once for close', async () => {
     const calls: string[] = []
     const endpoint = await openCloseBlind({
