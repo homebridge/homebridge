@@ -9,7 +9,7 @@ import type { HomebridgeAPI, MatterWorkTracker } from '../api.js'
 import type { BridgeConfiguration, BridgeOptions } from '../bridgeService.js'
 import type { ChildBridgeExternalPortService } from '../externalPortService.js'
 import type { AccessoryInfo } from './managerTypes.js'
-import type { FabricInfo } from './server/FabricManager.js'
+import type { CommissioningSnapshot, FabricInfo } from './server/FabricManager.js'
 import type { InternalMatterAccessory, MatterAccessory, MatterConfig } from './types.js'
 
 import { InternalAPIEvent } from '../api.js'
@@ -53,6 +53,13 @@ export interface ChildBridgeMatterStatusInfo {
    */
   startFailed?: boolean
 }
+
+/**
+ * What a MatterServer returns for one accessory (its methods are typed `any`):
+ * the identity, device type, state and parts, without the fields that need the
+ * bridge, the accessory cache or the commissioning state.
+ */
+type ServerAccessoryData = Pick<AccessoryInfo, 'uuid' | 'displayName' | 'deviceType' | 'manufacturer' | 'model' | 'serialNumber' | 'firmwareRevision' | 'clusters' | 'parts'>
 
 /**
  * Manages Matter server and accessories for a child bridge
@@ -604,22 +611,20 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     const accessories: AccessoryInfo[] = []
 
     if (this.matterServer) {
-      const serverAccessories = this.matterServer.collectAccessories(
-        this.bridgeConfig.username,
-        'child',
-        this.bridgeConfig.name || 'Child Bridge',
-      )
-      accessories.push(...serverAccessories)
+      accessories.push(...this.collectAccessoriesFromServer(this.matterServer, {
+        username: this.bridgeConfig.username,
+        type: 'child',
+        name: this.bridgeConfig.name || 'Child Bridge',
+      }))
     }
 
     // Collect from external servers
     for (const server of this.externalMatterServers.values()) {
-      const externalAccessories = server.collectAccessories(
-        server.username,
-        'external',
-        server.bridgeName,
-      )
-      accessories.push(...externalAccessories)
+      accessories.push(...this.collectAccessoriesFromServer(server, {
+        username: server.username,
+        type: 'external',
+        name: server.bridgeName,
+      }))
     }
 
     return accessories
@@ -634,21 +639,72 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   getAccessoryInfo(uuid: string): AccessoryInfo | undefined {
     // Check main server
     if (this.matterServer) {
-      const info = this.matterServer.getAccessoryInfo(uuid)
+      const info: ServerAccessoryData | undefined = this.matterServer.getAccessoryInfo(uuid)
       if (info) {
-        return info
+        return this.toAccessoryInfo(this.matterServer, info, this.matterServer.getCommissioningSnapshot(), {
+          username: this.bridgeConfig.username,
+          type: 'child',
+          name: this.bridgeConfig.name || 'Child Bridge',
+        })
       }
     }
 
     // Check external servers
     for (const server of this.externalMatterServers.values()) {
-      const info = server.getAccessoryInfo(uuid)
+      const info: ServerAccessoryData | undefined = server.getAccessoryInfo(uuid)
       if (info) {
-        return info
+        return this.toAccessoryInfo(server, info, server.getCommissioningSnapshot(), {
+          username: server.username,
+          type: 'external',
+          name: server.bridgeName || 'Matter Bridge',
+        })
       }
     }
 
     return undefined
+  }
+
+  /**
+   * The accessories of one server, as the UI gets them.
+   */
+  private collectAccessoriesFromServer(server: MatterServer, bridge: AccessoryInfo['bridge']): AccessoryInfo[] {
+    const serverAccessories: ServerAccessoryData[] = server.collectAccessories(bridge.username, bridge.type, bridge.name)
+    // Fabric/commissioning state is server-wide: read it once per server.
+    const snapshot = server.getCommissioningSnapshot()
+    return serverAccessories.map(accessory => this.toAccessoryInfo(server, accessory, snapshot, bridge))
+  }
+
+  /**
+   * Add what the server's own accessory object leaves out, so a child bridge
+   * sends the UI the same fields as the main bridge does: the bridge, the
+   * plugin and platform, the plugin's context, and the commissioning state.
+   * Before, those fields were missing, while the return type said they were there.
+   */
+  private toAccessoryInfo(
+    server: MatterServer,
+    accessory: ServerAccessoryData,
+    snapshot: CommissioningSnapshot,
+    bridge: AccessoryInfo['bridge'],
+  ): AccessoryInfo {
+    const cached = server.getCachedAccessory(accessory.uuid)
+
+    return {
+      ...accessory,
+      bridge,
+      plugin: cached?.plugin ?? '',
+      platform: cached?.platform ?? '',
+      context: cached?.context,
+      commissioned: snapshot.commissioned,
+      fabricCount: snapshot.fabricCount,
+      // Same mapping as the main bridge: matter.js names the vendor rootVendorId.
+      fabrics: snapshot.fabrics.map(fabric => ({
+        fabricIndex: fabric.fabricIndex,
+        fabricId: fabric.fabricId,
+        nodeId: fabric.nodeId,
+        vendorId: fabric.rootVendorId,
+        label: fabric.label,
+      })),
+    }
   }
 
   /**
