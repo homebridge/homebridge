@@ -312,6 +312,44 @@ describe('clusterCommandMapper', () => {
         args: { tiltPercent100thsValue: 7500 },
       })
     })
+
+    it.each(['upOrOpen', 'downOrClose', 'stopMotion'])('should map _command=%s to that command', (command) => {
+      expect(mapAttributesToCommand('windowCovering', { _command: command })).toEqual({ command })
+    })
+
+    it('should not turn an unknown _command into a command', () => {
+      expect(mapAttributesToCommand('windowCovering', { _command: 'calibrate' })).toBeNull()
+      // the position that came with it is still used
+      expect(mapAttributesToCommand('windowCovering', { _command: 'calibrate', targetPositionLiftPercent100ths: 0 })).toEqual({
+        command: 'goToLiftPercentage',
+        args: { liftPercent100thsValue: 0 },
+      })
+    })
+  })
+
+  describe('serviceArea cluster', () => {
+    it('should map selectedAreas to "selectAreas"', () => {
+      expect(mapAttributesToCommand('serviceArea', {
+        selectedAreas: [1, 3],
+      })).toEqual({
+        command: 'selectAreas',
+        args: {
+          newAreas: [1, 3],
+        },
+      })
+    })
+
+    it('should map skipArea to "skipArea"', () => {
+      expect(mapAttributesToCommand('serviceArea', { skipArea: 2 })).toEqual({
+        command: 'skipArea',
+        args: { skippedArea: 2 },
+      })
+    })
+
+    it('should return null for selectedAreas that is not a list, and for other attributes', () => {
+      expect(mapAttributesToCommand('serviceArea', { selectedAreas: 1 })).toBeNull()
+      expect(mapAttributesToCommand('serviceArea', { currentArea: 1 })).toBeNull()
+    })
   })
 
   describe('thermostat cluster', () => {
