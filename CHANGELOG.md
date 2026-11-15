@@ -193,6 +193,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): write the removal of the last accessory to the cache when the bridge stops
 - fix(matter): save the other accessories to the cache when one has a value json can not hold
 - fix(matter): keep the cache entry of an accessory that could not be rebuilt at start
+- fix(matter): list external accessories in the ui when the main bridge is in externals-only mode
 
 ### Homebridge Dependencies
 

@@ -464,17 +464,19 @@ export class MatterBridgeManager extends BaseMatterManager {
           this.config.bridge.name || 'Homebridge',
         )
         accessories.push(...mainAccessories)
+      }
 
-        // External accessories (belong to main bridge context)
-        for (const server of this.externalMatterServers.values()) {
-          const externalAccessories = this.collectAccessoriesFromServer(
-            server,
-            server.username,
-            'external',
-            server.bridgeName,
-          )
-          accessories.push(...externalAccessories)
-        }
+      // External accessories (belong to main bridge context). Listed whether
+      // the bridge itself runs or not: in externalsOnly mode there is no
+      // bridge server, and the externals are all there is.
+      for (const server of this.externalMatterServers.values()) {
+        const externalAccessories = this.collectAccessoriesFromServer(
+          server,
+          server.username,
+          'external',
+          server.bridgeName,
+        )
+        accessories.push(...externalAccessories)
       }
     }
 
