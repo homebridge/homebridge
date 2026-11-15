@@ -174,6 +174,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - test: let the matter lazy loading check see imports over several lines and through other files
 - test: cover the platform accessory calls of the api and let the getAccessoryState tests fail
 - test: cover the engines and dependency checks of a plugin and what it registers
+- test: cover plugin registration, lookup and loading from disk in the plugin manager
 
 ### Homebridge Dependencies
 
