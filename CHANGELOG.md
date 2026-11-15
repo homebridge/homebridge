@@ -197,6 +197,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): log each child bridge config message once, and no warning for a port left out
 - fix(matter): ignore a matterPorts range that is not two whole port numbers, with an error
 - fix(matter): hand out an accessory with its public fields only, without the live endpoints
+- fix(matter): wait for the bridge's lock when telling controllers the accessory list changed
 
 ### Homebridge Dependencies
 
