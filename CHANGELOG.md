@@ -256,6 +256,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: say what is wrong with a child bridge's matter settings read again at a restart
 - fix: check the pin of a child bridge's settings read again at a restart
 - fix: say the default pin is only a risk while a bridge is not paired
+- fix: count a child bridge crash as one after a restart that a stop cut short
 
 ### Homebridge Dependencies
 
