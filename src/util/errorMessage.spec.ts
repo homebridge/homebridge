@@ -15,7 +15,14 @@ describe('errorMessage', () => {
     { thrown: undefined, expected: 'undefined' },
     {
       thrown: { code: 'EIO' },
-      expected: '[object Object]',
+      expected: '{ code: \'EIO\' }',
+    },
+    {
+      thrown: {
+        reason: 'offline',
+        retry: { after: 5 },
+      },
+      expected: '{ reason: \'offline\', retry: { after: 5 } }',
     },
   ])('gives a text for $thrown, which is not an Error', ({ thrown, expected }) => {
     expect(errorMessage(thrown)).toBe(expected)
