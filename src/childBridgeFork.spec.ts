@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 
-import { HAPStorage } from '@homebridge/hap-nodejs'
+import { Bridge, HAPStorage } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, PluginType } from './api.js'
@@ -303,6 +303,32 @@ describe('childBridgeFork - startBridge with accessory plugins', () => {
     const bridged = (fork as any).bridgeService.bridge.bridgedAccessories
     expect(bridged.map((accessory: { displayName: string }) => accessory.displayName)).toEqual(['Lamp'])
     expect(sendMessage).toHaveBeenCalledWith(ChildProcessMessageEventType.ONLINE)
+  })
+
+  it('logs an accessory the bridge refuses and still loads the others and comes online', async () => {
+    const { fork, sendMessage } = buildAccessoryFork([
+      { accessory: 'ExampleAccessory', name: 'Lamp' },
+      { accessory: 'ExampleAccessory', name: 'Fan' },
+    ])
+    const errors: unknown[][] = []
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      errors.push(args)
+    })
+    // HAP-NodeJS refuses, for example, a second accessory with the same UUID.
+    const add = Bridge.prototype.addBridgedAccessory
+    vi.spyOn(Bridge.prototype, 'addBridgedAccessory').mockImplementation(function (this: Bridge, accessory) {
+      if (accessory.displayName === 'Lamp') {
+        throw new Error('Cannot add a bridged Accessory with the same UUID as another bridged Accessory')
+      }
+      return add.call(this, accessory)
+    })
+
+    await fork.startBridge()
+
+    const bridged = (fork as any).bridgeService.bridge.bridgedAccessories
+    expect(bridged.map((accessory: { displayName: string }) => accessory.displayName)).toEqual(['Fan'])
+    expect(sendMessage).toHaveBeenCalledWith(ChildProcessMessageEventType.ONLINE)
+    expect(errors.flat().join(' ')).toContain('same UUID')
   })
 })
 
