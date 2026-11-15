@@ -79,6 +79,13 @@ export class ExternalPortService {
   }
 
   /**
+   * Mark a Matter port as in use, so {@link requestMatterPort} never hands it out.
+   */
+  public reserveMatterPort(port: number): void {
+    this.matterPortAllocator.reservePort(port)
+  }
+
+  /**
    * Release a Matter port previously obtained via {@link requestMatterPort}.
    * Call when an external Matter accessory is unregistered or fails to
    * publish — otherwise the pool accumulates dead allocations and

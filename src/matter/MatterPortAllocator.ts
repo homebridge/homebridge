@@ -93,6 +93,15 @@ export class MatterPortAllocator {
   }
 
   /**
+   * Mark a port as in use by something that did not get it from this
+   * allocator, so it is never handed out. The main bridge's Matter port is one:
+   * it falls back to 5540, which lies inside the default range.
+   */
+  public reservePort(port: number): void {
+    this.configuredPorts.add(port)
+  }
+
+  /**
    * Release a previously allocated port back into the pool. Called when an
    * external Matter accessory is unregistered or its publish fails — without
    * this, allocations accumulate forever and the pool eventually exhausts on
