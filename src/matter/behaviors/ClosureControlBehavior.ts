@@ -6,9 +6,7 @@
 
 import { ClosureControlServer } from '@matter/main/behaviors/closure-control'
 import { ClosureControl } from '@matter/main/clusters/closure-control'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
@@ -74,33 +72,18 @@ export class HomebridgeClosureControlServer extends DefaultClosureControlServer 
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'closureControl', 'moveTo', request)
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'closureControl', 'moveTo', request)
 
-      // Only reached if handler succeeded - update Matter state via super
-      await super.moveTo(request)
+    // Only reached if handler succeeded - update Matter state via super
+    await super.moveTo(request)
 
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'closureControl', {
-        overallTargetState: this.state.overallTargetState,
-        overallCurrentState: this.state.overallCurrentState,
-        mainState: this.state.mainState,
-      })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to move closure: ${message}`, Status.Failure)
-    }
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'closureControl', {
+      overallTargetState: this.state.overallTargetState,
+      overallCurrentState: this.state.overallCurrentState,
+      mainState: this.state.mainState,
+    })
   }
 
   /**
@@ -110,31 +93,16 @@ export class HomebridgeClosureControlServer extends DefaultClosureControlServer 
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'closureControl', 'stop')
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'closureControl', 'stop')
 
-      // Only reached if handler succeeded - update Matter state via super
-      await super.stop()
+    // Only reached if handler succeeded - update Matter state via super
+    await super.stop()
 
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'closureControl', {
-        overallTargetState: this.state.overallTargetState,
-        mainState: this.state.mainState,
-      })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to stop closure: ${message}`, Status.Failure)
-    }
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'closureControl', {
+      overallTargetState: this.state.overallTargetState,
+      mainState: this.state.mainState,
+    })
   }
 }
