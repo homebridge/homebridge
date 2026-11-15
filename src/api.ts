@@ -180,7 +180,7 @@ export const enum APIEvent {
   /**
    * Event is fired once homebridge has finished with booting up and initializing all components and plugins.
    * When this event is fired it is possible that the Bridge accessory isn't published yet, if homebridge still needs
-   * to wait for some {@see StaticPlatformPlugin | StaticPlatformPlugins} to finish accessory creation.
+   * to wait for some {@link StaticPlatformPlugin | StaticPlatformPlugins} to finish accessory creation.
    */
   DID_FINISH_LAUNCHING = 'didFinishLaunching',
 
@@ -604,10 +604,14 @@ export interface API {
    * ```
    *  versionGreaterOrEqual("1.2.0"); // will return true
    *  versionGreaterOrEqual("1.3.0"); // will return false (the RELEASE version 1.3.0 is bigger than the BETA version 1.3.0-beta.12)
-   *  versionGreaterOrEqual("1.3.0-beta.8); // will return true
+   *  versionGreaterOrEqual("1.3.0-beta.8"); // will return true
    * ```
    *
-   * @param version
+   * The version must be a full semver version (`"2.5.0"`, `"v2.5.0"`, `"2.5.0-beta.1"`).
+   * Anything else (`"2"`, `"2.5"`, `"abc"`, `undefined`) makes this method throw a `TypeError`.
+   *
+   * @param version - a full semver version
+   * @throws TypeError when `version` is not a full semver version
    */
   versionGreaterOrEqual: (version: string) => boolean
 

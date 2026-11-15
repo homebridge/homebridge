@@ -167,6 +167,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs: say what a plugin built with isolatedModules can use in place of homebridge's const enums
 - feat: export more hap-nodejs enums and types from homebridge, like MDNSAdvertiser and HAPConnection
 - feat: let a typescript plugin call api.once, api.off and api.removeListener without a cast
+- docs: correct the versionGreaterOrEqual example, say when it throws, and fix a link in the api docs
 
 ### Homebridge Dependencies
 
