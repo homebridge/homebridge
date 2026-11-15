@@ -381,6 +381,45 @@ describe('serviceArea on a real node', () => {
     })
   }
 
+  it('refuses SelectAreas for an area the vacuum does not have, without calling the plugin', async () => {
+    const requests: unknown[] = []
+    const endpoint = await vacuum({
+      selectAreas: async (request) => {
+        requests.push(request)
+      },
+    })
+
+    const response = await invoke(endpoint, 'serviceArea', 'selectAreas', {
+      newAreas: [99],
+    })
+
+    // 1 = UnsupportedArea
+    expect(response).toMatchObject({ status: 1 })
+    expect(requests).toEqual([])
+    expect(stateOf(endpoint, 'serviceArea').selectedAreas).toEqual([1, 2])
+  })
+
+  it('calls the plugin for a valid SelectAreas and stores the selection', async () => {
+    const requests: unknown[] = []
+    const endpoint = await vacuum({
+      selectAreas: async (request) => {
+        requests.push(request)
+      },
+    })
+
+    const response = await invoke(endpoint, 'serviceArea', 'selectAreas', {
+      newAreas: [2],
+    })
+
+    expect(response).toMatchObject({ status: 0 })
+    expect(requests).toEqual([
+      {
+        newAreas: [2],
+      },
+    ])
+    expect(stateOf(endpoint, 'serviceArea').selectedAreas).toEqual([2])
+  })
+
   it('answers SkipArea with success after the plugin handler ran', async () => {
     const requests: unknown[] = []
     const endpoint = await vacuum({
