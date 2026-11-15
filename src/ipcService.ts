@@ -27,15 +27,56 @@ export const enum IpcOutgoingEvent {
   MATTER_EVENT = 'matterEvent',
 }
 
+interface MatterControlRequest {
+  uuid: string
+  cluster: string
+  attributes: Record<string, unknown>
+  partId?: string
+  correlationId?: string
+}
+
+/**
+ * The requests the parent process can send, each with the listener it takes.
+ */
+interface IpcIncomingListeners {
+  [IpcIncomingEvent.RESTART_CHILD_BRIDGE]: (childBridgeUsername: string) => void
+  [IpcIncomingEvent.STOP_CHILD_BRIDGE]: (childBridgeUsername: string) => void
+  [IpcIncomingEvent.START_CHILD_BRIDGE]: (childBridgeUsername: string) => void
+  [IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST]: () => void
+  [IpcIncomingEvent.START_MATTER_MONITORING]: (data?: { correlationId?: string }) => void
+  [IpcIncomingEvent.STOP_MATTER_MONITORING]: (data?: { correlationId?: string }) => void
+  [IpcIncomingEvent.GET_MATTER_ACCESSORIES]: (data: { bridgeUsername?: string, correlationId?: string }) => void
+  [IpcIncomingEvent.GET_MATTER_ACCESSORY_INFO]: (data: { uuid: string, correlationId?: string }) => void
+  [IpcIncomingEvent.MATTER_ACCESSORY_CONTROL]: (data: MatterControlRequest) => void
+}
+
+const INCOMING_EVENTS: ReadonlySet<string> = new Set<keyof IpcIncomingListeners>([
+  IpcIncomingEvent.RESTART_CHILD_BRIDGE,
+  IpcIncomingEvent.STOP_CHILD_BRIDGE,
+  IpcIncomingEvent.START_CHILD_BRIDGE,
+  IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST,
+  IpcIncomingEvent.START_MATTER_MONITORING,
+  IpcIncomingEvent.STOP_MATTER_MONITORING,
+  IpcIncomingEvent.GET_MATTER_ACCESSORIES,
+  IpcIncomingEvent.GET_MATTER_ACCESSORY_INFO,
+  IpcIncomingEvent.MATTER_ACCESSORY_CONTROL,
+])
+
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface IpcService {
-  on: ((event: IpcIncomingEvent.RESTART_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.STOP_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.START_CHILD_BRIDGE, listener: (childBridgeUsername: string) => void) => this) & ((event: IpcIncomingEvent.CHILD_BRIDGE_METADATA_REQUEST, listener: () => void) => this) & ((event: IpcIncomingEvent.START_MATTER_MONITORING, listener: (data?: { correlationId?: string }) => void) => this) & ((event: IpcIncomingEvent.STOP_MATTER_MONITORING, listener: (data?: { correlationId?: string }) => void) => this) & ((event: IpcIncomingEvent.GET_MATTER_ACCESSORIES, listener: (data: { bridgeUsername?: string, correlationId?: string }) => void) => this) & ((event: IpcIncomingEvent.GET_MATTER_ACCESSORY_INFO, listener: (data: { uuid: string, correlationId?: string }) => void) => this) & ((event: IpcIncomingEvent.MATTER_ACCESSORY_CONTROL, listener: (data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, correlationId?: string }) => void) => this)
+  on: <E extends keyof IpcIncomingListeners>(event: E, listener: IpcIncomingListeners[E]) => this
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export class IpcService extends EventEmitter {
   private readonly messageHandler = (message: { id: string, data: unknown }) => {
     if (!message || typeof message !== 'object' || !message.id) {
+      return
+    }
+    // Only the requests above are passed on. The id used to be emitted as it
+    // came: a message with the id `error` is an `error` event with no
+    // listener, which throws and takes Homebridge down.
+    if (!INCOMING_EVENTS.has(message.id)) {
       return
     }
     this.emit(message.id, message.data)
