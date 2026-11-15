@@ -56,6 +56,14 @@ const CORRUPT_STORAGE_MESSAGES = ['Invalid public key encoding', 'FabricManager 
 /** The `code` of a system error, such as EACCES, ENOSPC or EMFILE. */
 const SYSTEM_ERROR_CODE_RE = /^E[A-Z0-9]+$/
 
+/** The start of a server was overtaken by its stop. */
+class StartCancelledError extends Error {
+  constructor() {
+    super('The start of the Matter server was cancelled because it was asked to stop')
+    this.name = 'StartCancelledError'
+  }
+}
+
 export interface ServerLifecycleDeps {
   config: MatterServerConfig
   commissioningManager: CommissioningManager
@@ -85,6 +93,12 @@ export class ServerLifecycle {
 
   // This server's own matter.js environment (a child of Environment.default)
   private environment?: Environment
+
+  // True from the first to the last line of start()
+  private starting = false
+
+  // stop() was called while start() was still at work (a SIGTERM during start-up)
+  private stopRequestedWhileStarting = false
 
   /**
    * Whether a ServerNode creation failure is a transient storage-lock contention
@@ -297,6 +311,8 @@ export class ServerLifecycle {
       return
     }
 
+    this.starting = true
+    this.stopRequestedWhileStarting = false
     try {
       log.info('Starting Matter.js server...')
 
@@ -455,6 +471,7 @@ export class ServerLifecycle {
 
       const serverNode = await this.createServerNodeWithRecovery(nodeOptions, sanitizedId)
       deps.setServerNode(serverNode)
+      this.throwIfStopRequested()
 
       // Set up commissioning event listeners. Register a matching cleanup
       // handler so the matter.js Observable observers (which capture deps and
@@ -501,6 +518,7 @@ export class ServerLifecycle {
           // structure, and subscription re-establishment runs on a quiet node.
           log.info('Deferred online mode - Matter node built, waiting for initial registrations before going online')
         } else {
+          this.throwIfStopRequested()
           await this.startServerNode(serverNode, deps)
         }
       } else {
@@ -509,7 +527,11 @@ export class ServerLifecycle {
       log.info(`Matter server started successfully on port ${deps.config.port}`)
       log.info('Plugins can now register Matter accessories via the API')
     } catch (error) {
-      log.error('Failed to start Matter server:', error)
+      if (error instanceof StartCancelledError) {
+        log.info('Matter server start was cancelled, as Homebridge is stopping')
+      } else {
+        log.error('Failed to start Matter server:', error)
+      }
       // If we created a ServerNode before failing (e.g. commissioning setup
       // or aggregator creation threw), close it so its internal storage
       // adapters and observables are torn down rather than left for GC.
@@ -547,6 +569,22 @@ export class ServerLifecycle {
       // still-bound node with no way to address or tear it down.
       await this.cleanup(deps, { preserveNodeReference: nodeMayStillBeBound })
       throw error
+    } finally {
+      this.starting = false
+    }
+  }
+
+  /**
+   * Give up a start that stop() overtook.
+   *
+   * A stop that came while the node was still being created found nothing to
+   * stop and returned, and the start then carried on and put the node on the
+   * network of a Homebridge that was shutting down. The start now ends here
+   * instead: its error path closes the node it built.
+   */
+  private throwIfStopRequested(): void {
+    if (this.stopRequestedWhileStarting) {
+      throw new StartCancelledError()
     }
   }
 
@@ -660,6 +698,11 @@ export class ServerLifecycle {
   async stop(deps: ServerLifecycleDeps, accessories: Map<string, any>): Promise<void> {
     const isRunning = deps.getIsRunning()
     const serverNode = deps.getServerNode()
+
+    // Tell a start() that is still at work to give up (see throwIfStopRequested)
+    if (this.starting) {
+      this.stopRequestedWhileStarting = true
+    }
 
     if (!isRunning && !serverNode) {
       log.debug('Matter server is not running and has no resources to clean up')
