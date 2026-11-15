@@ -1044,3 +1044,60 @@ describe('clusters that answer with their own status, on a real node', () => {
     await expect(invoke(endpoint, 'mediaPlayback', 'play')).rejects.toThrow('tv is starting')
   })
 })
+
+describe('thermostat SetpointRaiseLower on a real node', () => {
+  const thermostatState = {
+    localTemperature: 2000,
+    occupiedHeatingSetpoint: 2000,
+    occupiedCoolingSetpoint: 2600,
+    systemMode: 4,
+    controlSequenceOfOperation: 4,
+    minSetpointDeadBand: 20,
+  }
+
+  it('works with only a setpoint-change handler, which is told the new value', async () => {
+    const calls: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.Thermostat,
+      clusters: { thermostat: thermostatState },
+      handlers: {
+        thermostat: {
+          occupiedHeatingSetpointChange: async (request) => {
+            calls.push(request)
+          },
+        },
+      },
+    })
+
+    // mode 0 = heat, amount in tenths of a degree
+    await invoke(endpoint, 'thermostat', 'setpointRaiseLower', { mode: 0, amount: 10 })
+    await settle()
+
+    expect(stateOf(endpoint, 'thermostat').occupiedHeatingSetpoint).toBe(2100)
+    expect(calls).toEqual([
+      { occupiedHeatingSetpoint: 2100, oldOccupiedHeatingSetpoint: 2000 },
+    ])
+  })
+
+  it('calls a setpointRaiseLower handler with the request when the plugin has one', async () => {
+    const requests: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.Thermostat,
+      clusters: { thermostat: thermostatState },
+      handlers: {
+        thermostat: {
+          setpointRaiseLower: async (request) => {
+            requests.push(request)
+          },
+        },
+      },
+    })
+
+    await invoke(endpoint, 'thermostat', 'setpointRaiseLower', { mode: 0, amount: 10 })
+
+    expect(requests).toEqual([
+      { mode: 0, amount: 10 },
+    ])
+    expect(stateOf(endpoint, 'thermostat').occupiedHeatingSetpoint).toBe(2100)
+  })
+})

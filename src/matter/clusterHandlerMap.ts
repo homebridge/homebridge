@@ -110,6 +110,12 @@ export interface ThermostatHandlers {
     occupiedCoolingSetpoint: number
     oldOccupiedCoolingSetpoint: number
   }>
+  /**
+   * Optional. Called for the SetpointRaiseLower command, before the setpoints
+   * move. The moves themselves then reach the setpoint-change handlers above
+   * as well, with the new values, so a plugin that has those does not need
+   * this one.
+   */
   setpointRaiseLower?: MatterCommandHandler<Thermostat.SetpointRaiseLowerRequest>
 }
 

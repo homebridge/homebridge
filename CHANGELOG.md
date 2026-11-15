@@ -76,6 +76,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - build: declare @matter/nodejs and import the other matter packages through @matter/main
 - fix: start without matter, and with homekit, when matter.js can not be loaded
 - feat: add the homebridge/matter entry for the matter values, and deprecate them on the main entry
+- fix(matter): make a thermostat's raise or lower command work without a handler of its own
 
 ### Homebridge Dependencies
 
