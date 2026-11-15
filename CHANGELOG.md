@@ -143,6 +143,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): skip the level handler for a command matter ignores, and cache the level it stored
 - fix(matter): store the right position and the secure state when a closure with no handlers moves
 - fix(matter): cache only the fan attribute a controller changed, as matter holds it
+- fix(matter): cache the tilt position too after a blind with lift and tilt opens, closes or stops
 
 ### Homebridge Dependencies
 

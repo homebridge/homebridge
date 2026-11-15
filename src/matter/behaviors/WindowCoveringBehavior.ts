@@ -30,16 +30,13 @@ const FeatureRichWindowCoveringServer = WindowCoveringServer.with(
   'PositionAwareTilt',
 )
 
-/**
- * WindowCovering state property names
- * These correspond to the Matter.js WindowCovering cluster attribute names
- */
-const WindowCoveringStateProps = {
-  targetPositionLiftPercent100ths: 'targetPositionLiftPercent100ths' as const,
-  currentPositionLiftPercent100ths: 'currentPositionLiftPercent100ths' as const,
-  targetPositionTiltPercent100ths: 'targetPositionTiltPercent100ths' as const,
-  currentPositionTiltPercent100ths: 'currentPositionTiltPercent100ths' as const,
-} satisfies Record<string, keyof InstanceType<typeof FeatureRichWindowCoveringServer>['state']>
+/** The position attributes a command can change. Which of them exist depends on the features. */
+const POSITION_ATTRIBUTES = [
+  'targetPositionLiftPercent100ths',
+  'currentPositionLiftPercent100ths',
+  'targetPositionTiltPercent100ths',
+  'currentPositionTiltPercent100ths',
+] as const
 
 /**
  * Custom WindowCovering Server that calls plugin handlers.
@@ -53,30 +50,18 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
   }
 
   /**
-   * Sync window covering position state to cache
-   * @param endpointId - The endpoint ID
-   * @param targetProperty - Target position property name (e.g., 'targetPositionLiftPercent100ths')
-   * @param currentProperty - Current position property name (e.g., 'currentPositionLiftPercent100ths')
+   * Sync the positions to the cache after a command: lift and tilt, as open,
+   * close and stop move both on a covering that has both.
    */
-  private syncPositionStateToCache<
-    TTarget extends keyof InstanceType<typeof FeatureRichWindowCoveringServer>['state'],
-    TCurrent extends keyof InstanceType<typeof FeatureRichWindowCoveringServer>['state'],
-  >(
-    endpointId: string,
-    targetProperty: TTarget,
-    currentProperty: TCurrent,
-  ): void {
-    type State = InstanceType<typeof FeatureRichWindowCoveringServer>['state']
-    const registry = this.getRegistry()
-    const currentState = this.state
-    const stateUpdate: Partial<Pick<State, TTarget | TCurrent>> = {}
-    if (currentState[targetProperty] !== undefined) {
-      stateUpdate[targetProperty] = currentState[targetProperty]
+  private syncPositionsToCache(): void {
+    const stateUpdate: Record<string, number | null> = {}
+    for (const attribute of POSITION_ATTRIBUTES) {
+      const value = this.state[attribute]
+      if (value !== undefined) {
+        stateUpdate[attribute] = value
+      }
     }
-    if (currentState[currentProperty] !== undefined) {
-      stateUpdate[currentProperty] = currentState[currentProperty]
-    }
-    registry.syncStateToCache(endpointId, 'windowCovering', stateUpdate)
+    this.getRegistry().syncStateToCache(this.endpoint.id, 'windowCovering', stateUpdate)
   }
 
   /**
@@ -124,37 +109,23 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
   }
 
   override async upOrOpen(): Promise<void> {
-    const endpointId = this.endpoint.id
-
     // Execute user handler
     await this.runOpenOrClose('upOrOpen', 0)
 
     // Only reached if handler succeeded - update Matter state
     await super.upOrOpen()
 
-    // Sync state to cache - window covering opening
-    this.syncPositionStateToCache(
-      endpointId,
-      WindowCoveringStateProps.targetPositionLiftPercent100ths,
-      WindowCoveringStateProps.currentPositionLiftPercent100ths,
-    )
+    this.syncPositionsToCache()
   }
 
   override async downOrClose(): Promise<void> {
-    const endpointId = this.endpoint.id
-
     // Execute user handler
     await this.runOpenOrClose('downOrClose', 10000)
 
     // Only reached if handler succeeded - update Matter state
     await super.downOrClose()
 
-    // Sync state to cache - window covering closing
-    this.syncPositionStateToCache(
-      endpointId,
-      WindowCoveringStateProps.targetPositionLiftPercent100ths,
-      WindowCoveringStateProps.currentPositionLiftPercent100ths,
-    )
+    this.syncPositionsToCache()
   }
 
   override async stopMotion(): Promise<void> {
@@ -168,12 +139,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     // Only reached if handler succeeded - update Matter state
     await super.stopMotion()
 
-    // Sync state to cache - window covering stopped
-    this.syncPositionStateToCache(
-      endpointId,
-      WindowCoveringStateProps.targetPositionLiftPercent100ths,
-      WindowCoveringStateProps.currentPositionLiftPercent100ths,
-    )
+    this.syncPositionsToCache()
   }
 
   override async goToLiftPercentage(request: WindowCovering.GoToLiftPercentageRequest): Promise<void> {
@@ -196,12 +162,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     // Only reached if handler succeeded - update Matter state
     await super.goToLiftPercentage(request)
 
-    // Sync state to cache - window covering moving to target position
-    this.syncPositionStateToCache(
-      endpointId,
-      WindowCoveringStateProps.targetPositionLiftPercent100ths,
-      WindowCoveringStateProps.currentPositionLiftPercent100ths,
-    )
+    this.syncPositionsToCache()
   }
 
   override async goToTiltPercentage(request: WindowCovering.GoToTiltPercentageRequest): Promise<void> {
@@ -224,11 +185,6 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     // Only reached if handler succeeded - update Matter state
     await super.goToTiltPercentage(request)
 
-    // Sync state to cache - window covering tilting to target angle
-    this.syncPositionStateToCache(
-      endpointId,
-      WindowCoveringStateProps.targetPositionTiltPercent100ths,
-      WindowCoveringStateProps.currentPositionTiltPercent100ths,
-    )
+    this.syncPositionsToCache()
   }
 }

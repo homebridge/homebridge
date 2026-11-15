@@ -2018,3 +2018,49 @@ describe('the cached state of a fan, on a real node', () => {
     expect(cached()).toMatchObject(matter())
   })
 })
+
+describe('the cached state of a blind with lift and tilt, on a real node', () => {
+  it('holds the tilt position too after close, open and stop', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: {
+          currentPositionLiftPercent100ths: 5000,
+          targetPositionLiftPercent100ths: 5000,
+          currentPositionTiltPercent100ths: 5000,
+          targetPositionTiltPercent100ths: 5000,
+        },
+      },
+      handlers: {
+        windowCovering: {
+          upOrOpen: async () => {},
+          downOrClose: async () => {},
+          stopMotion: async () => {},
+        },
+      },
+    })
+    const positions = (state: Record<string, unknown> | undefined) => ({
+      liftTarget: state?.targetPositionLiftPercent100ths,
+      lift: state?.currentPositionLiftPercent100ths,
+      tiltTarget: state?.targetPositionTiltPercent100ths,
+      tilt: state?.currentPositionTiltPercent100ths,
+    })
+    const cached = () => positions(accessories.get('test-uuid')?.clusters?.windowCovering)
+    const matter = () => positions(stateOf(endpoint, 'windowCovering'))
+
+    await invoke(endpoint, 'windowCovering', 'downOrClose')
+    expect(matter()).toMatchObject({ liftTarget: 10000, tiltTarget: 10000 })
+    expect(cached()).toEqual(matter())
+
+    await invoke(endpoint, 'windowCovering', 'upOrOpen')
+    expect(matter()).toMatchObject({ liftTarget: 0, tiltTarget: 0 })
+    expect(cached()).toEqual(matter())
+
+    await write(endpoint, {
+      windowCovering: { currentPositionLiftPercent100ths: 3000, currentPositionTiltPercent100ths: 4000 },
+    })
+    await invoke(endpoint, 'windowCovering', 'stopMotion')
+    expect(matter()).toMatchObject({ liftTarget: 3000, tiltTarget: 4000 })
+    expect(cached()).toEqual(matter())
+  })
+})
