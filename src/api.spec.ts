@@ -113,6 +113,24 @@ describe('homebridgeAPI', () => {
     })
   })
 
+  describe('versionGreaterOrEqual', () => {
+    // The public docs promise exactly this, so it is pinned here.
+    it('compares a full semver version with the running version', () => {
+      const api = new HomebridgeAPI()
+
+      expect(api.versionGreaterOrEqual('1.2.0')).toBe(true)
+      expect(api.versionGreaterOrEqual(api.serverVersion)).toBe(true)
+      expect(api.versionGreaterOrEqual(`v${api.serverVersion}`)).toBe(true)
+      expect(api.versionGreaterOrEqual('999.0.0')).toBe(false)
+    })
+
+    it.each(['2', '2.5', 'abc', undefined])('throws a TypeError for %s, which is not a full semver version', (version) => {
+      const api = new HomebridgeAPI()
+
+      expect(() => api.versionGreaterOrEqual(version as string)).toThrow(TypeError)
+    })
+  })
+
   describe('signalShutdown', () => {
     it('still calls the other shutdown listeners when one throws or rejects', async () => {
       const api = new HomebridgeAPI()
