@@ -307,6 +307,7 @@ export class BridgeService {
   private cachedAccessoriesFileLoaded = false
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map()
   private readonly publishedExternalAccessoriesMetadata: Map<MacAddress, ExternalAccessoryMetadata> = new Map()
+  private readonly unsavableAccessories = new WeakSet<PlatformAccessory>()
   private readonly characteristicWarningListeners = new WeakMap<Accessory, (warning: CharacteristicWarning) => void>()
 
   constructor(
@@ -653,7 +654,33 @@ export class BridgeService {
       // only save the cache file back to disk if we have already attempted to load it
       // this should prevent the cache being deleted should homebridge be shutdown before it has finished launching
       if (this.cachedAccessoriesFileLoaded) {
-        const serializedAccessories = this.cachedPlatformAccessories.map(accessory => PlatformAccessory.serialize(accessory))
+        // One accessory that can not be written (a plugin put something in its
+        // context that JSON can not hold, like a value that refers to itself)
+        // must not stop the accessories of every plugin being saved.
+        const serializedAccessories: SerializedPlatformAccessory[] = []
+        for (const accessory of this.cachedPlatformAccessories) {
+          try {
+            const serialized = PlatformAccessory.serialize(accessory)
+            JSON.stringify(serialized)
+            serializedAccessories.push(serialized)
+            this.unsavableAccessories.delete(accessory)
+          } catch (error: unknown) {
+            // said once per accessory, not on every save
+            if (!this.unsavableAccessories.has(accessory)) {
+              this.unsavableAccessories.add(accessory)
+              log.error(
+                '%s The accessory \'%s\' can not be saved to the accessory cache, and will not be there after a restart: %s',
+                accessory._associatedPlugin
+                  ? getLogPrefix(accessory._associatedPlugin)
+                  : '',
+                accessory.displayName,
+                error instanceof Error
+                  ? error.message
+                  : error,
+              )
+            }
+          }
+        }
         this.storageService.setItemSync(this.bridgeOptions.cachedAccessoriesItemName, serializedAccessories)
       }
     } catch (error: any) {

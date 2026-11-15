@@ -122,6 +122,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: log that the bridge was not published instead of failing start-up on its setup payload
 - fix: read port numbers written as text as numbers, and ignore a port that is not 1 to 65535
 - fix: wait for the hap accessories to leave the network on shutdown, and log an unpublish that fails
+- fix: save the other cached accessories when one accessory has a context that can not be written
 
 ### Homebridge Dependencies
 
