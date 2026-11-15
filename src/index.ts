@@ -470,3 +470,47 @@ export type {
   epochMillisFromMillisSince2001_01_01Buffer,
   once,
 } from '@homebridge/hap-nodejs'
+
+/**
+ * More enums from HAP-NodeJS (value exports, like the list above: prefer `api.hap.<name>` at run time)
+ */
+export {
+  CharacteristicWarningType,
+  EventedHTTPServerEvent,
+  HAPConnectionEvent,
+  HAPConnectionState,
+  HAPHTTPCode,
+  HAPPairingHTTPCode,
+  HDSConnectionErrorType,
+  MDNSAdvertiser,
+  MessageType,
+  PermissionTypes,
+  ResourceRequestType,
+  TLVErrorCode,
+  VideoCodecPacketizationMode,
+  VideoCodecType,
+} from '@homebridge/hap-nodejs'
+
+/**
+ * More HAP-NodeJS classes, interfaces and type aliases, as type only
+ */
+export type {
+  Accessory,
+  AdaptiveLightingControllerUpdate,
+  Bridge,
+  CameraControllerServiceMap,
+  CameraControllerState,
+  CameraStreamingOptionsBase,
+  CharacteristicContext,
+  CharacteristicWarning,
+  ControllerIdentifier,
+  DataStreamMessage,
+  HAPConnection,
+  HAPUsername,
+  HDSConnectionError,
+  HDSFrame,
+  PrepareSessionCallback,
+  RemoteControllerServiceMap,
+  SerializedControllerState,
+  UUID,
+} from '@homebridge/hap-nodejs'
