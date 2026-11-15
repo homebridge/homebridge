@@ -4,9 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // We intercept Server construction so cli() doesn't actually start a Homebridge
 // instance — only the signal-handler wiring is under test.
+const serverOptions: unknown[] = []
+
 vi.mock('./server.js', () => ({
   Server: class FakeServer {
-    constructor() {}
+    constructor(options: unknown) {
+      serverOptions.push(options)
+    }
+
     start = vi.fn().mockResolvedValue(undefined)
     teardown = vi.fn().mockResolvedValue(undefined)
   },
@@ -105,6 +110,134 @@ describe('cli', () => {
     // schedule another 5000ms force-exit timer.
     const fiveSecondCalls = setTimeoutSpy.mock.calls.filter(([, ms]: any[]) => ms === 5000)
     expect(fiveSecondCalls).toHaveLength(1)
+  })
+
+  describe('the options', () => {
+    const originalArgv = process.argv
+
+    afterEach(() => {
+      process.argv = originalArgv
+    })
+
+    async function run(...argv: string[]): Promise<{ options: any, Logger: any, User: any, HAPStorage: any }> {
+      const { Logger } = await import('./logger.js')
+      const { User } = await import('./user.js')
+      const { HAPStorage } = await import('@homebridge/hap-nodejs')
+      for (const mock of [
+        Logger.setTimestampEnabled,
+        Logger.setDebugEnabled,
+        Logger.forceColor,
+        User.setStoragePath,
+        HAPStorage.setCustomStoragePath,
+      ]) {
+        vi.mocked(mock).mockClear()
+      }
+      serverOptions.length = 0
+      const { default: cli } = await import('./cli.js')
+      process.argv = ['node', 'homebridge', ...argv]
+      cli()
+      return {
+        options: serverOptions[0],
+        Logger,
+        User,
+        HAPStorage,
+      }
+    }
+
+    it('starts the server with everything off when no option is given', async () => {
+      const { options, Logger, User, HAPStorage } = await run()
+
+      expect(options).toEqual({
+        keepOrphanedCachedAccessories: false,
+        insecureAccess: false,
+        hideQRCode: false,
+        customPluginPath: undefined,
+        noLogTimestamps: false,
+        debugModeEnabled: false,
+        forceColourLogging: false,
+        customStoragePath: undefined,
+        strictPluginResolution: false,
+      })
+      expect(Logger.setTimestampEnabled).not.toHaveBeenCalled()
+      expect(Logger.setDebugEnabled).not.toHaveBeenCalled()
+      expect(Logger.forceColor).not.toHaveBeenCalled()
+      expect(User.setStoragePath).not.toHaveBeenCalled()
+      // HAP-NodeJS keeps its data in the persist folder of the storage path
+      expect(HAPStorage.setCustomStoragePath).toHaveBeenCalledExactlyOnceWith('/tmp/persist')
+    })
+
+    it.each([
+      { flag: '-D', long: '--debug', option: 'debugModeEnabled' },
+      { flag: '-I', long: '--insecure', option: 'insecureAccess' },
+      { flag: '-Q', long: '--no-qrcode', option: 'hideQRCode' },
+      { flag: '-K', long: '--keep-orphans', option: 'keepOrphanedCachedAccessories' },
+      { flag: '-T', long: '--no-timestamp', option: 'noLogTimestamps' },
+      { flag: '-C', long: '--color', option: 'forceColourLogging' },
+      { flag: '--strict-plugin-resolution', long: '--strict-plugin-resolution', option: 'strictPluginResolution' },
+    ])('$flag switches $option on, and nothing else', async ({ flag, long, option }) => {
+      for (const argument of [flag, long]) {
+        const { options } = await run(argument)
+
+        const switchedOn = Object.keys(options).filter(key => options[key] === true)
+        expect(switchedOn).toEqual([option])
+      }
+    })
+
+    it('applies the logging options to the logger', async () => {
+      const { Logger } = await run('-D', '-T', '-C')
+
+      expect(Logger.setDebugEnabled).toHaveBeenCalledExactlyOnceWith(true)
+      expect(Logger.setTimestampEnabled).toHaveBeenCalledExactlyOnceWith(false)
+      expect(Logger.forceColor).toHaveBeenCalledOnce()
+    })
+
+    it('takes combined short flags', async () => {
+      const { options } = await run('-DIQ')
+
+      expect(options).toMatchObject({
+        debugModeEnabled: true,
+        insecureAccess: true,
+        hideQRCode: true,
+        keepOrphanedCachedAccessories: false,
+      })
+    })
+
+    it('passes the plugin path and the storage path on', async () => {
+      const { options, User } = await run('-P', '/plugins', '--user-storage-path=/storage')
+
+      expect(options).toMatchObject({ customPluginPath: '/plugins', customStoragePath: '/storage' })
+      expect(User.setStoragePath).toHaveBeenCalledExactlyOnceWith('/storage')
+    })
+  })
+
+  describe('the Node.js version check', () => {
+    afterEach(() => {
+      vi.doUnmock('./version.js')
+      vi.resetModules()
+    })
+
+    async function warningsFor(requiredNodeVersion: string | undefined): Promise<string[]> {
+      vi.resetModules()
+      vi.doMock('./version.js', () => ({
+        default: () => '2.0.0',
+        getRequiredNodeVersion: () => requiredNodeVersion,
+      }))
+      await import('./cli.js')
+      const { Logger } = await import('./logger.js')
+      return vi.mocked(Logger.internal.warn).mock.calls.map(call => String(call[0]))
+    }
+
+    it('warns when the running Node.js is not a version Homebridge supports', async () => {
+      const warnings = await warningsFor('^1.0.0')
+
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toContain(`Homebridge requires a Node.js version of ^1.0.0 which does not satisfy the current Node.js version of ${process.version}`)
+    })
+
+    it('says nothing when the running Node.js is supported, or when no version is required', async () => {
+      expect(await warningsFor(`^${process.versions.node}`)).toEqual([])
+      expect(await warningsFor(undefined)).toEqual([])
+    })
   })
 
   describe('the path options', () => {
