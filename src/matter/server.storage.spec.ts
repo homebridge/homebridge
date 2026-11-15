@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 
 import { FabricManager as MatterFabricManager, TestFabric } from '@matter/protocol'
+import { ManualPairingCodeCodec, QrPairingCodeCodec } from '@matter/types/schema'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { User } from '../user.js'
@@ -279,6 +280,25 @@ describe('matterServer storage on real matter.js nodes', () => {
       })
     }, 30000)
   })
+
+  it('gives the pairing codes matter.js builds for the passcode and discriminator in use', async () => {
+    const server = bridgeServer('AEAEAEAEAEAE', 55991)
+    await server.start()
+
+    const { manualPairingCode, qrCode, passcode, discriminator } = server.getCommissioningInfo()
+
+    // the same codes the matter.js codecs give for these values
+    const manualCode = ManualPairingCodeCodec.encode({ discriminator: discriminator!, passcode: passcode! })
+    expect(manualPairingCode).toBe(`${manualCode.slice(0, 4)}-${manualCode.slice(4, 7)}-${manualCode.slice(7, 11)}`)
+    expect(QrPairingCodeCodec.decode(qrCode!)).toEqual([
+      expect.objectContaining({
+        passcode,
+        discriminator,
+        vendorId: 0xFFF1,
+        productId: 0x8001,
+      }),
+    ])
+  }, 30000)
 
   // #4047: a container killed hard leaves matter.js's lock files behind, and
   // in the next container the process id they name belongs to another program.

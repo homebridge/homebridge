@@ -282,6 +282,14 @@ describe('commissioningManager', () => {
     function depsFor(overrides: { commissioned?: boolean, hideQRCode?: boolean } = {}) {
       return {
         config: { hideQRCode: overrides.hideQRCode },
+        // matter.js builds the two codes; these are what it would hand back
+        serverNode: {
+          state: {
+            commissioning: {
+              pairingCodes: { manualPairingCode: '12345678901', qrPairingCode: 'MT:Y.K9042C00KA0648G00' },
+            },
+          },
+        },
         matterStoragePath: '/mock/storage',
         serialNumber: 'SN-001',
         fabricManager: {

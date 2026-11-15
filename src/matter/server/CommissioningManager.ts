@@ -16,9 +16,10 @@ import { rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { SubscriptionsServer } from '@matter/node'
-import { ManualPairingCodeCodec, QrCode, QrPairingCodeCodec } from '@matter/types/schema'
+import { QrCode } from '@matter/types/schema'
 
 import { Logger } from '../../logger.js'
+import { MatterDeviceError } from '../types.js'
 import { DEFAULT_PRODUCT_ID, DEFAULT_VENDOR_ID, MAX_PASSCODE_ATTEMPTS } from './ServerConfig.js'
 
 const log = Logger.withPrefix('Matter/Server')
@@ -229,30 +230,16 @@ export class CommissioningManager {
    * Generate and display commissioning information
    */
   async generateCommissioningInfo(deps: CommissioningDeps): Promise<void> {
-    const discriminator = this.discriminator
-    const vendorId = this.vendorId
-    const productId = this.productId
+    if (!deps.serverNode) {
+      throw new MatterDeviceError('The pairing codes can only be read once the Matter server node exists')
+    }
 
-    // Use Matter.js library to generate pairing codes properly
-    const manualCode = ManualPairingCodeCodec.encode({
-      discriminator,
-      passcode: this.passcode,
-    })
+    // matter.js builds both codes from the node's own passcode, discriminator,
+    // vendor id and product id, so they can not drift from what it advertises.
+    const { manualPairingCode: manualCode, qrPairingCode: qrCodePayload } = deps.serverNode.state.commissioning.pairingCodes
 
     // Format as XXXX-XXX-XXXX for display
     const manualPairingCode = `${manualCode.slice(0, 4)}-${manualCode.slice(4, 7)}-${manualCode.slice(7, 11)}`
-
-    const qrCodePayload = QrPairingCodeCodec.encode([
-      {
-        version: 0,
-        vendorId,
-        productId,
-        flowType: 0, // Standard commissioning flow
-        discoveryCapabilities: 4, // OnNetwork=4
-        discriminator,
-        passcode: this.passcode,
-      },
-    ])
 
     // Store commissioning info
     this.commissioningInfo = {
