@@ -520,7 +520,8 @@ export class MatterServer extends EventEmitter {
             // put back on top, or the cached state may not fit the endpoint
             const deviceType = baseType && applyDeclaredClusterFeatures(baseType, serialized.deviceType?.clusterFeatures)
             if (!deviceType) {
-              log.warn(`Cannot restore cached Matter accessory ${serialized.displayName}: unknown device type "${serialized.deviceType?.name}"`)
+              log.warn(`Cannot restore cached Matter accessory ${serialized.displayName}: unknown device type "${serialized.deviceType?.name}". Its cache entry is kept.`)
+              this.accessoryCache.retain(serialized.uuid)
               continue
             }
             const parts = (serialized.parts ?? [])
@@ -562,7 +563,11 @@ export class MatterServer extends EventEmitter {
             await this.accessoryManager.registerAccessory(serialized.plugin, serialized.platform, accessory, this.getAccessoryManagerDeps())
             restored++
           } catch (error) {
-            log.warn(`Failed to restore cached Matter accessory ${serialized.displayName}:`, error)
+            log.warn(`Failed to restore cached Matter accessory ${serialized.displayName} (its cache entry is kept):`, error)
+            // It is not on the bridge now, and a save writes what is on the
+            // bridge. Hold the entry so it is written back unchanged: the
+            // plugin's own registration, or a later version, can still use it.
+            this.accessoryCache.retain(serialized.uuid)
           }
         }
         if (restored > 0) {

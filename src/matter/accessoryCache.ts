@@ -388,6 +388,11 @@ export class MatterAccessoryCache {
    * the bridge to be registered again with a new structure. A save in that
    * window still writes the entry, so if the new registration fails the cache
    * keeps what it had, and the next start can restore the accessory.
+   *
+   * Also used for a cached accessory that could not be rebuilt at start: it
+   * is not on the bridge, and every save writes the bridge's accessories, so
+   * without this its entry (and the plugin's context in it) was gone after
+   * the first save.
    */
   retain(uuid: string): void {
     const entry = this.cachedAccessories.get(uuid)
@@ -396,9 +401,14 @@ export class MatterAccessoryCache {
     }
   }
 
-  /** Let go of an entry held with retain(), once the accessory is registered again. */
-  release(uuid: string): void {
-    this.retained.delete(uuid)
+  /**
+   * Let go of an entry held with retain(), once the accessory is registered
+   * again or removed for good.
+   *
+   * @returns true if an entry was held
+   */
+  release(uuid: string): boolean {
+    return this.retained.delete(uuid)
   }
 
   /**

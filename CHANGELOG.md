@@ -192,6 +192,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs: correct comments in the api, the package entry and the logger that said little or were wrong
 - fix(matter): write the removal of the last accessory to the cache when the bridge stops
 - fix(matter): save the other accessories to the cache when one has a value json can not hold
+- fix(matter): keep the cache entry of an accessory that could not be rebuilt at start
 
 ### Homebridge Dependencies
 
