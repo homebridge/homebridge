@@ -31,6 +31,7 @@ import { isMatterActive, isMatterConfigEnabled, isMatterExternalsOnly, MatterCon
 import { MatterAccessoryNotOnBridgeError } from './matter/MatterError.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
+import { errorMessage } from './util/errorMessage.js'
 import { validMacAddress } from './util/mac.js'
 
 // HAP specifies QR error-correction level M or higher for ECC. Set once at
@@ -228,7 +229,7 @@ export class Server {
    * Set the current server status and update parent via IPC
    * @param status
    */
-  private setServerStatus(status: ServerStatus) {
+  private setServerStatus(status: ServerStatus): void {
     this.serverStatus = status
 
     // setupURI() asserts the accessory is published. _accessoryInfo is only
@@ -448,7 +449,7 @@ export class Server {
     try {
       // strip a UTF-8 byte order mark, which some Windows editors add and JSON.parse rejects
       config = JSON.parse(readFileSync(configPath, { encoding: 'utf8' }).replace(/^\uFEFF/, ''))
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.error('There was a problem reading your config.json file.')
       log.error('Please try pasting your config.json file here to validate it: https://jsonlint.com')
       log.error('')
@@ -596,8 +597,8 @@ export class Server {
 
       try {
         plugin = this.pluginManager.getPluginForAccessory(accessoryIdentifier)
-      } catch (error: any) {
-        log.error(error.message)
+      } catch (error: unknown) {
+        log.error(errorMessage(error))
         return
       }
 
@@ -609,9 +610,11 @@ export class Server {
 
       try {
         constructor = plugin.getAccessoryConstructor(accessoryIdentifier)
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error(`Error loading the accessory "${accessoryIdentifier}" requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`)
-        log.error(error) // error message contains more information and full stack trace
+        log.error(error instanceof Error
+          ? (error.stack ?? error.message)
+          : String(error)) // the stack holds the message and where it came from
         return
       }
 
@@ -621,8 +624,8 @@ export class Server {
       if (accessoryConfig._bridge) {
         try {
           this.validateChildBridgeConfig(PluginType.ACCESSORY, accessoryIdentifier, accessoryConfig._bridge)
-        } catch (error: any) {
-          log.error(error.message)
+        } catch (error: unknown) {
+          log.error(errorMessage(error))
           return
         }
 
@@ -670,8 +673,8 @@ export class Server {
       if (accessory) {
         try {
           this.bridgeService.bridge.addBridgedAccessory(accessory)
-        } catch (error: any) {
-          logger.error(`Error loading the accessory "${accessoryIdentifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, error.message)
+        } catch (error: unknown) {
+          logger.error(`Error loading the accessory "${accessoryIdentifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, errorMessage(error))
         }
       } else {
         logger.info('Accessory %s returned empty set of services; not adding it to the bridge.', accessoryIdentifier)
@@ -703,8 +706,8 @@ export class Server {
 
       try {
         plugin = this.pluginManager.getPluginForPlatform(platformIdentifier)
-      } catch (error: any) {
-        log.error(error.message)
+      } catch (error: unknown) {
+        log.error(errorMessage(error))
         return
       }
 
@@ -716,9 +719,11 @@ export class Server {
 
       try {
         constructor = plugin.getPlatformConstructor(platformIdentifier)
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error(`Error loading the platform "${platformIdentifier}" requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`)
-        log.error(error) // error message contains more information and full stack trace
+        log.error(error instanceof Error
+          ? (error.stack ?? error.message)
+          : String(error)) // the stack holds the message and where it came from
         return
       }
 
@@ -728,8 +733,8 @@ export class Server {
       if (platformConfig._bridge) {
         try {
           this.validateChildBridgeConfig(PluginType.PLATFORM, platformIdentifier, platformConfig._bridge)
-        } catch (error: any) {
-          log.error(error.message)
+        } catch (error: unknown) {
+          log.error(errorMessage(error))
           return
         }
 
@@ -836,9 +841,7 @@ export class Server {
         validatePin(bridgeConfig.pin, '_bridge.pin')
       } catch (error: unknown) {
         throw new Error(
-          `Error loading the ${type} "${identifier}" requested in your config.json - ${error instanceof Error
-            ? error.message
-            : error}`,
+          `Error loading the ${type} "${identifier}" requested in your config.json - ${errorMessage(error)}`,
         )
       }
     }
@@ -855,7 +858,7 @@ export class Server {
   /**
    * Takes care of the IPC Events sent to Homebridge
    */
-  private initializeIpcEventHandlers() {
+  private initializeIpcEventHandlers(): void {
     // start ipc service
     this.ipcService.start()
 
@@ -1344,11 +1347,12 @@ export class Server {
           matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
           this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
         } catch (error: unknown) {
-          const message = error instanceof Error
-            ? error.message
-            : String(error)
-          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${message}`)
-          this.sendMatterControlResponse({ success: false, error: message, uuid: data.uuid }, correlationId)
+          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${errorMessage(error)}`)
+          this.sendMatterControlResponse({
+            success: false,
+            error: errorMessage(error),
+            uuid: data.uuid,
+          }, correlationId)
         }
         return
       }
@@ -1376,11 +1380,12 @@ export class Server {
             matterLogger.debug(`External accessory ${data.uuid} successfully controlled via main bridge`)
             this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
           } catch (error: unknown) {
-            const message = error instanceof Error
-              ? error.message
-              : String(error)
-            matterLogger.error(`Main bridge failed to control external accessory ${data.uuid}: ${message}`)
-            this.sendMatterControlResponse({ success: false, error: message, uuid: data.uuid }, correlationId)
+            matterLogger.error(`Main bridge failed to control external accessory ${data.uuid}: ${errorMessage(error)}`)
+            this.sendMatterControlResponse({
+              success: false,
+              error: errorMessage(error),
+              uuid: data.uuid,
+            }, correlationId)
           }
         } else {
           // External accessory on child bridge - lookup by username

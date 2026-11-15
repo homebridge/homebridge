@@ -44,6 +44,7 @@ import { getLogPrefix, Logger } from './logger.js'
 import { PlatformAccessory } from './platformAccessory.js'
 import { PluginManager } from './pluginManager.js'
 import { StorageService } from './storageService.js'
+import { errorMessage } from './util/errorMessage.js'
 import { generate } from './util/mac.js'
 import { isPortInUse } from './util/port.js'
 import getVersion from './version.js'
@@ -276,7 +277,7 @@ export interface HomebridgeConfig {
   /**
    * @deprecated
    */
-  mdns?: any // this is deprecated and not used anymore
+  mdns?: unknown // this is deprecated and not used anymore
 
   accessories: AccessoryConfig[]
   platforms: PlatformConfig[]
@@ -312,6 +313,20 @@ export interface ExternalAccessoryMetadata {
   port?: number
 }
 
+/**
+ * An accessory plugin from the days when `identify` was given a callback. The
+ * method is typed without one today, but old plugins still wait for it.
+ */
+interface LegacyIdentifyAccessoryPlugin {
+  identify: (callback: () => void) => void
+}
+
+/**
+ * An accessory as a static platform hands it over: an accessory plugin that
+ * carries its own name, and may carry a base for its UUID, as properties.
+ */
+type StaticPlatformAccessoryPlugin = AccessoryPlugin & { name: string, uuid_base?: string }
+
 export interface CharacteristicWarningOpts {
   ignoreSlow?: boolean
 }
@@ -344,8 +359,8 @@ export class BridgeService {
     // from a previous run is stale until the owning plugin re-registers its accessories.
     try {
       this.storageService.removeItemSync(this.bridgeOptions.externalAccessoriesItemName)
-    } catch (error: any) {
-      log.warn('Failed to clear stale external accessories metadata file:', error.message)
+    } catch (error: unknown) {
+      log.warn('Failed to clear stale external accessories metadata file:', errorMessage(error))
     }
 
     // Server is "secure by default", meaning it creates a top-level Bridge accessory that
@@ -515,10 +530,7 @@ export class BridgeService {
     // them silently, so a failed publish only manifested as the bridge never
     // appearing in HomeKit with no log explanation.
     this.bridge.publish(publishInfo, this.allowInsecureAccess).catch((error: unknown) => {
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      log.error('Failed to publish bridge accessory \'%s\': %s', this.bridge.displayName, message)
+      log.error('Failed to publish bridge accessory \'%s\': %s', this.bridge.displayName, errorMessage(error))
     })
   }
 
@@ -530,9 +542,9 @@ export class BridgeService {
     let fromBackup = false
 
     try {
-      cachedAccessories = await this.storageService.getItem<unknown>(this.bridgeOptions.cachedAccessoriesItemName)
-    } catch (error: any) {
-      log.error('Failed to load cached accessories from disk:', error.message)
+      cachedAccessories = await this.storageService.getItem(this.bridgeOptions.cachedAccessoriesItemName)
+    } catch (error: unknown) {
+      log.error('Failed to load cached accessories from disk:', errorMessage(error))
       if (error instanceof SyntaxError) {
         // syntax error probably means invalid JSON / corrupted file; try and restore from backup
         cachedAccessories = await this.restoreCachedAccessoriesBackup()
@@ -568,9 +580,7 @@ export class BridgeService {
         } catch (error: unknown) {
           log.error(
             `Skipping the cached accessory '${serialized?.displayName ?? 'unknown'}' as it could not be read:`,
-            error instanceof Error
-              ? error.message
-              : error,
+            errorMessage(error),
           )
         }
       }
@@ -589,7 +599,7 @@ export class BridgeService {
   /**
    * Return the name of the backup cache file
    */
-  private get backupCacheFileName() {
+  private get backupCacheFileName(): string {
     return `.${this.bridgeOptions.cachedAccessoriesItemName}.bak`
   }
 
@@ -600,8 +610,8 @@ export class BridgeService {
   private async createCachedAccessoriesBackup(): Promise<void> {
     try {
       await this.storageService.copyItem(this.bridgeOptions.cachedAccessoriesItemName, this.backupCacheFileName)
-    } catch (error: any) {
-      log.warn(`Failed to create a backup of the ${this.bridgeOptions.cachedAccessoriesItemName} cached accessories file:`, error.message)
+    } catch (error: unknown) {
+      log.warn(`Failed to create a backup of the ${this.bridgeOptions.cachedAccessoriesItemName} cached accessories file:`, errorMessage(error))
     }
   }
 
@@ -611,15 +621,15 @@ export class BridgeService {
    */
   private async restoreCachedAccessoriesBackup(): Promise<SerializedPlatformAccessory[] | null> {
     try {
-      const cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.backupCacheFileName)
+      const cachedAccessories = await this.storageService.getItem(this.backupCacheFileName)
       if (!Array.isArray(cachedAccessories)) {
         return null
       }
       if (cachedAccessories.length) {
         log.warn(`Recovered ${cachedAccessories.length} accessories from ${this.bridgeOptions.cachedAccessoriesItemName} cache backup.`)
       }
-      return cachedAccessories
-    } catch (error: any) {
+      return cachedAccessories as SerializedPlatformAccessory[]
+    } catch {
       return null
     }
   }
@@ -682,9 +692,9 @@ export class BridgeService {
 
             accessory._associatedPlugin = plugin.getPluginIdentifier() // update the associated plugin to the new one
           }
-        } catch (error: any) { // error is thrown if multiple plugins where found for the given platform name
+        } catch (error: unknown) { // error is thrown if multiple plugins where found for the given platform name
           log.info(`Could not find the associated plugin for the accessory '${accessory.displayName}'. `
-            + `Tried to find the plugin by the platform name but ${error.message}`)
+            + `Tried to find the plugin by the platform name but ${errorMessage(error)}`)
         }
       }
 
@@ -720,10 +730,10 @@ export class BridgeService {
 
       try {
         this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory)
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.warn(`${accessory._associatedPlugin
           ? getLogPrefix(accessory._associatedPlugin)
-          : ''} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, error.message)
+          : ''} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, errorMessage(error))
         orphanedAccessories.add(accessory) // remove it from the list
       }
     }
@@ -796,17 +806,15 @@ export class BridgeService {
                   ? getLogPrefix(accessory._associatedPlugin)
                   : '',
                 accessory.displayName,
-                error instanceof Error
-                  ? error.message
-                  : error,
+                errorMessage(error),
               )
             }
           }
         }
         this.storageService.setItemSync(this.bridgeOptions.cachedAccessoriesItemName, serializedAccessories)
       }
-    } catch (error: any) {
-      log.error('Failed to save cached accessories to disk:', error.message)
+    } catch (error: unknown) {
+      log.error('Failed to save cached accessories to disk:', errorMessage(error))
       log.error('Your accessories will not persist between restarts until this issue is resolved.')
     }
   }
@@ -824,8 +832,8 @@ export class BridgeService {
         return
       }
       this.storageService.setItemSync(this.bridgeOptions.externalAccessoriesItemName, entries)
-    } catch (error: any) {
-      log.error('Failed to save external accessories metadata to disk:', error.message)
+    } catch (error: unknown) {
+      log.error('Failed to save external accessories metadata to disk:', errorMessage(error))
     }
   }
 
@@ -896,9 +904,7 @@ export class BridgeService {
             : '',
           accessory.displayName,
           this.bridge.displayName,
-          error instanceof Error
-            ? error.message
-            : error,
+          errorMessage(error),
           this.bridge.bridgedAccessories.length >= MAX_BRIDGED_ACCESSORIES
             ? `. A bridge can hold ${MAX_BRIDGED_ACCESSORIES} accessories at most: run the plugin as a child bridge, or remove accessories.`
             : '',
@@ -1012,9 +1018,7 @@ export class BridgeService {
         log.error(
           'Could not get a port for the external accessory \'%s\', so it is not published: %s',
           hapAccessory.displayName,
-          error instanceof Error
-            ? error.message
-            : error,
+          errorMessage(error),
         )
         continue
       }
@@ -1074,10 +1078,7 @@ export class BridgeService {
 
       log.debug('Publishing external accessory (name: %s, publishInfo: %o).', hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo))
       hapAccessory.publish(publishInfo, this.allowInsecureAccess).catch((error: unknown) => {
-        const message = error instanceof Error
-          ? error.message
-          : String(error)
-        log.error('Failed to publish external accessory \'%s\': %s', hapAccessory.displayName, message)
+        log.error('Failed to publish external accessory \'%s\': %s', hapAccessory.displayName, errorMessage(error))
       })
     }
 
@@ -1102,8 +1103,8 @@ export class BridgeService {
     // listen for the identify event if the accessory instance has defined an identify() method
     if (accessoryInstance.identify) {
       accessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
-        // @ts-expect-error: empty callback for backwards compatibility
-        accessoryInstance.identify!(() => {})
+        // empty callback for backwards compatibility
+        ;(accessoryInstance as LegacyIdentifyAccessoryPlugin).identify(() => {})
         callback()
       })
     }
@@ -1147,11 +1148,8 @@ export class BridgeService {
 
         // loop through accessories adding them to the list and registering them
         accessories.forEach((accessoryInstance, index) => {
-          // @ts-expect-error: assume this property was set
-          const accessoryName = accessoryInstance.name
-
-          // @ts-expect-error: optional base uuid
-          const uuidBase: string | undefined = accessoryInstance.uuid_base
+          // the name is assumed to be set; the base for the uuid is optional
+          const { name: accessoryName, uuid_base: uuidBase } = accessoryInstance as StaticPlatformAccessoryPlugin
 
           log.info('Initializing platform accessory \'%s\'...', accessoryName)
 
@@ -1169,9 +1167,7 @@ export class BridgeService {
           } catch (error: unknown) {
             logger.error(
               `Error loading the accessory "${accessoryName}" (index ${index}) of the platform "${platformType}" from "${plugin.getPluginIdentifier()}":`,
-              error instanceof Error
-                ? error.message
-                : error,
+              errorMessage(error),
             )
           }
         })
@@ -1202,9 +1198,7 @@ export class BridgeService {
             log.warn(
               'Could not take \'%s\' off the network cleanly: %s',
               accessories[index].displayName,
-              result.reason instanceof Error
-                ? result.reason.message
-                : result.reason,
+              errorMessage(result.reason),
             )
           }
         })
