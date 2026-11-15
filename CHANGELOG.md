@@ -168,6 +168,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat: let a typescript plugin call api.once, api.off and api.removeListener without a cast
 - docs: correct the versionGreaterOrEqual example, say when it throws, and fix a link in the api docs
 - docs: mark api.version as deprecated, as it has been 2.7 since v1.3.0 and says nothing new
+- docs: bring CLAUDE.md and the copilot instructions in line with the code as it is now
 
 ### Homebridge Dependencies
 
