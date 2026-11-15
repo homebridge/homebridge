@@ -317,7 +317,7 @@ export class AccessoryManager {
         // registration has worked, and carry the state and the plugin's
         // context it restored over to the new accessory.
         deps.accessoryCache?.retain(accessory.UUID)
-        await this.unregisterAccessory(accessory.UUID, deps)
+        await this.unregisterAccessory(accessory.UUID, deps, { keepStorage: true })
         this.keepKnownState(accessory.clusters, existing.clusters)
         for (const part of accessory.parts ?? []) {
           this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters)
@@ -544,9 +544,19 @@ export class AccessoryManager {
   }
 
   /**
-   * Unregister a Matter accessory
+   * Unregister a Matter accessory.
+   *
+   * By default what matter.js stored for the accessory's endpoint (its
+   * uniqueId, its endpoint number, any stored attribute) is erased too: the
+   * accessory is gone for good, and the files otherwise stayed in the node's
+   * storage for ever, to come back to life if the UUID was used again. Only
+   * the accessory's own data goes; the bridge's pairings are not touched.
+   *
+   * `keepStorage` is for an accessory that is taken off the bridge only to be
+   * registered again with a new structure: there the stored uniqueId and
+   * endpoint number are wanted, so a controller sees the same device.
    */
-  async unregisterAccessory(uuid: string, deps: AccessoryManagerDeps): Promise<void> {
+  async unregisterAccessory(uuid: string, deps: AccessoryManagerDeps, options: { keepStorage?: boolean } = {}): Promise<void> {
     const accessory = deps.accessories.get(uuid)
     if (!accessory) {
       log.debug(`Accessory ${uuid} not found or not registered`)
@@ -565,7 +575,11 @@ export class AccessoryManager {
 
     try {
       if (accessory.endpoint && deps.getAggregator()) {
-        await accessory.endpoint.close()
+        if (options.keepStorage) {
+          await accessory.endpoint.close()
+        } else {
+          await this.deleteEndpoint(accessory.endpoint, accessory.displayName)
+        }
         log.debug(`Removed endpoint for ${accessory.displayName}`)
       }
 
@@ -602,6 +616,20 @@ export class AccessoryManager {
     } catch (error) {
       log.error(`Failed to unregister Matter accessory ${uuid}:`, error)
       throw deviceErrorFrom('Failed to unregister accessory', error)
+    }
+  }
+
+  /**
+   * Take an endpoint off the bridge and erase what matter.js stored for it.
+   * An endpoint that can not be erased (one that never finished being built,
+   * say) is closed as before: it must still come off the bridge.
+   */
+  private async deleteEndpoint(endpoint: Endpoint, displayName: string): Promise<void> {
+    try {
+      await endpoint.delete()
+    } catch (error) {
+      log.debug(`Could not erase the stored Matter data of ${displayName}; closing its endpoint instead:`, error)
+      await endpoint.close()
     }
   }
 

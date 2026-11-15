@@ -3,7 +3,7 @@ import type { ServerNode } from '@matter/main'
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { MatterAccessory } from './types.js'
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -185,11 +185,33 @@ describe('matterServer accessory cache on real matter.js nodes', () => {
   })
 
   describe('what matter.js stored for an accessory', () => {
+    // matter.js keeps one file per stored value, named after the endpoint's id
+    const storedFor = (uniqueId: string, uuid: string): string[] => readdirSync(join(bridgeFolder(uniqueId), storedId(uniqueId)))
+      .filter(name => name.includes(`.parts.${uuid}.`))
+
+    it('is erased when the accessory is unregistered', async () => {
+      const server = bridgeServer('stored-erase-bridge', 5604)
+      await server.start()
+      await server.registerPlatformAccessories('homebridge-test', 'Test', [
+        light('stored-gone'),
+        light('stored-stays'),
+      ])
+      expect(storedFor('stored-erase-bridge', 'stored-gone')).not.toEqual([])
+
+      await server.unregisterPlatformAccessories('homebridge-test', 'Test', [
+        light('stored-gone'),
+      ])
+
+      expect(storedFor('stored-erase-bridge', 'stored-gone')).toEqual([])
+      expect(storedFor('stored-erase-bridge', 'stored-stays')).not.toEqual([])
+      expect(server.getAccessories().map(accessory => accessory.UUID)).toEqual(['stored-stays'])
+    }, 30000)
+
     it('is kept, with the same identity, when a restored accessory comes back with a new structure', async () => {
       await sessionWith('stored-keep-bridge', 5605, [
         light('stored-changes'),
       ])
-      const uniqueIdFile = join(matterPath, 'stored-keep-bridge', 'stored-keep-bridge', 'root.parts.homebridge-aggregator.parts.stored-changes.bridgedDeviceBasicInformation.uniqueId')
+      const uniqueIdFile = join(bridgeFolder('stored-keep-bridge'), storedId('stored-keep-bridge'), 'root.parts.homebridge-aggregator.parts.stored-changes.bridgedDeviceBasicInformation.uniqueId')
       const before = readFileSync(uniqueIdFile, 'utf-8')
 
       const server = bridgeServer('stored-keep-bridge', 5605)
