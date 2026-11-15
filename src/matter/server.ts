@@ -124,8 +124,16 @@ export class MatterServer extends EventEmitter {
 
     MatterLogger.format = createHomebridgeLogFormatter({ debug: this.config.debugModeEnabled })
 
-    MatterLogger.destinations.default.write = (text: string) => {
-      if (text.trim() !== '') {
+    // Warnings and errors go to stderr and the rest to stdout, the same split
+    // Homebridge's own logger makes. All on stdout, a tool that reads the two
+    // streams apart filed matter.js errors as normal output.
+    MatterLogger.destinations.default.write = (text: string, message?: { level?: number }) => {
+      if (text.trim() === '') {
+        return
+      }
+      if (message?.level !== undefined && message.level >= MatterLogLevel.WARN) {
+        console.error(text)
+      } else {
         console.log(text) // eslint-disable-line no-console
       }
     }
