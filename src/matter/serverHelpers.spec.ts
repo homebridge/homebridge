@@ -8,7 +8,6 @@ import {
   applyThermostatFeatures,
   applyWindowCoveringFeatures,
   checkThermostatSetpointLimits,
-  CLUSTER_IDS,
   detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
   detectSmokeCoAlarmFeatures,
@@ -25,17 +24,6 @@ import {
 import { devices, MatterDeviceError } from './types.js'
 
 describe('serverHelpers', () => {
-  describe('cLUSTER_IDS', () => {
-    it('should export cluster ID constants', () => {
-      expect(CLUSTER_IDS.COLOR_CONTROL).toBeDefined()
-      expect(CLUSTER_IDS.THERMOSTAT).toBeDefined()
-      expect(CLUSTER_IDS.WINDOW_COVERING).toBeDefined()
-      expect(CLUSTER_IDS.DOOR_LOCK).toBeDefined()
-      expect(CLUSTER_IDS.ON_OFF).toBeDefined()
-      expect(CLUSTER_IDS.LEVEL_CONTROL).toBeDefined()
-    })
-  })
-
   describe('validateAccessoryRequiredFields', () => {
     it('should pass validation for valid accessory', () => {
       const validAccessory = {
@@ -1184,6 +1172,8 @@ describe('serverHelpers', () => {
   })
 
   describe('detectBehaviorFeatures', () => {
+    const enabled = (flags: Record<string, boolean>) => Object.keys(flags).filter(name => flags[name]).sort()
+
     it('should return null when device type has no behaviors', () => {
       const deviceType = {} as any
       const result = detectBehaviorFeatures(deviceType, 'colorControl', () => [])
@@ -1191,66 +1181,19 @@ describe('serverHelpers', () => {
       expect(result).toBeNull()
     })
 
-    it('should return null when cluster not found in behaviors', () => {
-      const deviceType = {
-        behaviors: [
-          {
-            id: 'otherCluster',
-            cluster: { id: 999 },
-          },
-        ],
-      } as any
-
-      const result = detectBehaviorFeatures(deviceType, 'colorControl', () => [])
-
-      expect(result).toBeNull()
+    it('returns null for a cluster the device type does not carry', () => {
+      expect(detectBehaviorFeatures(devices.OnOffLightDevice, 'colorControl', enabled)).toBeNull()
     })
 
-    it('should return null when cluster has no supportedFeatures', () => {
-      const deviceType = {
-        behaviors: [
-          {
-            id: 'colorControl',
-            cluster: { id: 768 },
-          },
-        ],
-      } as any
-
-      const result = detectBehaviorFeatures(deviceType, 'colorControl', () => [])
-
-      expect(result).toBeNull()
+    it('reads the features a real matter.js device type composed a cluster with', () => {
+      // a dimmable light's level control is composed with the Lighting and OnOff features
+      expect(detectBehaviorFeatures(devices.DimmableLightDevice, 'levelControl', enabled)).toEqual(['lighting', 'onOff'])
     })
 
-    it('should extract features using provided extractor', () => {
-      const deviceType = {
-        behaviors: [
-          {
-            id: 'colorControl',
-            cluster: {
-              id: 768,
-              supportedFeatures: {
-                hueSaturation: true,
-                xy: true,
-              },
-            },
-          },
-        ],
-      } as any
+    it('reads the features a plugin composed itself', () => {
+      const thermostat = devices.ThermostatDevice.with(devices.ThermostatRequirements.ThermostatServer.with('Heating', 'Cooling'))
 
-      const extractor = (supportedFeatures: Record<string, boolean>) => {
-        const features: string[] = []
-        if (supportedFeatures.hueSaturation) {
-          features.push('HueSaturation')
-        }
-        if (supportedFeatures.xy) {
-          features.push('Xy')
-        }
-        return features
-      }
-
-      const result = detectBehaviorFeatures(deviceType, 'colorControl', extractor)
-
-      expect(result).toEqual(['HueSaturation', 'Xy'])
+      expect(detectBehaviorFeatures(thermostat, 'thermostat', enabled)).toEqual(['cooling', 'heating'])
     })
   })
 })
