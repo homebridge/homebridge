@@ -29,6 +29,10 @@ export abstract class BaseMatterManager {
   protected readonly externalMatterServers: Map<string, MatterServer> = new Map()
   protected readonly pluginManager: PluginManager
 
+  // Whether the UI has state monitoring switched on, so a server made later
+  // (an external accessory) can be given the same setting.
+  private stateMonitoringEnabled = false
+
   constructor(pluginManager: PluginManager) {
     this.pluginManager = pluginManager
   }
@@ -186,9 +190,27 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Keep the server of an external accessory that has just been published.
+   *
+   * A server starts with monitoring off, and the UI switches it on once, for
+   * the servers that exist at that moment. An external accessory published
+   * after that (a plugin that publishes late, or a child bridge that restarts
+   * with the accessories page open) sent the UI no state updates until the
+   * page was opened again. So the server is given the setting the UI last
+   * asked for.
+   */
+  protected addExternalMatterServer(uuid: string, server: MatterServer): void {
+    this.externalMatterServers.set(uuid, server)
+    if (this.stateMonitoringEnabled) {
+      server.enableStateMonitoring()
+    }
+  }
+
+  /**
    * Enable state monitoring on all Matter servers
    */
   enableStateMonitoring(): void {
+    this.stateMonitoringEnabled = true
     this.matterServer?.enableStateMonitoring()
     for (const externalServer of this.externalMatterServers.values()) {
       externalServer.enableStateMonitoring()
@@ -212,6 +234,7 @@ export abstract class BaseMatterManager {
    * Disable state monitoring on all Matter servers
    */
   disableStateMonitoring(): void {
+    this.stateMonitoringEnabled = false
     this.matterServer?.disableStateMonitoring()
     for (const externalServer of this.externalMatterServers.values()) {
       externalServer.disableStateMonitoring()

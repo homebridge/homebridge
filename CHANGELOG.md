@@ -230,6 +230,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): warn at registration for an attribute name the cluster does not have
 - fix: say in plain words when the port set for a child bridge is in use by another program
 - fix: let a child bridge wait for the hap goodbye and the matter servers when it shuts down
+- fix(matter): send the ui updates for a main bridge external accessory published while it watches
 
 ### Homebridge Dependencies
 
