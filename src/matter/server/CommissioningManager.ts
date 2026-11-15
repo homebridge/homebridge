@@ -1,3 +1,5 @@
+/* global NodeJS */
+
 /**
  * Commissioning Manager
  *
@@ -195,23 +197,40 @@ export class CommissioningManager {
   async loadOrGenerateCredentials(matterStoragePath: string): Promise<void> {
     const credentialsPath = join(matterStoragePath, 'credentials.json')
 
+    // Only a file that is not there means "first start". Any other read error
+    // (no permission, a disk that is not ready) says nothing about the file:
+    // making new credentials then replaced the ones the user's pairing code
+    // came from, and the code printed on a label or saved in a note was wrong
+    // from that start on.
+    let stored: string | undefined
     try {
       const { readFile } = await import('node:fs/promises')
-      const data = JSON.parse(await readFile(credentialsPath, 'utf-8'))
-      if (
-        Number.isInteger(data.passcode)
-        && this.isValidPasscode(data.passcode)
-        && Number.isInteger(data.discriminator)
-        && data.discriminator >= 0
-        && data.discriminator <= 4095
-      ) {
-        log.info('Loading existing commissioning credentials from storage')
-        this.passcode = data.passcode
-        this.discriminator = data.discriminator
-        return
+      stored = await readFile(credentialsPath, 'utf-8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        throw new Error(`The Matter commissioning credentials could not be read from ${credentialsPath}. They were not replaced.`, { cause: error })
       }
-    } catch {
-      // File doesn't exist or is invalid - generate new credentials
+    }
+
+    if (stored !== undefined) {
+      try {
+        const data = JSON.parse(stored)
+        if (
+          Number.isInteger(data.passcode)
+          && this.isValidPasscode(data.passcode)
+          && Number.isInteger(data.discriminator)
+          && data.discriminator >= 0
+          && data.discriminator <= 4095
+        ) {
+          log.info('Loading existing commissioning credentials from storage')
+          this.passcode = data.passcode
+          this.discriminator = data.discriminator
+          return
+        }
+      } catch {
+        // not JSON: handled below, with a stored file whose values are not valid
+      }
+      log.warn(`The Matter commissioning credentials in ${credentialsPath} are not valid (the file is damaged, or it holds a passcode or discriminator Matter does not allow). New ones are generated, so the pairing code of this bridge changes.`)
     }
 
     // Generate new credentials and store them

@@ -195,7 +195,7 @@ describe('commissioningManager', () => {
     })
 
     it('should generate and save new credentials when file does not exist', async () => {
-      mockedReadFile.mockRejectedValue(new Error('ENOENT'))
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }))
       mockedWriteFile.mockResolvedValue(undefined)
 
       await manager.loadOrGenerateCredentials('/mock/storage')
@@ -209,6 +209,27 @@ describe('commissioningManager', () => {
         expect.stringContaining('"passcode"'),
         { encoding: 'utf-8', mode: 0o600 },
       )
+    })
+
+    it('keeps the stored credentials when the file is there but can not be read', async () => {
+      // no permission, or a disk that is not ready: nothing says the file is bad
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }))
+
+      await expect(manager.loadOrGenerateCredentials('/mock/storage')).rejects.toThrow('could not be read')
+
+      expect(mockedWriteFile).not.toHaveBeenCalled()
+      expect(mockedRename).not.toHaveBeenCalled()
+    })
+
+    it('says so when stored credentials are replaced because they are not valid', async () => {
+      // 20202021 is allowed by Matter, but not by the stricter check here
+      mockedReadFile.mockResolvedValue(JSON.stringify({ passcode: 20202021, discriminator: 3840 }) as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+
+      await manager.loadOrGenerateCredentials('/mock/storage')
+
+      expect(mockedWriteFile).toHaveBeenCalled()
+      expect(mockedLog.warn).toHaveBeenCalledWith(expect.stringContaining('the pairing code of this bridge changes'))
     })
 
     it('should generate new credentials when file contains invalid data', async () => {
