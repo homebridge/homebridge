@@ -225,7 +225,7 @@ export class StateManager {
       return undefined
     }
 
-    let targetEndpoint: any
+    let targetEndpoint: Endpoint
     let displayName: string
 
     if (partId) {
@@ -246,37 +246,17 @@ export class StateManager {
     }
 
     try {
-      if (!targetEndpoint.state) {
-        log.debug(`endpoint.state is undefined for ${displayName}`)
+      const clusterState = (targetEndpoint.state as Record<string, Record<string, unknown> | undefined> | undefined)?.[cluster]
+      if (!clusterState) {
+        log.debug(`Cluster '${cluster}' not found on ${displayName}. Available: ${Object.keys(targetEndpoint.state ?? {}).join(', ')}`)
         return undefined
       }
 
-      if (!targetEndpoint.state[cluster]) {
-        const availableClusters = Object.keys(targetEndpoint.state || {})
-        log.debug(`Cluster '${cluster}' not found on ${displayName}. Available: ${availableClusters.join(', ')}`)
-        return undefined
-      }
-
-      const clusterState = targetEndpoint.state[cluster]
+      // matter.js lists every attribute of a cluster's state as a plain entry
       const result: Record<string, unknown> = {}
-
-      const allKeys = new Set([
-        ...Object.keys(clusterState),
-        ...Object.getOwnPropertyNames(clusterState),
-      ])
-
-      for (const key of allKeys) {
-        try {
-          if (key.startsWith('_') || key.startsWith('$')) {
-            continue
-          }
-          const value = clusterState[key]
-          if (typeof value === 'function' || value === undefined) {
-            continue
-          }
+      for (const [key, value] of Object.entries(clusterState)) {
+        if (!key.startsWith('_') && !key.startsWith('$') && typeof value !== 'function' && value !== undefined) {
           result[key] = coerceBigintsToNumbers(value)
-        } catch (propError) {
-          log.debug(`Could not read property ${key} from ${cluster}:`, propError)
         }
       }
 
