@@ -149,6 +149,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): let the ui change only the hue of a light, and the mode of an energy device
 - fix(matter): cache the discharging state of an ev charger and the reason of a power adjustment
 - feat(matter): tell the plugin when a controller changes the unoccupied setpoint of a thermostat
+- docs(matter): say which commands matter records as finished at once, so the plugin reports the rest
 
 ### Homebridge Dependencies
 
