@@ -5,7 +5,7 @@ import type { LogLevel } from './logger.js'
 import chalk from 'chalk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Logger } from './logger.js'
+import { getLogPrefix, Logger } from './logger.js'
 
 describe('logger', () => {
   let consoleLogSpy: MockInstance
@@ -148,6 +148,75 @@ describe('logger', () => {
     const { debug } = Logger.withPrefix('detached')
     expect(() => debug('debug message')).not.toThrow()
     expect(consoleLogSpy).not.toHaveBeenCalled()
+  })
+
+  describe('what is written', () => {
+    beforeEach(() => {
+      Logger.setTimestampEnabled(false)
+    })
+
+    afterEach(() => {
+      Logger.setTimestampEnabled(true)
+    })
+
+    it('puts the prefix in front of the message', () => {
+      Logger.withPrefix('My Plugin').info('hello')
+
+      expect(consoleLogSpy).toHaveBeenCalledExactlyOnceWith(`${getLogPrefix('My Plugin')} hello`)
+      expect(getLogPrefix('My Plugin')).toContain('[My Plugin]')
+    })
+
+    it('logs at info level when the logger is called as a function', () => {
+      const log = Logger.withPrefix('test')
+
+      log('called as a function')
+
+      expect(consoleLogSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('called as a function'))
+      expect(consoleErrorSpy).not.toHaveBeenCalled()
+    })
+
+    it('fills in format parameters and appends the other ones', () => {
+      Logger.withPrefix('test').info('%s has %d items', 'list', 3, { extra: true })
+
+      expect(consoleLogSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('list has 3 items { extra: true }'))
+    })
+
+    it('leaves a single message as it is', () => {
+      Logger.withPrefix('test').info('100%% done')
+
+      expect(consoleLogSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('100%% done'))
+    })
+
+    it.each([
+      { level: 'info', stream: 'stdout' },
+      { level: 'success', stream: 'stdout' },
+      { level: 'debug', stream: 'stdout' },
+      { level: 'warn', stream: 'stderr' },
+      { level: 'error', stream: 'stderr' },
+    ] as const)('writes $level to $stream, by its method and by log(level)', ({ level, stream }) => {
+      Logger.setDebugEnabled(true)
+      const log = Logger.withPrefix('test')
+      const [used, unused] = stream === 'stdout'
+        ? [consoleLogSpy, consoleErrorSpy]
+        : [consoleErrorSpy, consoleLogSpy]
+
+      log[level]('by method')
+      log.log(level as LogLevel, 'by level')
+
+      expect(used).toHaveBeenCalledTimes(2)
+      expect(used).toHaveBeenNthCalledWith(1, expect.stringContaining('by method'))
+      expect(used).toHaveBeenNthCalledWith(2, expect.stringContaining('by level'))
+      expect(unused).not.toHaveBeenCalled()
+    })
+
+    it('writes no prefix for the internal logger', () => {
+      Logger.internal.info('from homebridge itself')
+      Logger.internal.error('an error from homebridge itself')
+
+      expect(Logger.internal.prefix).toBeUndefined()
+      expect(consoleLogSpy).toHaveBeenCalledExactlyOnceWith('from homebridge itself')
+      expect(consoleErrorSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('an error from homebridge itself'))
+    })
   })
 
   it('should return the same logger when called with the same prefix', () => {
