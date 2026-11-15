@@ -6,10 +6,7 @@
  * pause, or start later. DeviceEnergyManagementMode picks how freely it may do so.
  */
 
-import type { Behavior } from '@matter/main'
 import type { ModeBase } from '@matter/main/clusters'
-
-import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { DeviceEnergyManagementServer } from '@matter/main/behaviors/device-energy-management'
 import { DeviceEnergyManagementModeServer } from '@matter/main/behaviors/device-energy-management-mode'
@@ -18,19 +15,6 @@ import { DeviceEnergyManagement } from '@matter/main/clusters/device-energy-mana
 import { getRegistryManager } from './EndpointContext.js'
 import { changeToModeWithHandler } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
-
-/**
- * Run the plugin's handler for a command, if it registered one. Every handler
- * here is optional - a battery that can only pause has no use for the forecast
- * commands - so a missing one falls through to the default behavior instead of
- * failing the command.
- */
-async function runOptionalHandler(behavior: Behavior, registry: BehaviorRegistry, endpointId: string, clusterName: string, commandName: string, args?: unknown): Promise<void> {
-  if (registry.getHandler(endpointId, clusterName, commandName)) {
-    await registry.executeHandler(endpointId, clusterName, commandName, args)
-    await lockStateForWrite(behavior)
-  }
-}
 
 /**
  * Every optional feature, so the commands below exist to override. The device
@@ -127,7 +111,11 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    await runOptionalHandler(this, registry, endpointId, 'deviceEnergyManagement', commandName, request)
+    // Every handler here is optional - a battery that can only pause has no
+    // use for the forecast commands - and a missing one is not a failure: the
+    // default behavior below still records the request.
+    await registry.executeHandler(endpointId, 'deviceEnergyManagement', commandName, request)
+    await lockStateForWrite(this)
     await apply()
     // A power adjustment also records its reason, in powerAdjustmentCapability
     // (which only exists with the PowerAdjustment feature)

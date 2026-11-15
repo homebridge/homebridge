@@ -155,7 +155,6 @@ describe('homebridgeDeviceEnergyManagementServer', () => {
 
   beforeEach(() => {
     registry = {
-      getHandler: vi.fn().mockReturnValue(vi.fn()),
       executeHandler: vi.fn().mockResolvedValue(true),
       syncStateToCache: vi.fn(),
     } as any
@@ -195,11 +194,11 @@ describe('homebridgeDeviceEnergyManagementServer', () => {
 
   it('still answers a command the plugin has no handler for', async () => {
     // Every handler is optional - a missing one used to fail the command
-    registry.getHandler = vi.fn().mockReturnValue(undefined)
+    // the registry says so by returning false; it does not throw
+    registry.executeHandler = vi.fn().mockResolvedValue(false)
 
     await behavior.pauseRequest(pauseRequest)
 
-    expect(registry.executeHandler).not.toHaveBeenCalled()
     expect(state.esaState).toBe(Paused)
   })
 })

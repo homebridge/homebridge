@@ -129,7 +129,6 @@ describe('homebridgeEnergyEvseServer', () => {
 
   beforeEach(() => {
     registry = {
-      getHandler: vi.fn().mockReturnValue(vi.fn()),
       executeHandler: vi.fn().mockResolvedValue(true),
       syncStateToCache: vi.fn(),
     } as any
@@ -163,12 +162,12 @@ describe('homebridgeEnergyEvseServer', () => {
   })
 
   it('still answers a command the plugin has no handler for', async () => {
-    registry.getHandler = vi.fn().mockReturnValue(undefined)
+    // the registry says so by returning false; it does not throw
+    registry.executeHandler = vi.fn().mockResolvedValue(false)
     state.supplyState = ChargingEnabled
 
     await behavior.disable()
 
-    expect(registry.executeHandler).not.toHaveBeenCalled()
     expect(state.supplyState).toBe(Disabled)
   })
 })
