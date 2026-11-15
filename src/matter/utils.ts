@@ -16,6 +16,7 @@ import { version as matterJsVersion } from '@matter/main'
  */
 const NON_HEX_RE = /[^A-F0-9]/gi
 const HEX_PAIR_RE = /.{1,2}/g
+const REGEXP_SPECIAL_RE = /[.*+?^${}()|[\]\\]/g
 
 export interface NodeError extends Error {
   code?: string
@@ -149,8 +150,9 @@ export function appendUsernameSuffix(baseUsername: string, suffix: string): MacA
  * name accessories with the manufacturer prefix (e.g. "Eufy Front Door"),
  * which trips the check unless we strip the vendor first.
  *
- * Removes the first case-insensitive occurrence of `vendor` from `label`,
- * collapses whitespace, and trims leading/trailing separators. Returns an
+ * Removes every case-insensitive occurrence of `vendor` as a whole word from
+ * `label`, collapses whitespace, and trims leading/trailing separators. A
+ * word that only contains the vendor's letters is kept. Returns an
  * empty string if stripping consumes the entire label — callers should
  * provide a non-vendor fallback in that case.
  *
@@ -163,6 +165,7 @@ export function appendUsernameSuffix(baseUsername: string, suffix: string): MacA
  * stripVendorFromLabel('Eufy Front Door', 'Eufy') // 'Front Door'
  * stripVendorFromLabel('Govee Light', 'govee')    // 'Light'
  * stripVendorFromLabel('Homebridge', 'Homebridge') // '' (caller supplies fallback)
+ * stripVendorFromLabel('Garage Door', 'GE')        // 'Garage Door'
  * ```
  */
 export function stripVendorFromLabel(label: string | undefined, vendor: string | undefined): string {
@@ -172,11 +175,14 @@ export function stripVendorFromLabel(label: string | undefined, vendor: string |
   if (!vendor) {
     return label
   }
-  const idx = label.toLowerCase().indexOf(vendor.toLowerCase())
-  if (idx === -1) {
+  // The vendor as a word of its own only: a name that merely contains the
+  // vendor's letters ("Garage Door" for the vendor "GE") is left alone.
+  const vendorAsWord = new RegExp(`(?<![\\p{L}\\p{N}])${vendor.replace(REGEXP_SPECIAL_RE, '\\$&')}(?![\\p{L}\\p{N}])`, 'giu')
+  if (!vendorAsWord.test(label)) {
     return label
   }
-  return (label.slice(0, idx) + label.slice(idx + vendor.length))
+  return label
+    .replace(vendorAsWord, '')
     .replace(/\s+/g, ' ')
     .replace(/^[\s\-_:,]+|[\s\-_:,]+$/g, '')
 }

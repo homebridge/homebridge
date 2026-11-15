@@ -248,8 +248,28 @@ describe('matter utilities', () => {
       expect(stripVendorFromLabel(undefined, 'Eufy')).toBe('')
     })
 
-    it('only strips the first occurrence of the vendor', () => {
-      expect(stripVendorFromLabel('Eufy Eufy Camera', 'Eufy')).toBe('Eufy Camera')
+    it('strips every occurrence of the vendor', () => {
+      expect(stripVendorFromLabel('Eufy Eufy Camera', 'Eufy')).toBe('Camera')
+      expect(stripVendorFromLabel('Eve Light by Eve', 'Eve')).toBe('Light by')
+    })
+
+    it.each([
+      { label: 'Garage Door', vendor: 'GE' },
+      { label: 'Evening Lamp', vendor: 'Eve' },
+      { label: 'Bulgaria Lamp', vendor: 'LG' },
+      { label: 'Lamp 2000', vendor: '200' },
+    ])('leaves "$label" alone for the vendor "$vendor", which is only part of a word', ({ label, vendor }) => {
+      expect(stripVendorFromLabel(label, vendor)).toBe(label)
+    })
+
+    it('copes with a vendor name that holds characters with a meaning in patterns', () => {
+      expect(stripVendorFromLabel('A.C.M.E (EU) Plug', 'A.C.M.E (EU)')).toBe('Plug')
+      expect(stripVendorFromLabel('AxCxMxE Plug', 'A.C.M.E')).toBe('AxCxMxE Plug')
+    })
+
+    it('strips a vendor next to punctuation', () => {
+      expect(stripVendorFromLabel('Eufy: Front Door', 'Eufy')).toBe('Front Door')
+      expect(stripVendorFromLabel('Front Door (Eufy)', 'Eufy')).toBe('Front Door ()')
     })
 
     it('collapses repeated whitespace introduced by the strip', () => {
