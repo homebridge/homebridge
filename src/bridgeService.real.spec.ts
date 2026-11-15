@@ -186,6 +186,21 @@ describe('registerPlatformAccessories on the real bridge', () => {
   })
 })
 
+describe('restoring a cache that holds one UUID twice', () => {
+  it('gives the plugin the first accessory only, and drops the second', () => {
+    const first = accessory('First')
+    const twin = new PlatformAccessory('Twin', first.UUID)
+    const last = accessory('Last')
+    cache(first, twin, last)
+
+    service.restoreCachedPlatformAccessories()
+
+    expect(configureAccessory.mock.calls.map(([configured]) => (configured as PlatformAccessory).displayName)).toEqual(['First', 'Last'])
+    expect(bridged()).toEqual(['First', 'Last'])
+    expect(cached()).toEqual(['First', 'Last'])
+  })
+})
+
 describe('a platform that only does Matter, on the real bridge', () => {
   it('gets its cached HAP accessories on the bridge without a configureAccessory method', () => {
     const pluginManager = (service as unknown as { pluginManager: { getPlugin: () => unknown } }).pluginManager

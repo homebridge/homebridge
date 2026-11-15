@@ -621,6 +621,23 @@ export class BridgeService {
         continue
       }
 
+      // A second entry with the UUID of an accessory that is on the bridge
+      // already can not be bridged. Drop it before the plugin is given it:
+      // the plugin would hold an accessory that HomeKit never sees.
+      const uuidOnBridge = accessory._associatedHAPAccessory.UUID
+      if (this.bridge.bridgedAccessories.some(bridged => bridged.UUID === uuidOnBridge)) {
+        log.warn(
+          '%s Removing the cached accessory \'%s\': an accessory with the same UUID (%s) is on the bridge already.',
+          accessory._associatedPlugin
+            ? getLogPrefix(accessory._associatedPlugin)
+            : '',
+          accessory.displayName,
+          uuidOnBridge,
+        )
+        orphanedAccessories.add(accessory)
+        continue
+      }
+
       let plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
       if (!plugin) { // a little explainer here. This section is basically here to resolve plugin name changes of dynamic platform plugins
         try {
