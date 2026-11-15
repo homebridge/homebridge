@@ -63,6 +63,20 @@ const ENERGY_ATTRIBUTE_MAP: Record<string, { period: 'cumulativeEnergy' | 'perio
   periodicEnergyExported: { period: 'periodicEnergy', direction: 'exported' },
 }
 
+/**
+ * Whether a cluster command has request fields. matter.js describes each
+ * command of a cluster; a command with no fields there takes no request.
+ * When that description is not there, the answer is no.
+ */
+function commandTakesRequest(clusterBehavior: unknown, command: string): boolean {
+  const described = clusterBehavior as {
+    cluster?: { commands?: Record<string, { schema?: { members?: { length?: unknown } } } | undefined> }
+  }
+  const members = described.cluster?.commands?.[command]?.schema?.members
+  const count = members?.length
+  return typeof count === 'number' && count > 0
+}
+
 export class StateManager {
   /**
    * The last command started on each endpoint. Each command runs in its own
@@ -324,11 +338,17 @@ export class StateManager {
           throw new TypeError(`Command '${command}' not found on cluster '${cluster}'`)
         }
 
+        // Over Matter, a command that has request fields always arrives with a
+        // request object, also when every field is left out. The same holds
+        // here, so a handler can read its request whether the command came
+        // from a controller or from the UI. A command with no request (on,
+        // off, stop and so on) is still called with nothing.
         if (args && Object.keys(args).length > 0) {
           return clusterBehavior[command](args)
-        } else {
-          return clusterBehavior[command]()
         }
+        return commandTakesRequest(clusterBehavior, command)
+          ? clusterBehavior[command]({})
+          : clusterBehavior[command]()
       }))
       this.commandQueues.set(targetEndpoint, run)
       try {
