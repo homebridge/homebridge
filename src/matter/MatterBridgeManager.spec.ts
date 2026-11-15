@@ -331,6 +331,24 @@ describe('matterBridgeManager', () => {
       errorSpy.mockRestore()
     })
 
+    it('warns when a bridge that is running is given an update for a uuid it does not have', async () => {
+      const m = buildManager({ enabled: true })
+      ;(m as any).matterServer = {
+        getAccessoryInfo: () => undefined,
+      }
+      const logging = Logger.withPrefix('Matter/MainManager')
+      const warnSpy = vi.spyOn(logging, 'warn').mockImplementation(() => {})
+      const tracked: Promise<void>[] = []
+
+      ;(m as any)._onUpdateMatterAccessoryState('typo-uuid', 'onOff', { onOff: true }, undefined, (work: Promise<void>) => tracked.push(work))
+      // the listener hands its work back, so the plugin's await can wait for it
+      expect(tracked).toHaveLength(1)
+      await tracked[0]
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('typo-uuid'))
+      warnSpy.mockRestore()
+    })
+
     it('still logs at error for an unexpected (non-sentinel) failure', async () => {
       const m = buildManager({ enabled: false, externalsOnly: true })
       await m.initialize()

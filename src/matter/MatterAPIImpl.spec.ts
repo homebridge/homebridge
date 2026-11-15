@@ -244,6 +244,53 @@ describe('matterAPIImpl.unregisterPlatformAccessories — guard before the manag
   })
 })
 
+describe('matterAPIImpl updates — the promise waits for the bridge', () => {
+  /** An api whose listener finishes its work when `finish` is called. */
+  function slowBridge() {
+    let finish!: () => void
+    const work = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+      },
+    })
+    ;(api.emit as ReturnType<typeof vi.fn>).mockImplementation((...args: unknown[]) => {
+      const track = args.at(-1) as (work: Promise<void>) => void
+      track(work)
+      return true
+    })
+    return { api, finish }
+  }
+
+  it.each([
+    [
+      'updateAccessoryState',
+      (impl: InstanceType<typeof MatterAPIImpl>) => impl.updateAccessoryState('uuid-1', 'onOff', { onOff: true }),
+    ],
+    [
+      'updatePlatformAccessories',
+      (impl: InstanceType<typeof MatterAPIImpl>) => impl.updatePlatformAccessories([
+        { UUID: 'uuid-1' } as any,
+      ]),
+    ],
+  ])('%s resolves only when the bridge has done the work', async (_name, call) => {
+    const { api, finish } = slowBridge()
+    let resolved = false
+
+    const pending = call(new MatterAPIImpl(api)).then(() => {
+      resolved = true
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(resolved).toBe(false)
+
+    finish()
+    await pending
+    expect(resolved).toBe(true)
+  })
+})
+
 describe('matterAPIImpl.unregisterPlatformAccessories — finds the accessory by its UUID', () => {
   const eventsFor = (api: ReturnType<typeof makeApi>) =>
     (api.emit as ReturnType<typeof vi.fn>).mock.calls.map(call => [

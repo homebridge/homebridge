@@ -419,8 +419,11 @@ export class MatterAPIImpl implements MatterAPI {
       ? 'y'
       : 'ies'} in cache`)
 
-    // Emit event for Server/ChildBridgeFork to handle
-    this.api.emit(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, accessories)
+    // Wait for the bridge to finish, as register and unregister do, so the
+    // update is in place when the plugin's await returns
+    await emitAndWait((track) => {
+      this.api.emit(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, accessories, track)
+    })
   }
 
   /**
@@ -521,8 +524,11 @@ export class MatterAPIImpl implements MatterAPI {
         : ''}`,
     )
 
-    // Emit the event (listeners will be called synchronously by EventEmitter)
-    this.api.emit(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, uuid, cluster, attributes, partId)
+    // Wait for the bridge to finish, so a read straight after the plugin's
+    // await sees the new value. A failure is logged by the bridge, not thrown.
+    await emitAndWait((track) => {
+      this.api.emit(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, uuid, cluster, attributes, partId, track)
+    })
   }
 
   /**
