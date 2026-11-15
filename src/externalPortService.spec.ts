@@ -1,10 +1,15 @@
 import type { HomebridgeConfig } from './bridgeService.js'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { collectConfiguredHapPorts, ExternalPortService } from './externalPortService.js'
+import { Logger } from './logger.js'
 
 describe('externalPortService', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   describe('requestPort', () => {
     it('hands out the ports in the range in order, then nothing', async () => {
       const service = new ExternalPortService({ start: 50000, end: 50001 })
@@ -19,6 +24,31 @@ describe('externalPortService', () => {
 
       expect(await service.requestPort('AA:AA:AA:AA:AA:01')).toBe(50000)
       expect(await service.requestPort('AA:AA:AA:AA:AA:01')).toBe(50000)
+    })
+
+    it('answers an accessory that got no port the same way again, with one warning', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const service = new ExternalPortService({ start: 50000, end: 50000 })
+      await service.requestPort('AA:AA:AA:AA:AA:01')
+
+      for (let request = 0; request < 5; request++) {
+        expect(await service.requestPort('AA:AA:AA:AA:AA:02')).toBeUndefined()
+      }
+
+      expect(warnings).toHaveBeenCalledTimes(1)
+      // the place in the pool does not move on for an accessory that asks again
+      expect((service as unknown as { nextExternalPort: number }).nextExternalPort).toBe(50001)
+    })
+
+    it('does not count on past the end of the range for every accessory that gets no port', async () => {
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const service = new ExternalPortService({ start: 50000, end: 50000 })
+
+      for (let accessory = 0; accessory < 5; accessory++) {
+        await service.requestPort(`AA:AA:AA:AA:AA:0${accessory}`)
+      }
+
+      expect((service as unknown as { nextExternalPort: number }).nextExternalPort).toBe(50001)
     })
 
     it('skips a port a bridge is configured to use (#4035)', async () => {

@@ -129,6 +129,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs: say that the firmware revision of a cached accessory is reset to 0 on every start
 - fix: type the identify listener of a platform accessory with the arguments it is called with
 - perf: write the accessory cache at most once a second however often a plugin saves it
+- fix: warn once when an accessory gets no port from a used-up pool, however often it asks
 
 ### Homebridge Dependencies
 
