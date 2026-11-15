@@ -513,6 +513,8 @@ export class ServerLifecycle {
         if (deps.restoreAccessoriesFromCache) {
           await deps.restoreAccessoriesFromCache()
         }
+        // Also in deferred-online mode: a stop during the restore ends the start here
+        this.throwIfStopRequested()
 
         if (deps.config.deferOnline) {
           // Deferred-online mode: the node is fully built (cache restored) but
@@ -536,6 +538,9 @@ export class ServerLifecycle {
     } catch (error) {
       if (error instanceof StartCancelledError) {
         log.info('Matter server start was cancelled, as Homebridge is stopping')
+        // A restore that was cut short asked for a save of the accessories it
+        // got to. Writing that would drop every cached accessory it did not reach.
+        deps.getAccessoryCache()?.cancelPendingSave()
       } else {
         log.error('Failed to start Matter server:', error)
       }
@@ -589,6 +594,14 @@ export class ServerLifecycle {
    * network of a Homebridge that was shutting down. The start now ends here
    * instead: its error path closes the node it built.
    */
+  /**
+   * Whether stop() was called while a start() is still at work. The cache
+   * restore checks it between accessories, so it stops early.
+   */
+  isStopRequested(): boolean {
+    return this.starting && this.stopRequestedWhileStarting
+  }
+
   private throwIfStopRequested(): void {
     if (this.stopRequestedWhileStarting) {
       throw new StartCancelledError()
@@ -735,7 +748,10 @@ export class ServerLifecycle {
       // that save is how the removal of the last accessory reaches the file.
       // Without it the removed accessory came back at the next start.
       const cache = deps.getAccessoryCache()
-      const savePending = cache?.hasPendingSave() === true && !deps.config.externalAccessory
+      // Not while a start() is still restoring the cache: the list then holds
+      // only the accessories restored so far, and the save would drop the rest
+      // from the file.
+      const savePending = cache?.hasPendingSave() === true && !deps.config.externalAccessory && !this.starting
       if (cache && ((isRunning && accessories.size > 0) || savePending)) {
         try {
           await cache.save(accessories)
