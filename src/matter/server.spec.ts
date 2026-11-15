@@ -228,3 +228,28 @@ describe('matterServer.updatePlatformAccessories', () => {
     expect(accessories.get(uuid)!.endpoint).toBe(before.endpoint)
   })
 })
+
+describe('matterServer logging of matter.js', () => {
+  it('writes matter.js warnings and errors to stderr and the rest to stdout, as the homebridge logger does', async () => {
+    const { Logger: MatterLogger, LogLevel } = await import('@matter/main')
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const server = new MatterServer({ uniqueId: 'AA:BB:CC:DD:EE:01' })
+    expect(server).toBeDefined()
+    const write = MatterLogger.destinations.default.write as (text: string, message: { level: number }) => void
+
+    write('a notice', { level: LogLevel.NOTICE })
+    write('a warning', { level: LogLevel.WARN })
+    write('an error', { level: LogLevel.ERROR })
+    write('   ', { level: LogLevel.ERROR })
+
+    expect(stdout.mock.calls).toEqual([
+      ['a notice'],
+    ])
+    expect(stderr.mock.calls).toEqual([
+      ['a warning'],
+      ['an error'],
+    ])
+    vi.restoreAllMocks()
+  })
+})

@@ -201,6 +201,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): give the port-in-use help when matter.js reports that the port is taken
 - fix(matter): stop setting a matter.js network variable that did nothing but log an error
 - fix(matter): keep matter.js from reading its own config file, the command line and exit code
+- fix(matter): send matter.js warnings and errors to stderr, as homebridge's own are
 
 ### Homebridge Dependencies
 
