@@ -63,9 +63,10 @@ export interface LevelControlHandlers {
 /**
  * ColorControl cluster handler methods
  *
- * Note: These use simplified argument types that the behavior passes through,
- * not the raw matter.js request types. The behavior files transform the matter.js
- * requests before calling plugin handlers.
+ * Note: These use simplified argument types, not the raw matter.js request
+ * types. Color control is the one cluster where the behavior builds the
+ * arguments itself; every other handler is given the request as matter.js has
+ * it. `transitionTime` is in tenths of a second.
  *
  * All are optional. One command from a controller calls one handler:
  * - MoveToHueAndSaturation calls `moveToHueAndSaturationLogic` when the plugin
