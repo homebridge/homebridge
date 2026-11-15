@@ -22,14 +22,22 @@ describe('clusterStateMap', () => {
   it('has state types for smoke alarms, closures, media players and pumps, for a plugin to use by name', () => {
     expectTypeOf<SmokeCoAlarmState>().toHaveProperty('smokeState')
     expectTypeOf<PumpConfigurationAndControlState>().toHaveProperty('effectiveOperationMode')
-    const closure: Partial<ClosureControlState> = {
+    // each attribute is optional: a smoke alarm only declares the ones of its feature
+    const smoke: SmokeCoAlarmState = { smokeState: 0, batteryAlert: 0 }
+    const pump: PumpConfigurationAndControlState = { effectiveOperationMode: 0 }
+    const closure: ClosureControlState = {
       mainState: 0,
       currentErrorList: [],
       overallCurrentState: { position: 0, secureState: true },
       overallTargetState: { position: 0 },
     }
-    const player: Partial<MediaPlaybackState> = { currentState: 2 }
-    expect([closure.mainState, player.currentState]).toEqual([0, 2])
+    const player: MediaPlaybackState = { currentState: 2 }
+    expect([
+      smoke.smokeState,
+      pump.effectiveOperationMode,
+      closure.mainState,
+      player.currentState,
+    ]).toEqual([0, 0, 0, 2])
   })
 
   // Typing a cluster in the map is a breaking change for a plugin that builds
