@@ -500,6 +500,33 @@ describe('matterServer storage on real matter.js nodes', () => {
     expect(endpoint.state.bridgedDeviceBasicInformation).toMatchObject({ nodeLabel: 'Renamed', serialNumber: 'S2' })
   })
 
+  it('removes one paired controller and keeps the other', async () => {
+    const server = bridgeServer('remove-fabric-bridge', 5594)
+    await server.start()
+    const node = (server as unknown as { serverNode: ServerNode }).serverNode
+    const fabrics = node.env.get(MatterFabricManager)
+    for (const index of [1, 2]) {
+      await TestFabric({ fabrics, index })
+      await node.act(agent => agent.get(CommissioningServer).handleFabricChange(FabricIndex(index), 'added'))
+    }
+    expect(server.getFabricInfo().map(fabric => fabric.fabricIndex)).toEqual([1, 2])
+
+    await server.removeFabric(2)
+
+    expect(fabrics.maybeFor(FabricIndex(2))).toBeUndefined()
+    expect(fabrics.maybeFor(FabricIndex(1))).toBeDefined()
+    await vi.waitFor(() => expect(server.getFabricInfo().map(fabric => fabric.fabricIndex)).toEqual([1]), { timeout: 5000, interval: 50 })
+  })
+
+  it('says so when asked to remove a controller that is not paired', async () => {
+    const server = bridgeServer('remove-fabric-none', 5595)
+    await server.start()
+
+    const error: Error = await server.removeFabric(7).then(() => new Error('removed'), failure => failure)
+
+    expect(error.message).toContain('No controller is paired with fabric index 7')
+  })
+
   it('adds no SIGINT or SIGTERM listener for a server', async () => {
     const before = {
       sigint: process.listenerCount('SIGINT'),
