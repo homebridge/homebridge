@@ -394,6 +394,42 @@ describe('matterServer storage on real matter.js nodes', () => {
     await expect(second.start()).resolves.toBeUndefined()
   }, 30000)
 
+  const light = (uuid: string, extra: Partial<MatterAccessory> = {}): MatterAccessory => ({
+    UUID: uuid,
+    displayName: `Light ${uuid}`,
+    deviceType: deviceTypes.DimmableLight,
+    serialNumber: 'S',
+    manufacturer: 'Test',
+    model: 'Test',
+    context: {},
+    clusters: {
+      onOff: { onOff: false },
+      levelControl: { currentLevel: 100 },
+    },
+    ...extra,
+  })
+
+  it('registers the other accessories of a call when the bridge refuses one of them', async () => {
+    const server = bridgeServer('batch-bridge', 5591)
+    await server.start()
+
+    await server.registerPlatformAccessories('homebridge-test', 'Test', [
+      light('batch-1'),
+      // a brightness Matter does not allow
+      light('batch-2', {
+        clusters: {
+          onOff: { onOff: false },
+          levelControl: { currentLevel: 300 },
+        },
+      }),
+      // the same UUID again
+      light('batch-1'),
+      light('batch-3'),
+    ])
+
+    expect(server.getAccessories().map(accessory => accessory.UUID).sort()).toEqual(['batch-1', 'batch-3'])
+  })
+
   it('adds no SIGINT or SIGTERM listener for a server', async () => {
     const before = {
       sigint: process.listenerCount('SIGINT'),
