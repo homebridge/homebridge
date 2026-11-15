@@ -445,7 +445,7 @@ export class ChildBridgeFork {
   /**
    * Handle get Matter accessory info request from parent process
    */
-  handleGetMatterAccessoryInfo(data: { uuid: string }): void {
+  handleGetMatterAccessoryInfo(data: { uuid: string, correlationId?: string }): void {
     this.matterMessageHandler?.handleGetMatterAccessoryInfo(data)
   }
 
@@ -521,7 +521,7 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
       break
     }
     case ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO: {
-      childPluginFork.handleGetMatterAccessoryInfo(message.data as { uuid: string })
+      childPluginFork.handleGetMatterAccessoryInfo(message.data as { uuid: string, correlationId?: string })
       break
     }
     case ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL: {

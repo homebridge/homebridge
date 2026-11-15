@@ -678,7 +678,7 @@ describe('server', () => {
       const uuid = 'externals-only-uuid'
       ;(server as any).handleGetMatterAccessoryInfo(uuid)
 
-      expect(externalsOnlyChild.getMatterAccessoryInfo).toHaveBeenCalledWith(uuid)
+      expect(externalsOnlyChild.getMatterAccessoryInfo).toHaveBeenCalledWith(uuid, undefined)
       expect((server as any).pendingMatterAccessoryInfoLookups.has(uuid)).toBe(true)
     })
 
@@ -719,6 +719,124 @@ describe('server', () => {
       // ChildBridgeService callback should clear the pending timer.
       ;(server as any).cancelPendingMatterAccessoryInfoLookup(uuid)
       expect((server as any).pendingMatterAccessoryInfoLookups.has(uuid)).toBe(false)
+    })
+
+    // The UI parks each lookup under a correlationId and drops any event that
+    // does not carry it. No reply echoed it, so every lookup sat through a 10s
+    // wait, a retry, another 10s wait, then an error.
+    describe('echoes the request correlationId', () => {
+      function infoEvents(sendSpy: ReturnType<typeof vi.spyOn>) {
+        return (sendSpy.mock.calls as [string, any][])
+          .filter(([id, payload]) => id === 'matterEvent' && payload?.type === 'accessoryInfoData')
+          .map(([, payload]) => payload)
+      }
+
+      function makeServer() {
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+        return { server, sendSpy }
+      }
+
+      it('when the uuid is missing', () => {
+        const { server, sendSpy } = makeServer()
+        ;(server as any).handleGetMatterAccessoryInfo(undefined, 'corr-info-1')
+        expect(infoEvents(sendSpy)).toEqual([
+          {
+            type: 'accessoryInfoData',
+            correlationId: 'corr-info-1',
+            data: { error: 'UUID is required' },
+          },
+        ])
+      })
+
+      it('when the main bridge has the accessory', () => {
+        const { server, sendSpy } = makeServer()
+        ;(server as any).matterManager = {
+          getAccessoryInfo: () => ({ uuid: 'main-uuid', displayName: 'Lamp' }),
+        }
+        ;(server as any).handleGetMatterAccessoryInfo('main-uuid', 'corr-info-2')
+        expect(infoEvents(sendSpy)).toEqual([
+          {
+            type: 'accessoryInfoData',
+            correlationId: 'corr-info-2',
+            data: { uuid: 'main-uuid', displayName: 'Lamp' },
+          },
+        ])
+      })
+
+      it('when the main bridge lookup throws', () => {
+        const { server, sendSpy } = makeServer()
+        ;(server as any).matterManager = {
+          getAccessoryInfo: () => {
+            throw new Error('boom')
+          },
+        }
+        ;(server as any).handleGetMatterAccessoryInfo('main-uuid', 'corr-info-3')
+        expect(infoEvents(sendSpy)).toEqual([
+          {
+            type: 'accessoryInfoData',
+            correlationId: 'corr-info-3',
+            data: { error: 'boom' },
+          },
+        ])
+      })
+
+      it('when no bridge can be asked', () => {
+        const { server, sendSpy } = makeServer()
+        ;(server as any).handleGetMatterAccessoryInfo('nobody-uuid', 'corr-info-4')
+        expect(infoEvents(sendSpy)).toHaveLength(1)
+        expect(infoEvents(sendSpy)[0].correlationId).toBe('corr-info-4')
+      })
+
+      it('to the child bridges, and on the timed-out reply when none of them answers', () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = makeServer()
+          const child = {
+            getMetadata: () => ({ matterConfig: {} }),
+            getMatterAccessoryInfo: vi.fn(),
+          }
+          ;(server as any).childBridges.set('CC:00:00:00:00:0A', child)
+
+          ;(server as any).handleGetMatterAccessoryInfo('child-uuid', 'corr-info-5')
+          expect(child.getMatterAccessoryInfo).toHaveBeenCalledWith('child-uuid', 'corr-info-5')
+          expect(infoEvents(sendSpy)).toHaveLength(0)
+
+          vi.advanceTimersByTime(2000)
+          expect(infoEvents(sendSpy)).toHaveLength(1)
+          expect(infoEvents(sendSpy)[0]).toMatchObject({
+            correlationId: 'corr-info-5',
+            data: { uuid: 'child-uuid', timedOut: true },
+          })
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('keeps one fallback per request, so two lookups of one accessory do not cancel each other', () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = makeServer()
+          const child = {
+            getMetadata: () => ({ matterConfig: {} }),
+            getMatterAccessoryInfo: vi.fn(),
+          }
+          ;(server as any).childBridges.set('CC:00:00:00:00:0B', child)
+
+          ;(server as any).handleGetMatterAccessoryInfo('child-uuid', 'corr-a')
+          ;(server as any).handleGetMatterAccessoryInfo('child-uuid', 'corr-b')
+          // The child answers request a only.
+          ;(server as any).cancelPendingMatterAccessoryInfoLookup('child-uuid', 'corr-a')
+
+          vi.advanceTimersByTime(2000)
+          expect(infoEvents(sendSpy).map(event => event.correlationId)).toEqual(['corr-b'])
+        } finally {
+          vi.useRealTimers()
+        }
+      })
     })
 
     it('clears any pending fallback timers during teardown', async () => {

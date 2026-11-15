@@ -96,9 +96,10 @@ export class Server {
   private matterMonitoringActive = false
   private matterMonitoringClients = 0
 
-  // Fallback timers for child-bridge Matter accessory lookups. Keyed by uuid
-  // so that a child's accessoryInfoData (success or error) can cancel the
-  // timer before it fires a spurious "Timed out" event at the UI.
+  // Fallback timers for child-bridge Matter accessory lookups. Keyed by the
+  // request's correlationId (by uuid for a request without one) so that a
+  // child's accessoryInfoData (success or error) can cancel the timer before
+  // it fires a spurious "Timed out" event at the UI.
   private readonly pendingMatterAccessoryInfoLookups: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
   // The same fallback, for control requests broadcast to the child bridges.
@@ -781,7 +782,7 @@ export class Server {
     })
 
     this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORY_INFO, (data) => {
-      this.handleGetMatterAccessoryInfo(data?.uuid)
+      this.handleGetMatterAccessoryInfo(data?.uuid, data?.correlationId)
     })
 
     this.ipcService.on(IpcIncomingEvent.MATTER_ACCESSORY_CONTROL, (data) => {
@@ -902,11 +903,14 @@ export class Server {
    * Called by ChildBridgeService when a child responds with accessoryInfoData
    * so the 2s "Timed out" event isn't sent after a successful response.
    */
-  private cancelPendingMatterAccessoryInfoLookup(uuid: string): void {
-    const timer = this.pendingMatterAccessoryInfoLookups.get(uuid)
+  private cancelPendingMatterAccessoryInfoLookup(uuid: string, correlationId?: string): void {
+    // Same key as handleGetMatterAccessoryInfo: the id of the request when it
+    // has one, so two lookups of one accessory do not cancel each other.
+    const key = correlationId ?? uuid
+    const timer = this.pendingMatterAccessoryInfoLookups.get(key)
     if (timer) {
       clearTimeout(timer)
-      this.pendingMatterAccessoryInfoLookups.delete(uuid)
+      this.pendingMatterAccessoryInfoLookups.delete(key)
     }
   }
 
@@ -1005,12 +1009,16 @@ export class Server {
   }
 
   /**
-   * Get detailed info for a specific Matter accessory
+   * Get detailed info for a specific Matter accessory.
+   *
+   * Every reply echoes the request's `correlationId`, as the other three
+   * request types do: the UI drops an event that does not carry it.
    */
-  private handleGetMatterAccessoryInfo(uuid?: string): void {
+  private handleGetMatterAccessoryInfo(uuid?: string, correlationId?: string): void {
     if (!uuid) {
       const event: MatterEvent = {
         type: 'accessoryInfoData',
+        correlationId,
         data: {
           error: 'UUID is required',
         },
@@ -1026,6 +1034,7 @@ export class Server {
       if (accessoryInfo) {
         const event: MatterEvent = {
           type: 'accessoryInfoData',
+          correlationId,
           data: accessoryInfo,
         }
         this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -1045,7 +1054,7 @@ export class Server {
       let forwardedToChildren = false
       for (const childBridge of this.childBridges.values()) {
         if (isMatterActive(childBridge.getMetadata().matterConfig)) {
-          childBridge.getMatterAccessoryInfo(uuid)
+          childBridge.getMatterAccessoryInfo(uuid, correlationId)
           forwardedToChildren = true
         }
       }
@@ -1053,6 +1062,7 @@ export class Server {
       if (!forwardedToChildren) {
         this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
           type: 'accessoryInfoData',
+          correlationId,
           data: { error: `Accessory ${uuid} not found`, uuid },
         })
         return
@@ -1063,16 +1073,20 @@ export class Server {
       // shutdown doesn't wait on this timer. The timer is registered in
       // pendingMatterAccessoryInfoLookups so a child's accessoryInfoData
       // response (routed via ChildBridgeService.onAccessoryInfoResponse) can
-      // cancel it before it fires a spurious timed-out event. A second
-      // concurrent request for the same uuid replaces the existing timer.
-      const existing = this.pendingMatterAccessoryInfoLookups.get(uuid)
+      // cancel it before it fires a spurious timed-out event. The timer is
+      // kept under the request's correlationId; a request without one falls
+      // back to the uuid, where a second concurrent request for the same uuid
+      // replaces the existing timer.
+      const lookupKey = correlationId ?? uuid
+      const existing = this.pendingMatterAccessoryInfoLookups.get(lookupKey)
       if (existing) {
         clearTimeout(existing)
       }
       const fallback = setTimeout(() => {
-        this.pendingMatterAccessoryInfoLookups.delete(uuid)
+        this.pendingMatterAccessoryInfoLookups.delete(lookupKey)
         this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
           type: 'accessoryInfoData',
+          correlationId,
           data: {
             error: `Timed out looking up Matter accessory ${uuid}; it may not be registered.`,
             uuid,
@@ -1081,11 +1095,12 @@ export class Server {
         })
       }, 2000)
       fallback.unref()
-      this.pendingMatterAccessoryInfoLookups.set(uuid, fallback)
+      this.pendingMatterAccessoryInfoLookups.set(lookupKey, fallback)
     } catch (error) {
       matterLogger.error('Failed to get Matter accessory info:', error)
       const event: MatterEvent = {
         type: 'accessoryInfoData',
+        correlationId,
         data: {
           error: error instanceof Error
             ? error.message

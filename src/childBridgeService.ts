@@ -274,9 +274,9 @@ export class ChildBridgeService {
   public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
 
   // Callback fired when the child sends an accessoryInfoData response, so the
-  // parent server can cancel its pending fallback timer for that uuid before
+  // parent server can cancel its pending fallback timer for that lookup before
   // it fires a spurious "Timed out" event at the UI.
-  public onAccessoryInfoResponse?: (uuid: string) => void
+  public onAccessoryInfoResponse?: (uuid: string, correlationId?: string) => void
 
   public onAccessoryControlResponse?: (correlationId: string) => void
 
@@ -417,8 +417,10 @@ export class ChildBridgeService {
   /**
    * Get specific Matter accessory info from this child bridge
    */
-  public getMatterAccessoryInfo(uuid: string): void {
-    this.sendMessage(ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO, { uuid })
+  public getMatterAccessoryInfo(uuid: string, correlationId?: string): void {
+    // The child echoes the correlationId on its accessoryInfoData reply: the
+    // UI drops a reply that does not carry the id of its request.
+    this.sendMessage(ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO, { uuid, correlationId })
   }
 
   /**
@@ -568,7 +570,7 @@ export class ChildBridgeService {
             if (matterEvent.type === 'accessoryInfoData' && this.onAccessoryInfoResponse) {
               const uuid = (matterEvent.data as { uuid?: string } | undefined)?.uuid
               if (uuid) {
-                this.onAccessoryInfoResponse(uuid)
+                this.onAccessoryInfoResponse(uuid, matterEvent.correlationId)
               }
             }
             // Same for a control response: this child owns the accessory, so
