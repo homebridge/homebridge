@@ -437,29 +437,54 @@ export class BridgeService {
    * Attempt to load the cached accessories from disk.
    */
   public async loadCachedPlatformAccessoriesFromDisk(): Promise<void> {
-    let cachedAccessories: SerializedPlatformAccessory[] | null = null
+    let cachedAccessories: unknown = null
+    let fromBackup = false
 
     try {
-      cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.bridgeOptions.cachedAccessoriesItemName)
+      cachedAccessories = await this.storageService.getItem<unknown>(this.bridgeOptions.cachedAccessoriesItemName)
     } catch (error: any) {
       log.error('Failed to load cached accessories from disk:', error.message)
       if (error instanceof SyntaxError) {
         // syntax error probably means invalid JSON / corrupted file; try and restore from backup
         cachedAccessories = await this.restoreCachedAccessoriesBackup()
+        fromBackup = true
       } else {
         log.error('Not restoring cached accessories - some accessories may be reset.')
       }
     }
 
-    if (cachedAccessories) {
+    // Valid JSON that is not a list of accessories is as unusable as a file that does not parse
+    if (cachedAccessories !== null && !Array.isArray(cachedAccessories)) {
+      log.error(`The ${this.bridgeOptions.cachedAccessoriesItemName} file does not hold a list of accessories.`)
+      cachedAccessories = fromBackup
+        ? null
+        : await this.restoreCachedAccessoriesBackup()
+      fromBackup = true
+    }
+
+    if (Array.isArray(cachedAccessories)) {
       log.info(`Loaded ${cachedAccessories.length} cached accessories from ${this.bridgeOptions.cachedAccessoriesItemName}.`)
 
-      this.cachedPlatformAccessories = cachedAccessories.map((serialized) => {
-        return PlatformAccessory.deserialize(serialized)
-      })
+      // One entry that can not be turned back into an accessory must not stop
+      // the others loading, or stop Homebridge starting: skip it and say so.
+      const accessories: PlatformAccessory[] = []
+      for (const serialized of cachedAccessories as SerializedPlatformAccessory[]) {
+        try {
+          accessories.push(PlatformAccessory.deserialize(serialized))
+        } catch (error: unknown) {
+          log.error(
+            `Skipping the cached accessory '${serialized?.displayName ?? 'unknown'}' as it could not be read:`,
+            error instanceof Error
+              ? error.message
+              : error,
+          )
+        }
+      }
+      this.cachedPlatformAccessories = accessories
 
-      if (cachedAccessories.length) {
-        // create a backup of the cache file
+      // Back the file up only when it was read in full. A file that came from
+      // the backup, or that holds a bad entry, must not replace a good backup.
+      if (!fromBackup && accessories.length > 0 && accessories.length === cachedAccessories.length) {
         await this.createCachedAccessoriesBackup()
       }
     }
@@ -493,7 +518,10 @@ export class BridgeService {
   private async restoreCachedAccessoriesBackup(): Promise<SerializedPlatformAccessory[] | null> {
     try {
       const cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.backupCacheFileName)
-      if (cachedAccessories && cachedAccessories.length) {
+      if (!Array.isArray(cachedAccessories)) {
+        return null
+      }
+      if (cachedAccessories.length) {
         log.warn(`Recovered ${cachedAccessories.length} accessories from ${this.bridgeOptions.cachedAccessoriesItemName} cache backup.`)
       }
       return cachedAccessories

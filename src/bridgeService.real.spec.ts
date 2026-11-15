@@ -1,6 +1,6 @@
 import type { PluginManager } from './pluginManager.js'
 
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -153,5 +153,73 @@ describe('characteristic warnings of a platform accessory', () => {
     })
 
     expect(printed).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('loading the cached accessories from disk', () => {
+  const cacheFile = () => join(storageDir, 'cachedAccessories')
+  const backupFile = () => join(storageDir, '.cachedAccessories.bak')
+  /** The cache file content for these accessories, as a real save writes it. */
+  function serialized(...accessories: PlatformAccessory[]): unknown[] {
+    for (const cachedAccessory of accessories) {
+      cachedAccessory._associatedPlugin = PLUGIN
+      cachedAccessory._associatedPlatform = PLATFORM
+    }
+    return accessories.map(cachedAccessory => PlatformAccessory.serialize(cachedAccessory))
+  }
+
+  it('skips an entry it can not read and keeps the others', async () => {
+    const [good, other] = serialized(accessory('Good'), accessory('Other'))
+    writeFileSync(cacheFile(), JSON.stringify([
+      good,
+      null,
+      { ...(other as object), displayName: '' },
+    ]))
+
+    await service.loadCachedPlatformAccessoriesFromDisk()
+
+    expect(cached()).toEqual(['Good'])
+  })
+
+  it.each([
+    { content: '{}', what: 'an object' },
+    { content: '"text"', what: 'a text' },
+    { content: 'null and more', what: 'not JSON' },
+  ])('falls back to the backup when the file holds $what', async ({ content }) => {
+    writeFileSync(cacheFile(), content)
+    writeFileSync(backupFile(), JSON.stringify(serialized(accessory('From Backup'))))
+
+    await service.loadCachedPlatformAccessoriesFromDisk()
+
+    expect(cached()).toEqual(['From Backup'])
+  })
+
+  it('starts with no cached accessories when the file and the backup are both unusable', async () => {
+    writeFileSync(cacheFile(), '{}')
+    writeFileSync(backupFile(), '[{"displayName": ""}]')
+
+    await expect(service.loadCachedPlatformAccessoriesFromDisk()).resolves.toBeUndefined()
+
+    expect(cached()).toEqual([])
+  })
+
+  it('leaves the good backup alone after restoring from it', async () => {
+    const backup = JSON.stringify(serialized(accessory('From Backup')))
+    writeFileSync(cacheFile(), '[{"displayName": "cut off')
+    writeFileSync(backupFile(), backup)
+
+    await service.loadCachedPlatformAccessoriesFromDisk()
+
+    expect(cached()).toEqual(['From Backup'])
+    expect(readFileSync(backupFile(), 'utf-8')).toBe(backup)
+  })
+
+  it('backs up a cache file that was read without a problem', async () => {
+    const content = JSON.stringify(serialized(accessory('Good')))
+    writeFileSync(cacheFile(), content)
+
+    await service.loadCachedPlatformAccessoriesFromDisk()
+
+    expect(readFileSync(backupFile(), 'utf-8')).toBe(content)
   })
 })
