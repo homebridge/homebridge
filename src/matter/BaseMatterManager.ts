@@ -344,7 +344,7 @@ export abstract class BaseMatterManager {
           continue
         }
 
-        log.info(`Stopping external Matter server for ${accessory.displayName}`)
+        log.info(`Stopping external Matter server for ${accessory.displayName ?? accessory.UUID}`)
 
         // Stop the Matter server. stop() now rejects when the underlying node
         // fails to close (it may still be bound to its port). In that case we

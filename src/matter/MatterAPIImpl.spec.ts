@@ -230,6 +230,7 @@ describe('matterAPIImpl.unregisterPlatformAccessories — guard before the manag
     const api = makeApi({
       _matterManager: {
         hasActiveMatter: () => true,
+        getExternalServer: () => undefined,
       },
     })
     const impl = new MatterAPIImpl(api)
@@ -240,6 +241,68 @@ describe('matterAPIImpl.unregisterPlatformAccessories — guard before the manag
     ])
 
     expect(api.emit).toHaveBeenCalled()
+  })
+})
+
+describe('matterAPIImpl.unregisterPlatformAccessories — finds the accessory by its UUID', () => {
+  const eventsFor = (api: ReturnType<typeof makeApi>) =>
+    (api.emit as ReturnType<typeof vi.fn>).mock.calls.map(call => [
+      call[0],
+      ...call.slice(1).filter(Array.isArray),
+    ])
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('unregisters a bridged accessory given only its UUID, as the docs say', async () => {
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        getExternalServer: () => undefined,
+      },
+    })
+    const accessory = { UUID: 'uuid-1' } as any
+
+    await new MatterAPIImpl(api).unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [accessory])
+
+    expect(eventsFor(api)).toEqual([
+      [
+        'unregisterMatterPlatformAccessories',
+        [accessory],
+      ],
+    ])
+  })
+
+  it('stops the external server of an accessory whose object has no usable device type', async () => {
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        getExternalServer: (uuid: string) => (uuid === 'vacuum-uuid'
+          ? {}
+          : undefined),
+      },
+    })
+    // the shape a plugin is given in configureMatterAccessory
+    const vacuum = {
+      UUID: 'vacuum-uuid',
+      displayName: 'Vacuum',
+      deviceType: { name: 'RoboticVacuumCleaner' },
+    } as any
+    const light = { UUID: 'light-uuid' } as any
+
+    await new MatterAPIImpl(api).unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [vacuum, light])
+
+    expect(eventsFor(api)).toEqual([
+      [
+        'unregisterMatterPlatformAccessories',
+        [light],
+      ],
+      [
+        'unregisterExternalMatterAccessories',
+        [vacuum],
+      ],
+    ])
   })
 })
 
