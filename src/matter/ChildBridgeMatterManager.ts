@@ -166,6 +166,9 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   // which listeners were attached, so teardown removes the correct ones.
   private externalsOnlyMode = false
 
+  // The pending poll of runServerWhenSettled(), so teardown() can stop it.
+  private deferOnlineTimer?: ReturnType<typeof setTimeout>
+
   // True once the normal-mode API listeners are attached (see setupEventListeners).
   private eventListenersAttached = false
 
@@ -371,9 +374,11 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       const capped = Date.now() - deferStartedAt >= DEFER_ONLINE_CAP_MS
 
       if (!settled && !capped) {
-        setTimeout(check, DEFER_ONLINE_POLL_MS)
+        this.deferOnlineTimer = setTimeout(check, DEFER_ONLINE_POLL_MS)
         return
       }
+
+      this.deferOnlineTimer = undefined
 
       if (capped && !settled) {
         log.warn(`Deferred Matter start: no registrations settled within ${DEFER_ONLINE_CAP_MS / 1000}s - going online anyway`)
@@ -383,7 +388,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       })
     }
 
-    setTimeout(check, DEFER_ONLINE_POLL_MS)
+    this.deferOnlineTimer = setTimeout(check, DEFER_ONLINE_POLL_MS)
   }
 
   /**
@@ -650,6 +655,14 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * Teardown Matter servers
    */
   async teardown(): Promise<void> {
+    // Stop waiting to bring the node online. The poll used to go on after a
+    // teardown and call runServer() on a server that was stopping or stopped:
+    // a quick restart logged "Deferred Matter server start failed".
+    if (this.deferOnlineTimer) {
+      clearTimeout(this.deferOnlineTimer)
+      this.deferOnlineTimer = undefined
+    }
+
     // Remove API event listeners to prevent retention of this manager after teardown.
     // EventEmitter.removeListener is a no-op when the listener was never attached,
     // so it's safe to call all removals regardless of which mode initialised this manager.
@@ -664,15 +677,18 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     this.api.removeListener(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this._onRegisterMatterPlatformAccessoriesDropped)
     this.api.removeListener(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this._onUnregisterMatterPlatformAccessoriesDropped)
 
-    // Stop main Matter server if it was initialized
-    if (this.matterServer) {
+    // Stop main Matter server if it was initialized. The reference is dropped
+    // first: this manager no longer has a bridge server once it is torn down.
+    const matterServer = this.matterServer
+    this.matterServer = undefined
+    if (matterServer) {
       log.debug(`Stopping Matter server for child bridge ${this.bridgeConfig.username}`)
       try {
-        this.matterServer.removeListener('stateChange', this._onMatterServerStateChange)
+        matterServer.removeListener('stateChange', this._onMatterServerStateChange)
         if (this._onCommissioningStatusChanged) {
-          this.matterServer.removeListener('commissioning-status-changed', this._onCommissioningStatusChanged)
+          matterServer.removeListener('commissioning-status-changed', this._onCommissioningStatusChanged)
         }
-        await this.matterServer.stop()
+        await matterServer.stop()
       } catch (error: unknown) {
         log.error('Error stopping Matter server:', error)
       }
