@@ -34,6 +34,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): let a closure register without a descriptor tag by adding the garage door tag
 - fix(matter): keep the saved state and apply a new name when a plugin registers a restored accessory
 - fix(matter): keep the saved state and context when an accessory comes back with a new structure
+- fix(matter): let a tilt-only window covering register and keep a type matter allows
 
 ### Homebridge Dependencies
 

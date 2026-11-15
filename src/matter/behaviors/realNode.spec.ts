@@ -820,3 +820,64 @@ describe('a closure on a real node', () => {
     ])
   })
 })
+
+describe('window coverings on a real node', () => {
+  const handlers = {
+    windowCovering: {
+      upOrOpen: async () => {},
+    },
+  }
+  const lift = { currentPositionLiftPercent100ths: 0, targetPositionLiftPercent100ths: 0 }
+  const tilt = { currentPositionTiltPercent100ths: 0, targetPositionTiltPercent100ths: 0 }
+
+  it('registers a tilt-only blind and keeps the type its plugin set', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      // 6 = shutter, which Matter allows for a tilt-only covering
+      clusters: {
+        windowCovering: {
+          ...tilt,
+          type: 6,
+          endProductType: 22,
+          configStatus: { tiltPositionAware: true },
+        },
+      },
+      handlers,
+    })
+
+    expect(stateOf(endpoint, 'windowCovering')).toMatchObject({ type: 6, endProductType: 22 })
+  })
+
+  it('registers a tilt-only blind that names no type', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: {
+          ...tilt,
+          configStatus: { tiltPositionAware: true },
+        },
+      },
+      handlers,
+    })
+
+    // 7 = tilt blind, tilt only; 9 = tilt-only interior blind
+    expect(stateOf(endpoint, 'windowCovering')).toMatchObject({ type: 7, endProductType: 9 })
+  })
+
+  it('registers a blind with lift and tilt that names no type', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: {
+          ...lift,
+          ...tilt,
+          configStatus: { liftPositionAware: true, tiltPositionAware: true },
+        },
+      },
+      handlers,
+    })
+
+    // 8 = tilt blind with lift; 10 = interior blind
+    expect(stateOf(endpoint, 'windowCovering')).toMatchObject({ type: 8, endProductType: 10 })
+  })
+})
