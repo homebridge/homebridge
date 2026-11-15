@@ -158,6 +158,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): drop an unused registry method and three copies of the optional handler helper
 - test(matter): replace behavior tests that could not fail, cover the ui mapping of blinds and areas
 - fix: let a plugin pass log.info, log.warn, log.error and the other log methods around as functions
+- fix: stop node's memory leak warning when more than ten platforms listen for didFinishLaunching
 
 ### Homebridge Dependencies
 
