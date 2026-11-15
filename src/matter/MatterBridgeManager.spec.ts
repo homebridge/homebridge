@@ -20,7 +20,7 @@ describe('matterBridgeManager', () => {
   let mockExternalPortService: ExternalPortService
   let mockPluginManager: PluginManager
   let mockOptions: HomebridgeOptions
-  let mockServer: { registerExternalMatterBridge: any, ipcService: any }
+  let mockServer: { registerExternalMatterBridge: any, unregisterExternalMatterBridge: any, ipcService: any }
 
   beforeEach(() => {
     mockConfig = {
@@ -55,6 +55,7 @@ describe('matterBridgeManager', () => {
 
     mockServer = {
       registerExternalMatterBridge: vi.fn(),
+      unregisterExternalMatterBridge: vi.fn(),
       ipcService: {
         sendMessage: vi.fn(),
       },

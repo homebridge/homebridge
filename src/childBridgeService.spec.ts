@@ -525,6 +525,26 @@ describe('childBridgeService', () => {
       )
     })
 
+    it('on MATTER_EVENT externalBridgeUnregistration, calls onExternalBridgeUnregistered and does not pass it to the UI', () => {
+      const { service, ipcService } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.onExternalBridgeUnregistered = vi.fn()
+      service.start()
+      const child = childProcesses.list[0]
+      ipcService.sendMessage.mockClear()
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'externalBridgeUnregistration',
+          data: { externalBridgeUsername: 'EE:EE:EE:EE:EE:EE' },
+        },
+      })
+
+      expect(service.onExternalBridgeUnregistered).toHaveBeenCalledWith('EE:EE:EE:EE:EE:EE')
+      expect(ipcService.sendMessage).not.toHaveBeenCalled()
+    })
+
     // The outbound half of the same round trip. The Server spec asserts this
     // was called, but against a MOCK child bridge - so nothing exercised the
     // real method, and the correlationId could have been dropped on its way to

@@ -641,6 +641,7 @@ export class Server {
 
           // Set callback for external Matter bridge registration
           childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+          childBridge.onExternalBridgeUnregistered = this.unregisterExternalMatterBridge.bind(this)
           // Cancel the parent-side fallback timer when this child answers a lookup
           childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
           childBridge.onAccessoryControlResponse = this.cancelPendingMatterControlRequest.bind(this)
@@ -744,6 +745,7 @@ export class Server {
 
         // Set callback for external Matter bridge registration
         childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+        childBridge.onExternalBridgeUnregistered = this.unregisterExternalMatterBridge.bind(this)
         // Cancel the parent-side fallback timer when this child answers a lookup
         childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
         childBridge.onAccessoryControlResponse = this.cancelPendingMatterControlRequest.bind(this)
@@ -1015,6 +1017,18 @@ export class Server {
     const normalizedOwner = ownerUsername.toUpperCase()
     matterLogger.debug(`Registering external Matter bridge ${normalizedExternal} → owner: ${normalizedOwner}`)
     this.externalMatterBridgeRegistry.set(normalizedExternal, normalizedOwner)
+  }
+
+  /**
+   * Forget an external Matter bridge whose accessory was unregistered, so the
+   * routing list does not keep an entry for every accessory there ever was.
+   * @param externalBridgeUsername - Username of the external Matter bridge
+   */
+  public unregisterExternalMatterBridge(externalBridgeUsername: string): void {
+    const normalizedExternal = externalBridgeUsername.toUpperCase()
+    if (this.externalMatterBridgeRegistry.delete(normalizedExternal)) {
+      matterLogger.debug(`Removed external Matter bridge ${normalizedExternal} from the routing list`)
+    }
   }
 
   /**

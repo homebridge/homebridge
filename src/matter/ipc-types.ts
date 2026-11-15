@@ -26,6 +26,7 @@ export type MatterEventType
     | 'accessoryAdded'
     | 'accessoryRemoved'
     | 'externalBridgeRegistration' // Register an external Matter bridge (child → main)
+    | 'externalBridgeUnregistration' // The external Matter bridge is gone (child → main)
 
 /**
  * Matter event payload structure
