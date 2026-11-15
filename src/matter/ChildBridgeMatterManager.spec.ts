@@ -301,6 +301,72 @@ describe('childBridgeMatterManager', () => {
     })
   })
 
+  // A server as the manager sees it: its own accessory object has the identity
+  // and state only; plugin, platform and context are in the accessory cache,
+  // and the commissioning state in the fabric snapshot.
+  function makeAccessoryServer(uuid: string, overrides: Record<string, unknown> = {}): any {
+    const data = {
+      uuid,
+      displayName: `Light ${uuid}`,
+      deviceType: 'OnOffLight',
+      manufacturer: 'M',
+      model: 'X',
+      serialNumber: 'S',
+      clusters: {},
+      parts: [],
+    }
+    return {
+      username: 'EE:00:00:00:00:01',
+      bridgeName: 'Vacuum',
+      collectAccessories: vi.fn((username: string, type: string, name: string) => [
+        {
+          ...data,
+          bridge: { username, type, name },
+        },
+      ]),
+      getAccessoryInfo: vi.fn((id: string) => (id === uuid
+        ? data
+        : undefined)),
+      getCachedAccessory: vi.fn(() => ({
+        plugin: 'homebridge-test',
+        platform: 'TestPlatform',
+        context: { room: 'hall' },
+      })),
+      getCommissioningSnapshot: vi.fn(() => ({
+        commissioned: true,
+        fabricCount: 1,
+        fabrics: [
+          {
+            fabricIndex: 1,
+            fabricId: '1',
+            nodeId: '10',
+            rootVendorId: 0x1349,
+            label: 'My Home',
+          },
+        ],
+      })),
+      ...overrides,
+    }
+  }
+
+  // What the main bridge sends for every accessory, and a child bridge left out.
+  const mainBridgeFields = {
+    plugin: 'homebridge-test',
+    platform: 'TestPlatform',
+    context: { room: 'hall' },
+    commissioned: true,
+    fabricCount: 1,
+    fabrics: [
+      {
+        fabricIndex: 1,
+        fabricId: '1',
+        nodeId: '10',
+        vendorId: 0x1349,
+        label: 'My Home',
+      },
+    ],
+  }
+
   describe('collectAllAccessories', () => {
     it('should return empty array when Matter is not enabled', () => {
       manager = new ChildBridgeMatterManager(
@@ -315,38 +381,57 @@ describe('childBridgeMatterManager', () => {
       expect(accessories).toEqual([])
     })
 
-    it('should collect accessories from Matter server when enabled', () => {
-      const configWithMatter = {
-        ...mockBridgeConfig,
-        matter: { port: 5540 } as MatterConfig,
-      }
-
+    it('sends the same fields as the main bridge for each accessory', () => {
       manager = new ChildBridgeMatterManager(
-        configWithMatter,
+        {
+          ...mockBridgeConfig,
+          matter: { port: 5540 } as MatterConfig,
+        },
         mockBridgeOptions,
         mockApi,
         mockExternalPortService,
         mockPluginManager,
       )
-
-      const mockAccessories = [
-        { UUID: 'acc-1', displayName: 'Light 1' },
-        { UUID: 'acc-2', displayName: 'Light 2' },
-      ]
-
-      const mockMatterServer = {
-        collectAccessories: vi.fn().mockReturnValue(mockAccessories),
-      } as any
-
-      ;(manager as any).matterServer = mockMatterServer
+      const bridgeServer = makeAccessoryServer('acc-1')
+      const externalServer = makeAccessoryServer('ext-1')
+      ;(manager as any).matterServer = bridgeServer
+      ;(manager as any).externalMatterServers.set('ext-1', externalServer)
 
       const accessories = manager.collectAllAccessories()
-      expect(accessories).toEqual(mockAccessories)
-      expect(mockMatterServer.collectAccessories).toHaveBeenCalledWith(
-        mockBridgeConfig.username,
-        'child',
-        mockBridgeConfig.name,
+
+      expect(bridgeServer.collectAccessories).toHaveBeenCalledWith(mockBridgeConfig.username, 'child', mockBridgeConfig.name)
+      expect(accessories).toHaveLength(2)
+      expect(accessories[0]).toMatchObject({
+        uuid: 'acc-1',
+        displayName: 'Light acc-1',
+        bridge: { username: mockBridgeConfig.username, type: 'child', name: mockBridgeConfig.name },
+        ...mainBridgeFields,
+      })
+      expect(accessories[1]).toMatchObject({
+        uuid: 'ext-1',
+        bridge: { username: 'EE:00:00:00:00:01', type: 'external', name: 'Vacuum' },
+        ...mainBridgeFields,
+      })
+      // the commissioning state is read once per server, not once per accessory
+      expect(bridgeServer.getCommissioningSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    it('still lists an accessory that is not in the cache', () => {
+      manager = new ChildBridgeMatterManager(
+        {
+          ...mockBridgeConfig,
+          matter: { port: 5540 } as MatterConfig,
+        },
+        mockBridgeOptions,
+        mockApi,
+        mockExternalPortService,
+        mockPluginManager,
       )
+      ;(manager as any).matterServer = makeAccessoryServer('acc-1', {
+        getCachedAccessory: vi.fn(() => undefined),
+      })
+
+      expect(manager.collectAllAccessories()[0]).toMatchObject({ uuid: 'acc-1', plugin: '', platform: '' })
     })
   })
 
@@ -364,35 +449,34 @@ describe('childBridgeMatterManager', () => {
       expect(info).toBeUndefined()
     })
 
-    it('should get accessory info from server when enabled', () => {
-      const configWithMatter = {
-        ...mockBridgeConfig,
-        matter: { port: 5540 } as MatterConfig,
-      }
-
+    it('sends the same fields as the main bridge, the bridge included', () => {
       manager = new ChildBridgeMatterManager(
-        configWithMatter,
+        {
+          ...mockBridgeConfig,
+          matter: { port: 5540 } as MatterConfig,
+        },
         mockBridgeOptions,
         mockApi,
         mockExternalPortService,
         mockPluginManager,
       )
+      const bridgeServer = makeAccessoryServer('acc-1')
+      ;(manager as any).matterServer = bridgeServer
+      ;(manager as any).externalMatterServers.set('ext-1', makeAccessoryServer('ext-1'))
 
-      const mockAccessoryInfo = {
-        uuid: 'test-uuid',
-        displayName: 'Test Light',
-        parts: [],
-      }
-
-      const mockMatterServer = {
-        getAccessoryInfo: vi.fn().mockReturnValue(mockAccessoryInfo),
-      } as any
-
-      ;(manager as any).matterServer = mockMatterServer
-
-      const info = manager.getAccessoryInfo('test-uuid')
-      expect(info).toEqual(mockAccessoryInfo)
-      expect(mockMatterServer.getAccessoryInfo).toHaveBeenCalledWith('test-uuid')
+      expect(manager.getAccessoryInfo('acc-1')).toMatchObject({
+        uuid: 'acc-1',
+        displayName: 'Light acc-1',
+        bridge: { username: mockBridgeConfig.username, type: 'child', name: mockBridgeConfig.name },
+        ...mainBridgeFields,
+      })
+      expect(bridgeServer.getAccessoryInfo).toHaveBeenCalledWith('acc-1')
+      expect(manager.getAccessoryInfo('ext-1')).toMatchObject({
+        uuid: 'ext-1',
+        bridge: { username: 'EE:00:00:00:00:01', type: 'external', name: 'Vacuum' },
+        ...mainBridgeFields,
+      })
+      expect(manager.getAccessoryInfo('nobody')).toBeUndefined()
     })
   })
 
