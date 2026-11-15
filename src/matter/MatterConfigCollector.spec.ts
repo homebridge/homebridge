@@ -428,6 +428,26 @@ describe('matterConfigCollector', () => {
       expect(MatterConfigValidator.validate).not.toHaveBeenCalled() // disabled main not validated
     })
 
+    it('reports no port conflict for a disabled child bridge that has the main bridge\'s Matter port', async () => {
+      mockConfig.bridge.matter = { port: 5540 }
+      mockConfig.platforms = [
+        {
+          platform: 'TestPlatform',
+          // disabled: it never binds the port, so it can not conflict
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5540, enabled: false },
+          },
+        } as any,
+      ]
+      vi.mocked(MatterConfigValidator.validate).mockReturnValue({ isValid: true, errors: [], warnings: [] })
+      vi.mocked(MatterConfigValidator.validateAllChildMatterConfigs).mockReturnValue({ isValid: true, errors: [], warnings: [] })
+
+      await MatterConfigCollector.validateMatterConfig(mockConfig)
+
+      expect(logErrorSpy).not.toHaveBeenCalled()
+    })
+
     describe('externalsOnly validation', () => {
       it('honours main bridge matter.externalsOnly: true set without enabled: false (warns + normalises, does not throw)', async () => {
         const warnSpy = vi.mocked(Logger).internal.warn
