@@ -295,23 +295,9 @@ export class MatterBridgeManager extends BaseMatterManager {
         : String(error)
       const errorCode = getErrorCode(error)
 
-      if (errorMessage.includes('corrupted')) {
-        log.error('')
-        log.error('╔════════════════════════════════════════════════════════════════════════════╗')
-        log.error('║  MATTER STORAGE CORRUPTED                                                  ║')
-        log.error('╠════════════════════════════════════════════════════════════════════════════╣')
-        log.error('║  Your Matter storage has become corrupted. This can happen when:          ║')
-        log.error('║  • Matter.js library version changes                                       ║')
-        log.error('║  • Storage format upgrades occur                                           ║')
-        log.error('║  • Incomplete writes during shutdown                                       ║')
-        log.error('║                                                                            ║')
-        log.error('║  To fix this, delete the corrupted storage directory:                     ║')
-        log.error(`║  rm -rf ~/.homebridge/matter/${this.config.bridge.username}                                   ║`)
-        log.error('║                                                                            ║')
-        log.error('║  Note: You will need to re-pair your Matter devices after deletion.       ║')
-        log.error('╚════════════════════════════════════════════════════════════════════════════╝')
-        log.error('')
-      } else if (errorCode === 'EADDRINUSE' || errorMessage.includes('address already in use')) {
+      // Unreadable stored data is reported, and set aside, by the server
+      // itself: its error says where the data went and what to do next.
+      if (errorCode === 'EADDRINUSE' || errorMessage.includes('address already in use')) {
         log.error('')
         log.error('╔════════════════════════════════════════════════════════════════════════════╗')
         log.error('║  MATTER PORT ALREADY IN USE                                                ║')
