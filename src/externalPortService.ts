@@ -135,11 +135,11 @@ export class ChildBridgeExternalPortService extends ExternalPortService {
     super()
   }
 
-  public async requestPort(username: MacAddress): Promise<number | undefined> {
+  public override async requestPort(username: MacAddress): Promise<number | undefined> {
     return await this.childBridge.requestExternalPort(username)
   }
 
-  public async requestMatterPort(uniqueId: string): Promise<number | undefined> {
+  public override async requestMatterPort(uniqueId: string): Promise<number | undefined> {
     // For child bridges, request Matter port from parent via IPC
     return await this.childBridge.requestMatterPort(uniqueId)
   }

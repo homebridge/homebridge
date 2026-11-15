@@ -6,18 +6,24 @@ import type {
   VoidCallback,
   WithUUID,
 } from '@homebridge/hap-nodejs'
-import type { ConstructorArgs } from '@homebridge/hap-nodejs/dist/types.js'
 
-import type { PlatformName, PluginIdentifier, PluginName } from './api.js'
+import type { PlatformName, PluginIdentifier } from './api.js'
 
 import { EventEmitter } from 'node:events'
 
 import { Accessory, AccessoryEventTypes, Categories } from '@homebridge/hap-nodejs'
 
+/**
+ * The arguments of a constructor. The same as `ConstructorArgs` of HAP-NodeJS,
+ * which that package does not export from its index (taking it from a file
+ * inside the package would break the day the package limits what can be imported).
+ */
+type ConstructorArgs<C> = C extends new (...args: infer A) => any ? A : never
+
 export type UnknownContext = Record<string, any>
 
 export interface SerializedPlatformAccessory<T extends UnknownContext = UnknownContext> extends SerializedAccessory {
-  plugin: PluginName
+  plugin: PluginIdentifier
   platform: PlatformName
   context: T
 }
@@ -118,11 +124,11 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
     this._associatedHAPAccessory.removeService(service)
   }
 
-  public getService<T extends WithUUID<typeof Service>>(name: string | T): Service | undefined {
+  public getService<S extends WithUUID<typeof Service>>(name: string | S): Service | undefined {
     return this._associatedHAPAccessory.getService(name)
   }
 
-  public getServiceById<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
+  public getServiceById<S extends WithUUID<typeof Service>>(uuid: string | S, subType: string): Service | undefined {
     return this._associatedHAPAccessory.getServiceById(uuid, subType)
   }
 

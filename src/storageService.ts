@@ -21,7 +21,8 @@ export class StorageService {
     return fs.readJsonSync(filePath)
   }
 
-  public async getItem<T>(itemName: string): Promise<T | null> {
+  /** The parsed JSON of an item, or `null` when there is no such item. What it holds is for the caller to check. */
+  public async getItem(itemName: string): Promise<unknown> {
     const filePath = resolve(this.baseDirectory, itemName)
 
     if (!await fs.pathExists(filePath)) {
@@ -40,7 +41,7 @@ export class StorageService {
    * left half a file behind when Homebridge (or the power) stopped mid-write.
    * The content is byte for byte what `fs.writeJsonSync` wrote before.
    */
-  public setItemSync(itemName: string, data: Record<any, any> | Array<any>): void {
+  public setItemSync(itemName: string, data: object): void {
     const filePath = resolve(this.baseDirectory, itemName)
     const tempPath = resolve(this.baseDirectory, `.${itemName}.tmp`)
     const content = `${JSON.stringify(data)}\n`
