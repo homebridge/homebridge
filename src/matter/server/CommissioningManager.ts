@@ -17,11 +17,10 @@ import { randomBytes } from 'node:crypto'
 import { rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { ObserverGroup, SubscriptionsServer } from '@matter/main'
+import { ObserverGroup } from '@matter/main'
 import { QrCode } from '@matter/main/types'
 
 import { Logger } from '../../logger.js'
-import { lockStateForWrite } from '../behaviors/stateLock.js'
 import { MatterDeviceError } from '../types.js'
 import { DEFAULT_PRODUCT_ID, DEFAULT_VENDOR_ID, MAX_PASSCODE_ATTEMPTS } from './ServerConfig.js'
 
@@ -341,11 +340,9 @@ export class CommissioningManager {
       this.observers.on(events.fabricsChanged, (fabricIndex, action) => {
         log.info(`Fabric ${action}: index ${fabricIndex}`)
 
-        if (action === 'deleted') {
-          this.purgeSubscriptionsForFabric(deps.serverNode, fabricIndex).catch((error) => {
-            log.debug(`Failed to purge persisted subscriptions for removed fabric ${fabricIndex}:`, error)
-          })
-        }
+        // Nothing to clean up for a removed fabric: matter.js closes its
+        // sessions, which ends their subscriptions for good, and it drops the
+        // saved entry of a subscription that ended that way.
 
         const snapshot = deps.fabricManager.getCommissioningSnapshot()
         this.updateCommissioningFile(deps, snapshot).catch((error) => {
@@ -363,36 +360,6 @@ export class CommissioningManager {
       // Roll back any partial registration so a retry can succeed
       this.teardownCommissioningEventListeners()
     }
-  }
-
-  /**
-   * Delete persisted subscriptions belonging to a removed fabric.
-   *
-   * matter.js persists controller subscriptions so it can proactively
-   * re-establish them when the node next comes online (a single pass with a
-   * short, no-retry connection timeout per peer). It removes the fabric's
-   * sessions on removal but leaves the persisted subscription entries behind,
-   * so re-establishment wastes its window on peers that can never answer
-   * ("Failed to connect to ... Fabric index #N does not exist").
-   */
-  private async purgeSubscriptionsForFabric(serverNode: ServerNode | null, fabricIndex: number): Promise<void> {
-    if (!serverNode) {
-      return
-    }
-
-    await serverNode.act(async (agent) => {
-      const subscriptions = agent.get(SubscriptionsServer)
-      // wait for the lock: a write that does not wait fails when it is held
-      await lockStateForWrite(subscriptions)
-      const remaining = subscriptions.state.subscriptions.filter(
-        subscription => subscription.peerAddress.fabricIndex !== fabricIndex,
-      )
-      const purged = subscriptions.state.subscriptions.length - remaining.length
-      if (purged > 0) {
-        subscriptions.state.subscriptions = remaining
-        log.debug(`Purged ${purged} persisted subscription(s) for removed fabric ${fabricIndex}`)
-      }
-    })
   }
 
   /**
