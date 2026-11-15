@@ -816,6 +816,31 @@ describe('bridgeService', () => {
       expect(publishInfo.setupID).toBeUndefined()
     })
 
+    it.each([
+      { setupID: 'TOOLONG', warning: /not 4 characters long/ },
+      { setupID: 1234, warning: /not 4 characters long/ },
+      { setupID: 'ab-1', warning: /should be 4 characters from 0-9 and A-Z/ },
+    ])('warns about the setupID $setupID', ({ setupID, warning }) => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig({ setupID }))
+      vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+
+      service.publishBridge()
+
+      expect(warnSpy.mock.calls.flat().join(' ')).toMatch(warning)
+    })
+
+    it('gives no warning for a good setupID, or for none', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      for (const setupID of ['AB12', undefined]) {
+        const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig({ setupID }))
+        vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+        service.publishBridge()
+      }
+
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
+
     it('logs an error when bridge.publish() rejects (e.g. mDNS bring-up failure)', async () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
       const errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
@@ -911,6 +936,32 @@ describe('bridgeService', () => {
     it('accepts an empty hap object', () => {
       const cfg = makeBridgeConfig({ hap: {} })
       expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+    })
+
+    it.each([
+      {
+        hap: { enabled: 'false' },
+        key: 'enabled',
+      },
+      {
+        hap: { enabled: 0 },
+        key: 'enabled',
+      },
+      {
+        hap: { externalsOnly: 'true' },
+        key: 'externalsOnly',
+      },
+    ])('warns about $hap and leaves the value out, so the bridge does what it did before', ({ hap, key }) => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const cfg = makeBridgeConfig({ hap })
+
+      validateHapConfig(cfg, { bridgeLabel: 'main bridge' })
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`'hap\\.${key}' must be true or false`)))
+      expect(cfg.hap).toEqual({})
+      // unchanged: a value that is not the boolean false never turned HAP off, and only true turns externalsOnly on
+      expect(isHapConfigEnabled(cfg.hap)).toBe(true)
+      expect(isHapExternalsOnly(cfg.hap)).toBe(false)
     })
 
     it('rejects a non-boolean hap.disableIdentifyingMaterial value', () => {

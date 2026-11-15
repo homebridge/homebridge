@@ -59,6 +59,9 @@ const log = Logger.internal
 /** The most accessories HAP-NodeJS puts on one bridge (the HomeKit limit of 150, less the bridge itself). */
 const MAX_BRIDGED_ACCESSORIES = 149
 
+/** A HomeKit setup ID: four characters, digits and capital letters. */
+const SETUP_ID_FORMAT = /^[0-9A-Z]{4}$/
+
 /** The least time between two writes of the accessory cache that plugins ask for, in milliseconds. */
 const CACHE_SAVE_INTERVAL = 1000
 
@@ -104,7 +107,7 @@ export interface BridgeConfiguration {
   advertiser?: MDNSAdvertiser
   port?: number
   bind?: (InterfaceName | IPAddress) | (InterfaceName | IPAddress)[]
-  /** 4-character HomeKit setup ID (alphanumeric, e.g. "ABCD"). Validated at runtime. */
+  /** 4-character HomeKit setup ID (0-9 and A-Z, e.g. "ABCD"). One that is not 4 characters long is ignored, with a warning. */
   setupID?: string
   manufacturer?: string
   model?: string
@@ -214,6 +217,17 @@ export function validateHapConfig(
   }
 
   const hapBlock = hap as BridgeHapConfig
+
+  // `enabled` and `externalsOnly` are only acted on as true or false. A text
+  // like "false" was read as "not false", so HAP stayed on with no word about
+  // it. The value is still not used (what the bridge does stays as it was),
+  // but now it is said.
+  for (const key of ['enabled', 'externalsOnly'] as const) {
+    if (hapBlock[key] !== undefined && typeof hapBlock[key] !== 'boolean') {
+      log.warn(`${opts.bridgeLabel}: 'hap.${key}' must be true or false (without quotes), not ${JSON.stringify(hapBlock[key])}. Ignoring it.`)
+      delete hapBlock[key]
+    }
+  }
 
   if (hapBlock.disableIdentifyingMaterial !== undefined && typeof hapBlock.disableIdentifyingMaterial !== 'boolean') {
     throw new Error(`${opts.bridgeLabel}: 'hap.disableIdentifyingMaterial' must be a boolean.`)
@@ -484,8 +498,15 @@ export class BridgeService {
       advertiser: bridgeConfig.advertiser,
     }
 
-    if (bridgeConfig.setupID && bridgeConfig.setupID.length === 4) {
-      publishInfo.setupID = bridgeConfig.setupID
+    if (bridgeConfig.setupID !== undefined && bridgeConfig.setupID !== null) {
+      if (typeof bridgeConfig.setupID === 'string' && bridgeConfig.setupID.length === 4) {
+        publishInfo.setupID = bridgeConfig.setupID
+        if (!SETUP_ID_FORMAT.test(bridgeConfig.setupID)) {
+          log.warn('The setupID of the bridge \'%s\' should be 4 characters from 0-9 and A-Z. The Home app may not accept the QR code with it.', bridgeConfig.name)
+        }
+      } else {
+        log.warn('The setupID of the bridge \'%s\' is not 4 characters long. Ignoring it: a random one is used.', bridgeConfig.name)
+      }
     }
 
     log.debug('Publishing bridge accessory (name: %s, publishInfo: %o).', this.bridge.displayName, BridgeService.strippingPinCode(publishInfo))

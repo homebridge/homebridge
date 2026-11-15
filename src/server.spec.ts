@@ -527,6 +527,86 @@ describe('server', () => {
       expect(errors.mock.calls.flat().join(' ').includes('bridge.port')).toBe(expected === undefined)
     })
 
+    it.each([
+      { content: 'null', what: 'null' },
+      { content: '[]', what: 'a list' },
+      { content: '"text"', what: 'a text' },
+      { content: '42', what: 'a number' },
+    ])('rejects a config.json that holds $what with an error that says what it must hold', async ({ content }) => {
+      await fs.writeFile(configPath, content)
+
+      expect(() => new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })).toThrow(/does not hold a configuration/)
+    })
+
+    it.each([
+      { bridge: 'Homebridge' },
+      { bridge: [] },
+      { bridge: 12 },
+    ])('rejects a bridge section of $bridge with an error that names the section', async ({ bridge }) => {
+      await fs.writeJson(configPath, { ...mockConfig, bridge })
+
+      expect(() => new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })).toThrow(/"bridge" section/)
+    })
+
+    it('skips entries in accessories and platforms that are not objects, and keeps the others', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        platforms: [
+          null,
+          { platform: 'Example' },
+          'text',
+        ],
+        accessories: [
+          { accessory: 'Example', name: 'Example' },
+          null,
+          5,
+        ],
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.platforms).toEqual([
+        { platform: 'Example' },
+      ])
+      expect((server as any).config.accessories).toEqual([
+        { accessory: 'Example', name: 'Example' },
+      ])
+      expect(warnings.mock.calls.flat().filter(text => /not an object/.test(String(text)))).toHaveLength(4)
+    })
+
+    it.each([
+      { name: 12, expected: '12' },
+      {
+        name: { text: 'x' },
+        expected: 'Homebridge',
+      },
+    ])('uses the bridge name $expected for a name of $name, with a warning', async ({ name, expected }) => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, name },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.name).toBe(expected)
+      expect((server as any).bridgeService.bridge.displayName).toBe(expected)
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(/bridge\.name is not a text/)
+    })
+
     it('accepts main bridge with externalsOnly: true + enabled: false (canonical form)', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
