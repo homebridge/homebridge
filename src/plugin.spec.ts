@@ -127,4 +127,86 @@ describe('plugin', () => {
       expect(initialized).toBe('cjs plugin ran')
     })
   })
+
+  describe('the exports field of a plugin', () => {
+    const entryOf = (packageJSON: Record<string, unknown>) =>
+      (new Plugin('homebridge-test', '/unused', { name: 'homebridge-test', version: '1.0.0', ...packageJSON } as never) as unknown as { main: string }).main
+
+    it.each([
+      { what: 'a plain string', exports: './dist/index.js' },
+      {
+        what: 'conditions',
+        exports: { import: './dist/index.js', require: './dist/index.cjs' },
+      },
+      {
+        what: 'a "." entry',
+        exports: { '.': './dist/index.js' },
+      },
+      {
+        what: 'conditions under "."',
+        exports: {
+          '.': { import: './dist/index.js', require: './dist/index.cjs' },
+        },
+      },
+      {
+        what: 'nested conditions, as the typescript docs show',
+        exports: {
+          '.': {
+            import: { types: './dist/index.d.ts', default: './dist/index.js' },
+          },
+        },
+      },
+      {
+        what: 'a node condition around import',
+        exports: {
+          '.': {
+            node: { import: './dist/index.js' },
+          },
+        },
+      },
+      {
+        what: 'a list of fallbacks',
+        exports: {
+          '.': ['./dist/index.js'],
+        },
+      },
+      {
+        what: 'types first, then default',
+        exports: {
+          '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+        },
+      },
+    ])('finds the entry file in $what', ({ exports }) => {
+      expect(entryOf({ exports, main: './wrong.js' })).toBe('./dist/index.js')
+    })
+
+    it('uses main when exports only lists sub-paths', () => {
+      expect(entryOf({
+        main: './dist/index.js',
+        exports: { './package.json': './package.json', './lib': './dist/lib.js' },
+      })).toBe('./dist/index.js')
+    })
+
+    it('uses index.js when there is no exports entry and no main', () => {
+      expect(entryOf({
+        exports: { './lib': './dist/lib.js' },
+      })).toBe('./index.js')
+    })
+
+    it('loads a plugin through nested conditions', async () => {
+      const { initialized } = await loadPluginFrom(
+        {
+          type: 'module',
+          exports: {
+            '.': {
+              import: { types: './dist/index.d.ts', default: './dist/index.js' },
+            },
+          },
+        },
+        { 'dist/index.js': 'export default () => \'esm plugin ran\'\n' },
+      )
+
+      expect(initialized).toBe('esm plugin ran')
+    })
+  })
 })
