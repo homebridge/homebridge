@@ -486,6 +486,48 @@ describe('clusterCommandMapper', () => {
     })
   })
 
+  describe('media players and identify', () => {
+    it('maps a media playback command that takes no request', () => {
+      for (const command of [
+        'play',
+        'pause',
+        'stop',
+        'startOver',
+        'previous',
+        'next',
+      ]) {
+        expect(mapAttributesToCommand('mediaPlayback', { _command: command })).toEqual({ command })
+      }
+    })
+
+    it('has no command for a media playback command it does not know', () => {
+      expect(mapAttributesToCommand('mediaPlayback', { _command: 'seek' })).toBeNull()
+    })
+
+    it('maps the wanted playback state to play, pause and stop', () => {
+      expect(mapAttributesToCommand('mediaPlayback', { currentState: 0 })).toEqual({ command: 'play' })
+      expect(mapAttributesToCommand('mediaPlayback', { currentState: 1 })).toEqual({ command: 'pause' })
+      expect(mapAttributesToCommand('mediaPlayback', { currentState: 2 })).toEqual({ command: 'stop' })
+      expect(mapAttributesToCommand('mediaPlayback', { currentState: 3 })).toBeNull()
+    })
+
+    it('maps a key code to a key press', () => {
+      expect(mapAttributesToCommand('keypadInput', { keyCode: 4 })).toEqual({
+        command: 'sendKey',
+        args: { keyCode: 4 },
+      })
+      expect(mapAttributesToCommand('keypadInput', { keyCode: '4' })).toBeNull()
+    })
+
+    it('maps an identify time to the identify command', () => {
+      expect(mapAttributesToCommand('identify', { identifyTime: 10 })).toEqual({
+        command: 'identify',
+        args: { identifyTime: 10 },
+      })
+      expect(mapAttributesToCommand('identify', {})).toBeNull()
+    })
+  })
+
   describe('unknown cluster', () => {
     it('should throw error for unmapped clusters', () => {
       expect(() => mapAttributesToCommand('unknownCluster', { someAttr: 123 }))
