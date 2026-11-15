@@ -12,13 +12,12 @@ import type { AccessoryInfo } from './managerTypes.js'
 import type { FabricInfo } from './server/FabricManager.js'
 import type { InternalMatterAccessory, MatterAccessory, MatterConfig } from './types.js'
 
-import process from 'node:process'
-
 import { InternalAPIEvent } from '../api.js'
 import { DEFAULT_BRIDGE_DEFAULTS } from '../bridgeService.js'
 import { Logger } from '../logger.js'
 import { PluginManager } from '../pluginManager.js'
 import { User } from '../user.js'
+import { sendToParent } from '../util/ipc.js'
 import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
@@ -123,15 +122,13 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
   // Stored references so listeners can be removed in teardown()
   private readonly _onMatterServerStateChange = ({ uuid, cluster, state, partId }: { uuid: string, cluster: string, state: Record<string, unknown>, partId?: string }): void => {
-    if (process.send) {
-      process.send({
-        id: 'matterEvent',
-        data: {
-          type: 'accessoryUpdate',
-          data: { uuid, cluster, state, partId },
-        },
-      })
-    }
+    sendToParent({
+      id: 'matterEvent',
+      data: {
+        type: 'accessoryUpdate',
+        data: { uuid, cluster, state, partId },
+      },
+    })
   }
 
   private _onCommissioningStatusChanged?: (commissioned: boolean, fabricCount: number) => void
@@ -421,18 +418,16 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
           // Register the external bridge username with parent process for routing
           // Send via IPC to parent - parent will register in externalMatterBridgeRegistry
-          if (process.send) {
-            process.send({
-              id: 'matterEvent',
+          sendToParent({
+            id: 'matterEvent',
+            data: {
+              type: 'externalBridgeRegistration',
               data: {
-                type: 'externalBridgeRegistration',
-                data: {
-                  externalBridgeUsername: result.username,
-                  childBridgeUsername: this.bridgeConfig.username,
-                },
+                externalBridgeUsername: result.username,
+                childBridgeUsername: this.bridgeConfig.username,
               },
-            })
-          }
+            },
+          })
 
           // Log commissioning info
           if (result.commissioningInfo.qrCode && result.commissioningInfo.manualPairingCode) {

@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events'
 import process from 'node:process'
 
+import { sendToParent } from './util/ipc.js'
+
 // Re-export Matter IPC types from Matter module
 export type { MatterEvent, MatterEventType, MatterStatusInfo, ServerStatusUpdate } from './matter/ipc-types.js'
 
@@ -68,11 +70,6 @@ export class IpcService extends EventEmitter {
    * from another Node.js process (such as hb-service).
    */
   public sendMessage(id: IpcOutgoingEvent, data: unknown): void {
-    if (process.send) {
-      process.send({
-        id,
-        data,
-      })
-    }
+    sendToParent({ id, data })
   }
 }

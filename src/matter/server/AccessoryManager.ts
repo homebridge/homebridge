@@ -22,7 +22,6 @@ import type {
 } from '../types.js'
 
 import { EventEmitter } from 'node:events'
-import process from 'node:process'
 
 import { Endpoint } from '@matter/main'
 import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
@@ -30,6 +29,7 @@ import { PowerSourceServer } from '@matter/node/behaviors'
 
 import { IpcOutgoingEvent } from '../../ipcService.js'
 import { Logger } from '../../logger.js'
+import { sendToParent } from '../../util/ipc.js'
 import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
 import { declaredClusterFeatures } from '../clusterFeatures.js'
@@ -515,12 +515,12 @@ export class AccessoryManager {
         deps.accessoryCache.requestSave(deps.accessories)
       }
 
-      if (deps.getMonitoringEnabled() && process.send) {
+      if (deps.getMonitoringEnabled()) {
         const event: MatterEvent = {
           type: 'accessoryRemoved',
           data: { uuid },
         }
-        process.send({
+        sendToParent({
           id: IpcOutgoingEvent.MATTER_EVENT,
           data: event,
         })
@@ -1309,12 +1309,12 @@ export class AccessoryManager {
       deps.accessoryCache.requestSave(deps.accessories)
     }
 
-    if (deps.getMonitoringEnabled() && process.send) {
+    if (deps.getMonitoringEnabled()) {
       const event: MatterEvent = {
         type: 'accessoryAdded',
         data: { uuid: accessory.UUID },
       }
-      process.send({
+      sendToParent({
         id: IpcOutgoingEvent.MATTER_EVENT,
         data: event,
       })
