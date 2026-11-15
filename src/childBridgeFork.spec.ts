@@ -170,7 +170,7 @@ describe('childBridgeFork — ending the process', () => {
 
     vi.resetModules()
     const fork = await import('./childBridgeFork.js')
-    shutdown = vi.spyOn(fork.ChildBridgeFork.prototype, 'shutdown').mockImplementation(() => {})
+    shutdown = vi.spyOn(fork.ChildBridgeFork.prototype, 'shutdown').mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -619,7 +619,7 @@ describe('childBridgeFork - the port set for the child bridge', () => {
     const { fork, order } = buildFork()
     vi.mocked(BridgeService.prototype.checkBridgePort).mockImplementation(async () => {
       order.push('port checked')
-      fork.shutdown()
+      void fork.shutdown()
     })
     vi.spyOn(BridgeService.prototype, 'teardown').mockResolvedValue(undefined)
 
@@ -827,9 +827,62 @@ describe('childBridgeFork - port requests', () => {
 })
 
 describe('childBridgeFork - shutdown', () => {
-  it('does not throw when a signal arrives before bridgeService is assigned', () => {
+  it('does not throw when a signal arrives before bridgeService is assigned', async () => {
     const fork = new ChildBridgeFork()
-    expect(() => fork.shutdown()).not.toThrow()
+    await expect(fork.shutdown()).resolves.toBeUndefined()
+  })
+
+  it('waits for the HAP goodbye and for the Matter servers to stop', async () => {
+    const fork = new ChildBridgeFork()
+    let hapDone!: () => void
+    let matterDone!: () => void
+    Object.assign(fork as any, {
+      bridgeService: {
+        teardown: () => new Promise<void>((resolve) => {
+          hapDone = resolve
+        }),
+      },
+      matterManager: {
+        teardown: () => new Promise<void>((resolve) => {
+          matterDone = resolve
+        }),
+      },
+    })
+    let finished = false
+
+    const shutdown = Promise.resolve(fork.shutdown()).then(() => {
+      finished = true
+    })
+    await new Promise(resolve => setImmediate(resolve))
+    expect(finished).toBe(false)
+
+    matterDone()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(finished).toBe(false)
+
+    hapDone()
+    await shutdown
+    expect(finished).toBe(true)
+  })
+
+  it('still stops the Matter servers when the HAP teardown fails', async () => {
+    const fork = new ChildBridgeFork()
+    const matterTeardown = vi.fn().mockResolvedValue(undefined)
+    const error = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    Object.assign(fork as any, {
+      bridgeService: {
+        teardown: () => {
+          throw new Error('disk full')
+        },
+      },
+      matterManager: { teardown: matterTeardown },
+    })
+
+    await expect(fork.shutdown()).resolves.toBeUndefined()
+
+    expect(matterTeardown).toHaveBeenCalledOnce()
+    expect(error).toHaveBeenCalledWith('Error during child bridge shutdown:', expect.any(Error))
+    error.mockRestore()
   })
 })
 
