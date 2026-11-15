@@ -78,12 +78,37 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     registry.syncStateToCache(endpointId, 'windowCovering', stateUpdate)
   }
 
-  override async upOrOpen(): Promise<void> {
+  /**
+   * Run the plugin's handler for an open or close command. A plugin that only
+   * has the go-to-percentage handlers is told through those (0 is fully open,
+   * 10000 fully closed), so the covering never moves in Matter without the
+   * plugin hearing about it. With no handler at all, matter.js carries on alone.
+   */
+  private async runOpenOrClose(commandName: 'upOrOpen' | 'downOrClose', percent100ths: number): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
+    if (registry.getHandler(endpointId, 'windowCovering', commandName)) {
+      await registry.executeHandler(endpointId, 'windowCovering', commandName)
+      return
+    }
+    const lift = registry.getHandler(endpointId, 'windowCovering', 'goToLiftPercentage')
+    const tilt = registry.getHandler(endpointId, 'windowCovering', 'goToTiltPercentage')
+    if (lift) {
+      await registry.executeHandler(endpointId, 'windowCovering', 'goToLiftPercentage', { liftPercent100thsValue: percent100ths })
+    }
+    if (tilt) {
+      await registry.executeHandler(endpointId, 'windowCovering', 'goToTiltPercentage', { tiltPercent100thsValue: percent100ths })
+    }
+    if (!lift && !tilt) {
+      await registry.executeHandler(endpointId, 'windowCovering', commandName)
+    }
+  }
+
+  override async upOrOpen(): Promise<void> {
+    const endpointId = this.endpoint.id
 
     // Execute user handler
-    await registry.executeHandler(endpointId, 'windowCovering', 'upOrOpen')
+    await this.runOpenOrClose('upOrOpen', 0)
 
     // Only reached if handler succeeded - update Matter state
     await super.upOrOpen()
@@ -98,10 +123,9 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
 
   override async downOrClose(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
 
     // Execute user handler
-    await registry.executeHandler(endpointId, 'windowCovering', 'downOrClose')
+    await this.runOpenOrClose('downOrClose', 10000)
 
     // Only reached if handler succeeded - update Matter state
     await super.downOrClose()

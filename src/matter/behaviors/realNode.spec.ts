@@ -1416,3 +1416,84 @@ describe('a thermostat matter.js refuses, on a real node', () => {
     }
   })
 })
+
+describe('a command the plugin has no handler for, on a real node', () => {
+  it('turns a light off in Matter when the plugin only has an on handler', async () => {
+    const calls: string[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: true },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {
+            calls.push('on')
+          },
+        },
+      },
+    })
+
+    await invoke(endpoint, 'onOff', 'off')
+
+    expect(stateOf(endpoint, 'onOff').onOff).toBe(false)
+    expect(calls).toEqual([])
+  })
+
+  it('locks a door lock in Matter when the plugin only has an unlock handler', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.DoorLock,
+      clusters: {
+        doorLock: {
+          lockState: 2,
+          lockType: 0,
+          actuatorEnabled: true,
+          operatingMode: 0,
+        },
+      },
+      handlers: {
+        doorLock: {
+          unlockDoor: async () => {},
+        },
+      },
+    })
+
+    await invoke(endpoint, 'doorLock', 'lockDoor', {})
+
+    // 1 = locked
+    expect(stateOf(endpoint, 'doorLock').lockState).toBe(1)
+  })
+
+  it('tells a blind with only a go-to-percentage handler to open and to close', async () => {
+    const requests: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: {
+          type: 0,
+          endProductType: 0,
+          configStatus: { operational: true, liftPositionAware: true },
+          targetPositionLiftPercent100ths: 5000,
+          currentPositionLiftPercent100ths: 5000,
+        },
+      },
+      handlers: {
+        windowCovering: {
+          goToLiftPercentage: async (request) => {
+            requests.push(request)
+          },
+        },
+      },
+    })
+
+    await invoke(endpoint, 'windowCovering', 'upOrOpen')
+    await invoke(endpoint, 'windowCovering', 'downOrClose')
+
+    // 0 is fully open, 10000 fully closed
+    expect(requests).toEqual([
+      { liftPercent100thsValue: 0 },
+      { liftPercent100thsValue: 10000 },
+    ])
+    expect(stateOf(endpoint, 'windowCovering').targetPositionLiftPercent100ths).toBe(10000)
+  })
+})
