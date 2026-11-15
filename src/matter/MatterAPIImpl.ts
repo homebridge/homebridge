@@ -433,12 +433,18 @@ export class MatterAPIImpl implements MatterAPI {
 
     this.assertMatterReady(`${pluginIdentifier}: Cannot unregister Matter accessories`)
 
-    // Split accessories into normal (bridge) and external (standalone) based on device type
+    // Split accessories into normal (bridge) and external (standalone) by where
+    // each one lives. Only the UUID is needed for that, as for a HAP accessory:
+    // the device type is not there on a `{ UUID }` object, and it is a plain
+    // copy on the object a plugin is given in configureMatterAccessory.
+    const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
     const normalAccessories: MatterAccessory[] = []
     const externalAccessories: MatterAccessory[] = []
 
     for (const accessory of accessories) {
-      if (requiresExternalBridge(accessory.deviceType)) {
+      const isExternal = matterManager?.getExternalServer(accessory.UUID) !== undefined
+        || (accessory.deviceType?.deviceType !== undefined && requiresExternalBridge(accessory.deviceType))
+      if (isExternal) {
         externalAccessories.push(accessory)
       } else {
         normalAccessories.push(accessory)
@@ -464,7 +470,7 @@ export class MatterAPIImpl implements MatterAPI {
       log.debug(
         `${pluginIdentifier}: Unregistering ${externalAccessories.length} external Matter accessor${externalAccessories.length === 1
           ? 'y'
-          : 'ies'} (${externalAccessories.map(a => a.displayName).join(', ')})`,
+          : 'ies'} (${externalAccessories.map(a => a.displayName ?? a.UUID).join(', ')})`,
       )
       await emitAndWait((track) => {
         this.api.emit(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, externalAccessories, track)
