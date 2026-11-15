@@ -20,6 +20,7 @@ import { Logger } from '../../logger.js'
 import { mapAttributesToCommand } from '../ClusterCommandMapper.js'
 import { MatterStatus } from '../errors.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
+import { AccessoryQuery } from '../server/AccessoryQuery.js'
 import { StateManager } from '../server/StateManager.js'
 import { deviceRequirements, devices, deviceTypes } from '../types.js'
 import { BehaviorRegistry, HomebridgeDoorLockServer, HomebridgeOnOffServer, HomebridgeThermostatServer, HomebridgeWindowCoveringServer, RegistryManager } from './index.js'
@@ -2536,6 +2537,30 @@ describe('an attribute the cluster does not have, on a real node', () => {
 
     expect(stateOf(endpoint, 'onOff').onOff).toBe(true)
     expect(warnings()).toEqual([])
+  })
+})
+
+describe('the live state for the UI, on a real node', () => {
+  it('can be written as JSON when a struct holds a bigint', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.OnOffOutlet,
+      clusters: {
+        onOff: { onOff: false },
+        electricalEnergyMeasurement: {
+          cumulativeEnergyImported: { energy: 1000 },
+        },
+      },
+    } as never)
+    // matter.js keeps the struct as a class instance, with the energy as a bigint
+    await write(endpoint, {
+      electricalEnergyMeasurement: {
+        cumulativeEnergyImported: { energy: 2n ** 40n },
+      },
+    })
+
+    const state = new AccessoryQuery(accessories, () => null).getLiveState('test-uuid')
+
+    expect(JSON.parse(JSON.stringify(state)).electricalEnergyMeasurement.cumulativeEnergyImported).toMatchObject({ energy: 2 ** 40 })
   })
 })
 

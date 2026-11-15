@@ -36,12 +36,12 @@ export function coerceBigintsToNumbers(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(coerceBigintsToNumbers)
   }
-  // Only recurse into plain data objects (cluster structs). Anything with a
-  // prototype - Uint8Array byte strings, Dates, class instances - must pass
-  // through untouched or the copy would mangle it.
+  // Byte strings (Uint8Array) and dates pass through untouched, or the copy
+  // would mangle them. A struct or bitmap is copied: matter.js keeps those in
+  // the endpoint state as class instances (CumulativeEnergyImported, say), not
+  // as plain objects, and a bigint inside one (its energy) broke the JSON.
   if (value && typeof value === 'object') {
-    const proto = Object.getPrototypeOf(value)
-    if (proto !== Object.prototype && proto !== null) {
+    if (ArrayBuffer.isView(value) || value instanceof Date) {
       return value
     }
     const result: Record<string, unknown> = {}
