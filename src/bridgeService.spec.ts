@@ -446,16 +446,19 @@ describe('bridgeService', () => {
       expect(publishInfo.addIdentifyingMaterial).toBe(false)
     })
 
-    it('throws when an accessory address collides with an existing one', async () => {
+    it('does not publish an accessory a second time, and does not throw for it', async () => {
       externalPortService.requestPort.mockResolvedValue(50000)
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
 
       const a = makePlatformAccessory('External-A')
-      vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+      const publish = vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
       await service.handlePublishExternalAccessories([a])
 
-      // Re-publish the same accessory — same UUID → same advertise-address → collision
-      await expect(service.handlePublishExternalAccessories([a])).rejects.toThrow(/address collision/)
+      // Re-publish the same accessory — same UUID → same advertise-address.
+      // The handler runs from an event, so a throw here could not be caught by
+      // the plugin and would end the process as an unhandled rejection.
+      await expect(service.handlePublishExternalAccessories([a])).resolves.toBeUndefined()
+      expect(publish).toHaveBeenCalledTimes(1)
     })
 
     it('skips publishing external accessories when HAP is disabled (no externalsOnly)', async () => {

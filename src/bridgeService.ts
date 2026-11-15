@@ -795,21 +795,42 @@ export class BridgeService {
       const hapAccessory = accessory._associatedHAPAccessory
       const advertiseAddress = generate(hapAccessory.UUID)
 
-      // get external port allocation
-      const accessoryPort = await this.externalPortService.requestPort(advertiseAddress)
+      // This handler runs from an event, so the plugin can not catch what it
+      // throws: an error here became an unhandled rejection, which shuts
+      // Homebridge down. A problem with one accessory is logged, and the
+      // others in the batch are still published.
+      let accessoryPort: number | undefined
+      try {
+        // get external port allocation
+        accessoryPort = await this.externalPortService.requestPort(advertiseAddress)
+      } catch (error: unknown) {
+        log.error(
+          'Could not get a port for the external accessory \'%s\', so it is not published: %s',
+          hapAccessory.displayName,
+          error instanceof Error
+            ? error.message
+            : error,
+        )
+        continue
+      }
 
       if (this.publishedExternalAccessories.has(advertiseAddress)) {
-        throw new Error(`Accessory ${hapAccessory.displayName} experienced an address collision.`)
-      } else {
-        this.publishedExternalAccessories.set(advertiseAddress, accessory)
-        this.publishedExternalAccessoriesMetadata.set(advertiseAddress, {
-          username: advertiseAddress,
-          plugin: accessory._associatedPlugin!,
-          displayName: hapAccessory.displayName,
-          category: accessory.category,
-          port: accessoryPort,
-        })
+        log.error(
+          'The external accessory \'%s\' is not published: an external accessory with the same UUID (%s) is published already.',
+          hapAccessory.displayName,
+          hapAccessory.UUID,
+        )
+        continue
       }
+
+      this.publishedExternalAccessories.set(advertiseAddress, accessory)
+      this.publishedExternalAccessoriesMetadata.set(advertiseAddress, {
+        username: advertiseAddress,
+        plugin: accessory._associatedPlugin!,
+        displayName: hapAccessory.displayName,
+        category: accessory.category,
+        port: accessoryPort,
+      })
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
       if (plugin) {
