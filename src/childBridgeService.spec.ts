@@ -863,6 +863,39 @@ describe('childBridgeService', () => {
     })
   })
 
+  describe('startChildBridge after a manual stop', () => {
+    it('tells the new child to stop when homebridge shuts down', () => {
+      const { service, api } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+
+      service.stopChildBridge()
+      service.startChildBridge()
+      const child = childProcesses.list[childProcesses.list.length - 1]
+
+      expect(api.listenerCount('shutdown')).toBe(1)
+      api.emit('shutdown')
+      expect(child.killCalls).toEqual(['SIGTERM'])
+    })
+
+    it('leaves the api listener limit where it was after several stop and start cycles', () => {
+      const { service, api } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+      const limit = api.getMaxListeners()
+
+      for (let cycle = 0; cycle < 3; cycle++) {
+        service.stopChildBridge()
+        service.startChildBridge()
+      }
+
+      expect(api.getMaxListeners()).toBe(limit)
+      expect(api.listenerCount('shutdown')).toBe(1)
+    })
+  })
+
   describe('refreshConfig', () => {
     it('updates pluginConfig from the on-disk config when entries match', async () => {
       const { service } = buildService({
