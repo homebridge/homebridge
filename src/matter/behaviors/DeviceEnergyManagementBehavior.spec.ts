@@ -123,12 +123,19 @@ describe('defaultDeviceEnergyManagementServer', () => {
     expect((behavior as any).events.resumed.emit).toHaveBeenCalled()
   })
 
-  it('cancels whichever adjustment is running', async () => {
-    state.esaState = Paused
+  // CancelRequest withdraws a forecast change. Ending a pause or a power
+  // adjustment is what ResumeRequest and CancelPowerAdjustRequest are for.
+  it.each([
+    ['a pause', Paused],
+    ['a power adjustment', PowerAdjustActive],
+  ])('does not end %s on CancelRequest', async (_, esaState) => {
+    state.esaState = esaState
 
     await behavior.cancelRequest()
 
-    expect(state.esaState).toBe(Online)
+    expect(state.esaState).toBe(esaState)
+    expect((behavior as any).events.resumed.emit).not.toHaveBeenCalled()
+    expect((behavior as any).events.powerAdjustEnd.emit).not.toHaveBeenCalled()
   })
 
   it('accepts the forecast commands without changing the state', async () => {
@@ -174,6 +181,16 @@ describe('homebridgeDeviceEnergyManagementServer', () => {
     await expect(behavior.powerAdjustRequest(powerAdjustRequest)).rejects.toThrow('battery is full')
     expect(state.esaState).toBe(Online)
     expect(registry.syncStateToCache).not.toHaveBeenCalled()
+  })
+
+  it('calls only the cancelRequest handler for CancelRequest, and leaves a paused device paused', async () => {
+    state.esaState = Paused
+
+    await behavior.cancelRequest()
+
+    expect(registry.executeHandler).toHaveBeenCalledTimes(1)
+    expect(registry.executeHandler).toHaveBeenCalledWith(endpointId, 'deviceEnergyManagement', 'cancelRequest', undefined)
+    expect(state.esaState).toBe(Paused)
   })
 
   it('still answers a command the plugin has no handler for', async () => {
