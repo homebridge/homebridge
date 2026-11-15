@@ -300,6 +300,7 @@ export class BridgeService {
   private cachedAccessoriesFileLoaded = false
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map()
   private readonly publishedExternalAccessoriesMetadata: Map<MacAddress, ExternalAccessoryMetadata> = new Map()
+  private readonly characteristicWarningListeners = new WeakMap<Accessory, (warning: CharacteristicWarning) => void>()
 
   constructor(
     private api: HomebridgeAPI,
@@ -337,6 +338,27 @@ export class BridgeService {
       // For Bridges the warnings will propagate to the main Bridge accessory, thus we need to silence them here.
       // Otherwise, those would be printed twice (by us and HAP-NodeJS as it detects no handlers on the bridge).
     })
+  }
+
+  /**
+   * Print the characteristic warnings of a platform accessory under its
+   * plugin's name, with one listener per accessory however often the
+   * accessory is registered.
+   *
+   * A plugin may unregister an accessory and register the same object again.
+   * HAP-NodeJS up to v2.3.0 removed every listener from an accessory taken off
+   * the bridge, which hid that a new listener was added on each registration;
+   * from v2.3.1 it leaves the listeners alone, and each warning would be
+   * printed once per registration.
+   */
+  private watchCharacteristicWarnings(plugin: Plugin, hapAccessory: Accessory): void {
+    const previous = this.characteristicWarningListeners.get(hapAccessory)
+    if (previous) {
+      hapAccessory.removeListener(AccessoryEventTypes.CHARACTERISTIC_WARNING, previous)
+    }
+    const listener = BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory, {})
+    this.characteristicWarningListeners.set(hapAccessory, listener)
+    hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, listener)
   }
 
   // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
@@ -529,7 +551,7 @@ export class BridgeService {
 
       const platformPlugins = plugin && plugin.getActiveDynamicPlatform(accessory._associatedPlatform!)
       if (plugin) {
-        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory, {}))
+        this.watchCharacteristicWarnings(plugin, accessory._associatedHAPAccessory)
       }
 
       if (!platformPlugins) {
@@ -665,7 +687,7 @@ export class BridgeService {
           log.warn('The plugin \'%s\' registered a new accessory for the platform \'%s\'. The platform couldn\'t be found though!', accessory._associatedPlugin!, accessory._associatedPlatform!)
         }
 
-        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory, {}))
+        this.watchCharacteristicWarnings(plugin, accessory._associatedHAPAccessory)
       } else {
         log.warn('A platform configured a new accessory under the plugin name \'%s\'. However no loaded plugin could be found for the name!', accessory._associatedPlugin)
       }

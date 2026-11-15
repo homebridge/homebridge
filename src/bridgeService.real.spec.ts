@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { Service, uuid } from '@homebridge/hap-nodejs'
+import { AccessoryEventTypes, Characteristic, CharacteristicWarningType, Service, uuid } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI } from './api.js'
@@ -128,5 +128,30 @@ describe('unregisterPlatformAccessories on the real bridge', () => {
 
     expect(bridged()).toEqual([])
     expect(cached()).toEqual([])
+  })
+})
+
+describe('characteristic warnings of a platform accessory', () => {
+  it('are printed once, however often the same accessory is registered again', () => {
+    const lamp = accessory('Lamp')
+    const hapAccessory = lamp._associatedHAPAccessory
+    // HAP-NodeJS from v2.3.1 keeps a removed accessory's listeners; older
+    // versions wiped them all, which hid a listener added per registration.
+    vi.spyOn(hapAccessory, 'removeAllListeners').mockReturnValue(hapAccessory)
+    const printed = vi.spyOn(BridgeService, 'printCharacteristicWriteWarning').mockImplementation(() => {})
+
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+    for (let round = 0; round < 3; round++) {
+      api.unregisterPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+      api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+    }
+    hapAccessory.emit(AccessoryEventTypes.CHARACTERISTIC_WARNING, {
+      characteristic: lamp.getService(Service.Switch)!.getCharacteristic(Characteristic.On),
+      type: CharacteristicWarningType.WARN_MESSAGE,
+      message: 'test warning',
+      originatorChain: [],
+    })
+
+    expect(printed).toHaveBeenCalledTimes(1)
   })
 })
