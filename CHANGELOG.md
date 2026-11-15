@@ -271,6 +271,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): take a new setting a plugin declares for a restored accessory, not the cached one
 - fix(matter): keep the context a plugin passes when its restored accessory changed structure
 - docs(matter): say when a restored accessory takes the plugin's new settings and context
+- fix(matter): refuse a lock, unlock, open or close that has no handler, and keep the state
 
 ### Homebridge Dependencies
 

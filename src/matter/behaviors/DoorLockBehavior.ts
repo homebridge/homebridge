@@ -10,6 +10,7 @@
 import { DoorLockBehavior } from '@matter/main/behaviors/door-lock'
 import { DoorLock } from '@matter/main/clusters/door-lock'
 
+import { HandlerFailure } from './BehaviorRegistry.js'
 import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
@@ -31,7 +32,12 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
     // Execute user handler. A controller always sends a request; the
     // Homebridge UI calls the command with none, so the handler is given an
     // empty one and can read request.pinCode either way.
-    await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request ?? {})
+    const handled = await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request ?? {})
+    // A lock is not reported as locked when nothing locked it (decided by BP):
+    // with no handler for the command, it fails and the state stays.
+    if (!handled) {
+      throw new HandlerFailure('There is no doorLock.lockDoor handler, so the door was not locked')
+    }
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update the Matter attribute.
@@ -48,7 +54,11 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
     const registry = registryOf(this.endpoint)
 
     // Execute user handler (with an empty request from the UI, see lockDoor)
-    await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request ?? {})
+    const handled = await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request ?? {})
+    // Not reported as unlocked when nothing unlocked it (see lockDoor)
+    if (!handled) {
+      throw new HandlerFailure('There is no doorLock.unlockDoor handler, so the door was not unlocked')
+    }
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update the Matter attribute.
