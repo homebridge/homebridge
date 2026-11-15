@@ -1155,13 +1155,17 @@ export class AccessoryManager {
    * Register command handlers for an accessory
    */
   private registerAccessoryHandlers(accessory: MatterAccessory, deps: AccessoryManagerDeps): void {
+    // Every endpoint gets its registry, handlers or not. Some clusters always
+    // use Homebridge's own server (a window covering, for one), and it looks
+    // the registry up on each command: without one, a covering that has state
+    // and no handlers answered every command with a raw "No registry found".
+    deps.registryManager.registerEndpoint(accessory.UUID, deps.behaviorRegistry)
+
     if (!accessory.handlers) {
       return
     }
 
     log.info(`Setting up handlers for accessory ${accessory.UUID}`)
-
-    deps.registryManager.registerEndpoint(accessory.UUID, deps.behaviorRegistry)
 
     for (const [clusterName, handlers] of Object.entries(accessory.handlers)) {
       log.info(`  Processing cluster: ${clusterName}`)
@@ -1264,9 +1268,8 @@ export class AccessoryManager {
 
       log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
 
+      deps.registryManager.registerEndpoint(partEndpointId, deps.behaviorRegistry)
       if (part.handlers) {
-        deps.registryManager.registerEndpoint(partEndpointId, deps.behaviorRegistry)
-
         for (const [clusterName, handlers] of Object.entries(part.handlers)) {
           for (const [commandName, handler] of Object.entries(handlers)) {
             deps.behaviorRegistry.registerHandler(partEndpointId, clusterName, commandName, handler)
