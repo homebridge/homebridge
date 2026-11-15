@@ -178,6 +178,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - test: cover every command line option and the node version warning of the cli
 - test: cover the prefix, the format parameters and the output stream of each log level
 - build: stop publishing the 83 declaration map files, which point at sources that are not published
+- build: remove three unused dev dependencies (ts-node, @types/debug, @prettier/plugin-xml)
 
 ### Homebridge Dependencies
 
