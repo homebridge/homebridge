@@ -12,13 +12,13 @@ import type {
 import type {
   ChildBridgePairedStatusEventData,
   ChildProcessLoadEventData,
-  ChildProcessMessageEvent,
+  ChildProcessMessage,
   ChildProcessPluginLoadedEventData,
   ChildProcessPortAllocatedEventData,
   ChildProcessPortRequestEventData,
 } from './childBridgeService.js'
 import type { ChildBridgeMatterManager } from './matter/index.js'
-import type { MatterEvent } from './matter/ipc-types.js'
+import type { MatterControlRequest, MatterEvent } from './matter/ipc-types.js'
 import type { Plugin } from './plugin.js'
 
 import process from 'node:process'
@@ -220,7 +220,7 @@ export class ChildBridgeFork {
       this.matterMessageHandler = new ChildBridgeMatterMessageHandler(
         this.matterManager,
         this.bridgeConfig.username,
-        (type, data) => this.sendMessage(type as ChildProcessMessageEventType, data),
+        (_type, data) => this.sendMessage(ChildProcessMessageEventType.MATTER_EVENT, data),
       )
       matterLogger.debug(`Matter message handler created for child bridge ${this.bridgeConfig.username}`)
     } else {
@@ -490,13 +490,7 @@ export class ChildBridgeFork {
   /**
    * Handle Matter accessory control request from parent process
    */
-  handleMatterAccessoryControl(data: {
-    uuid: string
-    cluster: string
-    attributes: Record<string, unknown>
-    partId?: string
-    correlationId?: string
-  }): void {
+  handleMatterAccessoryControl(data: MatterControlRequest): void {
     this.matterMessageHandler?.handleMatterAccessoryControl(data)
   }
 
@@ -529,7 +523,7 @@ let shuttingDown = false
 /**
  * Handle incoming IPC messages from the parent Homebridge process
  */
-process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
+process.on('message', (message: ChildProcessMessage) => {
   if (!message || typeof message !== 'object' || !message.id) {
     return
   }
@@ -543,7 +537,7 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
       if (shuttingDown) {
         break
       }
-      childPluginFork.loadPlugin(message.data as ChildProcessLoadEventData).catch((error: unknown) => {
+      childPluginFork.loadPlugin(message.data).catch((error: unknown) => {
         Logger.internal.error('Child bridge failed to load plugin:', error)
         process.exit(1)
       })
@@ -560,7 +554,7 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
       break
     }
     case ChildProcessMessageEventType.PORT_ALLOCATED: {
-      childPluginFork.handleExternalResponse(message.data as ChildProcessPortAllocatedEventData)
+      childPluginFork.handleExternalResponse(message.data)
       break
     }
     case ChildProcessMessageEventType.START_MATTER_MONITORING: {
@@ -576,21 +570,15 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
       break
     }
     case ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO: {
-      childPluginFork.handleGetMatterAccessoryInfo(message.data as { uuid: string, correlationId?: string })
+      childPluginFork.handleGetMatterAccessoryInfo(message.data)
       break
     }
     case ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL: {
-      childPluginFork.handleMatterAccessoryControl(message.data as {
-        uuid: string
-        cluster: string
-        attributes: Record<string, unknown>
-        partId?: string
-        correlationId?: string
-      })
+      childPluginFork.handleMatterAccessoryControl(message.data)
       break
     }
     default: {
-      Logger.internal.warn(`Received unknown message type from parent process: ${message.id}`)
+      Logger.internal.warn(`Received unknown message type from parent process: ${String((message as { id: unknown }).id)}`)
       break
     }
   }

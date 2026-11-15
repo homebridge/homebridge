@@ -6,7 +6,7 @@
  */
 
 import type { ChildBridgeMatterManager } from './ChildBridgeMatterManager.js'
-import type { MatterEvent } from './ipc-types.js'
+import type { MatterControlRequest, MatterEvent } from './ipc-types.js'
 
 import { Logger } from '../logger.js'
 // Import the routing sentinel from the lightweight module so this file
@@ -25,7 +25,7 @@ export class ChildBridgeMatterMessageHandler {
   constructor(
     private matterManager: ChildBridgeMatterManager | undefined,
     private bridgeUsername: string,
-    private sendMessage: (type: string, data: unknown) => void,
+    private sendMessage: (type: 'matterEvent', data: MatterEvent) => void,
   ) {}
 
   /**
@@ -101,7 +101,7 @@ export class ChildBridgeMatterMessageHandler {
    * Handle get Matter accessory info request from parent process
    */
   handleGetMatterAccessoryInfo(data: { uuid: string, correlationId?: string }): void {
-    const correlationId = data?.correlationId
+    const correlationId = data.correlationId
     try {
       // Only process if Matter is enabled for this bridge
       if (!this.matterManager?.hasActiveMatter()) {
@@ -128,7 +128,7 @@ export class ChildBridgeMatterMessageHandler {
         type: 'accessoryInfoData',
         correlationId,
         data: {
-          uuid: data?.uuid,
+          uuid: data.uuid,
           error: error instanceof Error
             ? error.message
             : 'Unknown error',
@@ -141,14 +141,8 @@ export class ChildBridgeMatterMessageHandler {
   /**
    * Handle Matter accessory control request from parent process
    */
-  handleMatterAccessoryControl(data: {
-    uuid: string
-    cluster: string
-    attributes: Record<string, unknown>
-    partId?: string
-    correlationId?: string
-  }): void {
-    const correlationId = data?.correlationId
+  handleMatterAccessoryControl(data: MatterControlRequest): void {
+    const correlationId = data.correlationId
     // Only process if Matter is enabled for this bridge
     if (!this.matterManager?.hasActiveMatter()) {
       // Silently ignore - this bridge doesn't have Matter enabled

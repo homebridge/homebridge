@@ -8,8 +8,9 @@
 import type { HomebridgeAPI, MatterWorkTracker } from '../api.js'
 import type { BridgeConfiguration, BridgeOptions } from '../bridgeService.js'
 import type { ChildBridgeExternalPortService } from '../externalPortService.js'
+import type { ChildBridgeMatterStatusInfo } from './ipc-types.js'
 import type { AccessoryInfo } from './managerTypes.js'
-import type { CommissioningSnapshot, FabricInfo } from './server/FabricManager.js'
+import type { CommissioningSnapshot } from './server/FabricManager.js'
 import type { InternalMatterAccessory, MatterAccessory, MatterConfig } from './types.js'
 
 import { InternalAPIEvent } from '../api.js'
@@ -36,23 +37,7 @@ const DEFER_ONLINE_SETTLE_MS = 2000
 const DEFER_ONLINE_CAP_MS = 45000
 const DEFER_ONLINE_POLL_MS = 500
 
-/**
- * Matter status information for child bridge IPC communication
- */
-export interface ChildBridgeMatterStatusInfo {
-  qrCode?: string
-  manualPairingCode?: string
-  serialNumber?: string
-  commissioned: boolean
-  deviceCount: number
-  fabricCount: number
-  fabrics: FabricInfo[]
-  /**
-   * True when Matter is configured for the child bridge but its server did
-   * not start (for example its port is in use). The reason is in the log.
-   */
-  startFailed?: boolean
-}
+export type { ChildBridgeMatterStatusInfo } from './ipc-types.js'
 
 /**
  * What a MatterServer returns for one accessory (its methods are typed `any`):
