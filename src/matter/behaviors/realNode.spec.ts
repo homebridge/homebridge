@@ -2436,11 +2436,9 @@ describe('a thermostat with unoccupied setpoints, on a real node', () => {
 })
 
 describe('a handler that answers the command itself, on a real node', () => {
-  // The handlers are cast: MatterClusterHandlers (types.ts) still says every
-  // handler returns nothing, so a typed handler that returns an answer does
-  // not compile yet. The cast goes when that index signature allows a value.
-  type AnyHandlers = NonNullable<MatterAccessory['handlers']>
-
+  // These handlers are not cast on purpose: a typed handler that returns an
+  // answer has to compile, which it did not while the fallback handler type
+  // (MatterClusterHandlers in types.ts) said every handler returns nothing.
   it('lets a clean mode handler refuse a mode, and leaves the mode as it was', async () => {
     const answers: Array<{ status: number, statusText: string } | undefined> = []
     const endpoint = await register({
@@ -2510,7 +2508,7 @@ describe('a handler that answers the command itself, on a real node', () => {
           }),
           resume: async () => {},
         },
-      } as unknown as AnyHandlers,
+      },
     })
 
     answers.push({ status: 64, statusText: 'No mop pad' })
@@ -2551,7 +2549,7 @@ describe('a handler that answers the command itself, on a real node', () => {
           // 2 = invalid key in the current state
           sendKey: async () => ({ status: 2 }),
         },
-      } as unknown as AnyHandlers,
+      },
     })
 
     expect(await invoke(endpoint, 'mediaPlayback', 'play')).toEqual({ status: 2 })

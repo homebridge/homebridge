@@ -159,9 +159,13 @@ export type MatterCommandHandler<TArgs = unknown> = (args: TArgs, context: Matte
  * Note: Uses `any` instead of `unknown` to allow handlers to specify
  * their own argument types without TypeScript variance errors.
  * Handlers can still be strongly typed in their implementations.
+ *
+ * A handler may return a value: some commands let the plugin answer with its
+ * own response (see `MatterResponseHandler`). For every other command the
+ * returned value is ignored.
  */
 export interface MatterClusterHandlers {
-  [commandName: string]: MatterCommandHandler<any>
+  [commandName: string]: (args: any, context: MatterHandlerContext) => unknown
 }
 
 /**
