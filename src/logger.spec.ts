@@ -115,9 +115,24 @@ describe('logger', () => {
     })
   })
 
-  it('should set chalk level to 1 when forceColor is enabled (via method)', () => {
-    Logger.forceColor()
-    expect(chalk.level).toBe(1)
+  describe('forceColor', () => {
+    const originalLevel = chalk.level
+
+    afterEach(() => {
+      chalk.level = originalLevel
+    })
+
+    it('should set chalk level to 1 when the terminal seems to have no color', () => {
+      chalk.level = 0
+      Logger.forceColor()
+      expect(chalk.level).toBe(1)
+    })
+
+    it.each([1, 2, 3] as const)('should not lower chalk level %d', (level) => {
+      chalk.level = level
+      Logger.forceColor()
+      expect(chalk.level).toBe(level)
+    })
   })
 
   it('should let every method be passed around on its own', async () => {
