@@ -83,6 +83,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): apply an update that comes straight after a new accessory is registered
 - fix(matter): take only the name, device information and context from updatePlatformAccessories
 - fix(matter): unregister an accessory by its uuid alone, and stop its own server when it has one
+- fix(matter): give every handler the context the docs promise, with the accessory and the part
 
 ### Homebridge Dependencies
 

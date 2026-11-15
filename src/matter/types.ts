@@ -135,9 +135,10 @@ export interface MatterHandlerContext {
  *
  * Handlers can be synchronous or asynchronous (returning a Promise).
  * The args parameter contains the command arguments passed by Matter.js (optional).
- * The context parameter provides information about which part triggered the handler (for composed devices).
+ * The context parameter is always passed. It names the accessory (`uuid`) and, for a composed
+ * device, the part the command arrived on (`partId`), so one handler can serve several parts.
  */
-export type MatterCommandHandler<TArgs = unknown> = (args: TArgs, context?: MatterHandlerContext) => Promise<void> | void
+export type MatterCommandHandler<TArgs = unknown> = (args: TArgs, context: MatterHandlerContext) => Promise<void> | void
 
 /**
  * Matter cluster handlers interface
