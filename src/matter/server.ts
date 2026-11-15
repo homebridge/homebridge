@@ -31,7 +31,6 @@ import {
   validateAndSanitizeConfig,
 } from './server/index.js'
 import {
-  clusters,
   deviceTypes,
   InternalMatterAccessory,
   MatterAccessory,
@@ -387,29 +386,6 @@ export class MatterServer extends EventEmitter {
   // Server info & monitoring
   // ============================================================================
 
-  getServerInfo(): {
-    running: boolean
-    port: number
-    deviceCount: number
-    commissioned: boolean
-    fabricCount: number
-    serialNumber?: string
-  } {
-    return {
-      running: this.isRunning,
-      port: this.config.port || 5540,
-      deviceCount: this.accessories.size,
-      commissioned: this.isCommissioned(),
-      fabricCount: this.getCommissionedFabricCount(),
-      serialNumber: this.config.serialNumber || this.config.uniqueId,
-    }
-  }
-
-  getStorageStats(): null {
-    // Storage is now managed natively by matter.js
-    return null
-  }
-
   isServerRunning(): boolean {
     return this.isRunning
   }
@@ -426,14 +402,6 @@ export class MatterServer extends EventEmitter {
     return this.config.deferOnline === true && !this.isRunning && this.aggregator !== null
   }
 
-  getDeviceTypes(): typeof deviceTypes {
-    return deviceTypes
-  }
-
-  getClusters(): typeof clusters {
-    return clusters
-  }
-
   enableStateMonitoring(): void {
     this.monitoringEnabled = true
     log.debug('Matter state monitoring enabled')
@@ -442,10 +410,6 @@ export class MatterServer extends EventEmitter {
   disableStateMonitoring(): void {
     this.monitoringEnabled = false
     log.debug('Matter state monitoring disabled')
-  }
-
-  isMonitoringEnabled(): boolean {
-    return this.monitoringEnabled
   }
 
   notifyStateChange(uuid: string, cluster: string, state: Record<string, unknown>, partId?: string): void {

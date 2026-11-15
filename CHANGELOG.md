@@ -217,6 +217,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): log the set-up steps of each accessory at debug level and correct two messages
 - docs(matter): correct comments that described how the matter code used to work
 - refactor(matter): replace casts and any in the matter api and server with the real types
+- refactor(matter): remove matter server methods and manager types that nothing uses
 
 ### Homebridge Dependencies
 
