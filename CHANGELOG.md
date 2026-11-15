@@ -265,6 +265,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): stop a slow child bridge handler showing as accessory not found in the ui
 - fix: show what a thrown plain object holds in the log, in place of [object Object]
 - fix: start with the default bridge again for a bridge section of null, with a warning
+- fix(matter): use the fallback label when the vendor name is inside a word of the name
 
 ### Homebridge Dependencies
 
