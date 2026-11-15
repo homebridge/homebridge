@@ -235,8 +235,8 @@ export class MatterServer extends EventEmitter {
   // State management (Plugin API)
   // ============================================================================
 
-  async updateAccessoryState(uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): Promise<void> {
-    return this.stateManager.updateAccessoryState(uuid, cluster, attributes, partId)
+  async updateAccessoryState(uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, options?: { callHandlers?: boolean }): Promise<void> {
+    return this.stateManager.updateAccessoryState(uuid, cluster, attributes, partId, options)
   }
 
   getAccessoryState(uuid: string, cluster: string, partId?: string): Record<string, unknown> | undefined {

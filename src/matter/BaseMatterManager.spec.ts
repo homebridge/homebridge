@@ -217,6 +217,21 @@ describe('baseMatterManager', () => {
       expect(mockMatterServer.updateAccessoryState).not.toHaveBeenCalled()
     })
 
+    // Fan mode has no command: the UI's request is an attribute write. It is
+    // marked as asked for, so the plugin's change handler is called (a plugin's
+    // own state report through the same method does not call it).
+    it('asks for the plugin handlers when a ui request is an attribute write', async () => {
+      const uuid = 'test-uuid'
+      manager.setMatterServer(mockMatterServer)
+      manager.addExternalServer('external-uuid', mockExternalServer)
+
+      await manager.handleTriggerCommand(uuid, 'fanControl', { fanMode: 3 })
+      await manager.handleTriggerCommand('external-uuid', 'fanControl', { fanMode: 3 })
+
+      expect(mockMatterServer.updateAccessoryState).toHaveBeenCalledWith(uuid, 'fanControl', { fanMode: 3 }, undefined, { callHandlers: true })
+      expect(mockExternalServer.updateAccessoryState).toHaveBeenCalledWith('external-uuid', 'fanControl', { fanMode: 3 }, undefined, { callHandlers: true })
+    })
+
     it('should support partId parameter', async () => {
       const uuid = 'test-uuid'
       manager.setMatterServer(mockMatterServer)

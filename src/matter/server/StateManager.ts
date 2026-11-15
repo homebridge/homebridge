@@ -14,6 +14,7 @@ import type {
 } from '../types.js'
 
 import { Logger } from '../../logger.js'
+import { forgetPluginUpdate, notePluginUpdate } from '../behaviors/pluginUpdates.js'
 import { MatterDeviceError } from '../types.js'
 
 const log = Logger.withPrefix('Matter/Server')
@@ -79,12 +80,18 @@ export class StateManager {
 
   /**
    * Update the state of a Matter accessory (Plugin API)
+   *
+   * A plugin calls this to report what its device did, so the plugin's own
+   * attribute-change handlers (fan mode, thermostat setpoints and so on) are
+   * not called for it. The Homebridge UI sets these attributes through here as
+   * well, to ask for a change: it passes `callHandlers` so they are.
    */
   async updateAccessoryState(
     uuid: string,
     cluster: string,
     attributes: Record<string, unknown>,
     partId?: string,
+    options: { callHandlers?: boolean } = {},
   ): Promise<void> {
     const accessory = this.accessories.get(uuid)
     if (!accessory) {
@@ -129,7 +136,15 @@ export class StateManager {
             await this.applyEnergyMeasurementUpdate(targetEndpoint, attributes)
           } else {
             const updateObject = { [cluster]: attributes }
-            await targetEndpoint.set(updateObject)
+            const noted = options.callHandlers
+              ? []
+              : notePluginUpdate(targetEndpoint, cluster, attributes, (targetEndpoint.state as Record<string, Record<string, unknown> | undefined>)[cluster])
+            try {
+              await targetEndpoint.set(updateObject)
+            } catch (error) {
+              forgetPluginUpdate(targetEndpoint, cluster, noted)
+              throw error
+            }
           }
 
           // Update cached clusters object for persistence

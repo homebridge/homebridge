@@ -9,6 +9,7 @@ import { Status, StatusResponseError } from '@matter/main/types'
 
 import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
+import { isPluginUpdate } from './pluginUpdates.js'
 
 /**
  * Custom FanControl Server that calls plugin handlers
@@ -34,6 +35,12 @@ export class HomebridgeFanControlServer extends FanControlServer {
   async #handleFanModeChange(value: number, oldValue: number): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
+
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'fanControl', 'fanMode', value)) {
+      return
+    }
 
     try {
       // Execute user handler
@@ -72,6 +79,12 @@ export class HomebridgeFanControlServer extends FanControlServer {
   async #handlePercentSettingChange(value: number | null, oldValue: number | null): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
+
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'fanControl', 'percentSetting', value)) {
+      return
+    }
 
     try {
       // Execute user handler
