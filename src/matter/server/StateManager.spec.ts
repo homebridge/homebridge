@@ -256,6 +256,57 @@ describe('stateManager triggerCommand ordering (#4029)', () => {
   })
 })
 
+describe('stateManager triggerCommand request object', () => {
+  /** A cluster behavior the way matter.js describes its commands. */
+  function behaviorWith(command: string, fieldCount: number, handler: (...args: unknown[]) => void) {
+    return {
+      cluster: {
+        commands: {
+          [command]: {
+            schema: {
+              members: Array.from({ length: fieldCount }, () => ({})),
+            },
+          },
+        },
+      },
+      [command]: handler,
+    }
+  }
+
+  it('gives a command that has request fields an empty request when the caller sent none', async () => {
+    const calls: unknown[][] = []
+    const endpoint = createMockEndpoint({
+      act: vi.fn(async (fn: any) => fn({
+        doorLock: behaviorWith('lockDoor', 1, (...args) => calls.push(args)),
+      })),
+    })
+    const manager = createManager(endpoint)
+
+    await manager.triggerCommand('uuid-1', 'doorLock', 'lockDoor')
+    await manager.triggerCommand('uuid-1', 'doorLock', 'lockDoor', {})
+
+    expect(calls).toEqual([
+      [{}],
+      [{}],
+    ])
+  })
+
+  it('still calls a command that takes no request with no argument', async () => {
+    const calls: unknown[][] = []
+    const endpoint = createMockEndpoint({
+      act: vi.fn(async (fn: any) => fn({
+        onOff: behaviorWith('on', 0, (...args) => calls.push(args)),
+      })),
+    })
+    const manager = createManager(endpoint)
+
+    await manager.triggerCommand('uuid-1', 'onOff', 'on')
+    await manager.triggerCommand('uuid-1', 'onOff', 'on', {})
+
+    expect(calls).toEqual([[], []])
+  })
+})
+
 describe('stateManager updateAccessoryState when it can not be done', () => {
   const errorOf = (work: Promise<unknown>): Promise<string> => work.then(() => 'no error', (error: Error) => error.message)
 

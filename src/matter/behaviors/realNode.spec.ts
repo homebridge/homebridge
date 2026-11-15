@@ -19,7 +19,7 @@ import { MatterStatus } from '../errors.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
 import { StateManager } from '../server/StateManager.js'
 import { deviceRequirements, deviceTypes } from '../types.js'
-import { BehaviorRegistry, HomebridgeThermostatServer, HomebridgeWindowCoveringServer, RegistryManager } from './index.js'
+import { BehaviorRegistry, HomebridgeDoorLockServer, HomebridgeOnOffServer, HomebridgeThermostatServer, HomebridgeWindowCoveringServer, RegistryManager } from './index.js'
 
 /**
  * The Homebridge behaviors on a real matter.js node.
@@ -2432,6 +2432,43 @@ describe('a thermostat with unoccupied setpoints, on a real node', () => {
     await settle()
 
     expect(stateOf(endpoint, 'thermostat').unoccupiedHeatingSetpoint).toBe(1600)
+  })
+})
+
+describe('a command sent from the UI, on a real node', () => {
+  it('gives a command with request fields an empty request, and a command without them no argument', async () => {
+    const lockDoor = vi.spyOn(HomebridgeDoorLockServer.prototype, 'lockDoor')
+    const on = vi.spyOn(HomebridgeOnOffServer.prototype, 'on')
+    const endpoint = await register({
+      deviceType: deviceTypes.DoorLock.with(HomebridgeOnOffServer),
+      clusters: {
+        doorLock: {
+          lockState: 2,
+          lockType: 0,
+          actuatorEnabled: true,
+          operatingMode: 0,
+        },
+        onOff: { onOff: false },
+      },
+      handlers: {
+        doorLock: {
+          lockDoor: async () => {},
+        },
+      },
+    })
+
+    await stateManager.triggerCommand('test-uuid', 'doorLock', 'lockDoor')
+    await stateManager.triggerCommand('test-uuid', 'doorLock', 'lockDoor', {})
+    await stateManager.triggerCommand('test-uuid', 'onOff', 'on')
+    await stateManager.triggerCommand('test-uuid', 'onOff', 'on', {})
+
+    expect(lockDoor.mock.calls).toEqual([
+      [{}],
+      [{}],
+    ])
+    expect(on.mock.calls).toEqual([[], []])
+    expect(stateOf(endpoint, 'doorLock').lockState).toBe(1)
+    expect(stateOf(endpoint, 'onOff').onOff).toBe(true)
   })
 })
 
