@@ -81,6 +81,9 @@ export interface ServerLifecycleDeps {
 export class ServerLifecycle {
   public matterStoragePath?: string
 
+  // This server's own matter.js environment (a child of Environment.default)
+  private environment?: Environment
+
   /**
    * Whether a ServerNode creation failure is a transient storage-lock contention
    * (a previous instance still releasing the lock) rather than a hard failure.
@@ -151,9 +154,9 @@ export class ServerLifecycle {
 
       log.warn('Detected corrupted Matter storage, attempting automatic recovery...')
 
-      const environment = Environment.default
-      const filesystem = environment.get(Filesystem)
-      const storageLocation = filesystem.path
+      // This server's own folder. Not read back from the matter.js environment:
+      // the default environment is shared by every server in the process.
+      const storageLocation = this.matterStoragePath
 
       if (!storageLocation) {
         throw new Error('Storage location not set, cannot recover from corrupted storage')
@@ -264,9 +267,13 @@ export class ServerLifecycle {
     this.matterStoragePath = join(normalizedPath, bridgeId)
     await mkdir(this.matterStoragePath, { recursive: true })
 
-    // Configure environment to use native matter.js storage
-    const environment = Environment.default
-    environment.set(Filesystem, new NodeJsFilesystem(this.matterStoragePath))
+    // Give this server its own matter.js environment, with its own storage
+    // folder. Environment.default is one object for the whole process, so
+    // setting the folder there let two servers that start at the same time
+    // (two external accessories, say) open their node storage in whichever
+    // folder was set last. Everything else is inherited from the default.
+    this.environment = new Environment(`homebridge-${bridgeId}`, Environment.default)
+    this.environment.set(Filesystem, new NodeJsFilesystem(this.matterStoragePath))
 
     // Create accessory cache
     const { MatterAccessoryCache } = await import('../accessoryCache.js')
@@ -339,6 +346,7 @@ export class ServerLifecycle {
 
       const nodeOptions: Parameters<typeof MatterServerNode.create>[0] = {
         id: sanitizedId,
+        environment: this.environment,
         network: {
           port: deps.config.port,
           ipv4: true,
