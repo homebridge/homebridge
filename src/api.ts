@@ -548,7 +548,9 @@ export interface MatterAPI {
    * Similar to HAP's characteristic.updateValue(): the plugin's own handlers are not called for it.
    *
    * The promise resolves when the bridge has applied the update. A failure (an accessory
-   * that is not registered, a value Matter does not allow) is logged, not thrown.
+   * that is not registered, a value Matter does not allow) is logged, not thrown. Called from
+   * inside one of the accessory's handlers anyway, it resolves at once and the update is
+   * applied after the command: matter.js can hold the cluster's state until the handler returns.
    *
    * @param uuid - The UUID of the accessory
    * @param cluster - The cluster name (use api.matter?.clusterNames for autocomplete)

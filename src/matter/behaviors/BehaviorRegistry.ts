@@ -12,6 +12,7 @@ import { Status, StatusResponseError } from '@matter/main/types'
 
 import { Logger } from '../../logger.js'
 import { MatterStatus } from '../errors.js'
+import { runInHandlerScope } from './handlerScope.js'
 
 const log = Logger.withPrefix('Matter/Behaviors')
 
@@ -164,7 +165,7 @@ export class BehaviorRegistry {
     }
 
     try {
-      const response = await handler(args, context ?? this.contextOf(endpointId))
+      const response = await runInHandlerScope(() => handler(args, context ?? this.contextOf(endpointId)))
       return { handled: true, response }
     } catch (error) {
       log.error(`Handler error for ${endpointId}.${clusterName}.${commandName}:`, error)

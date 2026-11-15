@@ -1169,6 +1169,37 @@ describe('colorControl on a real node', () => {
     expect(calls).toEqual(['stopAllColorMovement'])
   })
 
+  it('finishes a command whose handler waits for its own update of the colour state', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.ExtendedColorLight,
+      clusters: {
+        onOff: { onOff: true },
+        levelControl: { currentLevel: 100 },
+        colorControl: colorState,
+      },
+      handlers: {
+        colorControl: {
+          // matter.js writes the colour mode, and so holds the colour state, before it calls this
+          moveToHueAndSaturationLogic: async () => {
+            await stateManager.updateAccessoryState('test-uuid', 'colorControl', { currentX: 30000 })
+          },
+          // the colour features come from the handlers there are
+          moveToColorLogic: async () => {},
+          moveToColorTemperatureLogic: async () => {},
+        },
+      },
+    })
+
+    const outcome = await Promise.race([
+      invoke(endpoint, 'colorControl', 'moveToHueAndSaturation', hueAndSaturation).then(() => 'done'),
+      new Promise(resolve => setTimeout(resolve, 3000, 'hung')),
+    ])
+    await settle()
+
+    expect(outcome).toBe('done')
+    expect(stateOf(endpoint, 'colorControl')).toMatchObject({ currentHue: 100, currentSaturation: 200, currentX: 30000 })
+  })
+
   it('calls one handler for MoveToHueAndSaturation, also when the color mode has to change', async () => {
     const calls: string[] = []
     const endpoint = await colorLight(all, calls)
