@@ -89,6 +89,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): resolve updateAccessoryState and updatePlatformAccessories when the update is done
 - fix(matter): shorten a name or label by bytes, as matter allows, and never inside a character
 - docs(matter): mark MatterAccessory.getState as deprecated, as it has never been called
+- docs(matter): deprecate the ready event a plugin can not receive, and name only methods that exist
 
 ### Homebridge Dependencies
 

@@ -256,12 +256,12 @@ export interface MatterAPI {
    *
    * @example
    * ```typescript
-   * const uuid = api.matter?.uuid.generate('my-light-unique-id')
-   * api.matter?.registerAccessory({
-   *   uuid,
+   * const UUID = api.matter?.uuid.generate('my-light-unique-id')
+   * await api.matter?.registerPlatformAccessories('homebridge-example', 'Example', [{
+   *   UUID,
    *   displayName: 'Living Room Light',
    *   // ...
-   * })
+   * }])
    * ```
    */
   readonly uuid: HAP['uuid']

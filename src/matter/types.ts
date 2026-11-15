@@ -343,29 +343,15 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
   parts?: MatterAccessoryPart[]
 
   /**
-   * Event emitter for accessory lifecycle events.
+   * Internal. Homebridge keeps its own copy of an external accessory and puts
+   * an emitter on that copy, so this is never set on the plugin's object and
+   * a listener added to it is never called.
    *
-   * **Only available for external accessories** published via `api.matter?.publishExternalAccessories()`.
-   * This property is `undefined` for accessories registered via `api.matter?.registerPlatformAccessories()`.
+   * To know when an accessory is on the network, await
+   * `api.matter.registerPlatformAccessories()`: its promise resolves when the
+   * accessory (bridged or external) has been registered and published.
    *
-   * The event emitter is created automatically when the accessory is published and allows
-   * plugins to listen for the 'ready' event (fired when the Matter server starts).
-   *
-   * **HAP Equivalent:** Similar to accessing events on `PlatformAccessory._associatedHAPAccessory`
-   *
-   * @example
-   * ```typescript
-   * const accessory: MatterAccessory = { ... };
-   * api.matter?.publishExternalAccessories('plugin', [accessory]);
-   *
-   * // Listen for when the accessory is ready on the network
-   * accessory._eventEmitter?.on(MatterAccessoryEventTypes.READY, (port) => {
-   *   console.log(`Accessory ready on port ${port}`);
-   *   // Safe to start device integration, polling, webhooks, etc.
-   * });
-   * ```
-   *
-   * @see MatterAccessoryEventTypes for available events
+   * @deprecated Never set on the plugin's object. Await `api.matter.registerPlatformAccessories()`.
    */
   _eventEmitter?: MatterAccessoryEventEmitter
 }
@@ -390,8 +376,10 @@ export interface MatterConfig extends Record<string, unknown> {
 
   /**
    * When `true`, the Matter bridge node itself is NOT advertised, but plugins
-   * MAY still publish external Matter accessories (each gets its own pairing
-   * via `api.matter.publishExternalAccessories`). The Matter API surface
+   * MAY still publish external Matter accessories (each gets its own pairing).
+   * There is no separate method for that: `api.matter.registerPlatformAccessories()`
+   * publishes an accessory on its own when its device type needs it (a robot
+   * vacuum cleaner). The Matter API surface
    * (`api.matter`) is still made available to plugins; only the bridge
    * aggregator is suppressed.
    *
@@ -422,26 +410,14 @@ export interface MatterConfig extends Record<string, unknown> {
 /**
  * Matter Accessory Event Types
  *
- * Events that can be emitted by Matter accessories during their lifecycle.
- *
- * @example
- * ```typescript
- * Listen for when a Matter accessory is ready
- * const accessory: MatterAccessory = { ... };
- * api.matter?.publishExternalAccessories('plugin-name', [accessory]);
- *
- * const internal = accessory as any;
- * internal._eventEmitter?.on(MatterAccessoryEventTypes.READY, (port: number) => {
- *   console.log(`Accessory ready on port ${port}`);
- * });
- * ```
+ * @deprecated A plugin can not receive these events (see `MatterAccessory._eventEmitter`).
+ * Await `api.matter.registerPlatformAccessories()`: it resolves when the accessory is published.
  *
  * @group Matter Accessory
  */
 export enum MatterAccessoryEventTypes {
   /**
-   * Emitted when the Matter server is ready and the accessory is available on the network.
-   * This is the main event to listen for to know when an external accessory is ready.
+   * The Matter server of an external accessory is on the network.
    *
    * **HAP Equivalent:** `AccessoryEventTypes.ADVERTISED`
    *
@@ -453,21 +429,7 @@ export enum MatterAccessoryEventTypes {
 /**
  * Matter Accessory Event Emitter Interface
  *
- * Defines the typed event emitter interface for Matter accessories.
- * This interface extends Node's EventEmitter to provide type-safe event handling
- * for Matter accessory lifecycle events.
- *
- * **Usage Pattern:**
- * ```typescript
- * const accessory: MatterAccessory = { ... };
- * api.matter?.publishExternalAccessories('plugin-name', [accessory]);
- *
- * Access the event emitter (note: created during registration)
- * const internal = accessory as InternalMatterAccessory;
- * internal._eventEmitter?.on(MatterAccessoryEventTypes.READY, (port: number) => {
- *   console.log(`Accessory ready on port ${port}`);
- * });
- * ```
+ * @deprecated Internal. See `MatterAccessory._eventEmitter`.
  *
  * @group Matter Accessory
  */
@@ -900,13 +862,13 @@ export const deviceRequirements = {
 /**
  * Matter Cluster Names
  * Commonly used cluster names for type safety and autocomplete
- * Use these with api.updateMatterAccessoryState() and api.getAccessoryState()
+ * Use these with api.matter.updateAccessoryState() and api.matter.getAccessoryState()
  *
  * @example
  * ```typescript
  * With autocomplete and type safety:
- * api.updateMatterAccessoryState(uuid, api.matterClusterNames.OnOff, { onOff: true })
- * api.getAccessoryState(uuid, api.matterClusterNames.LevelControl)
+ * await api.matter.updateAccessoryState(uuid, api.matter.clusterNames.OnOff, { onOff: true })
+ * await api.matter.getAccessoryState(uuid, api.matter.clusterNames.LevelControl)
  * ```
  */
 export const clusterNames = {
