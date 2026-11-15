@@ -3,6 +3,7 @@
 import type { HomebridgeOptions } from './server.js'
 
 import process from 'node:process'
+import { inspect } from 'node:util'
 
 import { HAPStorage } from '@homebridge/hap-nodejs'
 import { Command } from 'commander'
@@ -103,10 +104,12 @@ export default function cli(): void {
   process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))
   process.on('SIGTERM', signalHandler.bind(undefined, 'SIGTERM', 15))
 
-  const errorHandler = (error: Error): void => {
-    if (error.stack) {
-      log.error(error.stack)
-    }
+  // Anything can be thrown or rejected with, not only an Error: a text, null,
+  // a plain object. Whatever it is, say what stopped Homebridge.
+  const errorHandler = (error: unknown): void => {
+    log.error(error instanceof Error
+      ? (error.stack ?? error.message)
+      : `Homebridge is stopping on a thrown value that is not an Error: ${inspect(error)}`)
 
     if (!shuttingDown) {
       process.kill(process.pid, 'SIGTERM')

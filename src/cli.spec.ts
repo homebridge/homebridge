@@ -49,6 +49,8 @@ describe('cli', () => {
   let setTimeoutSpy: any
   let signalHandlers: Record<string, (signal: string, signalNum: number) => void>
   let fakeTimer: { unref: ReturnType<typeof vi.fn> }
+  let uncaughtException: (error: unknown) => void
+  let killSpy: any
 
   beforeEach(() => {
     signalHandlers = {}
@@ -56,8 +58,12 @@ describe('cli', () => {
       if (event === 'SIGINT' || event === 'SIGTERM') {
         signalHandlers[event] = handler
       }
+      if (event === 'uncaughtException') {
+        uncaughtException = handler
+      }
       return process
     })
+    killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
 
     fakeTimer = {
       unref: vi.fn(),
@@ -68,6 +74,8 @@ describe('cli', () => {
   afterEach(() => {
     processOnSpy.mockRestore()
     setTimeoutSpy.mockRestore()
+    killSpy.mockRestore()
+    process.exitCode = undefined
   })
 
   it('schedules a 5s force-exit fallback and unref()s it on signal', async () => {
@@ -97,5 +105,45 @@ describe('cli', () => {
     // schedule another 5000ms force-exit timer.
     const fiveSecondCalls = setTimeoutSpy.mock.calls.filter(([, ms]: any[]) => ms === 5000)
     expect(fiveSecondCalls).toHaveLength(1)
+  })
+
+  describe('a fatal error', () => {
+    async function logged(): Promise<string> {
+      const { Logger } = await import('./logger.js')
+      return vi.mocked(Logger.internal.error).mock.calls.flat().join('\n')
+    }
+
+    beforeEach(async () => {
+      const { Logger } = await import('./logger.js')
+      vi.mocked(Logger.internal.error).mockClear()
+      const { default: cli } = await import('./cli.js')
+      cli()
+    })
+
+    it('logs the stack of an Error', async () => {
+      uncaughtException(new Error('plugin bug'))
+
+      expect(await logged()).toContain('Error: plugin bug')
+    })
+
+    it.each([
+      { thrown: 'device offline', shows: '\'device offline\'' },
+      {
+        thrown: { code: 42 },
+        shows: '{ code: 42 }',
+      },
+      { thrown: null, shows: 'null' },
+      { thrown: undefined, shows: 'undefined' },
+    ])('says what was thrown when it is not an Error ($shows)', async ({ thrown, shows }) => {
+      expect(() => uncaughtException(thrown)).not.toThrow()
+
+      expect(await logged()).toContain(shows)
+    })
+
+    it('starts the shutdown', () => {
+      uncaughtException(new Error('plugin bug'))
+
+      expect(killSpy).toHaveBeenCalledWith(process.pid, 'SIGTERM')
+    })
   })
 })
