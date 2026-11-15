@@ -246,7 +246,7 @@ export class ChildBridgeFork {
 
         if (!displayName) {
           Logger.internal.warn('Could not load accessory %s as it is missing the required \'name\' property!', this.identifier)
-          return
+          continue
         }
 
         const logger = Logger.withPrefix(displayName)
