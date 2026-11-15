@@ -474,6 +474,42 @@ describe('server', () => {
       })
     }
 
+    // The friendly "Missing required field" error lives in the validator, but
+    // the loaders used to upper-case the username before calling it, and
+    // crashed start-up on a block that had none.
+    it.each([
+      { _bridge: {}, what: 'no username' },
+      {
+        _bridge: { username: 123456 },
+        what: 'a number as username',
+      },
+      { _bridge: true, what: 'true instead of an object' },
+    ])('skips a plugin block whose _bridge has $what, without throwing', ({ _bridge }) => {
+      const server = makeServer() as any
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+      const plugin = {
+        disabled: false,
+        getPluginIdentifier: () => 'homebridge-example',
+        getPlatformConstructor: () => class {},
+        getAccessoryConstructor: () => class {},
+      }
+      server.pluginManager.getPluginForPlatform = () => plugin
+      server.pluginManager.getPluginForAccessory = () => plugin
+      server.config.platforms = [
+        { platform: 'Example', _bridge },
+      ]
+      server.config.accessories = [
+        { accessory: 'Example', name: 'Example', _bridge },
+      ]
+
+      expect(() => server.loadPlatforms()).not.toThrow()
+      expect(() => server.loadAccessories()).not.toThrow()
+
+      expect(server.childBridges.size).toBe(0)
+      expect(errors.mock.calls.flat().join(' ')).toMatch(/_bridge\.username/)
+    })
+
     it('accepts a platform child bridge with both HAP and Matter disabled', () => {
       // No `matter` block and `hap.enabled: false` means neither protocol is enabled —
       // this is now allowed; the child bridge simply advertises nothing.

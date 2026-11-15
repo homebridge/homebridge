@@ -505,9 +505,6 @@ export class Server {
       logger('Initializing %s accessory...', accessoryIdentifier)
 
       if (accessoryConfig._bridge) {
-        // ensure the username is always uppercase
-        accessoryConfig._bridge.username = accessoryConfig._bridge.username.toUpperCase()
-
         try {
           this.validateChildBridgeConfig(PluginType.ACCESSORY, accessoryIdentifier, accessoryConfig._bridge)
         } catch (error: any) {
@@ -615,9 +612,6 @@ export class Server {
       logger('Initializing %s platform...', platformIdentifier)
 
       if (platformConfig._bridge) {
-        // ensure the username is always uppercase
-        platformConfig._bridge.username = platformConfig._bridge.username.toUpperCase()
-
         try {
           this.validateChildBridgeConfig(PluginType.PLATFORM, platformIdentifier, platformConfig._bridge)
         } catch (error: any) {
