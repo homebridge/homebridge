@@ -234,7 +234,8 @@ export class MatterConfigValidator {
         result.isValid = false
       }
     } else {
-      result.warnings.push(`${prefix}: No port specified. Port will be auto-allocated.`)
+      // Leaving the port out is the normal set-up, so this is not a warning
+      log.debug(`${prefix}: No port specified. Port will be auto-allocated.`)
     }
 
     // Check for port conflicts with HAP bridge
@@ -248,17 +249,9 @@ export class MatterConfigValidator {
       }
     }
 
-    // Log validation results
-    if (result.errors.length > 0) {
-      log.error(`${prefix} validation errors:`)
-      result.errors.forEach(error => log.error(`  - ${error}`))
-    }
-
-    if (result.warnings.length > 0) {
-      log.warn(`${prefix} validation warnings:`)
-      result.warnings.forEach(warning => log.warn(`  - ${warning}`))
-    }
-
+    // Not logged here: the caller (MatterConfigCollector.validateMatterConfig)
+    // logs the collected errors and warnings, each of which names the bridge.
+    // Logging them here as well printed every message twice.
     return result
   }
 
