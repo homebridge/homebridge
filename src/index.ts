@@ -80,18 +80,28 @@ export type { SerializedMatterAccessory } from './matter/accessoryCache.js'
  * Matter cluster handler types for type-safe handler definitions
  */
 export type {
+  ClosureControlHandlers,
   ClusterHandlerMap,
   ColorControlHandlers,
+  DeviceEnergyManagementHandlers,
+  DeviceEnergyManagementModeHandlers,
   DoorLockHandlers,
+  EnergyEvseHandlers,
+  EnergyEvseModeHandlers,
   FanControlHandlers,
   IdentifyHandlers,
+  KeypadInputHandlers,
   LevelControlHandlers,
+  MediaPlaybackHandlers,
   OnOffHandlers,
   RvcCleanModeHandlers,
   RvcOperationalStateHandlers,
   RvcRunModeHandlers,
   ServiceAreaHandlers,
   ThermostatHandlers,
+  ValveConfigurationAndControlHandlers,
+  WaterHeaterManagementHandlers,
+  WaterHeaterModeHandlers,
   WindowCoveringHandlers,
 } from './matter/clusterHandlerMap.js'
 
@@ -105,15 +115,25 @@ export type { ClusterStateMap } from './matter/clusterStateMap.js'
  */
 export type {
   ColorControlState,
+  DeviceEnergyManagementState,
   DoorLockState,
+  ElectricalEnergyMeasurementState,
+  ElectricalPowerMeasurementState,
+  EnergyEvseState,
+  EnergyModeState,
   FanControlState,
   LevelControlState,
+  MeterIdentificationState,
   OnOffState,
+  PowerSourceState,
   RvcCleanModeState,
   RvcOperationalState,
   RvcRunModeState,
   ServiceAreaState,
   ThermostatState,
+  ValveConfigurationAndControlState,
+  WaterHeaterManagementState,
+  WaterHeaterModeState,
   WindowCoveringState,
 } from './matter/clusterTypes.js'
 
@@ -181,10 +201,14 @@ export type { SwitchAPI } from './matter/SwitchAPI.js'
  */
 export type {
   MatterAccessory,
+  MatterAccessoryEventEmitter,
+  MatterAccessoryFeatures,
+  MatterAccessoryPart,
   MatterClusterHandlers,
   MatterClusterName,
   MatterCommandHandler,
   MatterConfig,
+  MatterHandlerContext,
 } from './matter/types.js'
 
 /**
