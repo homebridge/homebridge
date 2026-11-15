@@ -101,6 +101,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): answer a ui control sent to one child bridge when that child cannot reply
 - fix(matter): echo the request id on every accessory info reply, so the ui no longer drops it
 - fix(matter): report a real main bridge failure for a ui control instead of accessory not found
+- fix: check the _bridge block a child bridge reads from config.json when it restarts
 
 ### Homebridge Dependencies
 
