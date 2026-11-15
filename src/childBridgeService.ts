@@ -462,7 +462,7 @@ export class ChildBridgeService {
 
     // handle incoming ipc messages from the child process
     this.child.on('message', (message: ChildProcessMessageEvent<unknown>) => {
-      if (typeof message !== 'object' || !message.id) {
+      if (!message || typeof message !== 'object' || !message.id) {
         return
       }
 

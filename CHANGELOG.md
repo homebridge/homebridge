@@ -67,6 +67,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: end with exit code 1 after a fatal error so a supervisor restarts homebridge
 - fix: refresh a child bridge's config on restart when its username is lower case in config.json
 - fix: keep running when a message can not be sent because the parent process has gone
+- fix: ignore an ipc message of null instead of throwing in the message listener
 
 ### Homebridge Dependencies
 

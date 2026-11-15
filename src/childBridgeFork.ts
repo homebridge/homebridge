@@ -481,7 +481,7 @@ const childPluginFork = new ChildBridgeFork()
  * Handle incoming IPC messages from the parent Homebridge process
  */
 process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
-  if (typeof message !== 'object' || !message.id) {
+  if (!message || typeof message !== 'object' || !message.id) {
     return
   }
 
