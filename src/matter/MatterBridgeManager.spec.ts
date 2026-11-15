@@ -4,6 +4,7 @@ import type { ExternalPortService } from '../externalPortService.js'
 import type { PluginManager } from '../pluginManager.js'
 import type { HomebridgeOptions } from '../server.js'
 
+import { AddressInUseError } from '@matter/main'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InternalAPIEvent } from '../api.js'
@@ -154,6 +155,17 @@ describe('matterBridgeManager', () => {
       // the listeners are attached, and external accessories can still publish
       expect(manager.hasActiveMatter()).toBe(true)
       expect(MatterServer.prototype.stop).toHaveBeenCalledOnce()
+    })
+
+    it('explains what to do when matter.js reports that the port is taken', async () => {
+      // what matter.js 0.18 throws: no EADDRINUSE code, and its own text
+      vi.spyOn(MatterServer.prototype, 'start').mockRejectedValue(new AddressInUseError('Cannot bind UDP socket to port 5555 because port is already in use'))
+      const errorSpy = vi.spyOn(Logger.withPrefix('Matter/MainManager'), 'error').mockImplementation(() => {})
+      const manager = buildManager({ port: 5555 })
+
+      await manager.initialize()
+
+      expect(errorSpy.mock.calls.flat().join('\n')).toContain('MATTER PORT ALREADY IN USE')
     })
   })
 
