@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import process from 'node:process'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { Logger } from './logger.js'
 import { Plugin } from './plugin.js'
+import getVersion from './version.js'
 
 /**
  * Unit tests for the diagnostic improvements to the
@@ -207,6 +211,159 @@ describe('plugin', () => {
       )
 
       expect(initialized).toBe('esm plugin ran')
+    })
+  })
+
+  describe('the checks when a plugin is loaded', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>
+    let errorSpy: ReturnType<typeof vi.spyOn>
+    const files = { 'index.js': commonJsPlugin }
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      warnSpy.mockRestore()
+      errorSpy.mockRestore()
+    })
+
+    it('loads without a word when the engines are satisfied', async () => {
+      await loadPluginFrom({
+        engines: { homebridge: `^${getVersion()}`, node: process.version },
+      }, files)
+
+      expect(warnSpy).not.toHaveBeenCalled()
+      expect(errorSpy).not.toHaveBeenCalled()
+    })
+
+    it('refuses a plugin with no homebridge version in engines', async () => {
+      await expect(loadPluginFrom({
+        engines: { node: '>=22' },
+      }, files))
+        .rejects
+        .toThrow('does not contain the \'homebridge\' package in \'engines\'')
+    })
+
+    it('takes the homebridge version from peerDependencies when engines has none', async () => {
+      await loadPluginFrom({
+        engines: undefined,
+        peerDependencies: { homebridge: '>=2.0.0' },
+      }, files)
+
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
+
+    it('warns, and still loads, when the Homebridge version is not the one the plugin asks for', async () => {
+      const { initialized } = await loadPluginFrom({
+        engines: { homebridge: '^0.4.0' },
+      }, files)
+
+      expect(initialized).toBe('cjs plugin ran')
+      expect(warnSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('requires a Homebridge version of ^0.4.0'))
+    })
+
+    it('warns, and still loads, when the Node.js version is not the one the plugin asks for', async () => {
+      const { initialized } = await loadPluginFrom({
+        engines: { homebridge: '>=2.0.0', node: '^4.0.0' },
+      }, files)
+
+      expect(initialized).toBe('cjs plugin ran')
+      expect(warnSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('requires a Node.js version of ^4.0.0'))
+    })
+
+    it.each(['homebridge', 'hap-nodejs', '@homebridge/hap-nodejs'])('logs an error, and still loads, when %s is in dependencies', async (dependency) => {
+      const { initialized } = await loadPluginFrom({
+        dependencies: { [dependency]: '^2.0.0' },
+      }, files)
+
+      expect(initialized).toBe('cjs plugin ran')
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('carry an additional copy of homebridge and hap-nodejs'))
+    })
+
+    it('can not be initialized before it is loaded', () => {
+      const plugin = new Plugin('homebridge-test', '/unused', { name: 'homebridge-test', version: '1.0.0' } as never)
+
+      expect(() => plugin.initialize({} as never)).toThrow('Tried to initialize a plugin which hasn\'t been loaded yet!')
+    })
+  })
+
+  describe('what a plugin registers', () => {
+    let infoSpy: ReturnType<typeof vi.spyOn>
+    let plugin: Plugin
+    const Accessory = class {} as never
+    const Platform = class {} as never
+
+    beforeEach(() => {
+      infoSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+      plugin = new Plugin('homebridge-test', '/unused', { name: '@scope/homebridge-test', version: '1.0.0' } as never, '@scope')
+    })
+
+    afterEach(() => {
+      infoSpy.mockRestore()
+    })
+
+    it('has the scope in its identifier', () => {
+      expect(plugin.getPluginIdentifier()).toBe('@scope/homebridge-test')
+      expect(new Plugin('homebridge-test', '/unused', { name: 'homebridge-test', version: '1.0.0' } as never).getPluginIdentifier()).toBe('homebridge-test')
+    })
+
+    it('hands back an accessory by its name and by its full identifier', () => {
+      plugin.registerAccessory('Acc', Accessory)
+
+      expect(plugin.getAccessoryConstructor('Acc')).toBe(Accessory)
+      expect(plugin.getAccessoryConstructor('@scope/homebridge-test.Acc')).toBe(Accessory)
+      expect(infoSpy).toHaveBeenCalledExactlyOnceWith('Registering accessory \'%s\'', '@scope/homebridge-test.Acc')
+    })
+
+    it('hands back a platform by its name and by its full identifier', () => {
+      plugin.registerPlatform('Plat', Platform)
+
+      expect(plugin.getPlatformConstructor('Plat')).toBe(Platform)
+      expect(plugin.getPlatformConstructor('@scope/homebridge-test.Plat')).toBe(Platform)
+      expect(infoSpy).toHaveBeenCalledExactlyOnceWith('Registering platform \'%s\'', '@scope/homebridge-test.Plat')
+    })
+
+    it('does not log a registration of a disabled plugin', () => {
+      plugin.disabled = true
+
+      plugin.registerAccessory('Acc', Accessory)
+      plugin.registerPlatform('Plat', Platform)
+
+      expect(infoSpy).not.toHaveBeenCalled()
+    })
+
+    it('refuses the same accessory name twice', () => {
+      plugin.registerAccessory('Acc', Accessory)
+
+      expect(() => plugin.registerAccessory('Acc', Accessory))
+        .toThrow('Plugin \'@scope/homebridge-test\' tried to register an accessory \'Acc\' which has already been registered!')
+    })
+
+    it('refuses the same platform name twice', () => {
+      plugin.registerPlatform('Plat', Platform)
+
+      expect(() => plugin.registerPlatform('Plat', Platform))
+        .toThrow('Plugin \'@scope/homebridge-test\' tried to register a platform \'Plat\' which has already been registered!')
+    })
+
+    it('says so when asked for something it did not register', () => {
+      expect(() => plugin.getAccessoryConstructor('Nope')).toThrow('The requested accessory \'Nope\' was not registered by the plugin \'@scope/homebridge-test\'.')
+      expect(() => plugin.getPlatformConstructor('Nope')).toThrow('The requested platform \'Nope\' was not registered by the plugin \'@scope/homebridge-test\'.')
+    })
+
+    it('refuses a dynamic platform that is configured a second time', () => {
+      const platformInstance = {
+        configureAccessory: () => {},
+      }
+      plugin.registerPlatform('Plat', Platform)
+      expect(plugin.getActiveDynamicPlatform('Plat')).toBeUndefined()
+
+      plugin.assignDynamicPlatform('@scope/homebridge-test.Plat', platformInstance)
+
+      expect(plugin.getActiveDynamicPlatform('Plat')).toBe(platformInstance)
+      expect(() => plugin.getPlatformConstructor('Plat')).toThrow('is configured multiple times in your config.json.')
     })
   })
 })
