@@ -131,6 +131,22 @@ vi.mock('@matter/nodejs', () => ({
   },
 }))
 
+// The machine these tests pretend to run on: eno1 and wlan0, as used in bridge.bind below.
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>()
+  return {
+    ...actual,
+    networkInterfaces: () => ({
+      eno1: [
+        { address: '192.168.1.10', family: 'IPv4' },
+      ],
+      wlan0: [
+        { address: '10.0.0.5', family: 'IPv4' },
+      ],
+    }),
+  }
+})
+
 vi.mock('../../bridgeService.js', () => ({
   DEFAULT_BRIDGE_DEFAULTS: { vendorName: 'Homebridge' },
 }))
@@ -421,6 +437,36 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
         .toEqual({
           eno1: { type: 2 },
         })
+    })
+
+    it('gives matter.js the interface name when bridge.bind holds an address', async () => {
+      const deps = createMockDeps({
+        config: {
+          ...createMockDeps().config,
+          networkInterfaces: ['10.0.0.5'],
+        },
+      })
+
+      await lifecycle.start(deps)
+
+      expect((sharedVarsState.store.mdns as Record<string, unknown>).networkInterface).toBe('wlan0')
+      expect((sharedVarsState.store.network as Record<string, unknown>).interface).toEqual({
+        wlan0: { type: 2 },
+      })
+    })
+
+    it('sets no interface when bridge.bind matches nothing on this machine, so matter.js can still start', async () => {
+      const deps = createMockDeps({
+        config: {
+          ...createMockDeps().config,
+          networkInterfaces: ['eth9', '192.168.99.99'],
+        },
+      })
+
+      await lifecycle.start(deps)
+
+      expect((sharedVarsState.store.mdns as Record<string, unknown> | undefined)?.networkInterface).toBeUndefined()
+      expect((sharedVarsState.store.network as Record<string, unknown> | undefined)?.interface).toBeUndefined()
     })
 
     it('encodes each configured interface with type=2', async () => {

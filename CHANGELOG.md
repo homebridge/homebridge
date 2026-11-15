@@ -29,6 +29,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): check a robot vacuum's select areas request before calling the plugin
 - fix(matter): stop calling a plugin's fan and thermostat handlers for the state it reports itself
 - fix(matter): put the old value back when a fan or thermostat change handler fails
+- fix(matter): start matter when bridge.bind holds an ip address or an unknown interface
 
 ### Homebridge Dependencies
 
