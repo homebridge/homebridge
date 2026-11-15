@@ -343,6 +343,27 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     })
   })
 
+  describe('logging', () => {
+    // Logs get shared. The pairing banner (CommissioningManager) is the one
+    // place the pairing codes are shown.
+    it('does not write the passcode to the log while starting', async () => {
+      const { Logger } = await import('../../logger.js')
+      const logger = vi.mocked(Logger.withPrefix('test'))
+
+      await lifecycle.start(createMockDeps())
+
+      const logged = [
+        logger.info,
+        logger.warn,
+        logger.error,
+        logger.debug,
+      ].flatMap(level => level.mock.calls).flat().join('\n')
+      expect(logged).toContain('Port=5540')
+      // the passcode of the mock commissioning manager
+      expect(logged).not.toContain('20202021')
+    })
+  })
+
   describe('setting mdns.ipv4 before ServerNode creation', () => {
     it('sets mdns.ipv4 to false before ServerNode.create when disableIpv4 is true', async () => {
       const deps = createMockDeps({

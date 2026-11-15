@@ -251,6 +251,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       storagePath: User.matterPath(),
       displayName: this.bridgeConfig.name || 'Child Bridge',
       debugModeEnabled: this.bridgeOptions.debugModeEnabled,
+      hideQRCode: this.bridgeOptions.hideQRCode,
       manufacturer: this.bridgeConfig.manufacturer || DEFAULT_BRIDGE_DEFAULTS.manufacturer,
       model: this.bridgeConfig.model || DEFAULT_BRIDGE_DEFAULTS.model,
       firmwareRevision: this.bridgeConfig.firmwareRevision || getVersion(),
@@ -274,7 +275,8 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     this.api._setMatterServer(this.matterServer)
 
     const commissioningInfo = this.matterServer.getCommissioningInfo()
-    log.info(`Matter server started for child bridge ${this.bridgeConfig.username} with commissioning info:`, commissioningInfo)
+    // The pairing codes are not repeated here: the server prints them once, in its own banner.
+    log.info(`Matter server started for child bridge ${this.bridgeConfig.username}`)
 
     // Store the serial number for status updates
     this.matterSerialNumber = commissioningInfo.serialNumber
@@ -401,6 +403,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
             portService: this.externalPortService,
             networkInterfaces,
             debugModeEnabled: this.bridgeOptions.debugModeEnabled,
+            hideQRCode: this.bridgeOptions.hideQRCode,
             disableIpv4: this.matterConfig?.disableIpv4,
           })
 

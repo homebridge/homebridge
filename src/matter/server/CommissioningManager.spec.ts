@@ -6,6 +6,7 @@ import { CommissioningManager } from './CommissioningManager.js'
 vi.mock('node:fs/promises', () => ({
   readFile: vi.fn(),
   writeFile: vi.fn(),
+  rename: vi.fn(),
 }))
 vi.mock('@matter/types/schema', () => ({
   ManualPairingCodeCodec: {
@@ -33,9 +34,25 @@ vi.mock('../../logger.js', () => {
   }
 })
 
-const { readFile, writeFile } = await import('node:fs/promises')
+const { readFile, rename, writeFile } = await import('node:fs/promises')
 const mockedReadFile = vi.mocked(readFile)
 const mockedWriteFile = vi.mocked(writeFile)
+const mockedRename = vi.mocked(rename)
+const { Logger } = await import('../../logger.js')
+const mockedLog = vi.mocked(Logger.withPrefix('test'))
+
+/** Everything written to the log at any level, as one text. */
+function loggedText(): string {
+  return [
+    mockedLog.info,
+    mockedLog.warn,
+    mockedLog.error,
+    mockedLog.debug,
+  ]
+    .flatMap(level => level.mock.calls)
+    .flat()
+    .join('\n')
+}
 
 describe('commissioningManager', () => {
   let manager: CommissioningManager
@@ -192,9 +209,9 @@ describe('commissioningManager', () => {
       expect(manager.discriminator).toBeGreaterThanOrEqual(0)
       expect(manager.discriminator).toBeLessThanOrEqual(4095)
       expect(mockedWriteFile).toHaveBeenCalledWith(
-        '/mock/storage/credentials.json',
+        '/mock/storage/credentials.json.tmp',
         expect.stringContaining('"passcode"'),
-        'utf-8',
+        { encoding: 'utf-8', mode: 0o600 },
       )
     })
 
@@ -261,6 +278,62 @@ describe('commissioningManager', () => {
     })
   })
 
+  describe('generateCommissioningInfo', () => {
+    function depsFor(overrides: { commissioned?: boolean, hideQRCode?: boolean } = {}) {
+      return {
+        config: { hideQRCode: overrides.hideQRCode },
+        matterStoragePath: '/mock/storage',
+        serialNumber: 'SN-001',
+        fabricManager: {
+          isCommissioned: vi.fn(() => overrides.commissioned ?? false),
+        },
+      } as any
+    }
+
+    beforeEach(() => {
+      manager.passcode = 34567890
+      manager.discriminator = 1234
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+    })
+
+    it('shows the manual code and the qr code once, and never the bare passcode', async () => {
+      await manager.generateCommissioningInfo(depsFor())
+
+      const text = loggedText()
+      expect(text.match(/1234-567-8901/g)).toHaveLength(1)
+      expect(text).toContain('(QR code)')
+      expect(text).not.toContain('34567890')
+    })
+
+    it('draws no qr code with the -Q flag, but still shows the manual code', async () => {
+      await manager.generateCommissioningInfo(depsFor({ hideQRCode: true }))
+
+      const text = loggedText()
+      expect(text).toContain('1234-567-8901')
+      expect(text).not.toContain('(QR code)')
+    })
+
+    it('shows no pairing codes for a bridge that is already paired', async () => {
+      await manager.generateCommissioningInfo(depsFor({ commissioned: true }))
+
+      const text = loggedText()
+      expect(text).not.toContain('1234-567-8901')
+      expect(text).not.toContain('(QR code)')
+      expect(text).not.toContain('MT:')
+      expect(text).not.toContain('34567890')
+      // the codes are still kept for the ui
+      expect(manager.commissioningInfo.manualPairingCode).toBe('1234-567-8901')
+    })
+
+    it('writes the file with the passcode for the homebridge user only, and swaps it into place', async () => {
+      await manager.generateCommissioningInfo(depsFor())
+
+      expect(mockedWriteFile).toHaveBeenCalledExactlyOnceWith('/mock/storage/commissioning.json.tmp', expect.stringContaining('"passcode": 34567890'), { encoding: 'utf-8', mode: 0o600 })
+      expect(mockedRename).toHaveBeenCalledExactlyOnceWith('/mock/storage/commissioning.json.tmp', '/mock/storage/commissioning.json')
+    })
+  })
+
   describe('updateCommissioningFile', () => {
     it('should skip when matterStoragePath is not set', async () => {
       const deps = {
@@ -300,9 +373,9 @@ describe('commissioningManager', () => {
       await manager.updateCommissioningFile(deps)
 
       expect(mockedWriteFile).toHaveBeenCalledWith(
-        '/mock/storage/commissioning.json',
+        '/mock/storage/commissioning.json.tmp',
         expect.stringContaining('"commissioned": true'),
-        'utf-8',
+        { encoding: 'utf-8', mode: 0o600 },
       )
     })
 
@@ -332,9 +405,9 @@ describe('commissioningManager', () => {
 
       expect(getCommissioningSnapshot).not.toHaveBeenCalled()
       expect(mockedWriteFile).toHaveBeenCalledWith(
-        '/mock/storage/commissioning.json',
+        '/mock/storage/commissioning.json.tmp',
         expect.stringContaining('"fabricCount": 2'),
-        'utf-8',
+        { encoding: 'utf-8', mode: 0o600 },
       )
     })
 

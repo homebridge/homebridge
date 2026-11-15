@@ -28,6 +28,8 @@ export interface ExternalAccessoryPublishContext {
   networkInterfaces?: string[]
   /** Whether debug mode is enabled */
   debugModeEnabled?: boolean
+  /** Do not draw the pairing QR code in the log (the `-Q` flag) */
+  hideQRCode?: boolean
   /** When `true`, Matter mDNS runs IPv6-only (from `matter.disableIpv4` config) */
   disableIpv4?: boolean
 }
@@ -102,6 +104,7 @@ export async function publishExternalMatterAccessory(
     firmwareRevision: accessory.firmwareRevision,
     serialNumber: accessory.serialNumber || uniqueId, // use uniqueId as fallback serial number
     debugModeEnabled: context.debugModeEnabled,
+    hideQRCode: context.hideQRCode,
     externalAccessory: true, // external accessory, added before server runs
     networkInterfaces: context.networkInterfaces,
     disableIpv4: context.disableIpv4,
