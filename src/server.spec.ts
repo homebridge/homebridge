@@ -1061,6 +1061,69 @@ describe('server', () => {
       )
     })
 
+    // With no bridge named, the main bridge is tried first. Every error from it
+    // used to mean "not mine, ask the child bridges": a handler that threw on
+    // the main bridge's own accessory left no log line, and the UI was told
+    // "Accessory not found" two seconds later.
+    describe('a request that names no bridge', () => {
+      function serverWithMainManager(handleTriggerCommand: () => Promise<void>) {
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+        ;(server as any).matterManager = {
+          handleTriggerCommand: vi.fn(handleTriggerCommand),
+        }
+        const child = {
+          getMetadata: () => ({
+            matterConfig: { enabled: true },
+          }),
+          controlMatterAccessory: vi.fn(() => true),
+        }
+        ;(server as any).childBridges.set('CC:00:00:00:00:09', child)
+        return { server, sendSpy, child }
+      }
+
+      const request = {
+        uuid: 'main-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+        correlationId: 'corr-broadcast',
+      }
+
+      it('reports a real failure on the main bridge, and does not ask the child bridges', async () => {
+        const { server, sendSpy, child } = serverWithMainManager(() => Promise.reject(new Error('plugin handler threw')))
+        const errorSpy = vi.spyOn(Logger.withPrefix('Matter/MainManager'), 'error')
+
+        await (server as any).handleMatterAccessoryControl(request)
+
+        expect(child.controlMatterAccessory).not.toHaveBeenCalled()
+        expect((server as any).pendingMatterControlRequests.size).toBe(0)
+        const responses = (sendSpy.mock.calls as [string, any][]).filter(([, payload]) => payload?.type === 'accessoryControlResponse')
+        expect(responses.map(([, payload]) => payload)).toEqual([
+          {
+            type: 'accessoryControlResponse',
+            correlationId: 'corr-broadcast',
+            data: { success: false, error: 'plugin handler threw', uuid: 'main-uuid' },
+          },
+        ])
+        expect(errorSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('plugin handler threw'))).toBe(true)
+        errorSpy.mockRestore()
+      })
+
+      it('still asks the child bridges when the main bridge does not have the accessory', async () => {
+        const { MatterAccessoryNotOnBridgeError } = await import('./matter/MatterError.js')
+        const { server, sendSpy, child } = serverWithMainManager(() => Promise.reject(new MatterAccessoryNotOnBridgeError('main-uuid')))
+
+        await (server as any).handleMatterAccessoryControl(request)
+
+        expect(child.controlMatterAccessory).toHaveBeenCalledWith(expect.objectContaining({ uuid: 'main-uuid' }))
+        expect((sendSpy.mock.calls as [string, any][]).filter(([, payload]) => payload?.type === 'accessoryControlResponse')).toHaveLength(0)
+        clearTimeout((server as any).pendingMatterControlRequests.get('corr-broadcast'))
+      })
+    })
+
     // The UI names the bridge whenever it knows the accessory, so this is the
     // normal path. A child that is not running dropped the request, and a child
     // that does not own the accessory stays silent: either way nothing came

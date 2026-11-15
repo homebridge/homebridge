@@ -28,6 +28,7 @@ import { collectConfiguredHapPorts, ExternalPortService } from './externalPortSe
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
 import { isMatterActive, isMatterConfigEnabled, isMatterExternalsOnly, MatterConfigCollector } from './matter/config.js'
+import { MatterAccessoryNotOnBridgeError } from './matter/MatterError.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
 import { validMacAddress } from './util/mac.js'
@@ -1264,39 +1265,56 @@ export class Server {
     }
 
     // No bridge username provided - broadcast mode (try main, then all children)
-    matterLogger.debug(`Broadcast mode: trying main bridge for accessory ${data.uuid}`)
-    try {
-      await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
-      matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
-      this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
-    } catch (error) {
-      // Main bridge doesn't have accessory - forward to child bridges whose
-      // Matter is actually active. A child with `matter: { enabled: false }`
-      // still carries a matterConfig block but never starts a Matter handler,
-      // so forwarding a control request to it would just be dropped. Gate on
-      // isMatterActive (enabled or externalsOnly) — the same condition under
-      // which the child creates its Matter handler.
-      const matterChildBridges = [
-        ...this.childBridges.values(),
-      ].filter(
-        bridge => isMatterActive(bridge.getMetadata().matterConfig),
-      )
-
-      if (matterChildBridges.length > 0) {
-        matterLogger.debug(`Main bridge doesn't have accessory ${data.uuid}, forwarding to ${matterChildBridges.length} child bridge(s) with Matter enabled`)
-        for (const childBridge of matterChildBridges) {
-          childBridge.controlMatterAccessory(data)
+    if (this.matterManager) {
+      matterLogger.debug(`Broadcast mode: trying main bridge for accessory ${data.uuid}`)
+      try {
+        await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
+        matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
+        this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
+        return
+      } catch (error: unknown) {
+        // Only "this bridge does not have the accessory" sends the request on
+        // to the child bridges. Any other error is a real failure on the main
+        // bridge's own accessory (a plugin handler that threw, say): before,
+        // it was dropped without a log line and the UI was told "Accessory not
+        // found" two seconds later.
+        if (!(error instanceof MatterAccessoryNotOnBridgeError)) {
+          const message = error instanceof Error
+            ? error.message
+            : String(error)
+          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${message}`)
+          this.sendMatterControlResponse({ success: false, error: message, uuid: data.uuid }, correlationId)
+          return
         }
-
-        // Every Matter child is asked and only the owner answers - a child that
-        // does not have the accessory returns silently, by design. So when no
-        // child owns it nothing is sent back at all, and the UI sat through its
-        // own 10s timeout, retried the command, then reported a failure.
-        this.armMatterControlFallback(data.uuid, correlationId, 'no child bridge with Matter claimed it')
-      } else {
-        matterLogger.warn(`Accessory ${data.uuid} not found - not on main bridge and no child bridges with Matter available`)
-        this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid: data.uuid }, correlationId)
       }
+    }
+
+    // Main bridge doesn't have accessory - forward to child bridges whose
+    // Matter is actually active. A child with `matter: { enabled: false }`
+    // still carries a matterConfig block but never starts a Matter handler,
+    // so forwarding a control request to it would just be dropped. Gate on
+    // isMatterActive (enabled or externalsOnly) — the same condition under
+    // which the child creates its Matter handler.
+    const matterChildBridges = [
+      ...this.childBridges.values(),
+    ].filter(
+      bridge => isMatterActive(bridge.getMetadata().matterConfig),
+    )
+
+    if (matterChildBridges.length > 0) {
+      matterLogger.debug(`Main bridge doesn't have accessory ${data.uuid}, forwarding to ${matterChildBridges.length} child bridge(s) with Matter enabled`)
+      for (const childBridge of matterChildBridges) {
+        childBridge.controlMatterAccessory(data)
+      }
+
+      // Every Matter child is asked and only the owner answers - a child that
+      // does not have the accessory returns silently, by design. So when no
+      // child owns it nothing is sent back at all, and the UI sat through its
+      // own 10s timeout, retried the command, then reported a failure.
+      this.armMatterControlFallback(data.uuid, correlationId, 'no child bridge with Matter claimed it')
+    } else {
+      matterLogger.warn(`Accessory ${data.uuid} not found - not on main bridge and no child bridges with Matter available`)
+      this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid: data.uuid }, correlationId)
     }
   }
 
