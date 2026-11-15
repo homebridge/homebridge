@@ -73,7 +73,7 @@ The `Server.matterManager` field is `?:` and only constructed lazily; `MatterBri
 ## Conventions
 
 - Source is TypeScript with `strict: true`, `module: nodenext` (which also sets the module resolution), compiled to `ES2024`: the newest level that the lowest supported Node.js (22.12) runs in full. Always use `.js` suffix on relative imports even from `.ts` files (ESM rule).
-- ESLint config bans Prettier (`format/prettier: off`) and enforces single quotes, sorted imports/exports (`perfectionist/sort-*`), and strict brace style. Run `npm run lint:fix` rather than hand-formatting.
+- ESLint does the formatting of the code (the stylistic rules of `@antfu/eslint-config`): single quotes, sorted imports/exports (`perfectionist/sort-*`), strict brace style. Prettier is not used for code; the only formatter that is switched on is the Markdown one. `npm run lint` checks every file in the repo (`eslint .`), Markdown and JSON included. Run `npm run lint:fix` rather than hand-formatting.
 - `const enum` is used in ten places: four are public (`PluginType`, `APIEvent`, `LogLevel`, `PlatformAccessoryEvent`) and six are internal (`InternalAPIEvent`, `ServerStatus`, `IpcIncomingEvent`, `IpcOutgoingEvent`, `ChildProcessMessageEventType`, `ChildBridgeStatus`). Each is annotated with `// eslint-disable-next-line no-restricted-syntax`. The public ones stay `const enum` on purpose (as normal enums they would add a run-time import of `homebridge` to every plugin built with plain `tsc`). Use a normal `enum` for anything new that plugins can see, as the Matter enums do.
 - Tests live alongside source as `*.spec.ts`. They are excluded from the published build via `tsconfig.json` `exclude` and from nodemon via `nodemon.json`.
 

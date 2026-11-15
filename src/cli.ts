@@ -1,5 +1,3 @@
-/* global NodeJS */
-
 import type { HomebridgeOptions } from './server.js'
 
 import process from 'node:process'
@@ -16,7 +14,7 @@ import getVersion, { getRequiredNodeVersion } from './version.js'
 
 import 'source-map-support/register.js'
 
-import Signals = NodeJS.Signals
+type Signals = NodeJS.Signals
 
 const log = Logger.internal
 
