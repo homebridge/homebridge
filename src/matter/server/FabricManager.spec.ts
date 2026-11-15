@@ -83,6 +83,30 @@ describe('fabricManager', () => {
       }
     })
 
+    it('does not take the accessory cache in the storage root for a list of fabrics', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-manager-'))
+      try {
+        fs.mkdirSync(path.join(dir, 'B8653CFC01E7'))
+        // accessories.json is Homebridge's own file, and a JSON array as well
+        fs.writeFileSync(path.join(dir, 'accessories.json'), JSON.stringify([
+          { uuid: 'one', displayName: 'Lamp' },
+          { uuid: 'two', displayName: 'Fan' },
+        ]))
+        const manager = makeFabricManager({
+          env: {},
+          state: {
+            operationalCredentials: { fabrics: [] },
+          },
+        }, dir)
+
+        expect(manager.getFabricInfo()).toEqual([])
+        expect(manager.isCommissioned()).toBe(false)
+        expect(manager.getCommissioningSnapshot()).toEqual({ commissioned: false, fabricCount: 0, fabrics: [] })
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
     it('reports not commissioned when storage holds no fabrics', () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-manager-'))
       try {
