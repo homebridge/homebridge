@@ -269,16 +269,15 @@ export class MatterConfigCollector {
       log.warn(warning)
     }
 
-    // Check for conflicts between main bridge Matter port and child bridge
-    // ports — again only when the main server will actually bind its port,
-    // so a disabled/externalsOnly main doesn't raise a spurious conflict.
+    // Check the main bridge's Matter port against its HAP port — again only
+    // when the main server will actually bind its port.
     if (shouldStartMatterServer(config.bridge.matter) && config.bridge.matter?.port) {
       this.checkPortConflicts(config)
     }
   }
 
   /**
-   * Check for port conflicts between main bridge and child bridges
+   * Warn when the main bridge's Matter port is very close to its HAP port
    *
    * @param config - The Homebridge configuration
    */
@@ -288,25 +287,10 @@ export class MatterConfigCollector {
       return
     }
 
-    // Collect all child bridge Matter ports
-    const childMatterPorts: number[] = []
-
-    for (const platform of config.platforms) {
-      if (platform._bridge?.matter?.port) {
-        childMatterPorts.push(platform._bridge.matter.port)
-      }
-    }
-
-    for (const accessory of config.accessories) {
-      if (accessory._bridge?.matter?.port) {
-        childMatterPorts.push(accessory._bridge.matter.port)
-      }
-    }
-
-    // Check for conflicts with child bridge Matter ports
-    if (childMatterPorts.includes(mainMatterPort)) {
-      log.error(`Main bridge Matter port ${mainMatterPort} conflicts with a child bridge Matter port. Please use unique ports.`)
-    }
+    // A child bridge that will start on the same Matter port has had its
+    // Matter config removed by the child validator already (the main port is
+    // reserved there), and a child that is disabled never binds its port. So
+    // there is no child conflict left to report here.
 
     // Check for conflict with main bridge HAP port
     if (config.bridge.port && Math.abs(config.bridge.port - mainMatterPort) < 10) {
