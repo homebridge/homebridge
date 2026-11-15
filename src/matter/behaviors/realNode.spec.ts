@@ -614,3 +614,168 @@ describe('attribute-change handlers on a real node', () => {
     ])
   })
 })
+
+describe('an attribute-change handler that fails, on a real node', () => {
+  /** A handler that always fails, counting its calls. */
+  function failing(calls: unknown[]) {
+    return async (request: unknown) => {
+      calls.push(request)
+      throw new Error('device offline')
+    }
+  }
+
+  const thermostatState = {
+    localTemperature: 2000,
+    occupiedHeatingSetpoint: 2000,
+    occupiedCoolingSetpoint: 2600,
+    systemMode: 0,
+    controlSequenceOfOperation: 4,
+    minSetpointDeadBand: 20,
+  }
+
+  it('puts the fan mode back', async () => {
+    const calls: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.Fan,
+      clusters: {
+        fanControl: {
+          fanMode: 0,
+          fanModeSequence: 0,
+          percentSetting: 0,
+          percentCurrent: 0,
+        },
+      },
+      handlers: {
+        fanControl: {
+          fanModeChange: failing(calls),
+        },
+      },
+    })
+
+    await write(endpoint, {
+      fanControl: { fanMode: 3 },
+    })
+    await settle()
+
+    expect(stateOf(endpoint, 'fanControl').fanMode).toBe(0)
+    // called for the request only, not again for the write back
+    expect(calls).toEqual([
+      { fanMode: 3, oldFanMode: 0 },
+    ])
+  })
+
+  it('puts the fan speed back', async () => {
+    const calls: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.Fan,
+      clusters: {
+        fanControl: {
+          fanMode: 3,
+          fanModeSequence: 0,
+          percentSetting: 40,
+          percentCurrent: 40,
+        },
+      },
+      handlers: {
+        fanControl: {
+          percentSettingChange: failing(calls),
+        },
+      },
+    })
+
+    await write(endpoint, {
+      fanControl: { percentSetting: 80 },
+    })
+    await settle()
+
+    expect(stateOf(endpoint, 'fanControl').percentSetting).toBe(40)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('puts the thermostat mode back', async () => {
+    const calls: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.Thermostat,
+      clusters: { thermostat: thermostatState },
+      handlers: {
+        thermostat: {
+          systemModeChange: failing(calls),
+        },
+      },
+    })
+
+    await write(endpoint, {
+      thermostat: { systemMode: 4 },
+    })
+    await settle()
+
+    expect(stateOf(endpoint, 'thermostat').systemMode).toBe(0)
+    expect(calls).toHaveLength(1)
+  })
+
+  it.each([
+    {
+      attribute: 'occupiedHeatingSetpoint',
+      handler: 'occupiedHeatingSetpointChange',
+      old: 2000,
+      asked: 2100,
+    },
+    {
+      attribute: 'occupiedCoolingSetpoint',
+      handler: 'occupiedCoolingSetpointChange',
+      old: 2600,
+      asked: 2500,
+    },
+  ])('puts the thermostat $attribute back', async ({ attribute, handler, old, asked }) => {
+    const calls: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.Thermostat,
+      clusters: { thermostat: thermostatState },
+      handlers: {
+        thermostat: {
+          [handler]: failing(calls),
+        },
+      },
+    })
+
+    await write(endpoint, {
+      thermostat: { [attribute]: asked },
+    })
+    await settle()
+
+    expect(stateOf(endpoint, 'thermostat')[attribute]).toBe(old)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('still calls the handler for the next request after a failure', async () => {
+    const calls: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.Fan,
+      clusters: {
+        fanControl: {
+          fanMode: 0,
+          fanModeSequence: 0,
+          percentSetting: 0,
+          percentCurrent: 0,
+        },
+      },
+      handlers: {
+        fanControl: {
+          fanModeChange: failing(calls),
+        },
+      },
+    })
+
+    await write(endpoint, {
+      fanControl: { fanMode: 3 },
+    })
+    await settle()
+    await write(endpoint, {
+      fanControl: { fanMode: 3 },
+    })
+    await settle()
+
+    expect(calls).toHaveLength(2)
+    expect(stateOf(endpoint, 'fanControl').fanMode).toBe(0)
+  })
+})
