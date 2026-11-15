@@ -228,6 +228,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): let the ui send media playback, key press and identify commands
 - fix(matter): export the newer state types, the answering handler types and two cluster names
 - fix(matter): warn at registration for an attribute name the cluster does not have
+- fix: say in plain words when the port set for a child bridge is in use by another program
 
 ### Homebridge Dependencies
 

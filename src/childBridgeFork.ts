@@ -320,6 +320,16 @@ export class ChildBridgeFork {
     // externalsOnly mode. Both protocols may be disabled or in externalsOnly
     // mode, in which case this child bridge advertises nothing of its own
     // (externals can still publish independently in externalsOnly mode).
+    const hap = this.bridgeConfig.hap
+    if (isHapConfigEnabled(hap) && !isHapExternalsOnly(hap)) {
+      // Says so in plain words when the port set for this child bridge is in
+      // use by another program, as the main bridge does.
+      await this.bridgeService.checkBridgePort()
+      // A signal that arrived during the check
+      if (this.shuttingDown) {
+        return
+      }
+    }
     this.publishHapIfEnabled()
     this.api.signalFinished()
 
