@@ -555,6 +555,80 @@ describe('childBridgeFork - startBridge with accessory plugins', () => {
   })
 })
 
+describe('childBridgeFork - the port set for the child bridge', () => {
+  let storageDir: string
+
+  beforeEach(() => {
+    storageDir = mkdtempSync(join(tmpdir(), 'hb-child-fork-'))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    rmSync(storageDir, { recursive: true, force: true })
+  })
+
+  function buildFork(hap?: Record<string, unknown>) {
+    const fork = new ChildBridgeFork()
+    const order: string[] = []
+    vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+    vi.spyOn(fork, 'sendPairedStatusEvent').mockImplementation(() => {})
+    vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+    vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+    vi.spyOn(BridgeService.prototype, 'checkBridgePort').mockImplementation(async () => {
+      order.push('port checked')
+    })
+    vi.spyOn(BridgeService.prototype, 'publishBridge').mockImplementation(() => {
+      order.push('published')
+    })
+    Object.assign(fork as any, {
+      api: new HomebridgeAPI(),
+      type: PluginType.PLATFORM,
+      identifier: 'ExamplePlatform',
+      pluginConfig: [],
+      pluginManager: {},
+      externalPortService: {},
+      bridgeConfig: {
+        username: '0E:DC:5D:BE:D6:75',
+        name: 'Child',
+        pin: '031-45-154',
+        port: 51999,
+        hap,
+      },
+      bridgeOptions: { cachedAccessoriesDir: storageDir, cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+    })
+    return { fork, order }
+  }
+
+  it('checks that the port is free before the child bridge is published, as the main bridge does', async () => {
+    const { fork, order } = buildFork()
+
+    await fork.startBridge()
+
+    expect(order).toEqual(['port checked', 'published'])
+  })
+
+  it('does not check the port of a child bridge that does not publish over HAP', async () => {
+    const { fork, order } = buildFork({ enabled: false })
+
+    await fork.startBridge()
+
+    expect(order).toEqual([])
+  })
+
+  it('does not publish when the signal came during the port check', async () => {
+    const { fork, order } = buildFork()
+    vi.mocked(BridgeService.prototype.checkBridgePort).mockImplementation(async () => {
+      order.push('port checked')
+      fork.shutdown()
+    })
+    vi.spyOn(BridgeService.prototype, 'teardown').mockResolvedValue(undefined)
+
+    await fork.startBridge()
+
+    expect(order).toEqual(['port checked'])
+  })
+})
+
 describe('childBridgeFork - a signal that arrives during startup', () => {
   afterEach(() => {
     vi.restoreAllMocks()
