@@ -1053,6 +1053,18 @@ export class AccessoryManager {
       }
     }
 
+    // The energy mode of a device energy management device is optional on its
+    // device type. With a handler it gets the Homebridge behavior below; with
+    // state and no handler it needs the base server, or the mode is dropped.
+    const baseEnergyModeServer = devices.DeviceEnergyManagementRequirements?.DeviceEnergyManagementModeServer
+    if (baseEnergyModeServer
+      && deviceType.deviceType === devices.DeviceEnergyManagementEndpoint?.deviceType
+      && accessory.clusters?.deviceEnergyManagementMode
+      && !accessory.handlers?.deviceEnergyManagementMode) {
+      customBehaviors.push(baseEnergyModeServer)
+      log.debug('Adding base DeviceEnergyManagementMode server')
+    }
+
     if (!accessory.handlers) {
       return customBehaviors
     }
