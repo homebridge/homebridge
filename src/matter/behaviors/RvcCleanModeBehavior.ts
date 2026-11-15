@@ -8,9 +8,7 @@ import { ModeUtils } from '@matter/main/behaviors/mode-base'
 import { RvcCleanModeServer } from '@matter/main/behaviors/rvc-clean-mode'
 import { RvcRunModeBehavior } from '@matter/main/behaviors/rvc-run-mode'
 import { ModeBase, RvcRunMode } from '@matter/main/clusters'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
@@ -63,32 +61,17 @@ export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
       }
     }
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'rvcCleanMode', 'changeToMode', request)
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'rvcCleanMode', 'changeToMode', request)
 
-      // Only reached if handler succeeded - call base implementation
-      const result = await super.changeToMode(request)
+    // Only reached if handler succeeded - call base implementation
+    const result = await super.changeToMode(request)
 
-      // Sync state to cache (the current mode is in request.newMode)
-      if (request?.newMode !== undefined) {
-        registry.syncStateToCache(endpointId, 'rvcCleanMode', { currentMode: request.newMode })
-      }
-
-      return result
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change clean mode: ${message}`, Status.Failure)
+    // Sync state to cache (the current mode is in request.newMode)
+    if (request?.newMode !== undefined) {
+      registry.syncStateToCache(endpointId, 'rvcCleanMode', { currentMode: request.newMode })
     }
+
+    return result
   }
 }

@@ -43,6 +43,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): turn a plugin handler error into a matter failure in one place
 - refactor(matter): drop the repeated error wrapping from the on/off, level and colour behaviors
 - refactor(matter): drop the repeated error wrapping from the covering, closure, lock and valve code
+- refactor(matter): drop the repeated error wrapping from the robot vacuum behaviors
 
 ### Homebridge Dependencies
 

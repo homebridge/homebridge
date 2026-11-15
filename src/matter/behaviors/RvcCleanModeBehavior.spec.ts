@@ -122,12 +122,12 @@ describe('homebridgeRvcCleanModeServer', () => {
       }
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = { newMode: 0 }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.changeToMode(request)).rejects.toThrow('Failed to change clean mode: Handler failed')
+      await expect(behavior.changeToMode(request)).rejects.toThrow('Handler failed')
     })
 
     it('should refuse a mode the device does not list, without calling the handler', async () => {
