@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `./bin/homebridge.js -D` — debug mode, reads `~/.homebridge/config.json`.
 - `./bin/homebridge.js -D -U ~/.homebridge-dev` — alternate user storage path. Use this when developing plugins so you don't disturb a real bridge.
 - Other CLI flags: `-I` insecure, `-Q` no QR code, `-K` keep orphaned cached accessories, `-T` no timestamps, `-C` force color, `-P <path>` extra plugin search path (or the folder of one plugin), `--strict-plugin-resolution` only load from `-P`.
-- `-U` and `-P` need a value: without one the CLI stops with an error (it does not fall back to the default).
+- `-U` and `-P` need a value: without one, or with the next option in its place (`-U -I`), the CLI stops with an error (it does not fall back to the default).
 - Exit codes: a fatal error (an uncaught exception, or a failed `server.start()`) is logged, the bridge is torn down, and the process ends with exit code **1**. A normal stop by SIGTERM / SIGINT leaves the exit code alone; if the teardown takes longer than 5 seconds the process is ended with `128 + signal number`.
 
 Plugin development uses `npm link` from the plugin directory; Homebridge then discovers it via the global `node_modules` path resolved by `pluginManager.ts`.

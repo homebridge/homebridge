@@ -285,6 +285,25 @@ describe('cli', () => {
       expect(User.persistPath).not.toHaveBeenCalled()
     })
 
+    it.each([
+      ['-U', '-I'],
+      ['-P', '-D'],
+      ['--user-storage-path', '--insecure'],
+    ])('stops with an error when %s is followed by the option %s in place of a path', async (option, next) => {
+      const { User } = await import('./user.js')
+      vi.mocked(User.setStoragePath).mockClear()
+      vi.mocked(User.persistPath).mockClear()
+      const { default: cli } = await import('./cli.js')
+      process.argv = ['node', 'homebridge', option, next]
+
+      expect(() => cli()).toThrow('process.exit(1)')
+
+      const written = stderrSpy.mock.calls.flat().join('')
+      expect(written).toContain(`argument '${next}' is invalid`)
+      expect(User.setStoragePath).not.toHaveBeenCalled()
+      expect(User.persistPath).not.toHaveBeenCalled()
+    })
+
     it('uses the storage path that is given', async () => {
       const { User } = await import('./user.js')
       vi.mocked(User.setStoragePath).mockClear()
