@@ -119,6 +119,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: keep an accessory the bridge refuses out of the cache, and log it instead of throwing
 - fix: give an external accessory a random port when its port is in use, and name a taken bridge port
 - fix: name the pin in the error for a pin that is not a text, and warn about one homekit can not use
+- fix: log that the bridge was not published instead of failing start-up on its setup payload
 
 ### Homebridge Dependencies
 
