@@ -114,62 +114,51 @@ export abstract class BaseMatterManager {
    * Checks both external servers and bridge server
    */
   async handleTriggerCommand(uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): Promise<void> {
-    // Map attributes to command using centralized mapper
-    const commandMapping = mapAttributesToCommand(cluster, attributes)
-
-    // Debug logging — pass objects as %j format args so JSON.stringify only
-    // runs when debug is enabled (Logger.log short-circuits on level first).
     log.debug(`handleTriggerCommand: uuid=${uuid}, cluster=${cluster}, partId=${partId}`)
+    // Pass objects as %j format args so JSON.stringify only runs when debug
+    // is enabled (Logger.log short-circuits on level first).
     log.debug('Attributes: %j', attributes)
-    if (commandMapping) {
-      log.debug('Command mapping: %j', commandMapping)
-    } else {
-      log.debug('Command mapping: null (state-only update)')
-    }
     log.debug(`External servers count: ${this.externalMatterServers.size}`)
     if (this.externalMatterServers.size > 0) {
-      // Pass the keys iterator as a %j arg so the spread+join only runs once
-      // util.format is reached (i.e. when debug is enabled).
       log.debug('External server UUIDs: %j', [
         ...this.externalMatterServers.keys(),
       ])
     }
 
-    // Check if this is an external accessory first
-    const externalServer = this.externalMatterServers.get(uuid)
-    if (externalServer) {
-      log.debug(`Found external server for ${uuid}`)
-      if (commandMapping) {
-        // Explicit command invocation
-        await externalServer.triggerCommand(uuid, cluster, commandMapping.command, commandMapping.args, partId)
-        // After a command, read back the current state and notify so the UI updates
-        this.notifyCurrentState(externalServer, uuid, cluster, partId)
-      } else {
-        // State-only update: the change is asked for, so the plugin's change handlers are called
-        await externalServer.updateAccessoryState(uuid, cluster, attributes, partId, { callHandlers: true })
-      }
-      return
-    }
-
-    // Otherwise, try the bridge Matter server. If this bridge doesn't own the
+    // Find the server that has the accessory first: an external accessory's
+    // own server, or else the bridge server. If this bridge doesn't own the
     // UUID, throw the routing sentinel rather than letting the StateManager
     // throw a plain MatterDeviceError("Accessory ... not found or not
     // registered") — otherwise control broadcasts from the UI emit a real
     // error from every non-owner matter-enabled child bridge.
-    if (!this.matterServer || !this.matterServer.getAccessoryInfo(uuid)) {
-      log.debug(`Bridge does not own ${uuid}; signalling routing sentinel`)
-      throw new MatterAccessoryNotOnBridgeError(uuid)
+    //
+    // This comes before the command mapping on purpose. The mapping throws for
+    // a cluster it does not know, and a bridge that does not have the
+    // accessory must answer "not mine", not report that error.
+    let server = this.externalMatterServers.get(uuid)
+    if (server) {
+      log.debug(`Found external server for ${uuid}`)
+    } else {
+      if (!this.matterServer || !this.matterServer.getAccessoryInfo(uuid)) {
+        log.debug(`Bridge does not own ${uuid}; signalling routing sentinel`)
+        throw new MatterAccessoryNotOnBridgeError(uuid)
+      }
+      log.debug(`Trying matterServer for ${uuid}`)
+      server = this.matterServer
     }
 
-    log.debug(`Trying matterServer for ${uuid}`)
+    // Map attributes to command using centralized mapper
+    const commandMapping = mapAttributesToCommand(cluster, attributes)
     if (commandMapping) {
+      log.debug('Command mapping: %j', commandMapping)
       // Explicit command invocation
-      await this.matterServer.triggerCommand(uuid, cluster, commandMapping.command, commandMapping.args, partId)
+      await server.triggerCommand(uuid, cluster, commandMapping.command, commandMapping.args, partId)
       // After a command, read back the current state and notify so the UI updates
-      this.notifyCurrentState(this.matterServer, uuid, cluster, partId)
+      this.notifyCurrentState(server, uuid, cluster, partId)
     } else {
+      log.debug('Command mapping: null (state-only update)')
       // State-only update: the change is asked for, so the plugin's change handlers are called
-      await this.matterServer.updateAccessoryState(uuid, cluster, attributes, partId, { callHandlers: true })
+      await server.updateAccessoryState(uuid, cluster, attributes, partId, { callHandlers: true })
     }
   }
 
