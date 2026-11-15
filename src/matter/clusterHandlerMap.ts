@@ -43,6 +43,13 @@ export interface LevelControlHandlers {
  * Note: These use simplified argument types that the behavior passes through,
  * not the raw matter.js request types. The behavior files transform the matter.js
  * requests before calling plugin handlers.
+ *
+ * All are optional. One command from a controller calls one handler:
+ * - MoveToHueAndSaturation calls `moveToHueAndSaturationLogic` when the plugin
+ *   has it. Without it, `moveToHueLogic` and `moveToSaturationLogic` are called
+ *   instead (one each).
+ * - `stopAllColorMovement` is called for the StopMoveStep command. It is not
+ *   called when a command only switches the color mode.
  */
 export interface ColorControlHandlers {
   moveToColorTemperatureLogic?: MatterCommandHandler<{
