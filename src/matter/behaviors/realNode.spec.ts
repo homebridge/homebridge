@@ -1101,3 +1101,102 @@ describe('thermostat SetpointRaiseLower on a real node', () => {
     expect(stateOf(endpoint, 'thermostat').occupiedHeatingSetpoint).toBe(2100)
   })
 })
+
+describe('colorControl on a real node', () => {
+  // colorMode 2 = color temperature, so a hue command has to switch the mode first
+  const colorState = {
+    colorMode: 2,
+    enhancedColorMode: 2,
+    colorTemperatureMireds: 250,
+    colorTempPhysicalMinMireds: 147,
+    colorTempPhysicalMaxMireds: 454,
+    coupleColorTempToLevelMinMireds: 147,
+    startUpColorTemperatureMireds: 250,
+    currentHue: 0,
+    currentSaturation: 0,
+    currentX: 24939,
+    currentY: 24701,
+    numberOfPrimaries: 0,
+    colorCapabilities: { hueSaturation: true, xy: true, colorTemperature: true },
+    remainingTime: 0,
+  }
+
+  async function colorLight(names: string[], calls: string[]): Promise<Endpoint> {
+    const handlers: Record<string, () => Promise<void>> = {}
+    for (const name of names) {
+      handlers[name] = async () => {
+        calls.push(name)
+      }
+    }
+    return register({
+      deviceType: deviceTypes.ExtendedColorLight,
+      clusters: {
+        onOff: { onOff: true },
+        levelControl: { currentLevel: 100 },
+        colorControl: colorState,
+      },
+      handlers: { colorControl: handlers },
+    })
+  }
+
+  const all = [
+    'moveToColorTemperatureLogic',
+    'moveToHueAndSaturationLogic',
+    'moveToColorLogic',
+    'moveToHueLogic',
+    'moveToSaturationLogic',
+    'stopAllColorMovement',
+  ]
+  const hueAndSaturation = {
+    hue: 100,
+    saturation: 200,
+    transitionTime: 0,
+    optionsMask: {},
+    optionsOverride: {},
+  }
+
+  it('calls the stop handler for the StopMoveStep command', async () => {
+    const calls: string[] = []
+    const endpoint = await colorLight(all, calls)
+
+    await invoke(endpoint, 'colorControl', 'stopMoveStep', { optionsMask: {}, optionsOverride: {} })
+
+    expect(calls).toEqual(['stopAllColorMovement'])
+  })
+
+  it('calls one handler for MoveToHueAndSaturation, also when the color mode has to change', async () => {
+    const calls: string[] = []
+    const endpoint = await colorLight(all, calls)
+
+    await invoke(endpoint, 'colorControl', 'moveToHueAndSaturation', hueAndSaturation)
+
+    expect(calls).toEqual(['moveToHueAndSaturationLogic'])
+    expect(stateOf(endpoint, 'colorControl')).toMatchObject({ currentHue: 100, currentSaturation: 200, colorMode: 0 })
+  })
+
+  it('calls the hue and the saturation handler when the plugin has no combined one', async () => {
+    const calls: string[] = []
+    const endpoint = await colorLight(['moveToHueLogic', 'moveToSaturationLogic'], calls)
+
+    await invoke(endpoint, 'colorControl', 'moveToHueAndSaturation', hueAndSaturation)
+
+    expect(calls).toEqual(['moveToHueLogic', 'moveToSaturationLogic'])
+    expect(stateOf(endpoint, 'colorControl')).toMatchObject({ currentHue: 100, currentSaturation: 200 })
+  })
+
+  it('still calls the hue handler for a hue command that comes after a combined one', async () => {
+    const calls: string[] = []
+    const endpoint = await colorLight(all, calls)
+
+    await invoke(endpoint, 'colorControl', 'moveToHueAndSaturation', hueAndSaturation)
+    await invoke(endpoint, 'colorControl', 'moveToHue', {
+      hue: 50,
+      direction: 0,
+      transitionTime: 0,
+      optionsMask: {},
+      optionsOverride: {},
+    })
+
+    expect(calls).toEqual(['moveToHueAndSaturationLogic', 'moveToHueLogic'])
+  })
+})

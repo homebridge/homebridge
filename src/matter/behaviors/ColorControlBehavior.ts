@@ -37,12 +37,34 @@ export class HomebridgeColorControlServer extends ColorControlServer {
   }
 
   /**
+   * True while matter.js is calling one of these methods as a step of its own
+   * work, not because a controller asked for it. The plugin was (or will be)
+   * told about the command itself, so it is not told about the step as well.
+   */
+  private internalStep = false
+
+  /**
+   * Run matter.js logic that calls other methods of this class as steps,
+   * without telling the plugin about each step.
+   */
+  private async asInternalStep(logic: () => unknown): Promise<void> {
+    const previous = this.internalStep
+    this.internalStep = true
+    try {
+      await logic()
+    } finally {
+      this.internalStep = previous
+    }
+  }
+
+  /**
    * Run the plugin handler for a ColorControl command, if there is one.
    *
    * All ColorControl handlers are optional, and matter.js calls some of these methods
    * internally: moveToHueAndSaturationLogic calls moveToHueLogic and moveToSaturationLogic,
    * and every color mode switch calls stopAllColorMovement. When the plugin did not register
-   * a handler, skip it so the default matter.js logic still runs.
+   * a handler, skip it so the default matter.js logic still runs. The plugin is also not
+   * called for an internal step of a command it has already been told about.
    */
   private async runOptionalHandler(
     registry: BehaviorRegistry,
@@ -50,6 +72,9 @@ export class HomebridgeColorControlServer extends ColorControlServer {
     commandName: string,
     args?: unknown,
   ): Promise<void> {
+    if (this.internalStep) {
+      return
+    }
     if (!registry.getHandler(endpointId, 'colorControl', commandName)) {
       return
     }
@@ -104,8 +129,16 @@ export class HomebridgeColorControlServer extends ColorControlServer {
       { hue, saturation, transitionTime },
     )
 
-    // Only reached if handler succeeded - update Matter state
-    await super.moveToHueAndSaturationLogic(hue, saturation, transitionTime)
+    // Only reached if handler succeeded - update Matter state. matter.js does this
+    // through moveToHueLogic and moveToSaturationLogic. A plugin with a handler for
+    // the combined command has been told already, so those two stay quiet. A plugin
+    // with only the two single handlers still gets them.
+    const applyState = () => super.moveToHueAndSaturationLogic(hue, saturation, transitionTime)
+    if (registry.getHandler(endpointId, 'colorControl', 'moveToHueAndSaturationLogic')) {
+      await this.asInternalStep(applyState)
+    } else {
+      await applyState()
+    }
 
     // Sync hue and saturation to cache
     const currentState = this.state as HueSaturationState
@@ -235,5 +268,25 @@ export class HomebridgeColorControlServer extends ColorControlServer {
 
     // Only reached if handler succeeded - update Matter state
     await super.stopAllColorMovement()
+  }
+
+  /**
+   * Called for the StopMoveStep command. matter.js does not route that command
+   * through stopAllColorMovement, so the plugin's stop handler is called here.
+   */
+  override async stopMoveStepLogic(): Promise<void> {
+    await this.runOptionalHandler(this.getRegistry(), this.endpoint.id, 'stopAllColorMovement')
+
+    await super.stopMoveStepLogic()
+  }
+
+  /**
+   * Called when a command needs another color mode (for example a hue command
+   * while the light is in color temperature mode). matter.js stops any running
+   * color movement first. That stop is a step of the new command, which the
+   * plugin hears about next, so the plugin's stop handler is not called for it.
+   */
+  override async switchColorMode(oldMode: ColorControl.ColorMode, newMode: ColorControl.ColorMode): Promise<void> {
+    await this.asInternalStep(() => super.switchColorMode(oldMode, newMode))
   }
 }

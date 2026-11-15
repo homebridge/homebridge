@@ -77,6 +77,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: start without matter, and with homekit, when matter.js can not be loaded
 - feat: add the homebridge/matter entry for the matter values, and deprecate them on the main entry
 - fix(matter): make a thermostat's raise or lower command work without a handler of its own
+- fix(matter): call a color light's stop handler for a stop command, and one handler per command
 
 ### Homebridge Dependencies
 
