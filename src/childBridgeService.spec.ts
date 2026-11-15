@@ -370,6 +370,39 @@ describe('childBridgeService', () => {
       ])
     })
 
+    it('on STATUS_UPDATE with a failed Matter start, says so in the metadata', () => {
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({
+          matter: { port: 5540 },
+        }),
+      })
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      expect(service.getMetadata().matterStartFailed).toBeUndefined()
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.STATUS_UPDATE,
+        data: {
+          paired: false,
+          setupUri: 'X-HM://abc',
+          matter: {
+            commissioned: false,
+            deviceCount: 0,
+            fabricCount: 0,
+            fabrics: [],
+            startFailed: true,
+          },
+        },
+      })
+
+      const metadata = service.getMetadata()
+      expect(metadata.matterStartFailed).toBe(true)
+      expect(metadata.matterCommissioned).toBe(false)
+      expect(metadata.matterSetupUri).toBeUndefined()
+    })
+
     it('on PORT_REQUEST, forwards to externalPortService and replies with PORT_ALLOCATED', async () => {
       const { service, externalPortService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)

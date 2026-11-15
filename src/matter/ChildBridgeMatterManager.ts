@@ -23,7 +23,7 @@ import { BaseMatterManager } from './BaseMatterManager.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 import { MatterServer } from './server.js'
-import { appendUsernameSuffix, getMatterJsVersion, normalizeBindConfig } from './utils.js'
+import { appendUsernameSuffix, getErrorCode, getMatterJsVersion, normalizeBindConfig } from './utils.js'
 
 const log = Logger.withPrefix('Matter/ChildManager')
 const COLON_RE = /:/g
@@ -47,6 +47,11 @@ export interface ChildBridgeMatterStatusInfo {
   deviceCount: number
   fabricCount: number
   fabrics: FabricInfo[]
+  /**
+   * True when Matter is configured for the child bridge but its server did
+   * not start (for example its port is in use). The reason is in the log.
+   */
+  startFailed?: boolean
 }
 
 /**
@@ -161,6 +166,9 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   // which listeners were attached, so teardown removes the correct ones.
   private externalsOnlyMode = false
 
+  // True once the normal-mode API listeners are attached (see setupEventListeners).
+  private eventListenersAttached = false
+
   /**
    * Initialize Matter server for child bridge. Three states:
    *
@@ -197,28 +205,33 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     // 3. Normal mode → existing full setup follows.
     log.debug(`Child bridge ${this.bridgeConfig.username} has Matter config (Combined HAP+Matter), starting Matter server`)
 
-    // If Matter doesn't have a port configured, allocate one
-    if (!this.matterConfig.port) {
-      // Generate a unique username for Matter port allocation
-      const matterUsername = appendUsernameSuffix(this.bridgeConfig.username, 'MATTER')
-      // Use the Matter port allocator (falls back to 5530-5541 when no range is
-      // configured), NOT requestPort() which draws from the HAP external-port
-      // pool and returns undefined unless `ports` is set.
-      const matterPort = await this.externalPortService.requestMatterPort(matterUsername)
+    try {
+      // If Matter doesn't have a port configured, allocate one
+      if (!this.matterConfig.port) {
+        // Generate a unique username for Matter port allocation
+        const matterUsername = appendUsernameSuffix(this.bridgeConfig.username, 'MATTER')
+        // Use the Matter port allocator (falls back to 5530-5541 when no range is
+        // configured), NOT requestPort() which draws from the HAP external-port
+        // pool and returns undefined unless `ports` is set.
+        const matterPort = await this.externalPortService.requestMatterPort(matterUsername)
 
-      if (!matterPort) {
-        throw new Error(
-          'Failed to allocate Matter port for child bridge. '
-          + 'Please specify a port manually in the _bridge.matter configuration, or free up ports in the configured range.',
-        )
+        if (!matterPort) {
+          throw new Error(
+            'Failed to allocate Matter port for child bridge. '
+            + 'Please specify a port manually in the _bridge.matter configuration, or free up ports in the configured range.',
+          )
+        }
+
+        this.matterConfig.port = matterPort
+        log.debug(`Allocated Matter port: ${this.matterConfig.port} (HAP port: ${this.bridgeConfig.port})`)
       }
 
-      this.matterConfig.port = matterPort
-      log.debug(`Allocated Matter port: ${this.matterConfig.port} (HAP port: ${this.bridgeConfig.port})`)
+      // Start Matter server
+      await this.startMatterServer(this.matterConfig)
+    } catch (error: unknown) {
+      this.handleBridgeStartFailure(error)
+      return
     }
-
-    // Start Matter server
-    await this.startMatterServer(this.matterConfig)
 
     // Listen for commissioning status changes to update parent process
     if (onCommissioningChanged && this.matterServer) {
@@ -236,12 +249,49 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   }
 
   /**
+   * The Matter server of this child bridge did not start. Same as on the main
+   * bridge: the error is logged and the bridge carries on, so its HomeKit side
+   * is not taken down with it. Before this the error ended the child process,
+   * which was then restarted four times and switched off.
+   *
+   * The reason is kept, so a plugin that registers a Matter accessory is told
+   * why it can not, and the status sent to the parent says `startFailed`.
+   */
+  private handleBridgeStartFailure(error: unknown): void {
+    log.error(`Failed to initialize Matter server for child bridge ${this.bridgeConfig.username}:`, error)
+
+    const errorMessage = error instanceof Error
+      ? error.message
+      : String(error)
+
+    // A server that never ran is not kept: the bridge would report Matter as
+    // enabled with no pairing codes, and tell every plugin "still starting"
+    // for the rest of the run. Its port stays reserved: it may be the very
+    // port another program holds.
+    const failedServer = this.matterServer
+    this.matterServer = undefined
+    this.bridgeStartFailure = errorMessage
+    failedServer?.stop().catch((stopError: unknown) => {
+      log.debug('Could not stop the Matter server that failed to start:', stopError)
+    })
+
+    // External accessories have a server of their own and can still publish,
+    // so the listeners are attached when the failed start did not get that far.
+    if (!this.eventListenersAttached) {
+      this.setupEventListeners()
+    }
+
+    if (getErrorCode(error) === 'EADDRINUSE' || errorMessage.includes('address already in use')) {
+      log.error(`Matter port ${this.matterConfig?.port} is already in use by another application.`)
+      log.error('To fix this, stop the application using this port, or set a different port for this child bridge in your config.json: "_bridge": { "matter": { "port": <different-port> } }')
+    }
+    log.error('Matter is not running on this child bridge. Its HomeKit accessories are not affected.')
+  }
+
+  /**
    * Start Matter server for child bridge
    */
   private async startMatterServer(matterConfig: MatterConfig): Promise<void> {
-    // Log Matter.js version and startup info
-    const matterJsVersion = getMatterJsVersion()
-    log.success('Homebridge v%s (Matter.js v%s) (%s) is running on port %s.', getVersion(), matterJsVersion, this.bridgeConfig.name, matterConfig.port)
     log.debug(`Starting Matter server for child bridge ${this.bridgeConfig.username}`)
 
     // Create Matter server with the provided configuration
@@ -272,6 +322,10 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     })
 
     await this.matterServer.start()
+
+    // Said once the server has started, as on the main bridge: a failed start
+    // must not be followed by "is running".
+    log.success('Homebridge v%s (Matter.js v%s) (%s) is running on port %s.', getVersion(), getMatterJsVersion(), this.bridgeConfig.name, matterConfig.port)
 
     // Inform the API that Matter is enabled
     this.api._setMatterEnabled(true)
@@ -337,6 +391,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * normal mode where the bridge MatterServer is running.
    */
   private setupEventListeners(): void {
+    this.eventListenersAttached = true
     this.setupExternalEventListeners()
     this.setupBridgedEventListeners()
   }
@@ -458,8 +513,22 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * Returns undefined if Matter is not enabled for this child bridge
    */
   getMatterStatusInfo(): ChildBridgeMatterStatusInfo | undefined {
-    if (!this.matterConfig || !this.matterServer) {
+    if (!this.matterConfig) {
       return undefined
+    }
+
+    // Matter is configured but its server did not start: say so, with no
+    // pairing codes, instead of looking like a bridge that has no Matter.
+    if (!this.matterServer) {
+      return this.bridgeStartFailure !== undefined
+        ? {
+            commissioned: false,
+            deviceCount: 0,
+            fabricCount: 0,
+            fabrics: [],
+            startFailed: true,
+          }
+        : undefined
     }
 
     const commissioningInfo = this.matterServer.getCommissioningInfo()
@@ -499,7 +568,10 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * accessories on an externalsOnly child remain controllable and listable.
    */
   override hasActiveMatter(): boolean {
-    return this.isMatterEnabled() || this.externalsOnlyMode
+    // A bridge server that failed to start still counts, as on the main
+    // bridge: the listeners are attached, external accessories can still
+    // publish, and a bridged registration gets the true reason.
+    return this.isMatterEnabled() || this.externalsOnlyMode || this.bridgeStartFailure !== undefined
   }
 
   /**
