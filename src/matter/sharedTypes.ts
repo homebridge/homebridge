@@ -203,7 +203,11 @@ export interface MatterServerConfig {
    */
   deferOnline?: boolean
 
-  /** Network interfaces to bind to (inherited from `bridge.bind` config) */
+  /**
+   * The `bridge.bind` entries (interface names or addresses). Used for
+   * Matter's mDNS only, and only the first one that matches an interface:
+   * the Matter port itself listens on every interface.
+   */
   networkInterfaces?: string[]
 
   /** When `true`, Matter mDNS runs IPv6-only (inherited from `matter.disableIpv4` config) */
