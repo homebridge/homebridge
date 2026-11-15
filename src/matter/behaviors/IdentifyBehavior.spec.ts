@@ -79,12 +79,12 @@ describe('homebridgeIdentifyServer', () => {
       )
     })
 
-    it('should handle handler execution errors gracefully', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = { identifyTime: 5 }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.identify(request)).rejects.toThrow('Failed to identify: Handler failed')
+      await expect(behavior.identify(request)).rejects.toThrow('Handler failed')
     })
 
     it('should call identify even if handler is not registered', () => {
