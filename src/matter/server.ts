@@ -503,6 +503,10 @@ export class MatterServer extends EventEmitter {
 
         let restored = 0
         for (const serialized of cached.values()) {
+          // Homebridge is stopping: the start ends after this loop
+          if (this.serverLifecycle.isStopRequested()) {
+            break
+          }
           try {
             const baseType = typeByName.get(serialized.deviceType?.name ?? '')
             // The cache names the type; the plugin's own feature choices are

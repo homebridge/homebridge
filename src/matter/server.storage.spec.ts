@@ -409,6 +409,50 @@ describe('matterServer storage on real matter.js nodes', () => {
     ...extra,
   })
 
+  it('keeps every cached accessory when it is stopped while the cache is being restored', async () => {
+    const light = (uuid: string): MatterAccessory => ({
+      UUID: uuid,
+      displayName: `Light ${uuid}`,
+      deviceType: deviceTypes.OnOffLight,
+      serialNumber: uuid,
+      manufacturer: 'Test',
+      model: 'Test',
+      context: {},
+      clusters: {
+        onOff: { onOff: false },
+      },
+    })
+    const cacheFile = join(matterPath, 'FFFFFFFFFFA1', 'accessories.json')
+    const cachedUuids = () => (JSON.parse(readFileSync(cacheFile, 'utf-8')) as Array<{ uuid: string }>).map(entry => entry.uuid).sort()
+
+    const first = bridgeServer('FFFFFFFFFFA1', 55961)
+    await first.start()
+    await first.registerPlatformAccessories('plugin', 'Platform', [
+      light('a'),
+      light('b'),
+      light('c'),
+    ])
+    await vi.waitFor(() => expect(existsSync(cacheFile) && cachedUuids()).toEqual(['a', 'b', 'c']), { timeout: 5000, interval: 100 })
+    await first.stop()
+
+    // A stop (Homebridge got SIGTERM) right after the first cached accessory is back
+    const second = bridgeServer('FFFFFFFFFFA1', 55961)
+    const accessoryManager = (second as unknown as { accessoryManager: { registerAccessory: (...args: unknown[]) => Promise<unknown> } }).accessoryManager
+    const registerAccessory = accessoryManager.registerAccessory.bind(accessoryManager)
+    let stopping: Promise<void> | undefined
+    accessoryManager.registerAccessory = async (...args: unknown[]) => {
+      const result = await registerAccessory(...args)
+      stopping ??= second.stop()
+      return result
+    }
+    await second.start().catch(() => {})
+    await stopping
+    // longer than the cache's save delay
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    expect(cachedUuids()).toEqual(['a', 'b', 'c'])
+  }, 30000)
+
   it('registers the other accessories of a call when the bridge refuses one of them', async () => {
     const server = bridgeServer('batch-bridge', 5591)
     await server.start()
