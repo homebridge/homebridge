@@ -436,12 +436,55 @@ describe('childBridgeMatterManager', () => {
       expect((m as any).matterConfig.port).toBe(5530)
     })
 
-    it('throws a descriptive error when Matter port allocation returns nothing', async () => {
+    it('keeps the child bridge running when no Matter port can be allocated, and records why', async () => {
       vi.mocked(mockExternalPortService.requestMatterPort).mockResolvedValue(undefined)
       const m = createManager({} as MatterConfig)
       vi.spyOn(m as any, 'startMatterServer').mockResolvedValue(undefined)
 
-      await expect(m.initialize()).rejects.toThrow('Failed to allocate Matter port')
+      // Before this the error ended the child process, HAP included.
+      await expect(m.initialize()).resolves.toBeUndefined()
+
+      expect(m.getBridgeStartFailure()).toContain('Failed to allocate Matter port')
+      expect(m.getMatterStatusInfo()).toEqual({
+        commissioned: false,
+        deviceCount: 0,
+        fabricCount: 0,
+        fabrics: [],
+        startFailed: true,
+      })
+    })
+
+    it('keeps the child bridge running when the Matter server fails to start', async () => {
+      const m = createManager({ port: 5540 } as MatterConfig)
+      const failedServer = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      }
+      vi.spyOn(m as any, 'startMatterServer').mockImplementation(async () => {
+        ;(m as any).matterServer = failedServer
+        throw Object.assign(new Error('listen EADDRINUSE: address already in use :::5540'), { code: 'EADDRINUSE' })
+      })
+      const errorSpy = vi.spyOn(Logger.withPrefix('Matter/ChildManager'), 'error')
+
+      await expect(m.initialize()).resolves.toBeUndefined()
+
+      // The server that never ran is stopped and dropped, and the reason kept:
+      // a plugin registering a Matter accessory is told why it can not.
+      expect(failedServer.stop).toHaveBeenCalledTimes(1)
+      expect((m as any).matterServer).toBeUndefined()
+      expect(m.isMatterEnabled()).toBe(false)
+      expect(m.getBridgeStartFailure()).toContain('EADDRINUSE')
+      expect(m.isBridgeServerStarting()).toBe(false)
+      // Still "active": external accessories have a server of their own.
+      expect(m.hasActiveMatter()).toBe(true)
+      const attached = vi.mocked(mockApi.on).mock.calls.map(c => c[0])
+      expect(attached).toContain(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES)
+      expect(attached).toContain(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE)
+      // The status sent to the parent says the start failed.
+      expect(m.getMatterStatusInfo()?.startFailed).toBe(true)
+      expect(errorSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('Matter port 5540 is already in use'))).toBe(true)
+      expect(mockApi._setMatterEnabled).not.toHaveBeenCalled()
+
+      errorSpy.mockRestore()
     })
 
     it('externalsOnly mode: attaches external listeners + bridged drop stubs, does NOT start the bridge server', async () => {

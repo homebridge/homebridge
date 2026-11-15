@@ -173,6 +173,7 @@ export interface ChildBridgePairedStatusEventData {
     deviceCount: number
     fabricCount?: number
     fabrics?: FabricInfo[]
+    startFailed?: boolean
   }
 }
 
@@ -207,6 +208,11 @@ export interface ChildMetadata {
   matterDeviceCount?: number
   matterFabricCount?: number
   matterFabrics?: FabricInfo[]
+  /**
+   * True when Matter is configured for the child bridge but its server did
+   * not start (for example its port is in use). The reason is in the log.
+   */
+  matterStartFailed?: boolean
 }
 
 /**
@@ -230,6 +236,7 @@ export class ChildBridgeService {
     deviceCount?: number
     fabricCount?: number
     fabrics?: FabricInfo[]
+    startFailed?: boolean
   }
 
   private pluginConfig: Array<PlatformConfig | AccessoryConfig> = []
@@ -529,6 +536,7 @@ export class ChildBridgeService {
               deviceCount: statusData.matter.deviceCount,
               fabricCount: statusData.matter.fabricCount,
               fabrics: statusData.matter.fabrics,
+              ...(statusData.matter.startFailed && { startFailed: true }),
             }
           }
 
@@ -962,6 +970,7 @@ export class ChildBridgeService {
       matterDeviceCount: this.matterCommissioningInfo?.deviceCount,
       matterFabricCount: this.matterCommissioningInfo?.fabricCount,
       matterFabrics: this.matterCommissioningInfo?.fabrics,
+      ...(this.matterCommissioningInfo?.startFailed && { matterStartFailed: true }),
     }
   }
 }

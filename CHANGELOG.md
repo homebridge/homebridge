@@ -97,6 +97,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): keep the clean mode and service area of a robot vacuum that has no handlers
 - fix(matter): answer a command for a window covering with no handlers instead of an internal error
 - docs(matter): say how apple home presents the energy device types, from a user's test report
+- fix(matter): keep a child bridge and its homekit side running when its matter server fails to start
 
 ### Homebridge Dependencies
 
