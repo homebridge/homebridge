@@ -50,6 +50,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): drop the level control work-around that matter.js 0.18 no longer needs
 - refactor(matter): read the paired controllers from matter.js alone, not from three places
 - refactor(matter): read a cluster's state from its entries instead of probing key by key
+- refactor(matter): take the pairing codes from matter.js instead of encoding them by hand
 
 ### Homebridge Dependencies
 
