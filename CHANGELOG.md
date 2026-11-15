@@ -132,6 +132,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: warn once when an accessory gets no port from a used-up pool, however often it asks
 - fix: give a clear error or warning for a config.json with the wrong kind of value in it
 - refactor: type caught errors as unknown and replace any, casts and ts-expect-error with real types
+- refactor: remove unused storage and server methods and fix typos
 
 ### Homebridge Dependencies
 

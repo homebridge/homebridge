@@ -27,7 +27,7 @@ import { ChildBridgeService } from './childBridgeService.js'
 import { collectConfiguredHapPorts, ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
-import { isMatterActive, isMatterConfigEnabled, isMatterExternalsOnly, MatterConfigCollector } from './matter/config.js'
+import { isMatterActive, isMatterExternalsOnly, MatterConfigCollector } from './matter/config.js'
 import { MatterAccessoryNotOnBridgeError } from './matter/MatterError.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
@@ -415,15 +415,6 @@ export class Server {
    */
   public static isHapEnabled(bridgeConfig: BridgeConfiguration): boolean {
     return isHapConfigEnabled(bridgeConfig.hap) && !isHapExternalsOnly(bridgeConfig.hap)
-  }
-
-  /**
-   * Whether Matter is enabled for the given bridge.
-   * Matter is opt-in: a `bridge.matter` block must be present and not
-   * explicitly disabled via `bridge.matter.enabled: false`.
-   */
-  public static isMatterEnabledForBridge(bridgeConfig: BridgeConfiguration): boolean {
-    return isMatterConfigEnabled(bridgeConfig.matter)
   }
 
   private static loadConfig(): HomebridgeConfig {

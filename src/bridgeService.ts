@@ -291,7 +291,7 @@ export interface HomebridgeConfig {
    */
   disabledPlugins?: PluginIdentifier[]
 
-  // This section is used to control the range of ports (inclusive) that separate accessory (like camera or television) should be bind to
+  // This section is used to control the range of ports (inclusive) that separate accessories (like a camera or a television) are bound to
   ports?: ExternalPortsConfiguration
 
   // This section is used to control the range of ports (inclusive) that Matter accessories should bind to
@@ -435,7 +435,7 @@ export class BridgeService {
     if (previous) {
       hapAccessory.removeListener(AccessoryEventTypes.CHARACTERISTIC_WARNING, previous)
     }
-    const listener = BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory, {})
+    const listener = BridgeService.printCharacteristicWriteWarning.bind(BridgeService, plugin, hapAccessory, {})
     this.characteristicWarningListeners.set(hapAccessory, listener)
     hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, listener)
   }
@@ -681,7 +681,7 @@ export class BridgeService {
           // resolve platform accessories by searching for plugins which registered a dynamic platform for the given name
           plugin = this.pluginManager.getPluginByActiveDynamicPlatform(accessory._associatedPlatform!)
 
-          if (plugin) { // if it's undefined the no plugin was found
+          if (plugin) { // if it's undefined then no plugin was found
             // could improve on this by calculating the Levenshtein distance to only allow platform ownership changes
             // when something like a typo happened. Are there other reasons the name could change?
             // And how would we define the threshold?
@@ -692,7 +692,7 @@ export class BridgeService {
 
             accessory._associatedPlugin = plugin.getPluginIdentifier() // update the associated plugin to the new one
           }
-        } catch (error: unknown) { // error is thrown if multiple plugins where found for the given platform name
+        } catch (error: unknown) { // error is thrown if multiple plugins were found for the given platform name
           log.info(`Could not find the associated plugin for the accessory '${accessory.displayName}'. `
             + `Tried to find the plugin by the platform name but ${errorMessage(error)}`)
         }
@@ -994,8 +994,7 @@ export class BridgeService {
     // HAP must be enabled to publish externals, unless the bridge is in
     // externalsOnly mode (where the bridge itself is suppressed but its
     // externals continue to advertise as standalone HAP accessories).
-    const hap = this.bridgeConfig.hap
-    if (!isHapConfigEnabled(hap) && !isHapExternalsOnly(hap)) {
+    if (!isHapActive(this.bridgeConfig.hap)) {
       log.debug('Skipping external accessory HAP publish: HAP is disabled for this bridge (hap.enabled=false).')
       return
     }
@@ -1055,10 +1054,10 @@ export class BridgeService {
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
       if (plugin) {
-        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory, { ignoreSlow: true }))
+        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(BridgeService, plugin, hapAccessory, { ignoreSlow: true }))
       } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) {
         // we did already complain in api.ts if it wasn't a qualified name
-        log.warn('A platform configured a external accessory under the plugin name \'%s\'. However no loaded plugin could be found for the name!', accessory._associatedPlugin)
+        log.warn('A platform configured an external accessory under the plugin name \'%s\'. However no loaded plugin could be found for the name!', accessory._associatedPlugin)
       }
 
       hapAccessory.on(AccessoryEventTypes.LISTENING, (port: number) => {
@@ -1125,7 +1124,7 @@ export class BridgeService {
       }
     })
 
-    accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory, {}))
+    accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(BridgeService, plugin, accessory, {}))
 
     controllers.forEach((controller) => {
       accessory.configureController(controller)
@@ -1137,9 +1136,9 @@ export class BridgeService {
   public async loadPlatformAccessories(plugin: Plugin, platformInstance: StaticPlatformPlugin, platformType: PlatformName | PlatformIdentifier, logger: Logging): Promise<void> {
     // Plugin 1.0, load accessories
     return new Promise((resolve) => {
-      // warn the user if the static platform is blocking the startup of Homebridge for to long
+      // warn the user if the static platform is blocking the startup of Homebridge for too long
       const loadDelayWarningInterval = setInterval(() => {
-        log.warn(getLogPrefix(plugin.getPluginIdentifier()), 'This plugin is taking long time to load and preventing Homebridge from starting. See https://homebridge.io/w/JtMGR for more info.')
+        log.warn(getLogPrefix(plugin.getPluginIdentifier()), 'This plugin is taking a long time to load and preventing Homebridge from starting. See https://homebridge.io/w/JtMGR for more info.')
       }, 20000)
 
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
