@@ -1,5 +1,7 @@
 import type { MockInstance } from 'vitest'
 
+import type { LogLevel } from './logger.js'
+
 import chalk from 'chalk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -96,6 +98,37 @@ describe('logger', () => {
   it('should set chalk level to 1 when forceColor is enabled (via method)', () => {
     Logger.forceColor()
     expect(chalk.level).toBe(1)
+  })
+
+  it('should let every method be passed around on its own', async () => {
+    Logger.setDebugEnabled(true)
+    const logger = Logger.withPrefix('detached')
+    const { info, success, warn, error, debug, log } = logger
+
+    info('info message')
+    success('success message')
+    debug('debug message')
+    log('info' as LogLevel, 'log message')
+    warn('warn message')
+    await Promise.reject(new Error('lost device')).catch(error)
+    Logger.setDebugEnabled(false) // reset debug setting
+
+    for (const message of [
+      'info message',
+      'success message',
+      'debug message',
+      'log message',
+    ]) {
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`\\[detached\\].*${message}`)))
+    }
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringMatching(/\[detached\].*warn message/))
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringMatching(/\[detached\].*lost device/))
+  })
+
+  it('should not throw from a detached debug method when debug logging is off', () => {
+    const { debug } = Logger.withPrefix('detached')
+    expect(() => debug('debug message')).not.toThrow()
+    expect(consoleLogSpy).not.toHaveBeenCalled()
   })
 
   it('should return the same logger when called with the same prefix', () => {
