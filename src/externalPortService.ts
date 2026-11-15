@@ -56,10 +56,11 @@ export class ExternalPortService {
    * If the port range has been exhausted it will return undefined.
    */
   public async requestPort(username: MacAddress): Promise<number | undefined> {
-    // check to see if this device has already requested an external port
-    const existingPortAllocation = this.allocatedPorts.get(username)
-    if (existingPortAllocation) {
-      return existingPortAllocation
+    // check to see if this device has already requested an external port.
+    // An answer of "no port" (the pool was used up) is kept too: asking again
+    // must not run through the pool, and warn, once more.
+    if (this.allocatedPorts.has(username)) {
+      return this.allocatedPorts.get(username)
     }
 
     // get the next unused port
@@ -97,6 +98,12 @@ export class ExternalPortService {
 
   private getNextFreePort(): number | undefined {
     if (!this.externalPorts) {
+      return undefined
+    }
+
+    // Nothing is left once the pool has been walked to its end
+    if (this.nextExternalPort !== undefined && this.nextExternalPort > this.externalPorts.end) {
+      Logger.internal.warn('External HAP port pool ran out of ports. Falling back to random port assignment.')
       return undefined
     }
 
