@@ -106,14 +106,12 @@ export class DefaultDeviceEnergyManagementServer extends FeatureRichDeviceEnergy
   // eslint-disable-next-line unused-imports/no-unused-vars
   override async requestConstraintBasedForecast(request: DeviceEnergyManagement.RequestConstraintBasedForecastRequest): Promise<void> {}
 
-  override async cancelRequest(): Promise<void> {
-    // Undoes whichever adjustment is running
-    if (this.state.esaState === DeviceEnergyManagement.EsaState.PowerAdjustActive) {
-      await this.cancelPowerAdjustRequest()
-    } else if (this.state.esaState === DeviceEnergyManagement.EsaState.Paused) {
-      await this.resumeRequest()
-    }
-  }
+  // CancelRequest withdraws an earlier change to the forecast (StartTimeAdjust,
+  // ModifyForecast, RequestConstraintBasedForecast). It does not end a power
+  // adjustment or a pause: those have CancelPowerAdjustRequest and
+  // ResumeRequest. Like the forecast commands it is accepted, and the plugin's
+  // next forecast stands.
+  override async cancelRequest(): Promise<void> {}
 }
 
 /**
@@ -163,11 +161,7 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
   }
 
   override async cancelRequest(): Promise<void> {
-    // Not routed through run(): super.cancelRequest() calls the overridden
-    // cancel/resume methods, which ask the plugin themselves
-    const endpointId = this.endpoint.id
-    await runOptionalHandler(this, this.getRegistry(), endpointId, 'deviceEnergyManagement', 'cancelRequest')
-    await super.cancelRequest()
+    await this.run('cancelRequest', 'cancel the forecast change', () => super.cancelRequest())
   }
 }
 
