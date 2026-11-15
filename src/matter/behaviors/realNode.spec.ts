@@ -302,3 +302,115 @@ describe('levelControl on a real node', () => {
     await expect(invoke(endpoint, 'levelControl', 'stop', options)).resolves.toBeUndefined()
   })
 })
+
+describe('serviceArea on a real node', () => {
+  /** A robot vacuum that is cleaning area 1 of the selected areas 1 and 2. */
+  function vacuum(serviceAreaHandlers: Record<string, (request: unknown) => Promise<void>>) {
+    return register({
+      deviceType: deviceTypes.RoboticVacuumCleaner,
+      clusters: {
+        rvcRunMode: {
+          supportedModes: [
+            {
+              label: 'Idle',
+              mode: 0,
+              modeTags: [
+                { value: 16384 },
+              ],
+            },
+            {
+              label: 'Clean',
+              mode: 1,
+              modeTags: [
+                { value: 16385 },
+              ],
+            },
+          ],
+          currentMode: 1,
+        },
+        rvcOperationalState: {
+          operationalStateList: [
+            { operationalStateId: 0 },
+            { operationalStateId: 1 },
+            { operationalStateId: 2 },
+            { operationalStateId: 3 },
+            { operationalStateId: 64 },
+            { operationalStateId: 65 },
+            { operationalStateId: 66 },
+          ],
+          operationalState: 1,
+        },
+        serviceArea: {
+          supportedAreas: [
+            {
+              areaId: 1,
+              mapId: null,
+              areaInfo: {
+                locationInfo: { locationName: 'Kitchen', floorNumber: 0, areaType: null },
+                landmarkInfo: null,
+              },
+            },
+            {
+              areaId: 2,
+              mapId: null,
+              areaInfo: {
+                locationInfo: { locationName: 'Hall', floorNumber: 0, areaType: null },
+                landmarkInfo: null,
+              },
+            },
+          ],
+          selectedAreas: [1, 2],
+          currentArea: 1,
+          progress: [
+            { areaId: 1, status: 1 },
+            { areaId: 2, status: 0 },
+          ],
+        },
+      },
+      handlers: {
+        rvcRunMode: {
+          changeToMode: async () => {},
+        },
+        rvcOperationalState: {
+          pause: async () => {},
+          resume: async () => {},
+          goHome: async () => {},
+        },
+        serviceArea: serviceAreaHandlers,
+      },
+    })
+  }
+
+  it('answers SkipArea with success after the plugin handler ran', async () => {
+    const requests: unknown[] = []
+    const endpoint = await vacuum({
+      selectAreas: async () => {},
+      skipArea: async (request) => {
+        requests.push(request)
+      },
+    })
+
+    const response = await invoke(endpoint, 'serviceArea', 'skipArea', { skippedArea: 1 })
+
+    expect(requests).toEqual([
+      { skippedArea: 1 },
+    ])
+    expect(response).toMatchObject({ status: 0 })
+  })
+
+  it('refuses SkipArea for an area that is not selected, without calling the plugin', async () => {
+    const requests: unknown[] = []
+    const endpoint = await vacuum({
+      selectAreas: async () => {},
+      skipArea: async (request) => {
+        requests.push(request)
+      },
+    })
+
+    const response = await invoke(endpoint, 'serviceArea', 'skipArea', { skippedArea: 99 })
+
+    // 3 = InvalidSkippedArea
+    expect(response).toMatchObject({ status: 3 })
+    expect(requests).toEqual([])
+  })
+})
