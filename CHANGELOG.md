@@ -88,6 +88,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): report a bridge whose matter server failed to start as failed, not as still starting
 - fix(matter): resolve updateAccessoryState and updatePlatformAccessories when the update is done
 - fix(matter): shorten a name or label by bytes, as matter allows, and never inside a character
+- docs(matter): mark MatterAccessory.getState as deprecated, as it has never been called
 
 ### Homebridge Dependencies
 
