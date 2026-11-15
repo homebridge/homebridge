@@ -161,6 +161,33 @@ describe('pluginManager', () => {
     })
   })
 
+  describe('addNpmPrefixToSearchPaths when npm can not be run', () => {
+    // A service that runs node by its full path may have no npm on its PATH.
+    // Until v2.5.0 this lookup could not fail; since then it stopped start-up.
+    it('carries on with the other search paths', async () => {
+      vi.resetModules()
+      vi.doMock('node:child_process', () => ({
+        execFileSync: vi.fn(() => {
+          throw Object.assign(new Error('spawnSync npm ENOENT'), { code: 'ENOENT' })
+        }),
+      }))
+
+      try {
+        const { PluginManager: FreshPM } = await import('./pluginManager.js')
+        const { HomebridgeAPI: FreshAPI } = await import('./api.js')
+        const manager = new FreshPM(new FreshAPI())
+        const before = [...(manager as any).searchPaths]
+
+        expect(() => (manager as any).addNpmPrefixToSearchPaths()).not.toThrow()
+
+        expect([...(manager as any).searchPaths]).toEqual(before)
+      } finally {
+        vi.doUnmock('node:child_process')
+        vi.resetModules()
+      }
+    })
+  })
+
   describe('plugin discovery', () => {
     it('discovers direct, scoped, and linked plugin directories using directory entries', () => {
       const searchPath = mkdtempSync(join(tmpdir(), 'homebridge-plugin-discovery-'))

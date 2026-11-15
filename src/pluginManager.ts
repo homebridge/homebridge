@@ -535,9 +535,20 @@ export class PluginManager {
   }
 
   private addNpmPrefixToSearchPaths(): void {
-    if (process.platform === 'win32') {
-      this.searchPaths.add(join(process.env.APPDATA!, 'npm/node_modules'))
-    } else {
+    // Best effort: this adds one more folder to search, on top of NODE_PATH
+    // and node's own module paths. When it can not be worked out (npm is not
+    // on the PATH of a service, npm exits with an error, APPDATA is not set)
+    // Homebridge carries on with the folders it has, and must not fail to start.
+    try {
+      if (process.platform === 'win32') {
+        if (process.env.APPDATA) {
+          this.searchPaths.add(join(process.env.APPDATA, 'npm/node_modules'))
+        } else {
+          log.debug('APPDATA is not set, so the global npm folder is not searched for plugins.')
+        }
+        return
+      }
+
       // Spread process.env first so our explicit silencing keys actually
       // override anything the user has exported (e.g. npm_config_loglevel=info)
       // — otherwise startup gets noisy npm output we tried to suppress.
@@ -550,6 +561,10 @@ export class PluginManager {
         },
       }).trim()
       this.searchPaths.add(join(npmPrefix, 'lib', 'node_modules'))
+    } catch (error: unknown) {
+      log.debug('Could not find the global npm folder, so it is not searched for plugins:', error instanceof Error
+        ? error.message
+        : error)
     }
   }
 }
