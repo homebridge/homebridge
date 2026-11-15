@@ -15,9 +15,6 @@ export const DEFAULT_MATTER_PORT = 5540
 export const DEFAULT_VENDOR_ID = 0xFFF1 // test vendor ID from Matter spec
 export const DEFAULT_PRODUCT_ID = 0x8001 // test product ID
 export const MAX_DEVICES_PER_BRIDGE = 1000 // matter spec maximum devices per aggregator
-export const SERVER_READY_TIMEOUT_MS = 5000
-export const SERVER_READY_POLL_INTERVAL_MS = 100
-export const SERVER_INIT_DELAY_MS = 200
 export const MAX_PASSCODE_ATTEMPTS = 100
 
 // A quick restart can race the previous process's release of the Matter

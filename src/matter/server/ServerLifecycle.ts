@@ -1,7 +1,7 @@
 /**
  * Server Lifecycle Manager
  *
- * Handles start(), stop(), cleanup(), waitForServerReady(),
+ * Handles start(), stop(), cleanup(),
  * runServer(), createServerNodeWithRecovery(), and storage setup.
  */
 
@@ -37,9 +37,6 @@ import { errorHandler } from '../errorHandler.js'
 import { MatterDeviceError } from '../types.js'
 import { stripVendorFromLabel } from '../utils.js'
 import {
-  SERVER_INIT_DELAY_MS,
-  SERVER_READY_POLL_INTERVAL_MS,
-  SERVER_READY_TIMEOUT_MS,
   STORAGE_LOCK_RETRY_ATTEMPTS,
   STORAGE_LOCK_RETRY_DELAY_MS,
 } from './ServerConfig.js'
@@ -581,17 +578,24 @@ export class ServerLifecycle {
    * Shared by both start() (non-external mode) and runServer() (deferred external mode).
    */
   private async startServerNode(serverNode: ServerNode, deps: ServerLifecycleDeps): Promise<void> {
-    serverNode.run().then(
+    // start() resolves once the node is online and rejects when it cannot get
+    // there (the port is taken, say), so a failed start reaches the caller.
+    // The older run() call was not awaited: its failure was only logged, and
+    // the server was still reported as started and running.
+    await serverNode.start()
+
+    // Log the end of the node, whenever that comes.
+    Promise.resolve(serverNode.construction.closed).then(
       () => {
         log.info('Matter server stopped normally')
       },
-      (error) => {
+      (error: unknown) => {
         log.error('Matter server stopped with error:', error)
-        errorHandler.handleError(error, 'server-runtime')
+        errorHandler.handleError(error instanceof Error
+          ? error
+          : new Error(String(error)), 'server-runtime')
       },
     )
-
-    await this.waitForServerReady(deps)
 
     const cache = deps.getAccessoryCache()
     if (cache) {
@@ -606,22 +610,6 @@ export class ServerLifecycle {
     })
 
     deps.setIsRunning(true)
-  }
-
-  /**
-   * Wait for the server to be ready
-   */
-  async waitForServerReady(deps: ServerLifecycleDeps, maxWaitTime = SERVER_READY_TIMEOUT_MS): Promise<void> {
-    const startTime = Date.now()
-
-    while (!deps.getServerNode() || (!deps.config.externalAccessory && !deps.getAggregator())) {
-      if (Date.now() - startTime > maxWaitTime) {
-        throw new Error('Server failed to become ready within timeout')
-      }
-      await new Promise(resolve => setTimeout(resolve, SERVER_READY_POLL_INTERVAL_MS))
-    }
-
-    await new Promise(resolve => setTimeout(resolve, SERVER_INIT_DELAY_MS))
   }
 
   /**
