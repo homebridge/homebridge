@@ -292,7 +292,7 @@ export class MatterAPIImpl implements MatterAPI {
     }
     if (!matterManager.hasActiveMatter()) {
       throw new Error(
-        `${cannotAction}: Matter is not enabled for this bridge. api.matter is available because another bridge uses Matter, but this bridge has no active 'matter' configuration to register against.`,
+        `${cannotAction}: Matter is not enabled for this bridge. It has no active 'matter' configuration to register against (or Homebridge is shutting down).`,
       )
     }
   }

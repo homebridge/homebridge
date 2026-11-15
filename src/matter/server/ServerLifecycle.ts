@@ -522,10 +522,14 @@ export class ServerLifecycle {
           await this.startServerNode(serverNode, deps)
         }
       } else {
-        log.debug('Deferred start mode - server prepared but not running yet (will start after device registration)')
+        log.debug('External accessory mode - server prepared but not running yet (will start after device registration)')
       }
-      log.info(`Matter server started successfully on port ${deps.config.port}`)
-      log.info('Plugins can now register Matter accessories via the API')
+      if (deps.getIsRunning()) {
+        log.info(`Matter server started successfully on port ${deps.config.port}`)
+      } else {
+        // an external accessory, or a bridge that waits for its accessories
+        log.info(`Matter server prepared for port ${deps.config.port} (it goes on the network once its accessories are registered)`)
+      }
     } catch (error) {
       if (error instanceof StartCancelledError) {
         log.info('Matter server start was cancelled, as Homebridge is stopping')

@@ -253,7 +253,7 @@ export class AccessoryManager {
           && behaviorKeys(existing.deviceType) === behaviorKeys(accessory.deviceType)
           && clusterFeatureShape(existing.deviceType) === clusterFeatureShape(accessory.deviceType)
         if (sameShape) {
-          log.info(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
+          log.debug(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
           // The endpoint keeps the state it was restored with. Keep the record
           // (what the UI lists and the cache saves) the same: the plugin's
           // registration declares its start-up defaults, and taking those
@@ -625,7 +625,7 @@ export class AccessoryManager {
           accessory.context = cached.context
         }
 
-        log.info(`Restored cached state for Matter accessory: ${accessory.displayName}`)
+        log.debug(`Restored cached state for Matter accessory: ${accessory.displayName}`)
       }
     }
   }
@@ -731,7 +731,7 @@ export class AccessoryManager {
     const customBehaviors = await this.buildCustomBehaviors(accessory, deviceType, features)
     if (customBehaviors.length > 0) {
       deviceType = (deviceType as any).with(...customBehaviors)
-      log.info(`Applied ${customBehaviors.length} custom behavior(s) to device type`)
+      log.debug(`Applied ${customBehaviors.length} custom behavior(s) to the device type of ${accessory.displayName}`)
     }
 
     return { deviceType, hasElectrical }
@@ -781,7 +781,7 @@ export class AccessoryManager {
       }
       if (features.length > 0) {
         serviceAreaFeatures = features
-        log.info(`ServiceArea features will be enabled for ${accessory.displayName}: ${features.join(', ')}`)
+        log.debug(`ServiceArea features will be enabled for ${accessory.displayName}: ${features.join(', ')}`)
       }
     }
 
@@ -949,11 +949,11 @@ export class AccessoryManager {
             )
           }
           behaviorClass = (behaviorClass as any).with('DirectModeChange')
-          log.info('RvcCleanMode DirectModeChange feature enabled')
+          log.debug('RvcCleanMode DirectModeChange feature enabled')
         }
 
         customBehaviors.push(behaviorClass)
-        log.info(`Adding ${accessory.handlers?.rvcCleanMode ? 'custom' : 'base'} RvcCleanMode server`)
+        log.debug(`Adding ${accessory.handlers?.rvcCleanMode ? 'custom' : 'base'} RvcCleanMode server`)
       }
 
       if (accessory.clusters?.serviceArea) {
@@ -961,18 +961,18 @@ export class AccessoryManager {
           let behaviorClass: BehaviorType = HomebridgeServiceAreaServer
           if (features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
             behaviorClass = (behaviorClass as any).with(...features.serviceAreaFeatures)
-            log.info(`ServiceArea custom behavior will have features: ${features.serviceAreaFeatures.join(', ')}`)
+            log.debug(`ServiceArea custom behavior will have features: ${features.serviceAreaFeatures.join(', ')}`)
           }
           customBehaviors.push(behaviorClass)
-          log.info('Adding custom ServiceArea behavior with handlers')
+          log.debug('Adding custom ServiceArea behavior with handlers')
         } else {
           let behaviorClass: BehaviorType = ServiceAreaServer
           if (features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
             behaviorClass = (behaviorClass as any).with(...features.serviceAreaFeatures)
-            log.info(`ServiceArea base server will have features: ${features.serviceAreaFeatures.join(', ')}`)
+            log.debug(`ServiceArea base server will have features: ${features.serviceAreaFeatures.join(', ')}`)
           }
           customBehaviors.push(behaviorClass)
-          log.info('Adding base ServiceArea server')
+          log.debug('Adding base ServiceArea server')
         }
       }
     }
@@ -995,22 +995,22 @@ export class AccessoryManager {
 
       if (clusterName === 'colorControl' && behaviorClass && features.colorControlFeatures && features.colorControlFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.colorControlFeatures)
-        log.info(`ColorControl custom behavior will preserve features: ${features.colorControlFeatures.join(', ')}`)
+        log.debug(`ColorControl custom behavior will preserve features: ${features.colorControlFeatures.join(', ')}`)
       }
 
       if (clusterName === 'thermostat' && behaviorClass && features.thermostatFeatures && features.thermostatFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.thermostatFeatures)
-        log.info(`Thermostat custom behavior will preserve features: ${features.thermostatFeatures.join(', ')}`)
+        log.debug(`Thermostat custom behavior will preserve features: ${features.thermostatFeatures.join(', ')}`)
       }
 
       if (clusterName === 'closureControl' && behaviorClass && features.closureControlFeatures && features.closureControlFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.closureControlFeatures)
-        log.info(`ClosureControl custom behavior will preserve features: ${features.closureControlFeatures.join(', ')}`)
+        log.debug(`ClosureControl custom behavior will preserve features: ${features.closureControlFeatures.join(', ')}`)
       }
 
       if (clusterName === 'mediaPlayback' && behaviorClass && features.mediaPlaybackFeatures && features.mediaPlaybackFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.mediaPlaybackFeatures)
-        log.info(`MediaPlayback custom behavior will preserve features: ${features.mediaPlaybackFeatures.join(', ')}`)
+        log.debug(`MediaPlayback custom behavior will preserve features: ${features.mediaPlaybackFeatures.join(', ')}`)
       }
 
       if (clusterName === 'windowCovering') {
@@ -1034,7 +1034,7 @@ export class AccessoryManager {
         const declared = detectBehaviorFeatures(deviceType, clusterName, extractDeclaredFeatures)
         if (declared && declared.length > 0) {
           behaviorClass = (behaviorClass as any).with(...declared)
-          log.info(`${clusterName} custom behavior will preserve features: ${declared.join(', ')}`)
+          log.debug(`${clusterName} custom behavior will preserve features: ${declared.join(', ')}`)
         } else if (FEATURE_RICH_BEHAVIOR_CLUSTERS.has(clusterName)) {
           // These handler-calling behaviors carry every feature so their
           // commands exist to override; one the device did not choose must not
@@ -1045,7 +1045,7 @@ export class AccessoryManager {
 
       if (behaviorClass) {
         customBehaviors.push(behaviorClass)
-        log.info(`Will use ${behaviorClass.name} for ${accessory.displayName}`)
+        log.debug(`Will use ${behaviorClass.name} for ${accessory.displayName}`)
       } else if (Object.keys(accessory.handlers?.[clusterName] ?? {}).length === 0) {
         // No handlers, so there is nothing for a custom behavior to route and nothing
         // to warn about. This is the normal shape for a read-only cluster the plugin
@@ -1161,10 +1161,10 @@ export class AccessoryManager {
       return
     }
 
-    log.info(`Setting up handlers for accessory ${accessory.UUID}`)
+    log.debug(`Setting up handlers for accessory ${accessory.UUID}`)
 
     for (const [clusterName, handlers] of Object.entries(accessory.handlers)) {
-      log.info(`  Processing cluster: ${clusterName}`)
+      log.debug(`  Processing cluster: ${clusterName}`)
 
       for (const [commandName, handler] of Object.entries(handlers)) {
         deps.behaviorRegistry.registerHandler(accessory.UUID, clusterName, commandName, handler)
@@ -1192,7 +1192,7 @@ export class AccessoryManager {
       return builtParts
     }
 
-    log.info(`Creating ${accessory.parts.length} child endpoint(s) for ${accessory.displayName}`)
+    log.debug(`Creating ${accessory.parts.length} child endpoint(s) for ${accessory.displayName}`)
 
     for (const [partIndex, part] of accessory.parts.entries()) {
       const partEndpointId = `${accessory.UUID}-part-${part.id}`
@@ -1262,7 +1262,7 @@ export class AccessoryManager {
         await this.advertiseUtilityDeviceType(partEndpoint, 'PowerSource', part.displayName || part.id)
       }
 
-      log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
+      log.debug(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
 
       deps.registryManager.registerEndpoint(partEndpointId, deps.behaviorRegistry)
       if (part.handlers) {
@@ -1384,7 +1384,7 @@ export class AccessoryManager {
         log.debug('Increased bridge configuration version')
       }
 
-      log.info(`Notified controllers of parts list change (${deps.accessories.size} devices)`)
+      log.debug(`Notified controllers of parts list change (${deps.accessories.size} devices)`)
     } catch (error: unknown) {
       log.warn(`Failed to notify controllers of parts list change: ${error instanceof Error
         ? error.message
