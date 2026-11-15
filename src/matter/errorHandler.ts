@@ -10,6 +10,8 @@
  * Advanced features can be added later based on production error patterns.
  */
 
+import { AddressInUseError } from '@matter/main'
+
 import { Logger } from '../logger.js'
 import {
   MatterCommissioningError,
@@ -21,6 +23,29 @@ import {
 } from './types.js'
 
 const log = Logger.withPrefix('Matter/Errors')
+
+/**
+ * Whether an error, or anything in its chain of causes, says the port is
+ * taken by another program.
+ *
+ * matter.js replaces the system error (code EADDRINUSE) with its own
+ * AddressInUseError, which has no code and a text of its own ("Cannot bind
+ * ... because port is already in use"). Matching the code or the system's
+ * text alone never fired, so go by the class, and keep the system forms for
+ * an error that comes straight from Node.
+ */
+export function isPortInUseError(error: unknown): boolean {
+  let current: unknown = error
+  for (let depth = 0; current instanceof Error && depth < 10; depth++) {
+    if (current instanceof AddressInUseError
+      || (current as NodeJS.ErrnoException).code === 'EADDRINUSE'
+      || /eaddrinuse|address already in use/i.test(current.message)) {
+      return true
+    }
+    current = current.cause
+  }
+  return false
+}
 
 /**
  * Simplified Matter Error Handler
@@ -61,7 +86,7 @@ export class MatterErrorHandler {
       : undefined
 
     // Network errors — prefer error.code for Node.js system errors, fallback to string matching
-    if (errorCode === 'EADDRINUSE' || errorMessage.includes('eaddrinuse')) {
+    if (isPortInUseError(error)) {
       return new MatterNetworkError(
         `Port is already in use: ${error.message}`,
         { code: 'PORT_IN_USE', recoverable: false },

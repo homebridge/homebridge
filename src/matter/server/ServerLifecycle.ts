@@ -42,8 +42,16 @@ import { reclaimStaleStorageLock } from './storageLock.js'
 
 const log = Logger.withPrefix('Matter/Server')
 
-/** Messages of matter.js for stored data it can not read back. */
-const CORRUPT_STORAGE_MESSAGES = ['Invalid public key encoding', 'FabricManager unavailable', 'key-input']
+/**
+ * Messages of matter.js for stored data it can not read back.
+ *
+ * 'key-input' was in this list and could never match: it is the `id` of
+ * matter.js's KeyInputError, not part of any message. It is not replaced by a
+ * test for that class on purpose: matter.js throws KeyInputError for many key
+ * problems that have nothing to do with stored data, and a match here sets
+ * the bridge's pairings aside.
+ */
+const CORRUPT_STORAGE_MESSAGES = ['Invalid public key encoding', 'FabricManager unavailable']
 
 /** The `code` of a system error, such as EACCES, ENOSPC or EMFILE. */
 const SYSTEM_ERROR_CODE_RE = /^E[A-Z0-9]+$/

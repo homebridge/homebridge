@@ -26,10 +26,11 @@ import { PluginManager } from '../pluginManager.js'
 import { User } from '../user.js'
 import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
+import { isPortInUseError } from './errorHandler.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 import { MatterServer } from './server.js'
-import { getErrorCode, getMatterJsVersion, normalizeBindConfig } from './utils.js'
+import { getMatterJsVersion, normalizeBindConfig } from './utils.js'
 
 const log = Logger.withPrefix('Matter/MainManager')
 const COLON_RE = /:/g
@@ -304,8 +305,6 @@ export class MatterBridgeManager extends BaseMatterManager {
       const errorMessage = error instanceof Error
         ? error.message
         : String(error)
-      const errorCode = getErrorCode(error)
-
       // The server object was kept before, never running. The bridge then
       // reported Matter as enabled with no pairing codes, and told every
       // plugin "still starting" for the rest of the run. Its port stays
@@ -319,7 +318,7 @@ export class MatterBridgeManager extends BaseMatterManager {
 
       // Unreadable stored data is reported, and set aside, by the server
       // itself: its error says where the data went and what to do next.
-      if (errorCode === 'EADDRINUSE' || errorMessage.includes('address already in use')) {
+      if (isPortInUseError(error)) {
         log.error('')
         log.error('╔════════════════════════════════════════════════════════════════════════════╗')
         log.error('║  MATTER PORT ALREADY IN USE                                                ║')

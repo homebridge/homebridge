@@ -1,8 +1,9 @@
 import type { MockInstance } from 'vitest'
 
+import { AddressInUseError } from '@matter/main'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { errorHandler, MatterErrorHandler } from './errorHandler.js'
+import { errorHandler, isPortInUseError, MatterErrorHandler } from './errorHandler.js'
 import {
   MatterCommissioningError,
   MatterDeviceError,
@@ -199,6 +200,34 @@ describe('matterErrorHandler', () => {
       error.stack = 'Error: Recoverable error\n  at test.ts:1:1'
       await errorHandler.handleError(error)
       expect(consoleDebugSpy).not.toHaveBeenCalledWith(expect.stringContaining('Stack trace'))
+    })
+  })
+
+  describe('a port that another program holds', () => {
+    // what matter.js 0.18 throws: no `code`, and its own text
+    const fromMatterJs = (): Error => new AddressInUseError('Cannot bind UDP socket to port 5540 because port is already in use')
+
+    it('is recognised from the matter.js error, also as the cause of another error', () => {
+      expect(isPortInUseError(fromMatterJs())).toBe(true)
+      expect(isPortInUseError(new Error('Could not start the node', {
+        cause: fromMatterJs(),
+      }))).toBe(true)
+      expect(isPortInUseError(Object.assign(new Error('listen failed'), { code: 'EADDRINUSE' }))).toBe(true)
+      expect(isPortInUseError(new Error('listen EADDRINUSE: address already in use :::5540'))).toBe(true)
+    })
+
+    it('is not seen in other errors', () => {
+      expect(isPortInUseError(new Error('Cannot bind: permission denied'))).toBe(false)
+      expect(isPortInUseError('address already in use')).toBe(false)
+      expect(isPortInUseError(undefined)).toBe(false)
+    })
+
+    it('is reported with the advice to choose another port', async () => {
+      await errorHandler.handleError(new Error('Could not start the node', {
+        cause: fromMatterJs(),
+      }), 'server-runtime')
+
+      expect(consoleErrorSpy.mock.calls.flat().join(' ')).toContain('Matter port is already in use. Please configure a different port')
     })
   })
 })
