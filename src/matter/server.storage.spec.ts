@@ -430,6 +430,27 @@ describe('matterServer storage on real matter.js nodes', () => {
     expect(server.getAccessories().map(accessory => accessory.UUID).sort()).toEqual(['batch-1', 'batch-3'])
   })
 
+  it('applies an update that comes straight after the registration of a new accessory', async () => {
+    const server = bridgeServer('update-bridge', 5592)
+    await server.start()
+    await server.registerPlatformAccessories('homebridge-test', 'Test', [
+      light('update-1'),
+    ])
+
+    // the cache file is written two seconds later: the update must not wait for it
+    await server.updatePlatformAccessories([
+      light('update-1', {
+        displayName: 'Renamed',
+        context: { room: 'hall' },
+      }),
+    ])
+
+    expect(server.getAccessory('update-1')).toMatchObject({
+      displayName: 'Renamed',
+      context: { room: 'hall' },
+    })
+  })
+
   it('adds no SIGINT or SIGTERM listener for a server', async () => {
     const before = {
       sigint: process.listenerCount('SIGINT'),

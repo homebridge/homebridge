@@ -215,7 +215,8 @@ describe('matterServer.updatePlatformAccessories', () => {
     expect(accessories.size).toBe(1)
   })
 
-  it('leaves an accessory that is not in the cache alone', async () => {
+  it('updates a registered accessory that the cache file does not hold yet', async () => {
+    // a new accessory is written to the cache two seconds after it is registered
     ;(server as any).accessoryCache.hasCached = () => false
     const before = accessories.get(uuid)!
 
@@ -223,6 +224,7 @@ describe('matterServer.updatePlatformAccessories', () => {
       pluginCopy(uuid),
     ])
 
-    expect(accessories.get(uuid)).toBe(before)
+    expect(accessories.get(uuid)).not.toBe(before)
+    expect(accessories.get(uuid)!.endpoint).toBe(before.endpoint)
   })
 })

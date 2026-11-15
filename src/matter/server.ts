@@ -244,11 +244,6 @@ export class MatterServer extends EventEmitter {
         continue
       }
 
-      if (!this.accessoryCache.hasCached(accessory.UUID)) {
-        log.warn(`Cannot update Matter accessory ${accessory.UUID} - not found in cache`)
-        continue
-      }
-
       const existing = this.accessories.get(accessory.UUID)!
       this.accessories.set(accessory.UUID, {
         ...existing,
