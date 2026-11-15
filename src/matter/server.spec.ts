@@ -100,6 +100,39 @@ describe('matterServer restore-from-cache attribution', () => {
     expect(registered[0]._associatedPlugin).toBe('@homebridge-plugins/homebridge-updater')
     expect(registered[0]._associatedPlatform).toBe('Updater')
   })
+
+  // Homebridge up to v2.5.0 wrote a flag of its own into the plugin's context,
+  // and the cache saved it. It is not the plugin's, so it is not handed back.
+  it('drops the old internal flag from a cached plugin context', async () => {
+    const server = new MatterServer({ uniqueId: 'AA:BB:CC:DD:EE:FF' })
+    const registered: any[] = []
+    ;(server as any).accessoryManager = {
+      registerAccessory: vi.fn(async (_p: string, _n: string, accessory: any) => {
+        registered.push(accessory)
+      }),
+    }
+    ;(server as any).accessoryCache = {
+      load: async () => new Map([
+        [
+          'blind-uuid',
+          {
+            uuid: 'blind-uuid',
+            displayName: 'Blind',
+            plugin: 'homebridge-test',
+            platform: 'Test',
+            deviceType: { name: 'WindowCovering' },
+            serialNumber: 'ABC123',
+            context: { mine: 1, _skipWindowCoveringBehavior: true },
+            clusters: {},
+          },
+        ],
+      ]),
+    }
+
+    await (server as any).getLifecycleDeps().restoreAccessoriesFromCache()
+
+    expect(registered[0].context).toEqual({ mine: 1 })
+  })
 })
 
 describe('matterServer.updatePlatformAccessories', () => {

@@ -57,6 +57,8 @@ import {
   extractDeclaredFeatures,
   extractLevelControlFeatures,
   extractThermostatFeatures,
+  isWindowCoveringComposed,
+  markWindowCoveringComposed,
   validateAccessoryRequiredFields,
 } from '../serverHelpers.js'
 import {
@@ -654,10 +656,7 @@ export class AccessoryManager {
       if (windowCoveringFeatures.length > 0) {
         log.debug(`${accessory.displayName} composed its own WindowCovering cluster - keeping its features`)
       }
-      if (!accessory.context) {
-        accessory.context = {}
-      }
-      (accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior = true
+      markWindowCoveringComposed(accessory)
     } else if (windowCoveringFeatures.length > 0) {
       deviceType = applyWindowCoveringFeatures(deviceType, accessory, windowCoveringFeatures)
     }
@@ -997,8 +996,7 @@ export class AccessoryManager {
     }
 
     for (const clusterName of Object.keys(accessory.handlers || {})) {
-      const skipWindowCoveringBehavior = accessory.context?._skipWindowCoveringBehavior as boolean | undefined
-      if (clusterName === 'windowCovering' && skipWindowCoveringBehavior) {
+      if (clusterName === 'windowCovering' && isWindowCoveringComposed(accessory)) {
         log.debug('Skipping custom WindowCovering behavior (using base server with features instead)')
         continue
       }

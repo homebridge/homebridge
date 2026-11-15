@@ -46,6 +46,16 @@ const HEX_PAIR_RE = /.{1,2}/g
  * Matter Server for Homebridge Plugin API
  * Allows plugins to register Matter accessories explicitly
  */
+/**
+ * A plugin's cached context, without the flag older versions of Homebridge
+ * wrote into it for their own use.
+ */
+function withoutInternalFlags(context: Record<string, unknown> | undefined): Record<string, unknown> {
+  const pluginContext = { ...context }
+  delete pluginContext._skipWindowCoveringBehavior
+  return pluginContext
+}
+
 export class MatterServer extends EventEmitter {
   // Typed event emitter methods
   public declare on: <K extends keyof MatterServerEvents>(event: K, listener: MatterServerEvents[K]) => this
@@ -504,7 +514,7 @@ export class MatterServer extends EventEmitter {
               hardwareRevision: serialized.hardwareRevision,
               softwareVersion: serialized.softwareVersion,
               features: serialized.features,
-              context: serialized.context ?? {},
+              context: withoutInternalFlags(serialized.context),
               clusters: serialized.clusters ?? {},
               handlers: stubHandlers(serialized.clusters, serialized.handlerClusters),
               registered: false,

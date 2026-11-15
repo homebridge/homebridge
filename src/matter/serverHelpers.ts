@@ -799,6 +799,25 @@ export function detectServiceAreaFeatures(
 }
 
 /**
+ * Accessories (and parts) whose device type already carries the WindowCovering
+ * cluster with its features, so the plain handler-calling behavior must not be
+ * put on top of it. Only needed between two steps of one registration, and
+ * kept here: it used to be written into the plugin's own `context`, which is
+ * saved to the cache and handed back to the plugin.
+ */
+const windowCoveringComposed = new WeakSet<object>()
+
+/** Note that this accessory's device type carries its own WindowCovering cluster. */
+export function markWindowCoveringComposed(accessory: object): void {
+  windowCoveringComposed.add(accessory)
+}
+
+/** Whether markWindowCoveringComposed() was called for this accessory. */
+export function isWindowCoveringComposed(accessory: object): boolean {
+  return windowCoveringComposed.has(accessory)
+}
+
+/**
  * The covering types and end product types Matter allows for a covering with
  * tilt (window covering cluster, conformance "LF & TL" and "!LF & TL"). The
  * first of each is the one used when a plugin gives none that fits. 0xFF is
@@ -865,10 +884,7 @@ export function applyWindowCoveringFeatures(
     }
   }
 
-  if (!accessory.context) {
-    accessory.context = {}
-  }
-  (accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior = true
+  markWindowCoveringComposed(accessory)
 
   return modifiedDeviceType
 }

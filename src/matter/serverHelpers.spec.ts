@@ -21,6 +21,7 @@ import {
   extractColorControlFeatures,
   extractLevelControlFeatures,
   extractThermostatFeatures,
+  isWindowCoveringComposed,
   validateAccessoryRequiredFields,
 } from './serverHelpers.js'
 import { devices, MatterDeviceError } from './types.js'
@@ -614,7 +615,7 @@ describe('serverHelpers', () => {
       expect(accessory.clusters.windowCovering.type).toBe(8) // TiltBlindLift
     })
 
-    it('should set _skipWindowCoveringBehavior context flag', () => {
+    it('notes the composed cluster without touching the plugin context', () => {
       const deviceType = {
         name: 'WindowCovering',
         with: () => deviceType,
@@ -626,8 +627,8 @@ describe('serverHelpers', () => {
 
       applyWindowCoveringFeatures(deviceType, accessory, ['Lift'])
 
-      expect(accessory.context).toBeDefined()
-      expect((accessory.context as any)._skipWindowCoveringBehavior).toBe(true)
+      expect(isWindowCoveringComposed(accessory)).toBe(true)
+      expect(accessory.context).toBeUndefined()
     })
   })
 

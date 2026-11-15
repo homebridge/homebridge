@@ -19,6 +19,7 @@ import {
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
+  isWindowCoveringComposed,
 } from '../serverHelpers.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
@@ -89,7 +90,11 @@ vi.mock('../behaviors/ServiceAreaBehavior.js', () => ({
     with: vi.fn((...args: any[]) => ({ name: `HomebridgeServiceAreaServer.with(${args.join(',')})` })),
   },
 }))
+// The two window covering notes are kept real: they are plain bookkeeping.
+const windowCoveringComposed = vi.hoisted(() => new WeakSet<object>())
 vi.mock('../serverHelpers.js', () => ({
+  markWindowCoveringComposed: (accessory: object) => windowCoveringComposed.add(accessory),
+  isWindowCoveringComposed: (accessory: object) => windowCoveringComposed.has(accessory),
   validateAccessoryRequiredFields: vi.fn(),
   detectWindowCoveringFeatures: vi.fn(() => []),
   applyWindowCoveringFeatures: vi.fn((dt: any) => dt),
@@ -1210,7 +1215,8 @@ describe('accessoryManager', () => {
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
-      expect((accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior).toBe(true)
+      expect(isWindowCoveringComposed(accessory)).toBe(true)
+      expect(accessory.context).not.toHaveProperty('_skipWindowCoveringBehavior')
     })
   })
 
