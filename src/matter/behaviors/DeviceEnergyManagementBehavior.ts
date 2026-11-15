@@ -7,16 +7,16 @@
  */
 
 import type { Behavior } from '@matter/main'
+import type { ModeBase } from '@matter/main/clusters'
 
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { DeviceEnergyManagementServer } from '@matter/main/behaviors/device-energy-management'
 import { DeviceEnergyManagementModeServer } from '@matter/main/behaviors/device-energy-management-mode'
-import { ModeUtils } from '@matter/main/behaviors/mode-base'
-import { ModeBase } from '@matter/main/clusters'
 import { DeviceEnergyManagement } from '@matter/main/clusters/device-energy-management'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { changeToModeWithHandler } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -181,30 +181,7 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
  * only hears about a mode the device lists.
  */
 export class HomebridgeDeviceEnergyManagementModeServer extends DeviceEnergyManagementModeServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
-    // matter.js only checks the mode in super.changeToMode, after the handler has run
-    const modeCheck = ModeUtils.assertModeChange(this.state.supportedModes, this.state.currentMode, request.newMode)
-    if (modeCheck.status !== ModeBase.ModeChangeStatus.Success) {
-      return modeCheck
-    }
-
-    await registry.executeHandler(endpointId, 'deviceEnergyManagementMode', 'changeToMode', request)
-    await lockStateForWrite(this)
-
-    // Only reached if the handler succeeded
-    const result = await super.changeToMode(request)
-
-    if (request?.newMode !== undefined) {
-      registry.syncStateToCache(endpointId, 'deviceEnergyManagementMode', { currentMode: request.newMode })
-    }
-
-    return result
+    return changeToModeWithHandler(this, 'deviceEnergyManagementMode', request, () => super.changeToMode(request))
   }
 }

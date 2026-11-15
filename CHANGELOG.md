@@ -151,6 +151,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - feat(matter): tell the plugin when a controller changes the unoccupied setpoint of a thermostat
 - docs(matter): say which commands matter records as finished at once, so the plugin reports the rest
 - fix(matter): match the cluster state types to matter.js 0.18 and add types for four more clusters
+- feat(matter): let a handler answer a mode change, vacuum, media or key command with its own status
 
 ### Homebridge Dependencies
 

@@ -216,7 +216,7 @@ describe('homebridgeDeviceEnergyManagementModeServer', () => {
 
   beforeEach(() => {
     mockRegistry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
     const endpoint = { id: endpointId }
@@ -243,7 +243,7 @@ describe('homebridgeDeviceEnergyManagementModeServer', () => {
   it('asks the plugin first, then records a supported mode', async () => {
     const result = await behavior.changeToMode({ newMode: 1 })
 
-    expect(mockRegistry.executeHandler).toHaveBeenCalledWith(endpointId, 'deviceEnergyManagementMode', 'changeToMode', { newMode: 1 })
+    expect(mockRegistry.runHandler).toHaveBeenCalledWith(endpointId, 'deviceEnergyManagementMode', 'changeToMode', { newMode: 1 })
     expect(result.status).toBe(ModeBase.ModeChangeStatus.Success)
     expect(state.currentMode).toBe(1)
   })
@@ -252,7 +252,7 @@ describe('homebridgeDeviceEnergyManagementModeServer', () => {
     const result = await behavior.changeToMode({ newMode: 7 })
 
     expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
-    expect(mockRegistry.executeHandler).not.toHaveBeenCalled()
+    expect(mockRegistry.runHandler).not.toHaveBeenCalled()
     expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     expect(state.currentMode).toBe(0)
   })

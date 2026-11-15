@@ -37,7 +37,7 @@ describe('homebridgeKeypadInputServer', () => {
 
   beforeEach(() => {
     registry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -54,12 +54,12 @@ describe('homebridgeKeypadInputServer', () => {
 
     const response = await behavior.sendKey(request)
 
-    expect(registry.executeHandler).toHaveBeenCalledWith(endpointId, 'keypadInput', 'sendKey', request)
+    expect(registry.runHandler).toHaveBeenCalledWith(endpointId, 'keypadInput', 'sendKey', request)
     expect(response.status).toBe(KeypadInput.Status.Success)
   })
 
   it('should report a failed handler through the response, not as an exception', async () => {
-    vi.mocked(registry.executeHandler).mockRejectedValueOnce(new Error('remote unreachable'))
+    vi.mocked(registry.runHandler).mockRejectedValueOnce(new Error('remote unreachable'))
 
     const response = await behavior.sendKey({ keyCode: KeypadInput.CecKeyCode.Down })
 

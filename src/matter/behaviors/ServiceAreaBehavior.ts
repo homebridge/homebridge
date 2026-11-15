@@ -10,6 +10,7 @@ import { ServiceAreaServer } from '@matter/main/behaviors/service-area'
 import { ServiceArea } from '@matter/main/clusters/service-area'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { statusResponse } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -69,7 +70,12 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
     }
 
     // Execute user handler
-    await registry.executeHandler(endpointId, 'serviceArea', 'selectAreas', request)
+    // The handler may refuse the selection with an answer of its own
+    const { response } = await registry.runHandler(endpointId, 'serviceArea', 'selectAreas', request)
+    const answer = statusResponse<ServiceArea.SelectAreasResponse>(response)
+    if (answer && answer.status !== ServiceArea.SelectAreasStatus.Success) {
+      return answer
+    }
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - call base implementation
@@ -100,7 +106,12 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
     }
 
     // Execute user handler
-    await registry.executeHandler(endpointId, 'serviceArea', 'skipArea', request)
+    // The handler may refuse to skip with an answer of its own
+    const { response } = await registry.runHandler(endpointId, 'serviceArea', 'skipArea', request)
+    const answer = statusResponse<ServiceArea.SkipAreaResponse>(response)
+    if (answer && answer.status !== ServiceArea.SkipAreaStatus.Success) {
+      return answer
+    }
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded. There is no base implementation to

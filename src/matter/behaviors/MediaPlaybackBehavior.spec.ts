@@ -66,7 +66,7 @@ describe('homebridgeMediaPlaybackServer', () => {
 
   beforeEach(() => {
     registry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -91,7 +91,7 @@ describe('homebridgeMediaPlaybackServer', () => {
     async (command) => {
       await behavior[command]()
 
-      expect(registry.executeHandler).toHaveBeenCalledWith(endpointId, 'mediaPlayback', command, undefined)
+      expect(registry.runHandler).toHaveBeenCalledWith(endpointId, 'mediaPlayback', command, undefined)
     },
   )
 
@@ -100,7 +100,7 @@ describe('homebridgeMediaPlaybackServer', () => {
 
     await behavior.skipForward(request)
 
-    expect(registry.executeHandler).toHaveBeenCalledWith(endpointId, 'mediaPlayback', 'skipForward', request)
+    expect(registry.runHandler).toHaveBeenCalledWith(endpointId, 'mediaPlayback', 'skipForward', request)
   })
 
   it('should pass the request through for skipBackward', async () => {
@@ -108,7 +108,7 @@ describe('homebridgeMediaPlaybackServer', () => {
 
     await behavior.skipBackward(request)
 
-    expect(registry.executeHandler).toHaveBeenCalledWith(endpointId, 'mediaPlayback', 'skipBackward', request)
+    expect(registry.runHandler).toHaveBeenCalledWith(endpointId, 'mediaPlayback', 'skipBackward', request)
   })
 
   it('should record the state and sync it once the handler succeeds', async () => {
@@ -124,7 +124,7 @@ describe('homebridgeMediaPlaybackServer', () => {
   it('should report a failed handler through the response, not as an exception', async () => {
     // MediaPlayback carries its own status, so a failure belongs there - and
     // not throwing keeps the endpoint online.
-    vi.mocked(registry.executeHandler).mockRejectedValueOnce(new Error('receiver is off'))
+    vi.mocked(registry.runHandler).mockRejectedValueOnce(new Error('receiver is off'))
 
     const response = await behavior.play()
 
@@ -133,7 +133,7 @@ describe('homebridgeMediaPlaybackServer', () => {
   })
 
   it('should not touch the state when no handler is registered', async () => {
-    vi.mocked(registry.executeHandler).mockRejectedValueOnce(new Error('No handler registered'))
+    vi.mocked(registry.runHandler).mockRejectedValueOnce(new Error('No handler registered'))
 
     await behavior.pause()
 

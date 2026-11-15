@@ -88,7 +88,7 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
     const registry = this.getRegistry()
 
     // Execute user handler
-    await registry.executeHandler(endpointId, 'rvcOperationalState', command)
+    const { response } = await registry.runHandler(endpointId, 'rvcOperationalState', command)
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - the plugin handler already
@@ -97,6 +97,12 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
     // Sync state to cache (operational state should be updated by plugin via updateAccessoryState)
     this.syncOperationalStateToCache()
 
+    // The handler may say what is stopping the vacuum (stuck, dust bin
+    // missing, ...) by returning the answer itself. With none, all went well.
+    const answer = (response as Partial<RvcOperationalState.OperationalCommandResponse> | undefined)?.commandResponseState
+    if (typeof answer?.errorStateId === 'number') {
+      return { commandResponseState: answer }
+    }
     return {
       commandResponseState: {
         errorStateId: RvcOperationalState.ErrorState.NoError,

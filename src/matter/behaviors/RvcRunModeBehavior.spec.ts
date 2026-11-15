@@ -16,7 +16,7 @@ describe('homebridgeRvcRunModeServer', () => {
   beforeEach(() => {
     // Create mock registry
     mockRegistry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -57,7 +57,7 @@ describe('homebridgeRvcRunModeServer', () => {
 
       await behavior.changeToMode(request)
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'rvcRunMode',
         'changeToMode',
@@ -72,7 +72,7 @@ describe('homebridgeRvcRunModeServer', () => {
         const request = { newMode: mode }
         await behavior.changeToMode(request)
 
-        expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+        expect(mockRegistry.runHandler).toHaveBeenCalledWith(
           testEndpointId,
           'rvcRunMode',
           'changeToMode',
@@ -84,7 +84,7 @@ describe('homebridgeRvcRunModeServer', () => {
     })
 
     it('should pass a handler error on to matter.js', async () => {
-      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+      mockRegistry.runHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = { newMode: 1 }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
@@ -95,7 +95,7 @@ describe('homebridgeRvcRunModeServer', () => {
       const result = await behavior.changeToMode({ newMode: 7 })
 
       expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
-      expect(mockRegistry.executeHandler).not.toHaveBeenCalled()
+      expect(mockRegistry.runHandler).not.toHaveBeenCalled()
       expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
   })
