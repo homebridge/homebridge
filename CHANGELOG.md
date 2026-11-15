@@ -190,6 +190,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: name a scoped plugin in full in its version and dependency warnings
 - refactor: look up the plugin of an accessory and of a platform with one shared method
 - docs: correct comments in the api, the package entry and the logger that said little or were wrong
+- fix(matter): write the removal of the last accessory to the cache when the bridge stops
 
 ### Homebridge Dependencies
 

@@ -220,6 +220,7 @@ function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLif
     getAccessoryCache: vi.fn(() => ({
       load: vi.fn(async () => new Map()),
       cancelPendingSave: vi.fn(),
+      hasPendingSave: vi.fn(() => false),
     }) as unknown as ReturnType<ServerLifecycleDeps['getAccessoryCache']>),
     setAccessoryCache: vi.fn(),
     setServerNode: vi.fn((n) => {
@@ -702,7 +703,10 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     const deps = createMockDeps({
       getServerNode: vi.fn(() => ({ close }) as never),
       getIsRunning: vi.fn(() => false), // init-but-never-ran external server
-      getAccessoryCache: vi.fn(() => ({ cancelPendingSave }) as never),
+      getAccessoryCache: vi.fn(() => ({
+        cancelPendingSave,
+        hasPendingSave: () => false,
+      }) as never),
     })
     const accessories = new Map<string, any>([
       [
@@ -1357,6 +1361,7 @@ describe('serverLifecycle — a node that fails to go online', () => {
       return {
         load: vi.fn(async () => new Map()),
         cancelPendingSave: vi.fn(),
+        hasPendingSave: vi.fn(() => false),
       } as never
     })
   })

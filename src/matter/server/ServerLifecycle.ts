@@ -647,20 +647,22 @@ export class ServerLifecycle {
     let closeError: unknown
 
     try {
-      // Persist the accessory cache only if we actually reached the running
+      // Persist the accessory cache when the server reached the running
       // state — an init-but-never-ran external server has no meaningful
-      // state to save.
-      if (isRunning) {
-        const cache = deps.getAccessoryCache()
-        if (cache && accessories.size > 0) {
-          try {
-            await cache.save(accessories)
-            log.debug('Saved accessory cache before shutdown')
-          } catch (error) {
-            // Persistence is best-effort during teardown. Still close the node
-            // and run cleanup if storage is unavailable.
-            log.error('Failed to save accessory cache before shutdown:', error)
-          }
+      // state to save. A bridge also writes a save that is still waiting,
+      // whether it is online yet or not and also when no accessory is left:
+      // that save is how the removal of the last accessory reaches the file.
+      // Without it the removed accessory came back at the next start.
+      const cache = deps.getAccessoryCache()
+      const savePending = cache?.hasPendingSave() === true && !deps.config.externalAccessory
+      if (cache && ((isRunning && accessories.size > 0) || savePending)) {
+        try {
+          await cache.save(accessories)
+          log.debug('Saved accessory cache before shutdown')
+        } catch (error) {
+          // Persistence is best-effort during teardown. Still close the node
+          // and run cleanup if storage is unavailable.
+          log.error('Failed to save accessory cache before shutdown:', error)
         }
       }
 
