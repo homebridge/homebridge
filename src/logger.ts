@@ -123,7 +123,9 @@ export class Logger {
    * Forces color in logging output, even if it seems like color is unsupported.
    */
   public static forceColor(): void {
-    chalk.level = 1 // `1` - Basic 16 colors support.
+    // `1` is basic 16 colour support, which is all Homebridge uses. Never lower a level that is
+    // already higher: on a terminal with 256 or true colour, a plugin that uses chalk keeps it.
+    chalk.level = Math.max(chalk.level, 1) as typeof chalk.level
   }
 
   public info(message: string, ...parameters: any[]): void {
