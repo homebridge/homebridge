@@ -351,7 +351,9 @@ export class Server {
   }
 
   public async teardown(): Promise<void> {
-    this.bridgeService.teardown()
+    // Saves the cache and signals the plugins now; the promise is for the
+    // goodbye of the HAP accessories, which is awaited below.
+    const hapUnpublished = this.bridgeService.teardown()
 
     // Teardown Matter servers (main bridge and external accessories)
     await this.matterManager?.teardown()
@@ -369,6 +371,9 @@ export class Server {
       clearTimeout(timer)
     }
     this.pendingMatterControlRequests.clear()
+
+    // "down" is only true once the accessories are off the network
+    await hapUnpublished
 
     this.ipcService.stop()
     this.setServerStatus(ServerStatus.DOWN)

@@ -1025,6 +1025,32 @@ describe('server', () => {
 
       expect((server as any).pendingMatterAccessoryInfoLookups.size).toBe(0)
     })
+
+    it('reports the status "down" only once the HAP accessories are off the network', async () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      let finishUnpublish = () => {}
+      ;(server as any).bridgeService = {
+        teardown: () => new Promise<void>((resolve) => {
+          finishUnpublish = resolve
+        }),
+      }
+      const sendMessage = vi.fn()
+      ;(server as any).ipcService = {
+        stop: () => {},
+        sendMessage,
+      }
+
+      const teardown = server.teardown()
+      await new Promise(resolve => setImmediate(resolve))
+      expect(sendMessage).not.toHaveBeenCalled()
+
+      finishUnpublish()
+      await teardown
+      expect(sendMessage.mock.calls[0][1]).toMatchObject({ status: 'down' })
+    })
   })
 
   describe('handleGetMatterAccessories (which child bridges are asked)', () => {
