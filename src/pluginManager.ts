@@ -44,7 +44,7 @@ export interface PackageJSON { // incomplete type for package.json (just stuff w
 
   /**
    * When set as module, it marks .js file to be treated as ESM.
-   * See https://nodejs.org/dist/latest-v14.x/docs/api/esm.html#esm_enabling
+   * See https://nodejs.org/api/packages.html#type
    */
   type?: 'module' | 'commonjs'
 
@@ -364,66 +364,41 @@ export class PluginManager {
   }
 
   public getPluginForAccessory(accessoryIdentifier: AccessoryIdentifier | AccessoryName): Plugin {
-    let plugin: Plugin
-    if (PluginManager.pluginPartEnd(accessoryIdentifier) === -1) { // see if it matches exactly one accessory
-      let found = this.accessoryToPluginMap.get(accessoryIdentifier)
-
-      if (!found) {
-        throw new Error(`No plugin was found for the accessory "${accessoryIdentifier}" in your config.json. Please make sure the corresponding plugin is installed correctly.`)
-      }
-
-      if (found.length > 1) {
-        const options = found.map(plugin => `${plugin.getPluginIdentifier()}.${accessoryIdentifier}`).join(', ')
-        // check if only one of the multiple platforms is not disabled
-        found = found.filter(plugin => !plugin.disabled)
-        if (found.length !== 1) {
-          throw new Error(`The requested accessory '${accessoryIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`)
-        }
-      }
-
-      plugin = found[0]
-      accessoryIdentifier = `${plugin.getPluginIdentifier()}.${accessoryIdentifier}`
-    } else {
-      const pluginIdentifier = PluginManager.getPluginIdentifier(accessoryIdentifier)
-      const registered = this.getPlugin(pluginIdentifier)
-      if (!registered) {
-        throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`)
-      }
-
-      plugin = registered
-    }
-
-    return plugin
+    return this.getPluginFor('accessory', accessoryIdentifier, this.accessoryToPluginMap)
   }
 
   public getPluginForPlatform(platformIdentifier: PlatformIdentifier | PlatformName): Plugin {
-    let plugin: Plugin
-    if (PluginManager.pluginPartEnd(platformIdentifier) === -1) { // see if it matches exactly one platform
-      let found = this.platformToPluginMap.get(platformIdentifier)
+    return this.getPluginFor('platform', platformIdentifier, this.platformToPluginMap)
+  }
+
+  /**
+   * The plugin behind an `accessory` or `platform` value of config.json: a bare name
+   * (`Name`, which must then belong to exactly one enabled plugin) or the long form (`plugin.Name`).
+   */
+  private getPluginFor(kind: 'accessory' | 'platform', identifier: string, registeredNames: Map<string, Plugin[]>): Plugin {
+    if (PluginManager.pluginPartEnd(identifier) === -1) { // see if it matches exactly one accessory or platform
+      let found = registeredNames.get(identifier)
 
       if (!found) {
-        throw new Error(`No plugin was found for the platform "${platformIdentifier}" in your config.json. Please make sure the corresponding plugin is installed correctly.`)
+        throw new Error(`No plugin was found for the ${kind} "${identifier}" in your config.json. Please make sure the corresponding plugin is installed correctly.`)
       }
 
       if (found.length > 1) {
-        const options = found.map(plugin => `${plugin.getPluginIdentifier()}.${platformIdentifier}`).join(', ')
-        // check if only one of the multiple platforms is not disabled
+        const options = found.map(plugin => `${plugin.getPluginIdentifier()}.${identifier}`).join(', ')
+        // check if only one of the multiple plugins is not disabled
         found = found.filter(plugin => !plugin.disabled)
         if (found.length !== 1) {
-          throw new Error(`The requested platform '${platformIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`)
+          throw new Error(`The requested ${kind} '${identifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`)
         }
       }
 
-      plugin = found[0]
-      platformIdentifier = `${plugin.getPluginIdentifier()}.${platformIdentifier}`
-    } else {
-      const pluginIdentifier = PluginManager.getPluginIdentifier(platformIdentifier)
-      const registered = this.getPlugin(pluginIdentifier)
-      if (!registered) {
-        throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`)
-      }
+      return found[0]
+    }
 
-      plugin = registered
+    const pluginIdentifier = PluginManager.getPluginIdentifier(identifier)
+    const plugin = this.getPlugin(pluginIdentifier)
+    if (!plugin) {
+      throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`)
     }
 
     return plugin
@@ -556,7 +531,7 @@ export class PluginManager {
 
     // the file can hold anything: `null`, a list, a name that is a number
     if (typeof packageJson !== 'object' || packageJson === null || typeof packageJson.name !== 'string' || !PluginManager.isQualifiedPluginIdentifier(packageJson.name)) {
-      throw new Error(`Plugin ${pluginPath} does not have a package name that begins with 'homebridge-' or '@scope/homebridge-.`)
+      throw new Error(`Plugin ${pluginPath} does not have a package name that begins with 'homebridge-' or '@scope/homebridge-'.`)
     }
 
     // verify that it's tagged with the correct keyword
@@ -583,12 +558,8 @@ export class PluginManager {
       paths.forEach(path => this.searchPaths.add(path))
     }
 
-    // THIS SECTION FROM: https://github.com/yeoman/environment/blob/master/lib/resolver.js
-
-    // Adding global npm directories
-    // We tried using npm to get the global modules path, but it hasn't work out
-    // because of bugs in the parsable implementation of `ls` command and mostly
-    // performance issues. So, we go with our best bet for now.
+    // Add the global npm folders: the ones named in NODE_PATH, or else the usual places
+    // plus the folder npm itself reports (`npm -g prefix`, see addNpmPrefixToSearchPaths).
     if (process.env.NODE_PATH) {
       process.env
         .NODE_PATH
