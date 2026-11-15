@@ -873,6 +873,31 @@ describe('childBridgeService', () => {
     })
   })
 
+  describe('restartChildBridge — while waiting to restart after a crash', () => {
+    it('starts the child now instead of waiting out the back-off, and only once', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.mocked(fs.readJson).mockResolvedValue({ platforms: [] } as any)
+      service.start()
+
+      // a plugin crash: the next start is 10 seconds away
+      childProcesses.list[0].connected = false
+      childProcesses.list[0].emit('close', 1, null)
+      expect(childProcesses.list).toHaveLength(1)
+
+      service.restartChildBridge()
+      expect(childProcesses.list).toHaveLength(2)
+      expect(service.getMetadata().status).toBe(ChildBridgeStatus.PENDING)
+      // a restart the user asked for does not count as a failed attempt
+      expect((service as any).restartCount).toBe(0)
+
+      // the back-off timer is gone: no second process when it would have fired
+      vi.advanceTimersByTime(60_000)
+      expect(childProcesses.list).toHaveLength(2)
+    })
+  })
+
   describe('teardown — listener cleanup (M3) and SIGKILL fallback (M4)', () => {
     it('removes the shutdown listener on teardown', async () => {
       const { service, api } = buildService()
