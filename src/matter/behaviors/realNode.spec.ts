@@ -1,6 +1,7 @@
 import type { AccessoryManagerDeps } from '../server/AccessoryManager.js'
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 
+import { Buffer } from 'node:buffer'
 import { EventEmitter } from 'node:events'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -1344,5 +1345,32 @@ describe('the context a handler is given, on a real node', () => {
     expect(seen).toEqual([
       { uuid: 'test-uuid', partId: 'right' },
     ])
+  })
+})
+
+describe('texts longer than Matter allows, on a real node', () => {
+  it('shortens a name by bytes, so matter.js 0.18.1 (which counts bytes) still takes it', async () => {
+    await new AccessoryManager().registerAccessory('homebridge-test', 'Test', {
+      UUID: 'test-uuid',
+      // 20 characters, 40 bytes
+      displayName: 'ü'.repeat(20),
+      serialNumber: '客厅的灯'.repeat(4),
+      manufacturer: `${'A'.repeat(31)}😀 Lamp`,
+      model: 'model',
+      context: {},
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: false },
+      },
+    }, deps)
+
+    const info = stateOf(accessories.get('test-uuid')!.endpoint as Endpoint, 'bridgedDeviceBasicInformation') as Record<string, string>
+    expect(info.nodeLabel).toBe('ü'.repeat(16))
+    expect(info.serialNumber).toBe('客厅的灯客厅的灯客厅')
+    expect(info.vendorName).toBe('A'.repeat(31))
+    for (const text of [info.nodeLabel, info.serialNumber, info.vendorName]) {
+      expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(32)
+      expect(text.isWellFormed()).toBe(true)
+    }
   })
 })

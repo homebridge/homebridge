@@ -30,6 +30,7 @@ import { DEFAULT_BRIDGE_DEFAULTS } from '../../bridgeService.js'
 import { Logger } from '../../logger.js'
 import { User } from '../../user.js'
 import getVersion from '../../version.js'
+import { truncateUtf8 } from '../configValidator.js'
 import { errorHandler } from '../errorHandler.js'
 import { MatterDeviceError } from '../types.js'
 import { resolveInterfaceNames, stripVendorFromLabel } from '../utils.js'
@@ -331,7 +332,7 @@ export class ServerLifecycle {
       // identity of every commissioned bridge as a side effect of this fix.
       const isExternal = deps.config.externalAccessory === true
       const vendorName = (isExternal ? deps.config.manufacturer : undefined) || DEFAULT_BRIDGE_DEFAULTS.vendorName
-      const productName = ((isExternal ? deps.config.model : undefined) || displayName).slice(0, 32)
+      const productName = truncateUtf8((isExternal ? deps.config.model : undefined) || displayName, 32)
       // productLabel SHALL NOT include the vendor name per the Matter spec.
       // Fall back when stripping the vendor consumes the whole display name.
       const labelFallback = isExternal
@@ -347,14 +348,14 @@ export class ServerLifecycle {
         },
         commissioning: commissioningOptions,
         basicInformation: {
-          nodeLabel: displayName.slice(0, 32),
+          nodeLabel: truncateUtf8(displayName, 32),
           // vendorId stays as issued: an uncertified node cannot claim a real
           // Matter vendor ID, and vendorName is free text unrelated to it
           vendorId: VendorId(deps.commissioningManager.vendorId),
           vendorName,
           productId: deps.commissioningManager.productId,
           productName,
-          productLabel: (stripVendorFromLabel(displayName, vendorName) || labelFallback).slice(0, 64),
+          productLabel: truncateUtf8(stripVendorFromLabel(displayName, vendorName) || labelFallback, 64),
           serialNumber: deps.config.serialNumber || deps.config.uniqueId,
           hardwareVersion: 1,
           hardwareVersionString: release(),

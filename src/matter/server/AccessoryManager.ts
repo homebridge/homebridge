@@ -31,6 +31,7 @@ import { sendToParent } from '../../util/ipc.js'
 import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
 import { declaredClusterFeatures } from '../clusterFeatures.js'
+import { truncateUtf8 } from '../configValidator.js'
 import { deviceErrorFrom } from '../MatterError.js'
 import {
   applyDeviceEnergyManagementFeatures,
@@ -405,7 +406,7 @@ export class AccessoryManager {
                 mfgCode: null,
                 namespaceId: 7,
                 tag: 0,
-                label: (endpointOptions.powerSource?.description ?? accessory.clusters?.powerSource?.description ?? 'Power').slice(0, 64),
+                label: truncateUtf8(endpointOptions.powerSource?.description ?? accessory.clusters?.powerSource?.description ?? 'Power', 64),
               },
             ],
           }
@@ -1093,12 +1094,16 @@ export class AccessoryManager {
       // constraint error nobody could trace back to `model` (#4016). Shorten it
       // instead, as the bridge's own names already are, and say which property
       const fit = (value: string | undefined, maxLength: number, property: string) => {
-        if (typeof value !== 'string' || value.length <= maxLength) {
+        if (typeof value !== 'string') {
           return value
         }
-        log.warn(`Matter accessory "${accessory.displayName}": ${property} is longer than the ${maxLength} characters Matter allows, `
-          + `so it has been shortened to "${value.slice(0, maxLength)}"`)
-        return value.slice(0, maxLength)
+        // The limit is in bytes: a name of 20 "ü" is 40 bytes
+        const shortened = truncateUtf8(value, maxLength)
+        if (shortened !== value) {
+          log.warn(`Matter accessory "${accessory.displayName}": ${property} is longer than the ${maxLength} bytes Matter allows, `
+            + `so it has been shortened to "${shortened}"`)
+        }
+        return shortened
       }
       endpointOptions.bridgedDeviceBasicInformation = {
         vendorName: fit(accessory.manufacturer, 32, 'manufacturer'),
@@ -1122,7 +1127,7 @@ export class AccessoryManager {
       // failed uint32 validation would block the accessory registering).
       // The spec caps SoftwareVersionString at 64 characters.
       if (typeof accessory.firmwareRevision === 'string' && accessory.firmwareRevision.length > 0) {
-        endpointOptions.bridgedDeviceBasicInformation.softwareVersionString = accessory.firmwareRevision.slice(0, 64)
+        endpointOptions.bridgedDeviceBasicInformation.softwareVersionString = truncateUtf8(accessory.firmwareRevision, 64)
         const semver = accessory.firmwareRevision.match(/^(\d+)\.(\d+)\.(\d+)/)
         if (semver) {
           const [major, minor, patch] = [
@@ -1210,7 +1215,7 @@ export class AccessoryManager {
               mfgCode: null,
               namespaceId: 7, // Number namespace
               tag: partIndex,
-              label: (part.displayName || part.id).slice(0, 64),
+              label: truncateUtf8(part.displayName || part.id, 64),
             },
           ],
         },
