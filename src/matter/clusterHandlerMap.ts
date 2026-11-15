@@ -125,6 +125,16 @@ export interface ThermostatHandlers {
     occupiedCoolingSetpoint: number
     oldOccupiedCoolingSetpoint: number
   }>
+  /** For a thermostat with the Occupancy feature: the heating setpoint used while nobody is there. */
+  unoccupiedHeatingSetpointChange?: MatterCommandHandler<{
+    unoccupiedHeatingSetpoint: number
+    oldUnoccupiedHeatingSetpoint: number
+  }>
+  /** For a thermostat with the Occupancy feature: the cooling setpoint used while nobody is there. */
+  unoccupiedCoolingSetpointChange?: MatterCommandHandler<{
+    unoccupiedCoolingSetpoint: number
+    oldUnoccupiedCoolingSetpoint: number
+  }>
   /**
    * Optional. Called for the SetpointRaiseLower command, before the setpoints
    * move. The moves themselves then reach the setpoint-change handlers above
