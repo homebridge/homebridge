@@ -37,6 +37,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): let a tilt-only window covering register and keep a type matter allows
 - fix(matter): let a window covering that declares its position register without configStatus
 - fix(matter): stop writing an internal window covering flag into the plugin's context
+- fix(matter): stop each matter server adding its own shutdown signal listeners
 
 ### Homebridge Dependencies
 

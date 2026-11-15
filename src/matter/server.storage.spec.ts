@@ -235,6 +235,20 @@ describe('matterServer storage on real matter.js nodes', () => {
     await expect(second.start()).resolves.toBeUndefined()
   }, 30000)
 
+  it('adds no SIGINT or SIGTERM listener for a server', async () => {
+    const before = {
+      sigint: process.listenerCount('SIGINT'),
+      sigterm: process.listenerCount('SIGTERM'),
+    }
+
+    await externalServer('ACACACACACAC', 55988).start()
+
+    expect({
+      sigint: process.listenerCount('SIGINT'),
+      sigterm: process.listenerCount('SIGTERM'),
+    }).toEqual(before)
+  }, 30000)
+
   it('keeps the node storage of two servers that start together in their own folders', async () => {
     const first = externalServer('AAAAAAAAAAAA', 55981)
     const second = externalServer('BBBBBBBBBBBB', 55982)

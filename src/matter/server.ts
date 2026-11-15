@@ -73,7 +73,6 @@ export class MatterServer extends EventEmitter {
   private isRunning = false
   private lastRegistrationAt = 0
   private registrationsInFlight = 0
-  private shutdownHandler: (() => Promise<void>) | null = null
   private cleanupHandlers: Array<() => void | Promise<void>> = []
   private accessoryCache: MatterAccessoryCache | null = null
   private monitoringEnabled = false
@@ -548,11 +547,6 @@ export class MatterServer extends EventEmitter {
       },
       getIsRunning: () => this.isRunning,
       cleanupHandlers: this.cleanupHandlers,
-      getShutdownHandler: () => this.shutdownHandler,
-      setShutdownHandler: (handler: (() => Promise<void>) | null) => {
-        this.shutdownHandler = handler
-      },
-      onStop: () => this.stop(),
     }
   }
 

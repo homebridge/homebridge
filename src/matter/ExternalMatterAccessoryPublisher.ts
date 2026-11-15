@@ -122,8 +122,8 @@ export async function publishExternalMatterAccessory(
     // Now run the server with the device already attached (required for external accessories)
     await matterServer.runServer()
   } catch (error) {
-    // Tear down the half-started server so we don't leak SIGINT/SIGTERM
-    // handlers, an open mDNS responder, and the matter.js event loop.
+    // Tear down the half-started server so we don't leak an open mDNS
+    // responder and the matter.js event loop.
     // Only release the port back to the allocator when we *know* the
     // server isn't holding it any more — otherwise the allocator can
     // hand the same port to a subsequent publish attempt and we hit

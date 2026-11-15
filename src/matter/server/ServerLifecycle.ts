@@ -66,14 +66,6 @@ export interface ServerLifecycleDeps {
   setIsRunning: (running: boolean) => void
   getIsRunning: () => boolean
   cleanupHandlers: Array<() => void | Promise<void>>
-  // A getter (not a snapshot value) so reads always see the current handler.
-  // start() registers the handler partway through via setShutdownHandler; if
-  // this were a value copied when the deps object was built, a cleanup() call
-  // inside the same failed start() would read the stale null and never detach
-  // the SIGINT/SIGTERM listeners. Mirrors getServerNode/getAggregator.
-  getShutdownHandler: () => (() => Promise<void>) | null
-  setShutdownHandler: (handler: (() => Promise<void>) | null) => void
-  onStop: () => Promise<void>
 }
 
 export class ServerLifecycle {
@@ -507,15 +499,11 @@ export class ServerLifecycle {
       // Generate and display commissioning information
       await deps.commissioningManager.generateCommissioningInfo(deps.getCommissioningDeps())
 
-      // Set up graceful shutdown handler
-      const shutdownHandler = async () => {
-        log.info('Shutting down Matter server...')
-        await deps.onStop()
-      }
-      deps.setShutdownHandler(shutdownHandler)
-
-      process.on('SIGINT', shutdownHandler)
-      process.on('SIGTERM', shutdownHandler)
+      // No signal listeners here. The main process and every child bridge
+      // handle SIGINT/SIGTERM themselves and stop each of their Matter servers
+      // through the manager's teardown(). A listener per server stopped every
+      // server a second time at the same moment, and the eleventh server in a
+      // process tripped Node's MaxListenersExceededWarning.
 
       if (!deps.config.externalAccessory) {
         // Restore cached accessories into the aggregator before going online.
@@ -649,20 +637,18 @@ export class ServerLifecycle {
   /**
    * Stop the Matter server.
    *
-   * External-accessory mode runs `start()` (which registers SIGINT/SIGTERM
-   * handlers and creates the ServerNode) but defers `runServer()` until
-   * after accessory registration — between those two steps `isRunning` is
-   * still false. A check of just `isRunning` would skip cleanup and leave
-   * the process handlers + half-initialised server node leaked when a
+   * External-accessory mode runs `start()` (which creates the ServerNode) but
+   * defers `runServer()` until after accessory registration — between those
+   * two steps `isRunning` is still false. A check of just `isRunning` would
+   * skip cleanup and leave the half-initialised server node leaked when a
    * publish failure called `stop()` in its catch block. Tear down any
    * resources we actually allocated, regardless of `isRunning`.
    */
   async stop(deps: ServerLifecycleDeps, accessories: Map<string, any>): Promise<void> {
     const isRunning = deps.getIsRunning()
     const serverNode = deps.getServerNode()
-    const hasShutdownHandler = deps.getShutdownHandler() != null
 
-    if (!isRunning && !serverNode && !hasShutdownHandler) {
+    if (!isRunning && !serverNode) {
       log.debug('Matter server is not running and has no resources to clean up')
       return
     }
@@ -674,8 +660,7 @@ export class ServerLifecycle {
     // publishExternalMatterAccessory) gate port release on stop() resolving
     // cleanly — if close() failed, the matter.js server may still be bound to
     // the port and the caller must see the rejection so it keeps the port
-    // reserved. The SIGINT/SIGTERM handler is deliberately left registered in
-    // that case (see cleanup) so the still-bound node keeps a shutdown hook.
+    // reserved.
     let closeError: unknown
 
     try {
@@ -723,9 +708,8 @@ export class ServerLifecycle {
       }
 
       // Always run cleanup so the cleanupHandlers fire even when close()
-      // failed. When close() failed we hold onto the serverNode reference (and
-      // keep the SIGINT/SIGTERM handler registered) so the still-bound node
-      // keeps a graceful-shutdown hook and a caller could retry stop() —
+      // failed. When close() failed we hold onto the serverNode reference so a
+      // caller could retry stop() —
       // otherwise cleanup would null it out and a retry would see no node and
       // silently no-op, stranding a potentially still-bound matter.js server
       // with no handle to close it.
@@ -750,27 +734,13 @@ export class ServerLifecycle {
    *
    * `preserveNodeReference` is set by stop() when `serverNode.close()` failed —
    * matter.js may still be holding the port, and dropping the reference would
-   * leave no way to retry the close. In that case the SIGINT/SIGTERM shutdown
-   * handler is also kept registered: the sole caller
-   * (ExternalMatterAccessoryPublisher) never retries stop(), so removing the
-   * handler would leave the still-bound node with no graceful-shutdown hook
-   * for the rest of the process lifetime. The cleanupHandlers are always run
+   * leave no way to retry the close. The cleanupHandlers are always run
    * because they are independent of the node reference.
    */
   async cleanup(
     deps: ServerLifecycleDeps,
     options: { preserveNodeReference?: boolean } = {},
   ): Promise<void> {
-    // Keep the shutdown handler registered when we are preserving a node whose
-    // close() failed, so that orphaned (still port-bound) node is still torn
-    // down on process exit. Otherwise remove it as normal.
-    const shutdownHandler = deps.getShutdownHandler()
-    if (shutdownHandler && !options.preserveNodeReference) {
-      process.off('SIGINT', shutdownHandler)
-      process.off('SIGTERM', shutdownHandler)
-      deps.setShutdownHandler(null)
-    }
-
     for (const handler of deps.cleanupHandlers) {
       try {
         await handler()
