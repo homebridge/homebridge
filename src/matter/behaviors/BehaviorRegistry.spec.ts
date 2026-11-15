@@ -2,9 +2,10 @@ import type { MockInstance } from 'vitest'
 
 import type { InternalMatterAccessory } from '../types.js'
 
+import { Status, StatusResponseError } from '@matter/main/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BehaviorRegistry } from './BehaviorRegistry.js'
+import { BehaviorRegistry, HandlerFailure } from './BehaviorRegistry.js'
 
 describe('behaviorRegistry', () => {
   let registry: BehaviorRegistry
@@ -170,6 +171,50 @@ describe('behaviorRegistry', () => {
 
       await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toThrow('Async handler failed')
       expect(consoleErrorSpy).toHaveBeenCalled()
+    })
+
+    // The behaviors rely on this: none of them wraps a handler error itself.
+    it('turns a plain handler error into a matter failure that names the handler and keeps the cause', async () => {
+      const cause = new Error('device offline')
+      registry.registerHandler('endpoint1', 'onOff', 'toggle', async () => {
+        throw cause
+      })
+
+      const failure = await registry.executeHandler('endpoint1', 'onOff', 'toggle').catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(StatusResponseError)
+      expect(failure).toBeInstanceOf(HandlerFailure)
+      expect(failure).toMatchObject({
+        message: 'The onOff.toggle handler failed: device offline',
+        code: Status.Failure,
+        cause,
+      })
+    })
+
+    it('turns a rejection that is not an Error into a matter failure too', async () => {
+      registry.registerHandler('endpoint1', 'onOff', 'toggle', async () => {
+        // eslint-disable-next-line no-throw-literal
+        throw 'just a string'
+      })
+
+      await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toMatchObject({
+        message: 'The onOff.toggle handler failed: just a string',
+        code: Status.Failure,
+      })
+    })
+
+    it('passes on the matter status a plugin threw on purpose', async () => {
+      const busy = new StatusResponseError('device is busy', Status.Busy)
+      registry.registerHandler('endpoint1', 'onOff', 'toggle', async () => {
+        throw busy
+      })
+
+      await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toBe(busy)
+      expect(busy).not.toBeInstanceOf(HandlerFailure)
+    })
+
+    it('answers a command with no handler with a matter failure', async () => {
+      await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toBeInstanceOf(HandlerFailure)
     })
   })
 

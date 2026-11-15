@@ -8,9 +8,25 @@
 import type { MatterServer } from '../server.js'
 import type { InternalMatterAccessory, MatterHandlerContext } from '../types.js'
 
+import { Status, StatusResponseError } from '@matter/main/types'
+
 import { Logger } from '../../logger.js'
+import { MatterStatus } from '../errors.js'
 
 const log = Logger.withPrefix('Matter/Behaviors')
+
+/**
+ * The Failure status executeHandler raises itself, when a plugin handler threw
+ * something that is not a Matter status, or when there is no handler. A class
+ * of its own so the few clusters that answer a failed handler with their own
+ * status (keypad input, media playback) can tell it from a status the plugin
+ * threw on purpose.
+ */
+export class HandlerFailure extends StatusResponseError {
+  constructor(message: string) {
+    super(message, Status.Failure)
+  }
+}
 
 /**
  * Handler function signature
@@ -96,7 +112,7 @@ export class BehaviorRegistry {
    * @param args - Optional arguments to pass to the handler
    * @param context - Optional context information
    * @returns True once the handler has run successfully
-   * @throws Error if no handler is registered for the endpoint/cluster/command
+   * @throws a Matter status error: the plugin's own, or Failure when the handler threw anything else or is not registered
    */
   async executeHandler(
     endpointId: string,
@@ -107,7 +123,7 @@ export class BehaviorRegistry {
   ): Promise<boolean> {
     const handler = this.getHandler(endpointId, clusterName, commandName)
     if (!handler) {
-      throw new Error(`No handler registered for ${endpointId}.${clusterName}.${commandName}`)
+      throw new HandlerFailure(`No handler registered for ${endpointId}.${clusterName}.${commandName}`)
     }
 
     try {
@@ -115,7 +131,19 @@ export class BehaviorRegistry {
       return true
     } catch (error) {
       log.error(`Handler error for ${endpointId}.${clusterName}.${commandName}:`, error)
-      throw error
+      // A Matter status a plugin threw on purpose (api.matter.status) goes to
+      // the controller as it is. Anything else becomes a plain Failure that
+      // names the handler. This is the one place that does it: every behavior
+      // calls its handlers through here, so none needs a catch block of its own.
+      if (MatterStatus.isMatterProtocolError(error)) {
+        throw error
+      }
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
+      const failure = new HandlerFailure(`The ${clusterName}.${commandName} handler failed: ${message}`)
+      failure.cause = error
+      throw failure
     }
   }
 
