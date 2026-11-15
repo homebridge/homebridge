@@ -179,6 +179,43 @@ describe('matterServer storage on real matter.js nodes', () => {
     }, 30000)
   })
 
+  it('keeps the saved state and the plugin context when an accessory comes back with a new structure', async () => {
+    const light = (deviceType: MatterAccessory['deviceType'], clusters: MatterAccessory['clusters'], context?: Record<string, unknown>): MatterAccessory => ({
+      UUID: 'uuid-shape',
+      displayName: 'Shape',
+      deviceType,
+      serialNumber: 'S',
+      manufacturer: 'Test',
+      model: 'Test',
+      context: context as MatterAccessory['context'],
+      clusters,
+    })
+    const before = bridgeServer('ABABABABABAB', 55987)
+    await before.start()
+    await before.registerPlatformAccessories('plugin', 'Platform', [
+      light(deviceTypes.OnOffLight, {
+        onOff: { onOff: false },
+      }, { room: 'hall' }),
+    ])
+    await before.updateAccessoryState('uuid-shape', 'onOff', { onOff: true })
+    const cacheFile = join(matterPath, 'ABABABABABAB', 'accessories.json')
+    await vi.waitFor(() => expect(existsSync(cacheFile) && readFileSync(cacheFile, 'utf-8')).toMatch(/"onOff":\s*true/), { timeout: 5000, interval: 100 })
+    await before.stop()
+
+    // The plugin update turns the light into a dimmable one.
+    const after = bridgeServer('ABABABABABAB', 55987)
+    await after.start()
+    const dimmable = light(deviceTypes.DimmableLight, {
+      onOff: { onOff: false },
+      levelControl: { currentLevel: 10, minLevel: 1, maxLevel: 254 },
+    })
+    await after.registerPlatformAccessories('plugin', 'Platform', [dimmable])
+
+    expect(after.getLiveState('uuid-shape').onOff?.onOff).toBe(true)
+    expect(after.getLiveState('uuid-shape').levelControl?.currentLevel).toBe(10)
+    expect(dimmable.context).toEqual({ room: 'hall' })
+  }, 30000)
+
   // #4047: a container killed hard leaves matter.js's lock files behind, and
   // in the next container the process id they name belongs to another program.
   it('starts when the storage lock was left behind by an earlier run whose process id is in use again', async () => {

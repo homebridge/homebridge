@@ -304,7 +304,18 @@ export class AccessoryManager {
         // controller may treat it as a new device (#4018).
         preservedUniqueId = this.readUniqueId(existing.endpoint)
         log.info(`Restored accessory ${accessory.displayName} changed structure - re-registering`)
+        // Unregistering drops the cached entry. Hold on to it until the new
+        // registration has worked, and carry the state and the plugin's
+        // context it restored over to the new accessory.
+        deps.accessoryCache?.retain(accessory.UUID)
         await this.unregisterAccessory(accessory.UUID, deps)
+        this.keepKnownState(accessory.clusters, existing.clusters)
+        for (const part of accessory.parts ?? []) {
+          this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters)
+        }
+        if (existing.context) {
+          accessory.context = existing.context
+        }
       } else {
         throw new MatterDeviceError(
           `Matter accessory with UUID "${accessory.UUID}" is already registered.\n`
@@ -457,6 +468,7 @@ export class AccessoryManager {
       const internalParts = await this.finishAccessoryParts(accessory, builtParts, deps)
 
       await this.finalizeAccessoryRegistration(accessory, endpoint, internalParts, deps)
+      deps.accessoryCache?.release(accessory.UUID)
     } catch (error) {
       log.error(`Failed to register Matter accessory ${accessory.displayName}:`, error)
       throw new MatterDeviceError(`Failed to register accessory: ${error}`)

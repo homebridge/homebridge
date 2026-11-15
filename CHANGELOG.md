@@ -33,6 +33,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): clear a storage lock left by a killed run whose process id is in use again (#4047)
 - fix(matter): let a closure register without a descriptor tag by adding the garage door tag
 - fix(matter): keep the saved state and apply a new name when a plugin registers a restored accessory
+- fix(matter): keep the saved state and context when an accessory comes back with a new structure
 
 ### Homebridge Dependencies
 

@@ -884,6 +884,47 @@ describe('accessoryManager', () => {
         expect(stored._restoredFromCache).toBeFalsy()
       })
 
+      // The cached entry is what the next start restores from. It is held
+      // until the new structure is registered, so a failed attempt keeps it.
+      it('holds the cached entry over a re-registration, and lets go once that worked', async () => {
+        const mockCache = {
+          retain: vi.fn(),
+          release: vi.fn(),
+          hasCached: vi.fn(() => false),
+          getCached: vi.fn(),
+          removeCached: vi.fn(),
+          requestSave: vi.fn(),
+        }
+        const deps = createMockDeps({ accessoryCache: mockCache as any })
+        const restoredDoorLock = () => ({
+          ...createMockAccessory(),
+          deviceType: { deviceType: 0x000A, name: 'DoorLock' },
+          endpoint: {
+            close: vi.fn(),
+          },
+          registered: false,
+          _restoredFromCache: true,
+        }) as any
+
+        deps.accessories.set('test-uuid-001', restoredDoorLock())
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)
+
+        expect(mockCache.retain).toHaveBeenCalledWith('test-uuid-001')
+        expect(mockCache.retain.mock.invocationCallOrder[0]).toBeLessThan(mockCache.removeCached.mock.invocationCallOrder[0])
+        expect(mockCache.release).toHaveBeenCalledWith('test-uuid-001')
+
+        // the same again, but this time the new registration fails
+        mockCache.retain.mockClear()
+        mockCache.release.mockClear()
+        deps.accessories.set('test-uuid-001', restoredDoorLock())
+        vi.spyOn(manager as any, 'prepareDeviceType').mockRejectedValueOnce(new Error('conformance'))
+
+        await expect(manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)).rejects.toThrow('conformance')
+
+        expect(mockCache.retain).toHaveBeenCalledWith('test-uuid-001')
+        expect(mockCache.release).not.toHaveBeenCalled()
+      })
+
       // A composed device type never matches the base type the cache restores,
       // so it takes the re-register path on every start. The new endpoint must
       // keep the old uniqueId, or controllers may see a new device (#4018).
@@ -1007,6 +1048,8 @@ describe('accessoryManager', () => {
 
     it('should save to cache after registration', async () => {
       const mockCache = {
+        retain: vi.fn(),
+        release: vi.fn(),
         requestSave: vi.fn(),
         hasCached: vi.fn(() => false),
         getCached: vi.fn(),
@@ -1027,6 +1070,8 @@ describe('accessoryManager', () => {
         context: { savedKey: 'savedValue' },
       }
       const mockCache = {
+        retain: vi.fn(),
+        release: vi.fn(),
         hasCached: vi.fn(() => true),
         getCached: vi.fn(() => cachedData),
         requestSave: vi.fn(),
@@ -2015,6 +2060,8 @@ describe('accessoryManager', () => {
 
     it('should remove from cache when unregistering', async () => {
       const mockCache = {
+        retain: vi.fn(),
+        release: vi.fn(),
         hasCached: vi.fn(() => false),
         getCached: vi.fn(),
         removeCached: vi.fn(),
