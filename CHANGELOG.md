@@ -137,6 +137,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: name the accessory in a characteristic warning, and end the line with one full stop
 - docs: stop marking the whole bridge hap option as deprecated when only its boolean form is
 - test: start the server without loading local plugins or using the network, and check what it does
+- test: run the bridge service tests on the real bridge, and cover external and old-style accessories
 
 ### Homebridge Dependencies
 
