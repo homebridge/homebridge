@@ -11,9 +11,6 @@ import { networkInterfaces } from 'node:os'
 
 import { version as matterJsVersion } from '@matter/main'
 
-/**
- * Type guard for Node.js error objects with code property
- */
 const NON_HEX_RE = /[^A-F0-9]/gi
 const HEX_PAIR_RE = /.{1,2}/g
 const REGEXP_SPECIAL_RE = /[.*+?^${}()|[\]\\]/g

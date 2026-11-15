@@ -1,18 +1,13 @@
 /**
  * Matter API Implementation
  *
- * Implements the Matter API facade with lazy loading to optimize performance.
+ * The object behind `api.matter`.
  *
- * Architecture:
- * - Separates Matter-specific logic from core HomebridgeAPI class
- * - Uses dynamic imports to prevent loading Matter.js at module parse time
- * - Loads Matter types on first access to `api.matter` properties
- * - Child bridges that don't use Matter have zero Matter.js overhead
- *
- * Performance Impact:
- * - Before: Every child bridge loaded ~800ms of Matter.js code (8-16s on RPi)
- * - After: Only child bridges using Matter load it on first access
- * - Improvement: 75-90% reduction in startup time for multi-bridge setups
+ * This file imports matter.js at the top, so loading it loads all of
+ * matter.js. The lazy part is one level up: `HomebridgeAPI.loadMatterAPI()`
+ * imports this file, and Server / ChildBridgeFork call that only for a bridge
+ * whose own config uses Matter, before its plugins start. A bridge without
+ * Matter never loads this file, and `api.matter` stays undefined there.
  */
 
 import type { EndpointType } from '@matter/main'
@@ -91,12 +86,9 @@ class MatterAccessoryValidationError extends Error {
  * Implementation of the Matter API
  *
  * This facade provides Matter protocol support through the Homebridge API.
- * It uses lazy loading to prevent loading the heavy Matter.js library until
- * actually needed, improving startup performance for child bridges that don't
- * use Matter.
+ * It is only constructed for a bridge that uses Matter (see the top of this file).
  *
  * Features:
- * - Lazy-loads Matter types on first access
  * - Validates accessories before registration
  * - Handles both bridge accessories and external standalone devices
  * - Provides detailed error messages for debugging
@@ -262,20 +254,15 @@ export class MatterAPIImpl implements MatterAPI {
   }
 
   /**
-   * Register Matter platform accessories
-   * Automatically handles external accessories (e.g., RoboticVacuumCleaner) that need dedicated bridges
-   * Validates accessories before registration
-   * Returns a promise that resolves when all accessories are fully registered
-   */
-  /**
    * Guard the register/update/publish entry points. Two conditions must hold
    * before these methods may emit, or the emitted event has no listener:
    * bridged registrations are silently dropped, and external ones await a
    * resolver that never fires (hanging forever).
    *
-   * 1. The Matter manager must be attached — it is constructed only once
-   *    Homebridge has finished launching, so calls during plugin
-   *    initialisation are too early.
+   * 1. The Matter manager must be attached. That happens when the bridge sets
+   *    up Matter, which is after the plugin initialisers have run (and, on the
+   *    main bridge, before the platforms are constructed), so a call from a
+   *    plugin's initialiser function is too early.
    * 2. The manager must have active Matter on THIS bridge, or a call would
    *    drop/hang with no listener attached. `api.matter` is only loaded for a
    *    bridge whose own config uses Matter, so this is a safety net rather
@@ -297,6 +284,12 @@ export class MatterAPIImpl implements MatterAPI {
     }
   }
 
+  /**
+   * Register Matter platform accessories
+   * Automatically handles external accessories (e.g., RoboticVacuumCleaner) that need dedicated bridges
+   * Validates accessories before registration
+   * Returns a promise that resolves when all accessories are fully registered
+   */
   async registerPlatformAccessories(
     pluginIdentifier: PluginIdentifier,
     platformName: PlatformName,

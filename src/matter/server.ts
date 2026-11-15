@@ -489,8 +489,9 @@ export class MatterServer extends EventEmitter {
           return
         }
 
-        // Device types are cached as name-only info; resolve them back through
-        // the public registry.
+        // Device types are cached by name, with the cluster features the plugin
+        // chose (clusterFeatures); resolve the name back through the public
+        // registry, and put the features back on top below.
         const typeByName = new Map<string, EndpointType>()
         for (const [key, value] of Object.entries(deviceTypes)) {
           typeByName.set(key, value as EndpointType)

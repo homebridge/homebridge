@@ -1,8 +1,7 @@
 /**
  * Cluster Behavior Map
  *
- * Single authoritative mapping from cluster names to custom Homebridge behavior classes.
- * Consolidates the duplicate maps that existed in server.ts and serverHelpers.ts.
+ * The one mapping from cluster names to custom Homebridge behavior classes.
  */
 
 import type { Behavior } from '@matter/main'
@@ -37,11 +36,8 @@ type BehaviorType = Behavior.Type
 /**
  * Maps cluster names to custom Homebridge behavior classes.
  *
- * The "core" map contains only clusters with user-triggered commands that need
- * custom behaviors (used by server.ts for the CLUSTER_BEHAVIOR_MAP).
- *
- * The "full" map adds sensor/measurement clusters that don't have user commands
- * but still need custom behaviors for state management.
+ * It holds the clusters with commands a controller can send, which need a
+ * custom behavior to call the plugin's handlers (used by server/AccessoryManager.ts).
  */
 export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
   // Core controls

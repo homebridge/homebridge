@@ -126,7 +126,9 @@ export class StateManager {
       displayName = accessory.displayName
     }
 
-    // Defer the update to avoid "read-only transaction" errors when called from handlers
+    // Defer the update to avoid "read-only transaction" errors when called from handlers.
+    // setImmediate is enough: it runs after the current call stack and its
+    // promise jobs, so the handler's own (read-only) step has returned by then.
     return new Promise((resolve, reject) => {
       setImmediate(async () => {
         try {

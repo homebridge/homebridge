@@ -1,6 +1,7 @@
 /**
- * Helper functions for MatterServer.registerAccessory()
- * Extracted from the monolithic 521-line function for better maintainability
+ * Helper functions for registering an accessory (used by server/AccessoryManager.ts):
+ * working out which cluster features an accessory needs from the state it
+ * declares, and composing them onto its device type.
  */
 
 import type { Behavior, EndpointType } from '@matter/main'
@@ -8,7 +9,6 @@ import type { Behavior, EndpointType } from '@matter/main'
 import type { MatterAccessory } from './types.js'
 
 import { Logger } from '../logger.js'
-// Direct matter.js .with() API used instead of typeHelpers wrappers
 import { DefaultDeviceEnergyManagementServer } from './behaviors/DeviceEnergyManagementBehavior.js'
 import { DefaultEnergyEvseServer } from './behaviors/EnergyEvseBehavior.js'
 import {
