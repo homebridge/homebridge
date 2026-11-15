@@ -184,6 +184,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - ci: pin the wiki notification action to a commit and keep the npm publish token to the publish job
 - fix: say what a plugin threw at load or start when it is not an Error, in place of undefined
 - refactor: type the prefixed logger, the plugin module and the matter state event without any
+- fix: leave the other accessories untouched when one in a register call is not a PlatformAccessory
 
 ### Homebridge Dependencies
 
