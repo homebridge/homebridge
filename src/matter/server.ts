@@ -8,6 +8,7 @@
 import type { EndpointType, ServerNode } from '@matter/main'
 
 import type { SerializedMatterAccessory } from './accessoryCache.js'
+import type { AccessoryInfo, ServerAccessoryData, ServerAccessoryListEntry } from './managerTypes.js'
 import type { MatterServerConfig } from './sharedTypes.js'
 
 import { EventEmitter } from 'node:events'
@@ -328,11 +329,11 @@ export class MatterServer extends EventEmitter {
     return this.accessoryQuery.getLiveState(uuid, partId)
   }
 
-  collectAccessories(bridgeUsername: string, bridgeType: string, bridgeName: string): any[] {
+  collectAccessories(bridgeUsername: string, bridgeType: AccessoryInfo['bridge']['type'], bridgeName: string): ServerAccessoryListEntry[] {
     return this.accessoryQuery.collectAccessories(bridgeUsername, bridgeType, bridgeName)
   }
 
-  getAccessoryInfo(uuid: string): any | undefined {
+  getAccessoryInfo(uuid: string): ServerAccessoryData | undefined {
     return this.accessoryQuery.getAccessoryInfo(uuid)
   }
 
