@@ -5,6 +5,7 @@ import { Service } from '@homebridge/hap-nodejs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
+import { Logger } from './logger.js'
 
 const api = new HomebridgeAPI()
 const emitSpy = vi.spyOn(api, 'emit')
@@ -28,6 +29,35 @@ const accessoryName = 'MyCoolAccessory'
 const platformName = 'MyCoolPlatform'
 
 describe('homebridgeAPI', () => {
+  describe('signalShutdown', () => {
+    it('still calls the other shutdown listeners when one throws or rejects', async () => {
+      const api = new HomebridgeAPI()
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      const called: string[] = []
+      api.on('shutdown', () => {
+        called.push('first')
+        throw new Error('plugin shutdown bug')
+      })
+      api.on('shutdown', async () => {
+        called.push('second')
+        throw new Error('late plugin shutdown bug')
+      })
+      api.once('shutdown', () => {
+        called.push('third')
+      })
+
+      expect(() => api.signalShutdown()).not.toThrow()
+      // let the rejected promise of the second listener settle
+      await new Promise(resolve => setImmediate(resolve))
+
+      expect(called).toEqual(['first', 'second', 'third'])
+      expect(errors).toHaveBeenCalledTimes(2)
+      // a `once` listener is used up, as with a plain emit
+      expect(api.listenerCount('shutdown')).toBe(2)
+      errors.mockRestore()
+    })
+  })
+
   describe('isHapEnabled', () => {
     it('defaults to enabled through the public API interface', () => {
       const pluginAPI: import('./api.js').API = new HomebridgeAPI()

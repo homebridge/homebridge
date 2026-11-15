@@ -808,7 +808,19 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   signalShutdown(): void {
-    this.emit(APIEvent.SHUTDOWN)
+    // Each listener is called on its own. With a plain emit, the first plugin
+    // whose shutdown listener throws stopped every later listener (the other
+    // plugins, and Homebridge's own) and the rest of the teardown with it.
+    for (const listener of this.rawListeners(APIEvent.SHUTDOWN)) {
+      try {
+        const result: unknown = listener.call(this)
+        if (result instanceof Promise) {
+          result.catch((error: unknown) => log.error('A shutdown listener failed:', error))
+        }
+      } catch (error: unknown) {
+        log.error('A shutdown listener failed:', error)
+      }
+    }
   }
 
   registerAccessory(accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void
