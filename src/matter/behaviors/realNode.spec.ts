@@ -2534,13 +2534,25 @@ describe('a command sent from the UI, on a real node', () => {
     await stateManager.triggerCommand('test-uuid', 'onOff', 'on')
     await stateManager.triggerCommand('test-uuid', 'onOff', 'on', {})
 
-    expect(lockDoor.mock.calls).toEqual([
-      [{}],
-      [{}],
-    ])
-    expect(on.mock.calls).toEqual([[], []])
+    const requests = (calls: unknown[][]) => calls.map(call => call[0])
+    expect(requests(lockDoor.mock.calls)).toEqual([{}, {}])
+    // no request: matter.js passes nothing in its place
+    expect(requests(on.mock.calls)).toEqual([undefined, undefined])
     expect(stateOf(endpoint, 'doorLock').lockState).toBe(1)
     expect(stateOf(endpoint, 'onOff').onOff).toBe(true)
+  })
+
+  it('fails with a clear error for a cluster or a command the endpoint does not have', async () => {
+    await register({
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: false },
+      },
+    })
+    const errorOf = (work: Promise<unknown>): Promise<string> => work.then(() => 'no error', (error: Error) => error.message)
+
+    expect(await errorOf(stateManager.triggerCommand('test-uuid', 'doorLock', 'lockDoor'))).toMatch(/^Failed to trigger command: .*doorLock/)
+    expect(await errorOf(stateManager.triggerCommand('test-uuid', 'onOff', 'blink'))).toMatch(/^Failed to trigger command: .*blink/)
   })
 })
 

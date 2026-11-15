@@ -68,11 +68,15 @@ const ENERGY_ATTRIBUTE_MAP: Record<string, { period: 'cumulativeEnergy' | 'perio
  * command of a cluster; a command with no fields there takes no request.
  * When that description is not there, the answer is no.
  */
-function commandTakesRequest(clusterBehavior: unknown, command: string): boolean {
-  const described = clusterBehavior as {
-    cluster?: { commands?: Record<string, { schema?: { members?: { length?: unknown } } } | undefined> }
+function commandTakesRequest(endpoint: unknown, cluster: string, command: string): boolean {
+  const described = endpoint as {
+    behaviors?: {
+      supported?: Record<string, {
+        cluster?: { commands?: Record<string, { schema?: { members?: { length?: unknown } } } | undefined> }
+      } | undefined>
+    }
   }
-  const members = described.cluster?.commands?.[command]?.schema?.members
+  const members = described.behaviors?.supported?.[cluster]?.cluster?.commands?.[command]?.schema?.members
   const count = members?.length
   return typeof count === 'number' && count > 0
 }
@@ -329,27 +333,21 @@ export class StateManager {
       log.debug(`Triggering command ${cluster}.${command} for ${displayName}${partInfo}`, args)
 
       const previous = this.commandQueues.get(targetEndpoint) ?? Promise.resolve()
-      const run = previous.catch(() => {}).then(() => targetEndpoint.act((agent: any) => {
-        const clusterBehavior = agent[cluster]
-        if (!clusterBehavior) {
-          throw new Error(`Cluster '${cluster}' not found on endpoint`)
-        }
-        if (typeof clusterBehavior[command] !== 'function') {
-          throw new TypeError(`Command '${command}' not found on cluster '${cluster}'`)
-        }
-
-        // Over Matter, a command that has request fields always arrives with a
-        // request object, also when every field is left out. The same holds
-        // here, so a handler can read its request whether the command came
-        // from a controller or from the UI. A command with no request (on,
-        // off, stop and so on) is still called with nothing.
-        if (args && Object.keys(args).length > 0) {
-          return clusterBehavior[command](args)
-        }
-        return commandTakesRequest(clusterBehavior, command)
-          ? clusterBehavior[command]({})
-          : clusterBehavior[command]()
-      }))
+      // matter.js looks the command up and runs it in a context of its own.
+      // It fails for a cluster the endpoint does not have and for a command
+      // the cluster does not implement.
+      //
+      // Over Matter, a command that has request fields always arrives with a
+      // request object, also when every field is left out. The same holds
+      // here, so a handler can read its request whether the command came
+      // from a controller or from the UI. A command with no request (on,
+      // off, stop and so on) gets none.
+      const request = args && Object.keys(args).length > 0
+        ? args
+        : commandTakesRequest(targetEndpoint, cluster, command)
+          ? {}
+          : undefined
+      const run = previous.catch(() => {}).then(() => targetEndpoint.commandsOf(cluster)[command](request))
       this.commandQueues.set(targetEndpoint, run)
       try {
         await run

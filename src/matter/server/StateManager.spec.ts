@@ -200,25 +200,62 @@ describe('stateManager', () => {
   })
 })
 
+/** An endpoint whose commands are the given functions, the way matter.js offers them. */
+function createCommandEndpoint(
+  clusters: Record<string, Record<string, (...args: unknown[]) => unknown>>,
+  requestFields: Record<string, Record<string, number>> = {},
+) {
+  const supported: Record<string, unknown> = {}
+  for (const [cluster, commands] of Object.entries(requestFields)) {
+    supported[cluster] = {
+      cluster: {
+        commands: Object.fromEntries(Object.entries(commands).map(([command, count]) => [
+          command,
+          {
+            schema: {
+              members: Array.from({ length: count }, () => ({})),
+            },
+          },
+        ])),
+      },
+    }
+  }
+  return createMockEndpoint({
+    behaviors: { supported },
+    commandsOf: (cluster: string) => {
+      const commands = clusters[cluster]
+      if (!commands) {
+        throw new Error(`Behavior ${cluster} is not supported by this endpoint`)
+      }
+      return new Proxy(commands, {
+        get: (target, name: string) => async (...args: unknown[]) => {
+          if (typeof target[name] !== 'function') {
+            throw new TypeError(`Command ${name} is not implemented`)
+          }
+          return target[name](...args)
+        },
+      })
+    },
+  })
+}
+
 describe('stateManager triggerCommand ordering (#4029)', () => {
   it('waits for one command on an endpoint to finish before starting the next', async () => {
     const order: string[] = []
     let finishFirst!: () => void
-    const endpoint = createMockEndpoint({
-      act: vi.fn(async (fn: any) => fn({
-        levelControl: {
-          moveToLevelWithOnOff: () => new Promise<void>((resolve) => {
-            order.push('level started')
-            finishFirst = () => {
-              order.push('level finished')
-              resolve()
-            }
-          }),
-        },
-        onOff: {
-          on: () => order.push('on started'),
-        },
-      })),
+    const endpoint = createCommandEndpoint({
+      levelControl: {
+        moveToLevelWithOnOff: () => new Promise<void>((resolve) => {
+          order.push('level started')
+          finishFirst = () => {
+            order.push('level finished')
+            resolve()
+          }
+        }),
+      },
+      onOff: {
+        on: () => order.push('on started'),
+      },
     })
     const manager = createManager(endpoint)
 
@@ -234,17 +271,15 @@ describe('stateManager triggerCommand ordering (#4029)', () => {
 
   it('still runs the next command when the one before it failed', async () => {
     let calls = 0
-    const endpoint = createMockEndpoint({
-      act: vi.fn(async (fn: any) => fn({
-        onOff: {
-          on: () => {
-            calls++
-            if (calls === 1) {
-              throw new Error('first failed')
-            }
-          },
+    const endpoint = createCommandEndpoint({
+      onOff: {
+        on: () => {
+          calls++
+          if (calls === 1) {
+            throw new Error('first failed')
+          }
         },
-      })),
+      },
     })
     const manager = createManager(endpoint)
 
@@ -254,56 +289,48 @@ describe('stateManager triggerCommand ordering (#4029)', () => {
     await expect(second).resolves.toBeUndefined()
     expect(calls).toBe(2)
   })
+
+  it('fails for a cluster the endpoint does not have, and for a command the cluster does not have', async () => {
+    const manager = createManager(createCommandEndpoint({ onOff: {} }))
+
+    await expect(manager.triggerCommand('uuid-1', 'doorLock', 'lockDoor')).rejects.toThrow('Failed to trigger command: Behavior doorLock is not supported')
+    await expect(manager.triggerCommand('uuid-1', 'onOff', 'blink')).rejects.toThrow('Failed to trigger command: Command blink is not implemented')
+  })
 })
 
 describe('stateManager triggerCommand request object', () => {
-  /** A cluster behavior the way matter.js describes its commands. */
-  function behaviorWith(command: string, fieldCount: number, handler: (...args: unknown[]) => void) {
-    return {
-      cluster: {
-        commands: {
-          [command]: {
-            schema: {
-              members: Array.from({ length: fieldCount }, () => ({})),
-            },
-          },
-        },
-      },
-      [command]: handler,
-    }
-  }
-
   it('gives a command that has request fields an empty request when the caller sent none', async () => {
-    const calls: unknown[][] = []
-    const endpoint = createMockEndpoint({
-      act: vi.fn(async (fn: any) => fn({
-        doorLock: behaviorWith('lockDoor', 1, (...args) => calls.push(args)),
-      })),
+    const calls: unknown[] = []
+    const endpoint = createCommandEndpoint({
+      doorLock: {
+        lockDoor: request => calls.push(request),
+      },
+    }, {
+      doorLock: { lockDoor: 1 },
     })
     const manager = createManager(endpoint)
 
     await manager.triggerCommand('uuid-1', 'doorLock', 'lockDoor')
     await manager.triggerCommand('uuid-1', 'doorLock', 'lockDoor', {})
 
-    expect(calls).toEqual([
-      [{}],
-      [{}],
-    ])
+    expect(calls).toEqual([{}, {}])
   })
 
-  it('still calls a command that takes no request with no argument', async () => {
-    const calls: unknown[][] = []
-    const endpoint = createMockEndpoint({
-      act: vi.fn(async (fn: any) => fn({
-        onOff: behaviorWith('on', 0, (...args) => calls.push(args)),
-      })),
+  it('gives a command that takes no request none', async () => {
+    const calls: unknown[] = []
+    const endpoint = createCommandEndpoint({
+      onOff: {
+        on: request => calls.push(request),
+      },
+    }, {
+      onOff: { on: 0 },
     })
     const manager = createManager(endpoint)
 
     await manager.triggerCommand('uuid-1', 'onOff', 'on')
     await manager.triggerCommand('uuid-1', 'onOff', 'on', {})
 
-    expect(calls).toEqual([[], []])
+    expect(calls).toEqual([undefined, undefined])
   })
 })
 
