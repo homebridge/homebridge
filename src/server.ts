@@ -971,10 +971,19 @@ export class Server {
       // Get accessories from main bridge
       const allAccessories = this.matterManager?.collectAllAccessories(bridgeUsername) || []
 
-      // Request from child bridges and wait for responses (with timeout)
-      if (this.childBridges.size > 0) {
+      // Request from child bridges and wait for responses (with timeout).
+      // A request that names a bridge is for that bridge only, as it is for
+      // the main bridge above: before, every child bridge was asked and every
+      // answer added, whatever the request said.
+      const wantedUsername = bridgeUsername?.toUpperCase()
+      const childBridges = [
+        ...this.childBridges.values(),
+      ].filter(
+        childBridge => !wantedUsername || childBridge.getMetadata().username.toUpperCase() === wantedUsername,
+      )
+      if (childBridges.length > 0) {
         const results = await Promise.allSettled(
-          Array.from(this.childBridges.values(), childBridge => childBridge.requestMatterAccessories()),
+          childBridges.map(childBridge => childBridge.requestMatterAccessories()),
         )
 
         for (const result of results) {

@@ -376,7 +376,8 @@ export class ChildBridgeService {
 
   /**
    * Request Matter accessories from this child bridge.
-   * Returns a promise that resolves when the child responds, or undefined on timeout.
+   * Returns a promise that resolves when the child responds, or undefined on
+   * timeout, or undefined at once when the child process is not running.
    *
    * Concurrent callers share the same in-flight promise. Previously each
    * call registered its own resolver in `matterAccessoriesResolve`, and the
@@ -391,6 +392,13 @@ export class ChildBridgeService {
   public requestMatterAccessories(timeoutMs = 500): Promise<{ accessories: any[], bridgeUsername: string } | undefined> {
     if (this.matterAccessoriesPromise) {
       return this.matterAccessoriesPromise
+    }
+
+    // A child that is stopped, restarting, or waiting to be restarted cannot
+    // answer. The request used to be dropped and the caller waited out the
+    // timeout, so one such child held up every accessories list for the UI.
+    if (!this.child?.connected) {
+      return Promise.resolve(undefined)
     }
 
     this.matterAccessoriesPromise = new Promise((resolve) => {
