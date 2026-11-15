@@ -41,15 +41,32 @@ export interface CommissioningDeps {
   fabricManager: FabricManager
 }
 
+/** The last write of each file that writePrivateFile() started. */
+const pendingWrites = new Map<string, Promise<void>>()
+
 /**
  * Write a file that holds the pairing passcode: readable by the Homebridge
  * user only, and swapped into place in one step so a reader (the UI) never
  * sees half of it. The rename also replaces an older, world-readable file.
  */
 async function writePrivateFile(path: string, content: string): Promise<void> {
-  const temporaryPath = `${path}.tmp`
-  await writeFile(temporaryPath, content, { encoding: 'utf-8', mode: 0o600 })
-  await rename(temporaryPath, path)
+  // One write at a time per file. Two at once (the save at start-up is not
+  // waited for, and a pairing change can save at the same moment) shared the
+  // temporary file: the second rename found it gone and the save failed.
+  const previous = pendingWrites.get(path) ?? Promise.resolve()
+  const write = previous.catch(() => {}).then(async () => {
+    const temporaryPath = `${path}.tmp`
+    await writeFile(temporaryPath, content, { encoding: 'utf-8', mode: 0o600 })
+    await rename(temporaryPath, path)
+  })
+  pendingWrites.set(path, write)
+  try {
+    await write
+  } finally {
+    if (pendingWrites.get(path) === write) {
+      pendingWrites.delete(path)
+    }
+  }
 }
 
 export class CommissioningManager {
