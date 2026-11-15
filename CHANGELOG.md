@@ -213,6 +213,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): colour matter.js info lines grey and show warnings from its commissioning code
 - test(matter): keep the base manager tests out of the real storage folder and check what they claim
 - fix(matter): still send the ui its accessory list when a cache entry has no device type
+- fix(matter): send the ui the live state of an accessory when a value is held as a bigint
 
 ### Homebridge Dependencies
 

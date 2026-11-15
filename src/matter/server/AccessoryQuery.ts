@@ -10,6 +10,7 @@ import type { MatterAccessoryCache, SerializedMatterAccessory } from '../accesso
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 
 import { Logger } from '../../logger.js'
+import { coerceBigintsToNumbers } from './StateManager.js'
 
 const log = Logger.withPrefix('Matter/Server')
 
@@ -187,7 +188,10 @@ export class AccessoryQuery {
       state[clusterName] = {}
       for (const [key, value] of Object.entries(clusterState ?? {})) {
         if (!key.startsWith('_') && !key.startsWith('$')) {
-          state[clusterName][key] = value
+          // The UI gets this as JSON, which has no way to write a bigint
+          // (matter.js uses one for some 64-bit values): one such value made
+          // the whole accessory list fail to send.
+          state[clusterName][key] = coerceBigintsToNumbers(value)
         }
       }
     }

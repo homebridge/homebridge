@@ -255,3 +255,31 @@ describe('the accessory handed out by getAccessory() and getAccessories()', () =
     expect(new AccessoryQuery(new Map(), () => null).getAccessory('nope')).toBeUndefined()
   })
 })
+
+describe('the live state read for the UI', () => {
+  it('can be written as JSON when matter.js holds a value as a bigint', () => {
+    const accessory = makeAccessory({
+      endpoint: {
+        state: {
+          electricalEnergyMeasurement: {
+            cumulativeEnergyImported: { energy: 123456789n },
+            $internal: 'hidden',
+          },
+          generalDiagnostics: { upTime: 42n },
+        },
+      },
+    } as unknown as Partial<InternalMatterAccessory>)
+    const query = new AccessoryQuery(new Map([
+      [accessory.UUID, accessory],
+    ]), () => null)
+
+    const state = query.getLiveState(accessory.UUID)
+
+    expect(JSON.parse(JSON.stringify(state))).toEqual({
+      electricalEnergyMeasurement: {
+        cumulativeEnergyImported: { energy: 123456789 },
+      },
+      generalDiagnostics: { upTime: 42 },
+    })
+  })
+})
