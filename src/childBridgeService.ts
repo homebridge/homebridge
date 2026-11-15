@@ -860,6 +860,16 @@ export class ChildBridgeService {
     if (this.manuallyStopped) {
       this.restartCount = 0
       this.startChildBridge()
+    } else if (this.scheduledRestartTimeout) {
+      // The process crashed and is waiting to be started again. There is
+      // nothing to stop, so start it now: before, the log said "restarting"
+      // and the user still sat through the rest of the 10 to 40 second wait.
+      clearTimeout(this.scheduledRestartTimeout)
+      this.scheduledRestartTimeout = undefined
+      this.log.warn('Child bridge restarting...')
+      this.restartCount = 0
+      void this.refreshConfig()
+      this.startChildProcess()
     } else {
       this.log.warn('Child bridge restarting...')
       void this.refreshConfig()
