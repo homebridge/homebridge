@@ -164,6 +164,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: apply the plugins list of config.json when the plugin path points at a single plugin
 - fix: stop with an error when -U or -P is given without a path instead of using the default
 - docs: say when a hap enum imported from homebridge stays in a plugin at run time
+- docs: say what a plugin built with isolatedModules can use in place of homebridge's const enums
 
 ### Homebridge Dependencies
 
