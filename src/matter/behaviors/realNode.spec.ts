@@ -2508,6 +2508,67 @@ describe('an attribute the cluster does not have, on a real node', () => {
   })
 })
 
+describe('a cluster the device type does not carry, on a real node', () => {
+  let warn: MockInstance<(...args: unknown[]) => void>
+  const warnings = () => warn.mock.calls.map(call => String(call[0]))
+
+  beforeEach(() => {
+    warn = vi.spyOn(Logger.withPrefix('Matter/Server'), 'warn').mockImplementation(() => {})
+  })
+
+  it('warns for it, and still registers the rest of the accessory', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: true },
+        booleanState: { stateValue: true },
+      },
+    } as never)
+
+    expect(stateOf(endpoint, 'onOff').onOff).toBe(true)
+    expect((endpoint.state as Record<string, unknown>).booleanState).toBeUndefined()
+    expect(warnings()).toEqual([
+      'Matter accessory "Test": the device type has no booleanState cluster, so its state was left out. Use a device type that carries this cluster.',
+    ])
+  })
+
+  it('names the part that declares it', async () => {
+    await register({
+      deviceType: deviceTypes.OnOffOutlet,
+      clusters: {
+        onOff: { onOff: false },
+      },
+      parts: [
+        {
+          id: 'one',
+          displayName: 'Socket one',
+          deviceType: deviceTypes.OnOffOutlet,
+          clusters: {
+            onOff: { onOff: true },
+            levelControl: { currentLevel: 10 },
+          },
+        },
+      ],
+    } as never)
+
+    expect(warnings()).toEqual([
+      'Matter accessory "Test" part "Socket one": the device type has no levelControl cluster, so its state was left out. Use a device type that carries this cluster.',
+    ])
+  })
+
+  it('does not warn for a cluster homebridge adds to the device type', async () => {
+    await register({
+      deviceType: deviceTypes.AirQualitySensor,
+      clusters: {
+        airQuality: { airQuality: 1 },
+        temperatureMeasurement: { measuredValue: 2000 },
+      },
+    } as never)
+
+    expect(warnings()).toEqual([])
+  })
+})
+
 describe('a command sent from the UI, on a real node', () => {
   it('gives a command with request fields an empty request, and a command without them no argument', async () => {
     const lockDoor = vi.spyOn(HomebridgeDoorLockServer.prototype, 'lockDoor')
