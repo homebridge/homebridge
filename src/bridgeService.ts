@@ -59,6 +59,9 @@ const log = Logger.internal
 /** The most accessories HAP-NodeJS puts on one bridge (the HomeKit limit of 150, less the bridge itself). */
 const MAX_BRIDGED_ACCESSORIES = 149
 
+/** The least time between two writes of the accessory cache that plugins ask for, in milliseconds. */
+const CACHE_SAVE_INTERVAL = 1000
+
 /** The longest a shutdown waits for the accessories to be taken off the network, in milliseconds. */
 const UNPUBLISH_TIMEOUT = 2000
 
@@ -307,6 +310,9 @@ export class BridgeService {
   private cachedAccessoriesFileLoaded = false
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map()
   private readonly publishedExternalAccessoriesMetadata: Map<MacAddress, ExternalAccessoryMetadata> = new Map()
+  private cacheSaveTimer?: ReturnType<typeof setTimeout>
+  private cacheSavePending = false
+  private shuttingDown = false
   private readonly unsavableAccessories = new WeakSet<PlatformAccessory>()
   private readonly characteristicWarningListeners = new WeakMap<Accessory, (warning: CharacteristicWarning) => void>()
 
@@ -709,9 +715,42 @@ export class BridgeService {
   }
 
   /**
-   * Save the cached accessories back to disk.
+   * Save the cached accessories after a plugin registered, updated or
+   * unregistered some, without writing the file more than once in
+   * {@link CACHE_SAVE_INTERVAL}.
+   *
+   * Every save writes the accessories of all plugins, and blocks while it
+   * does. Some plugins call `updatePlatformAccessories()` on each change of
+   * state, which was one full write per call. The first request is written at
+   * once; those that follow within the interval are written together when it
+   * ends. From the shutdown on every request is written at once, as nothing
+   * may be left for a timer then.
+   */
+  private requestCacheSave(): void {
+    if (this.cacheSaveTimer && !this.shuttingDown) {
+      this.cacheSavePending = true
+      return
+    }
+
+    this.saveCachedPlatformAccessoriesOnDisk()
+
+    if (!this.cacheSaveTimer && !this.shuttingDown) {
+      this.cacheSaveTimer = setTimeout(() => {
+        this.cacheSaveTimer = undefined
+        if (this.cacheSavePending) {
+          this.requestCacheSave()
+        }
+      }, CACHE_SAVE_INTERVAL)
+      this.cacheSaveTimer.unref()
+    }
+  }
+
+  /**
+   * Save the cached accessories back to disk, now.
    */
   public saveCachedPlatformAccessoriesOnDisk(): void {
+    // whatever was waiting for the timer is written by this save
+    this.cacheSavePending = false
     try {
       // only save the cache file back to disk if we have already attempted to load it
       // this should prevent the cache being deleted should homebridge be shutdown before it has finished launching
@@ -869,7 +908,7 @@ export class BridgeService {
       // configuration put off; adding an empty list sends that one update.
       this.bridge.addBridgedAccessories([])
     }
-    this.saveCachedPlatformAccessoriesOnDisk()
+    this.requestCacheSave()
   }
 
   handleUpdatePlatformAccessories(accessories: PlatformAccessory[]): void {
@@ -900,7 +939,7 @@ export class BridgeService {
     }
 
     // Update persisted accessories
-    this.saveCachedPlatformAccessoriesOnDisk()
+    this.requestCacheSave()
   }
 
   handleUnregisterPlatformAccessories(accessories: PlatformAccessory[]): void {
@@ -921,7 +960,7 @@ export class BridgeService {
     if (hapAccessories.length > 0) {
       this.bridge.removeBridgedAccessories(hapAccessories)
     }
-    this.saveCachedPlatformAccessoriesOnDisk()
+    this.requestCacheSave()
   }
 
   async handlePublishExternalAccessories(accessories: PlatformAccessory[]): Promise<void> {
@@ -1150,6 +1189,11 @@ export class BridgeService {
         })
       })
 
+    // Writes what was waiting for the save timer too. From here on a save is
+    // not put off: the process may be gone before a timer runs.
+    this.shuttingDown = true
+    clearTimeout(this.cacheSaveTimer)
+    this.cacheSaveTimer = undefined
     this.saveCachedPlatformAccessoriesOnDisk()
 
     // signalShutdown fires last so plugin shutdown listeners run with the

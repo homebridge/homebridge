@@ -34,6 +34,10 @@ let service: BridgeService
 let configureAccessory: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  // only the timers, so the tests can let the time between two cache saves pass
+  vi.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout'],
+  })
   for (const level of ['info', 'warn', 'error', 'debug'] as const) {
     vi.spyOn(Logger.prototype, level).mockImplementation(() => {})
   }
@@ -56,9 +60,18 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
   rmSync(storageDir, { recursive: true, force: true })
 })
+
+/** What the cache file holds once the save a plugin's call asked for has been written. */
+function savedCache(): { displayName: string, context: unknown }[] {
+  // saves that follow one another within a second are written together, when the second is over
+  vi.advanceTimersByTime(1000)
+  return JSON.parse(readFileSync(join(storageDir, 'cachedAccessories'), 'utf-8')) as { displayName: string, context: unknown }[]
+}
+const savedNames = () => savedCache().map(entry => entry.displayName)
 
 /** A platform accessory with one switch service. */
 function accessory(name: string): PlatformAccessory {
@@ -396,8 +409,6 @@ describe('loading the cached accessories from disk', () => {
 })
 
 describe('updatePlatformAccessories on the real bridge', () => {
-  const savedNames = () => (JSON.parse(readFileSync(join(storageDir, 'cachedAccessories'), 'utf-8')) as { displayName: string }[]).map(entry => entry.displayName)
-
   beforeEach(async () => {
     // the cache is only written once it has been loaded
     await service.loadCachedPlatformAccessoriesFromDisk()
@@ -411,7 +422,7 @@ describe('updatePlatformAccessories on the real bridge', () => {
     api.updatePlatformAccessories([lamp])
 
     expect(cached()).toEqual(['Lamp'])
-    expect(JSON.parse(readFileSync(join(storageDir, 'cachedAccessories'), 'utf-8'))[0].context).toEqual({ room: 'hall' })
+    expect(savedCache()[0].context).toEqual({ room: 'hall' })
   })
 
   it('does not add an accessory that was never registered, or was unregistered, to the cache', () => {
@@ -457,8 +468,6 @@ describe('updatePlatformAccessories on the real bridge', () => {
 })
 
 describe('saving the cached accessories', () => {
-  const savedNames = () => (JSON.parse(readFileSync(join(storageDir, 'cachedAccessories'), 'utf-8')) as { displayName: string }[]).map(entry => entry.displayName)
-
   beforeEach(async () => {
     await service.loadCachedPlatformAccessoriesFromDisk()
   })
@@ -506,6 +515,80 @@ describe('saving the cached accessories', () => {
     api.updatePlatformAccessories([broken])
 
     expect(savedNames()).toEqual(['Broken'])
+  })
+})
+
+describe('how often the cache is written', () => {
+  let writes: ReturnType<typeof vi.spyOn>
+  const lastWrite = () => (writes.mock.calls.at(-1)![1] as { context: { state: number } }[])[0].context.state
+
+  beforeEach(async () => {
+    await service.loadCachedPlatformAccessoriesFromDisk()
+    writes = vi.spyOn(StorageService.prototype, 'setItemSync')
+  })
+
+  it('writes the first change at once, and the many that follow within a second together', () => {
+    const lamp = accessory('Lamp')
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+    expect(writes).toHaveBeenCalledTimes(1)
+
+    // a plugin that saves its accessory on every change of state
+    for (let state = 1; state <= 50; state++) {
+      lamp.context.state = state
+      api.updatePlatformAccessories([lamp])
+    }
+    expect(writes).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(1000)
+    expect(writes).toHaveBeenCalledTimes(2)
+    expect(lastWrite()).toBe(50)
+
+    // nothing more to write: the timer does not keep writing
+    vi.advanceTimersByTime(5000)
+    expect(writes).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes again at once after a quiet second', () => {
+    const lamp = accessory('Lamp')
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+    vi.advanceTimersByTime(1000)
+
+    lamp.context.state = 7
+    api.updatePlatformAccessories([lamp])
+
+    expect(writes).toHaveBeenCalledTimes(2)
+    expect(lastWrite()).toBe(7)
+  })
+
+  it('writes what is waiting when Homebridge shuts down, without the timer', async () => {
+    vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
+    const lamp = accessory('Lamp')
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+    lamp.context.state = 3
+    api.updatePlatformAccessories([lamp])
+    expect(writes).toHaveBeenCalledTimes(1)
+
+    await service.teardown()
+
+    expect(writes).toHaveBeenCalledTimes(2)
+    expect(lastWrite()).toBe(3)
+  })
+
+  it('writes at once what a plugin saves from its shutdown listener', async () => {
+    vi.spyOn(service.bridge, 'unpublish').mockResolvedValue(undefined)
+    const lamp = accessory('Lamp')
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+    api.on('shutdown', () => {
+      lamp.context.state = 1
+      api.updatePlatformAccessories([lamp])
+      lamp.context.state = 2
+      api.updatePlatformAccessories([lamp])
+    })
+
+    await service.teardown()
+
+    // no timer has run
+    expect(JSON.parse(readFileSync(join(storageDir, 'cachedAccessories'), 'utf-8'))[0].context).toEqual({ state: 2 })
   })
 })
 
