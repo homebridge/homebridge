@@ -18,7 +18,7 @@ import { MatterStatus } from '../errors.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
 import { StateManager } from '../server/StateManager.js'
 import { deviceTypes } from '../types.js'
-import { BehaviorRegistry, HomebridgeThermostatServer, RegistryManager } from './index.js'
+import { BehaviorRegistry, HomebridgeThermostatServer, HomebridgeWindowCoveringServer, RegistryManager } from './index.js'
 
 /**
  * The Homebridge behaviors on a real matter.js node.
@@ -1755,5 +1755,66 @@ describe('an ev charger on a real node', () => {
 
     expect(calls).toEqual(['startDiagnostics'])
     expect(stateOf(endpoint, 'energyEvse').supplyState).toBe(4)
+  })
+})
+
+describe('a window covering that can only open and close, on a real node', () => {
+  /** A covering with the Lift feature and no position, as an open/close-only blind has. */
+  function openCloseBlind(handlers: Record<string, () => Promise<void>>) {
+    return register({
+      deviceType: deviceTypes.WindowCovering.with(HomebridgeWindowCoveringServer.with('Lift')),
+      clusters: {
+        windowCovering: {},
+      },
+      handlers: { windowCovering: handlers },
+    })
+  }
+
+  it('calls the open handler once for open, and the close handler once for close', async () => {
+    const calls: string[] = []
+    const endpoint = await openCloseBlind({
+      upOrOpen: async () => {
+        calls.push('open')
+      },
+      downOrClose: async () => {
+        calls.push('close')
+      },
+    })
+
+    await invoke(endpoint, 'windowCovering', 'upOrOpen')
+    await invoke(endpoint, 'windowCovering', 'downOrClose')
+
+    expect(calls).toEqual(['open', 'close'])
+  })
+
+  it('waits for the open or close handler when a controller sends a percentage', async () => {
+    const calls: string[] = []
+    const endpoint = await openCloseBlind({
+      upOrOpen: async () => {
+        await settle()
+        calls.push('open')
+      },
+      downOrClose: async () => {
+        await settle()
+        calls.push('close')
+      },
+    })
+
+    await invoke(endpoint, 'windowCovering', 'goToLiftPercentage', { liftPercent100thsValue: 0 })
+    expect(calls).toEqual(['open'])
+    await invoke(endpoint, 'windowCovering', 'goToLiftPercentage', { liftPercent100thsValue: 4000 })
+    expect(calls).toEqual(['open', 'close'])
+  })
+
+  it('fails a percentage command when the close handler fails', async () => {
+    const endpoint = await openCloseBlind({
+      downOrClose: async () => {
+        throw new Error('motor jammed')
+      },
+    })
+
+    await expect(invoke(endpoint, 'windowCovering', 'goToLiftPercentage', { liftPercent100thsValue: 10000 }))
+      .rejects
+      .toThrow('The windowCovering.downOrClose handler failed: motor jammed')
   })
 })

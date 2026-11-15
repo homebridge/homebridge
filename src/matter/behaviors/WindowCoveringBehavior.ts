@@ -109,6 +109,20 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     }
   }
 
+  /**
+   * A go-to-percentage command for a covering that can only open and close
+   * (it does not know its position). Matter says 0 opens it and any other
+   * value closes it. matter.js does the same, but it starts the open or close
+   * command without waiting for it, so a plugin handler that failed there was
+   * a rejection nobody caught. Here the command waits, and fails when the
+   * handler does.
+   */
+  private openOrCloseFor(percent100ths: number | undefined): Promise<void> {
+    return percent100ths === 0
+      ? this.upOrOpen()
+      : this.downOrClose()
+  }
+
   override async upOrOpen(): Promise<void> {
     const endpointId = this.endpoint.id
 
@@ -163,6 +177,10 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
   }
 
   override async goToLiftPercentage(request: WindowCovering.GoToLiftPercentageRequest): Promise<void> {
+    if (!this.features.positionAwareLift) {
+      return this.openOrCloseFor(request.liftPercent100thsValue)
+    }
+
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
@@ -187,6 +205,10 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
   }
 
   override async goToTiltPercentage(request: WindowCovering.GoToTiltPercentageRequest): Promise<void> {
+    if (!this.features.positionAwareTilt) {
+      return this.openOrCloseFor(request.tiltPercent100thsValue)
+    }
+
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
