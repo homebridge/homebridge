@@ -4,11 +4,10 @@
  * Handles service area selection for robotic vacuum cleaners
  */
 
-import type { ServiceArea } from '@matter/main/clusters'
-
 import type { ServiceAreaState } from '../clusterTypes.js'
 
 import { ServiceAreaServer } from '@matter/main/behaviors/service-area'
+import { ServiceArea } from '@matter/main/clusters/service-area'
 import { Status, StatusResponseError } from '@matter/main/types'
 
 import { MatterStatus } from '../errors.js'
@@ -102,11 +101,20 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
     const registry = this.getRegistry()
 
     try {
+      // Check the request first, with matter.js's own rules: an area that is
+      // not selected is refused without the plugin being called.
+      const result = this.assertSkipServiceArea(request)
+      if (result.status !== ServiceArea.SkipAreaStatus.Success) {
+        return result
+      }
+
       // Execute user handler
       await registry.executeHandler(endpointId, 'serviceArea', 'skipArea', request)
 
-      // Only reached if handler succeeded - call base implementation
-      const result = await super.skipArea(request)
+      // Only reached if handler succeeded. There is no base implementation to
+      // call: matter.js leaves skipArea itself unimplemented (super.skipArea()
+      // throws), because what a skip does to the progress and the current area
+      // is up to the device. The plugin reports that with updateAccessoryState.
 
       // Sync state to cache (include progress for skip operations)
       this.syncServiceAreaStateToCache(true)

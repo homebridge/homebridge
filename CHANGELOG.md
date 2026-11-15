@@ -26,6 +26,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): report a matter server that fails to go online as a failed start
 - fix(matter): make toggle work without a toggle handler and call the plugin only once
 - fix(matter): run a level command with no handler of its own through one that can do it
+- fix(matter): answer a robot vacuum's skip area command instead of always failing it
 
 ### Homebridge Dependencies
 
