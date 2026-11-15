@@ -16,12 +16,31 @@ import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
- * What a handler returned, when it is an answer with a status (a number, as
- * every cluster-level answer has). Anything else a handler returns is ignored,
- * so an existing handler that happens to return a value changes nothing.
+ * The highest status a cluster-level answer has: 0x00 to 0x3F general, 0x40 to
+ * 0x7F for the cluster, 0x80 to 0xBF for the maker.
+ */
+const HIGHEST_ANSWER_STATUS = 0xBF
+
+/**
+ * What a handler returned, when it is an answer with a status. Anything else a
+ * handler returns is ignored, so an existing handler that happens to return a
+ * value changes nothing.
+ *
+ * An answer is a plain object with a whole-number status in the range above.
+ * A handler that ends with `return fetch(url)` or an axios call returns a
+ * response with an HTTP status (200 and up): that is not an answer, and before
+ * it refused every mode change.
  */
 export function statusResponse<T extends { status: number }>(response: unknown): T | undefined {
-  return typeof response === 'object' && response !== null && typeof (response as { status?: unknown }).status === 'number'
+  if (typeof response !== 'object' || response === null) {
+    return undefined
+  }
+  const prototype = Object.getPrototypeOf(response)
+  if (prototype !== Object.prototype && prototype !== null) {
+    return undefined
+  }
+  const status = (response as { status?: unknown }).status
+  return typeof status === 'number' && Number.isInteger(status) && status >= 0 && status <= HIGHEST_ANSWER_STATUS
     ? response as T
     : undefined
 }
