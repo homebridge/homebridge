@@ -742,8 +742,21 @@ export const deviceTypes = {
   ),
 
   // Energy (#4034)
-  // ⚠️ It is not yet known how Apple Home presents these types. Test them
-  // there before swapping out an ElectricalSensor or outlet that already works.
+  // How Apple Home presents these types (tested on Homebridge 2.5.0 with
+  // iOS 27.2 on a child bridge; report and credit: GitHub user atdr,
+  // https://github.com/homebridge/homebridge/issues/4034#issuecomment-6895025093):
+  //   - ElectricalMeter works. Home uses it as the whole-home meter: the
+  //     "All Home" energy figure follows it, signed for import and export.
+  //   - SolarPower and BatteryStorage both show as "Not Supported", also when
+  //     built to the spec with no matter.js conformance warning. For Apple Home
+  //     today, publish solar and battery as plain ElectricalSensors.
+  //   - A bridged ElectricalSensor gets no room tile. Its readings still show
+  //     in Home's Energy section.
+  //   - A device that changes type needs a new UUID: Home drops a device whose
+  //     old UUID comes back under another type.
+  //   - After any device type change, remove the bridge from Home and pair it again.
+  // Other controllers may differ, and Home may change: test before swapping out
+  // an ElectricalSensor or outlet that already works.
   //
   // Solar power and battery storage are composed devices: the parent carries
   // the type, and its parts carry what the spec requires of it. A part that
@@ -769,7 +782,8 @@ export const deviceTypes = {
   EnergyEvse: devices.EnergyEvseDevice.with(DefaultEnergyEvseServer.with()),
   // A meter reporting power and energy. Like ElectricalSensor, its measurement
   // clusters come from the declared electricalPowerMeasurement /
-  // electricalEnergyMeasurement state.
+  // electricalEnergyMeasurement state. Apple Home treats it as the whole-home
+  // meter (see the Apple Home notes under "Energy" above).
   ElectricalMeter: devices.ElectricalMeterDevice,
   // A utility's own meter - declare meterIdentification state - and a tariff.
   // Both are Matter 1.5 types, so controllers may not know them yet. A tariff
