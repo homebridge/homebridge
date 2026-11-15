@@ -100,6 +100,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs(matter): say how apple home presents the energy device types, from a user's test report
 - fix(matter): keep a child bridge and its homekit side running when its matter server fails to start
 - fix(matter): answer a ui control sent to one child bridge when that child cannot reply
+- fix(matter): echo the request id on every accessory info reply, so the ui no longer drops it
 
 ### Homebridge Dependencies
 

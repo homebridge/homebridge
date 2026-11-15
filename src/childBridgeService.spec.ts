@@ -514,6 +514,29 @@ describe('childBridgeService', () => {
       expect(service.controlMatterAccessory(request)).toBe(false)
     })
 
+    it('getMatterAccessoryInfo sends the correlationId to the child, and hands the one on its reply back', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      service.onAccessoryInfoResponse = vi.fn()
+
+      service.getMatterAccessoryInfo('info-uuid', 'corr-info')
+
+      const sent = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO)
+      expect(sent.data).toEqual({ uuid: 'info-uuid', correlationId: 'corr-info' })
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoryInfoData',
+          correlationId: 'corr-info',
+          data: { uuid: 'info-uuid' },
+        },
+      })
+      expect(service.onAccessoryInfoResponse).toHaveBeenCalledWith('info-uuid', 'corr-info')
+    })
+
     it('on MATTER_EVENT accessoryControlResponse, calls onAccessoryControlResponse if set', () => {
       const { service, ipcService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
