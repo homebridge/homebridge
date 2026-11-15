@@ -1243,3 +1243,45 @@ describe('errors a plugin gets back, on a real node', () => {
     expect(error.message).toBe('Accessory no-such-uuid not found or not registered')
   })
 })
+
+describe('a registration that fails, on a real node', () => {
+  it('leaves no handlers or part mappings behind, and a corrected retry works', async () => {
+    const light = (currentLevel: number) => ({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff: true },
+        levelControl: { currentLevel },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+        },
+      },
+    })
+    const withParts = (secondLevel: number) => ({
+      deviceType: deviceTypes.BridgedNode,
+      clusters: {},
+      parts: [
+        {
+          id: 'a',
+          displayName: 'A',
+          ...light(100),
+        },
+        {
+          id: 'b',
+          displayName: 'B',
+          ...light(secondLevel),
+        },
+      ],
+    })
+
+    // matter.js only passes on which part failed (the reason is in its log)
+    await expect(register(withParts(300) as never)).rejects.toThrow(/test-uuid-part-b/)
+
+    expect(accessories.has('test-uuid')).toBe(false)
+    expect(deps.behaviorRegistry.getStats()).toMatchObject({ partCount: 0, handlerCount: 0 })
+
+    await register(withParts(120) as never)
+    expect(deps.behaviorRegistry.getStats()).toMatchObject({ partCount: 2, handlerCount: 2 })
+  })
+})

@@ -79,6 +79,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): make a thermostat's raise or lower command work without a handler of its own
 - fix(matter): call a color light's stop handler for a stop command, and one handler per command
 - fix(matter): give a plugin the real reason and the cause when a registration or update fails
+- fix(matter): remove the handlers and part mappings a failed registration left behind
 
 ### Homebridge Dependencies
 

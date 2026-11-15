@@ -468,7 +468,23 @@ export class AccessoryManager {
       deps.accessoryCache?.release(accessory.UUID)
     } catch (error) {
       log.error(`Failed to register Matter accessory ${accessory.displayName}:`, error)
+      this.forgetFailedRegistration(accessory.UUID, deps)
       throw deviceErrorFrom('Failed to register accessory', error)
+    }
+  }
+
+  /**
+   * Drop what a registration put in the handler registries before it failed.
+   * They are filled while the endpoint is being built, so a failure left the
+   * plugin's handlers (and the part mappings) behind for good: nothing else
+   * removes them for an accessory that never made it into the list.
+   */
+  private forgetFailedRegistration(uuid: string, deps: AccessoryManagerDeps): void {
+    if (deps.accessories.has(uuid)) {
+      return
+    }
+    for (const endpointId of deps.behaviorRegistry.removeEndpoint(uuid)) {
+      deps.registryManager.unregisterEndpoint(endpointId)
     }
   }
 
