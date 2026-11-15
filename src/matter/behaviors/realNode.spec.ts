@@ -1967,3 +1967,54 @@ describe('a closure with no handlers, moved on a real node', () => {
     expect(stateOf(endpoint, 'closureControl').overallCurrentState).toEqual({ position: 0, secureState: true })
   })
 })
+
+describe('the cached state of a fan, on a real node', () => {
+  it('holds only what matter holds after a controller changes the speed or the mode', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.Fan,
+      clusters: {
+        fanControl: {
+          fanMode: 3,
+          fanModeSequence: 0,
+          percentSetting: 50,
+          percentCurrent: 50,
+        },
+      },
+      handlers: {
+        fanControl: {
+          fanModeChange: async () => {},
+          percentSettingChange: async () => {},
+        },
+      },
+    })
+    const cached = () => accessories.get('test-uuid')?.clusters?.fanControl
+    const matter = () => {
+      const { fanMode, percentSetting, percentCurrent } = stateOf(endpoint, 'fanControl')
+      return { fanMode, percentSetting, percentCurrent }
+    }
+
+    await write(endpoint, {
+      fanControl: { percentSetting: 80 },
+    })
+    await settle()
+    expect(matter()).toEqual({ fanMode: 3, percentSetting: 80, percentCurrent: 50 })
+    expect(cached()).toMatchObject(matter())
+
+    await write(endpoint, {
+      fanControl: { fanMode: 0 },
+    })
+    await settle()
+    expect(matter()).toEqual({ fanMode: 0, percentSetting: 80, percentCurrent: 50 })
+    expect(cached()).toMatchObject(matter())
+
+    await write(endpoint, {
+      fanControl: { fanMode: 3 },
+    })
+    await write(endpoint, {
+      fanControl: { percentSetting: 0 },
+    })
+    await settle()
+    expect(matter()).toEqual({ fanMode: 3, percentSetting: 0, percentCurrent: 50 })
+    expect(cached()).toMatchObject(matter())
+  })
+})
