@@ -7,6 +7,8 @@
 
 import type { AccessoryConfig, PlatformConfig } from '../bridgeService.js'
 
+import { Buffer } from 'node:buffer'
+
 import { Logger } from '../logger.js'
 import { shouldStartMatterServer } from './config.js'
 
@@ -119,11 +121,12 @@ export function truncateString(
 ): SanitizationResult<string> {
   const warnings: string[] = []
 
-  if (value.length > maxLength) {
-    warnings.push(`${fieldName} exceeds ${maxLength} characters, truncating: ${value}`)
-    log.warn(`${fieldName} exceeds ${maxLength} characters, truncating: ${value}`)
+  const shortened = truncateUtf8(value, maxLength)
+  if (shortened !== value) {
+    warnings.push(`${fieldName} exceeds ${maxLength} bytes, truncating: ${value}`)
+    log.warn(`${fieldName} exceeds ${maxLength} bytes, truncating: ${value}`)
     return {
-      value: value.slice(0, maxLength),
+      value: shortened,
       warnings,
     }
   }
@@ -362,4 +365,30 @@ export class MatterConfigValidator {
 
     return result
   }
+}
+
+/**
+ * Shorten a text so that it fits in `maxBytes` bytes as UTF-8, cutting only
+ * between characters.
+ *
+ * Matter's limits for texts (32 for a name, 64 for a label) are in bytes, not
+ * in characters: "ü" is two bytes, a Chinese character three, an emoji four.
+ * matter.js 0.18.0 counts characters and lets a longer text through; from
+ * 0.18.1 it counts bytes and refuses it. `slice()` can also cut an emoji in
+ * half, which leaves text that is not valid.
+ */
+export function truncateUtf8(value: string, maxBytes: number): string {
+  if (Buffer.byteLength(value, 'utf8') <= maxBytes) {
+    return value
+  }
+  let result = ''
+  let bytes = 0
+  for (const character of value) {
+    bytes += Buffer.byteLength(character, 'utf8')
+    if (bytes > maxBytes) {
+      break
+    }
+    result += character
+  }
+  return result
 }

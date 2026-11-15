@@ -1,5 +1,7 @@
 import type { AccessoryConfig, PlatformConfig } from '../bridgeService.js'
 
+import { Buffer } from 'node:buffer'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../logger.js'
@@ -8,6 +10,7 @@ import {
   MatterConfigValidator,
   sanitizeUniqueId,
   truncateString,
+  truncateUtf8,
   validatePort,
 } from './configValidator.js'
 
@@ -143,8 +146,8 @@ describe('configValidator', () => {
       const result = truncateString('Hello World!', 5, 'testField')
       expect(result.value).toBe('Hello')
       expect(result.warnings).toHaveLength(1)
-      expect(result.warnings[0]).toContain('exceeds 5 characters')
-      expect(logWarnSpy).toHaveBeenCalledWith(expect.stringContaining('exceeds 5 characters'))
+      expect(result.warnings[0]).toContain('exceeds 5 bytes')
+      expect(logWarnSpy).toHaveBeenCalledWith(expect.stringContaining('exceeds 5 bytes'))
     })
 
     it('should handle empty strings', () => {
@@ -601,5 +604,31 @@ describe('configValidator', () => {
       expect(platforms[0]._bridge?.matter).toBeDefined()
       expect(result.isValid).toBe(true)
     })
+  })
+})
+
+describe('truncateUtf8', () => {
+  const bytes = (text: string) => Buffer.byteLength(text, 'utf8')
+
+  it('leaves a text that fits alone', () => {
+    expect(truncateUtf8('Living Room Light', 32)).toBe('Living Room Light')
+    // 32 bytes exactly
+    expect(truncateUtf8('ü'.repeat(16), 32)).toBe('ü'.repeat(16))
+  })
+
+  it('counts bytes, not characters', () => {
+    // 20 characters, 40 bytes
+    expect(truncateUtf8('ü'.repeat(20), 32)).toBe('ü'.repeat(16))
+    // 16 characters, 48 bytes
+    const shortened = truncateUtf8('客厅的灯'.repeat(4), 32)
+    expect(shortened).toBe('客厅的灯客厅的灯客厅')
+    expect(bytes(shortened)).toBeLessThanOrEqual(32)
+  })
+
+  it('never cuts a character in half', () => {
+    // the emoji starts at byte 31 and is 4 bytes long
+    const shortened = truncateUtf8(`${'A'.repeat(31)}😀 Lamp`, 32)
+    expect(shortened).toBe('A'.repeat(31))
+    expect(shortened.isWellFormed()).toBe(true)
   })
 })
