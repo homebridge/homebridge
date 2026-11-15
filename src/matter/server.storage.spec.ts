@@ -278,6 +278,31 @@ describe('matterServer storage on real matter.js nodes', () => {
       await again.start()
       expect(again.getLiveState('uuid-dimmer').levelControl?.maxLevel).toBe(200)
     }, 30000)
+
+    it('takes the context the plugin passes when the accessory comes back with a new structure', async () => {
+      await firstSession('FFFFFFFFFFA3', 55963)
+
+      const after = bridgeServer('FFFFFFFFFFA3', 55963)
+      await after.start()
+      // a plugin update: new handlers (a new structure) and a new context
+      const updated = dimmer({ maxLevel: 254 }, {
+        context: { version: 2 },
+        handlers: {
+          onOff: {
+            on: async () => {},
+            off: async () => {},
+          },
+          identify: {
+            identify: async () => {},
+          },
+        },
+      })
+      await after.registerPlatformAccessories('plugin', 'Platform', [updated])
+
+      expect(updated.context).toEqual({ version: 2 })
+      expect(after.getAccessory('uuid-dimmer')?.context).toEqual({ version: 2 })
+      expect(after.getLiveState('uuid-dimmer').onOff?.onOff).toBe(true)
+    }, 30000)
   })
 
   describe('which controllers a bridge is paired with', () => {
