@@ -592,7 +592,10 @@ export class BridgeService {
       } else {
         // We set a placeholder for FirmwareRevision before configureAccessory is called so the plugin has the opportunity to override it.
         accessory.getService(Service.AccessoryInformation)?.setCharacteristic(Characteristic.FirmwareRevision, '0')
-        platformPlugins.configureAccessory(accessory)
+        // A platform that only does Matter may have no configureAccessory
+        if (typeof platformPlugins.configureAccessory === 'function') {
+          platformPlugins.configureAccessory(accessory)
+        }
 
         // The plugin may have unregistered this very accessory while it was
         // being configured: it is out of the cache then, and must stay off the bridge.

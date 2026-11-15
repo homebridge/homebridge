@@ -854,3 +854,28 @@ describe('homebridgeAPI', () => {
     })
   })
 })
+
+describe('which platforms get their cached accessories back', () => {
+  it('counts a platform that only does Matter as a dynamic platform', () => {
+    expect(HomebridgeAPI.isDynamicPlatformPlugin({
+      configureMatterAccessory: () => {},
+    } as never)).toBe(true)
+  })
+
+  it('still counts a platform with configureAccessory, and no other', () => {
+    expect(HomebridgeAPI.isDynamicPlatformPlugin({
+      configureAccessory: () => {},
+    } as never)).toBe(true)
+    expect(HomebridgeAPI.isDynamicPlatformPlugin({} as never)).toBe(false)
+  })
+
+  it('leaves a static platform static, also when it has configureMatterAccessory', () => {
+    const platform = {
+      accessories: () => {},
+      configureMatterAccessory: () => {},
+    } as never
+
+    expect(HomebridgeAPI.isDynamicPlatformPlugin(platform)).toBe(false)
+    expect(HomebridgeAPI.isStaticPlatformPlugin(platform)).toBe(true)
+  })
+})

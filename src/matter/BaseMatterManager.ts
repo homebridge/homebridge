@@ -283,6 +283,15 @@ export abstract class BaseMatterManager {
       log.warn('Cannot register Matter accessories - Matter server is not running')
       return
     }
+    // The same two warnings a HAP registration gives. With a wrong name the
+    // accessories work until the next start, and are then removed as orphans:
+    // the cache can not find the platform to hand them back to.
+    const plugin = this.pluginManager.getPlugin(pluginIdentifier)
+    if (!plugin) {
+      log.warn(`A platform configured a new Matter accessory under the plugin name '${pluginIdentifier}'. However no loaded plugin could be found for the name!`)
+    } else if (!plugin.getActiveDynamicPlatform(platformName)) {
+      log.warn(`The plugin '${pluginIdentifier}' registered a new Matter accessory for the platform '${platformName}'. The platform couldn't be found though!`)
+    }
     await this.matterServer.registerPlatformAccessories(pluginIdentifier, platformName, accessories)
   }
 

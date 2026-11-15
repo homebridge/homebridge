@@ -133,6 +133,23 @@ describe('unregisterPlatformAccessories on the real bridge', () => {
   })
 })
 
+describe('a platform that only does Matter, on the real bridge', () => {
+  it('gets its cached HAP accessories on the bridge without a configureAccessory method', () => {
+    const pluginManager = (service as unknown as { pluginManager: { getPlugin: () => unknown } }).pluginManager
+    pluginManager.getPlugin = () => ({
+      getPluginIdentifier: () => PLUGIN,
+      getActiveDynamicPlatform: () => ({
+        configureMatterAccessory: () => {},
+      }),
+    })
+    cache(accessory('Old'))
+
+    service.restoreCachedPlatformAccessories()
+
+    expect(bridged()).toEqual(['Old'])
+  })
+})
+
 describe('characteristic warnings of a platform accessory', () => {
   it('are printed once, however often the same accessory is registered again', () => {
     const lamp = accessory('Lamp')
