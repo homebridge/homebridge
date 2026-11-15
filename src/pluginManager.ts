@@ -452,6 +452,13 @@ export class PluginManager {
 
       if (existsSync(join(searchPath, 'package.json'))) { // does this path point inside a single plugin and not a directory containing plugins?
         try {
+          // The `plugins` allow-list of config.json counts here too. The folder may have any name
+          // (a checkout, a linked folder), so the name in its package.json is what is compared.
+          const pluginIdentifier = PluginManager.loadPackageJSON(searchPath).name
+          if (this.activePlugins && !this.activePlugins.includes(pluginIdentifier)) {
+            log.info(`Not loading plugin '${pluginIdentifier}' found at '${searchPath}', as it is not in the "plugins" list of your config.json.`)
+            return
+          }
           this.loadPlugin(searchPath)
         } catch (error: any) {
           log.warn(error.message)

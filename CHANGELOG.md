@@ -161,6 +161,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: stop node's memory leak warning when more than ten platforms listen for didFinishLaunching
 - fix: find a plugin whose scope has a dot, and keep a dot in an accessory or platform name
 - fix: do not start an accessory or platform of a plugin whose initializer failed
+- fix: apply the plugins list of config.json when the plugin path points at a single plugin
 
 ### Homebridge Dependencies
 

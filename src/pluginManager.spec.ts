@@ -221,6 +221,57 @@ describe('pluginManager', () => {
     })
   })
 
+  describe('the plugins allow-list when the plugin path points at a single plugin', () => {
+    let pluginPath: string
+    let infoSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      infoSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+      // the folder name is not the package name on purpose: the package name is what counts
+      pluginPath = mkdtempSync(join(tmpdir(), 'checkout-of-plugin-b-'))
+      writeFileSync(join(pluginPath, 'package.json'), JSON.stringify({
+        name: 'homebridge-b',
+        version: '1.0.0',
+        keywords: ['homebridge-plugin'],
+        main: 'index.js',
+      }))
+    })
+
+    afterEach(() => {
+      infoSpy.mockRestore()
+      rmSync(pluginPath, { force: true, recursive: true })
+    })
+
+    function loadedPlugins(activePlugins?: string[]): string[] {
+      const manager = new PluginManager(new HomebridgeAPI(), {
+        customPluginPath: pluginPath,
+        strictPluginResolution: true,
+        activePlugins,
+      })
+      ;(manager as any).loadInstalledPlugins()
+      return [
+        ...(manager as any).plugins.keys(),
+      ]
+    }
+
+    it('does not load a plugin that is not on the list', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+      expect(loadedPlugins(['homebridge-a'])).toEqual([])
+
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('Not loading plugin \'homebridge-b\''))
+      warnSpy.mockRestore()
+    })
+
+    it('loads a plugin that is on the list', () => {
+      expect(loadedPlugins(['homebridge-a', 'homebridge-b'])).toEqual(['homebridge-b'])
+    })
+
+    it('loads the plugin when there is no list', () => {
+      expect(loadedPlugins()).toEqual(['homebridge-b'])
+    })
+  })
+
   describe('initializePlugin currentInitializingPlugin reset', () => {
     function buildPluginStub(initialize: (api: any) => void | Promise<void>) {
       return {
