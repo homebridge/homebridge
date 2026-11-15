@@ -264,6 +264,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): tell the ui when matter refuses a command it sent, in place of success
 - fix(matter): stop a slow child bridge handler showing as accessory not found in the ui
 - fix: show what a thrown plain object holds in the log, in place of [object Object]
+- fix: start with the default bridge again for a bridge section of null, with a warning
 
 ### Homebridge Dependencies
 
