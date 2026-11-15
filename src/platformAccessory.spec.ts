@@ -2,6 +2,7 @@ import type { SerializedPlatformAccessory } from './platformAccessory.js'
 
 import {
   Accessory,
+  AccessoryEventTypes,
   Categories,
   RemoteController,
   Service,
@@ -47,6 +48,39 @@ describe('platformAccessory', () => {
       const accessory = createAccessory('TestName')
       expect(accessory._associatedHAPAccessory.services).toStrictEqual(accessory.services)
       expect(accessory.services.length).toBe(1)
+    })
+  })
+
+  describe('the identify event', () => {
+    it('is forwarded with the paired flag and a callback, and answers the controller itself', () => {
+      const accessory = createAccessory('TestName')
+      const received: [boolean, () => void][] = []
+      // the listener type takes the arguments it is really called with
+      accessory.on('identify', (paired, callback) => {
+        received.push([paired, callback])
+        callback()
+      })
+      // a listener that takes nothing, as most plugins write it, is fine too
+      const plain = vi.fn(() => {})
+      accessory.on('identify', plain)
+      const answered = vi.fn()
+
+      accessory._associatedHAPAccessory.emit(AccessoryEventTypes.IDENTIFY, true, answered)
+
+      expect(received).toHaveLength(1)
+      expect(received[0][0]).toBe(true)
+      expect(received[0][1]).toBeTypeOf('function')
+      expect(plain).toHaveBeenCalledTimes(1)
+      expect(answered).toHaveBeenCalledTimes(1)
+    })
+
+    it('can still be sent by a plugin with no arguments', () => {
+      const accessory = createAccessory('TestName')
+      const listener = vi.fn()
+      accessory.on('identify', listener)
+
+      expect(accessory.emit('identify')).toBe(true)
+      expect(listener).toHaveBeenCalledTimes(1)
     })
   })
 

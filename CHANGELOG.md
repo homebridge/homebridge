@@ -127,6 +127,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: print the warnings of the bridge itself and of accessories whose plugin is not loaded
 - fix: drop a cached accessory whose uuid is on the bridge already before the plugin is given it
 - docs: say that the firmware revision of a cached accessory is reset to 0 on every start
+- fix: type the identify listener of a platform accessory with the arguments it is called with
 
 ### Homebridge Dependencies
 
