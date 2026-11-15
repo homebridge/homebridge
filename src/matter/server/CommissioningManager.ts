@@ -19,6 +19,7 @@ import { ObserverGroup, SubscriptionsServer } from '@matter/main'
 import { QrCode } from '@matter/main/types'
 
 import { Logger } from '../../logger.js'
+import { lockStateForWrite } from '../behaviors/stateLock.js'
 import { MatterDeviceError } from '../types.js'
 import { DEFAULT_PRODUCT_ID, DEFAULT_VENDOR_ID, MAX_PASSCODE_ATTEMPTS } from './ServerConfig.js'
 
@@ -360,8 +361,10 @@ export class CommissioningManager {
       return
     }
 
-    await serverNode.act((agent) => {
+    await serverNode.act(async (agent) => {
       const subscriptions = agent.get(SubscriptionsServer)
+      // wait for the lock: a write that does not wait fails when it is held
+      await lockStateForWrite(subscriptions)
       const remaining = subscriptions.state.subscriptions.filter(
         subscription => subscription.peerAddress.fabricIndex !== fabricIndex,
       )

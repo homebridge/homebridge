@@ -1,3 +1,5 @@
+import type { ServerNode } from '@matter/main'
+
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { MatterAccessory } from './types.js'
 
@@ -5,6 +7,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { BasicInformationServer } from '@matter/main/behaviors'
+import { FabricManager as MatterFabricManager, TestFabric } from '@matter/protocol'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { User } from '../user.js'
@@ -179,4 +183,68 @@ describe('matterServer accessory cache on real matter.js nodes', () => {
       expect(cachedUuids('cache-rebuild-drop-bridge')).toEqual(['rebuild-good'])
     }, 30000)
   })
+
+  describe('what matter.js stored for an accessory', () => {
+    it('is kept, with the same identity, when a restored accessory comes back with a new structure', async () => {
+      await sessionWith('stored-keep-bridge', 5605, [
+        light('stored-changes'),
+      ])
+      const uniqueIdFile = join(matterPath, 'stored-keep-bridge', 'stored-keep-bridge', 'root.parts.homebridge-aggregator.parts.stored-changes.bridgedDeviceBasicInformation.uniqueId')
+      const before = readFileSync(uniqueIdFile, 'utf-8')
+
+      const server = bridgeServer('stored-keep-bridge', 5605)
+      await server.start()
+      // the same accessory, now a dimmable light: it is taken off and built again
+      await server.registerPlatformAccessories('homebridge-test', 'Test', [
+        light('stored-changes', {
+          deviceType: deviceTypes.DimmableLight,
+          clusters: {
+            onOff: { onOff: false },
+            levelControl: { currentLevel: 100 },
+          },
+        }),
+      ])
+
+      expect(readFileSync(uniqueIdFile, 'utf-8')).toBe(before)
+    }, 30000)
+  })
+
+  it('tells a paired controller about a new accessory while another write holds the bridge\'s lock', async () => {
+    const server = bridgeServer('notify-lock-bridge', 5606)
+    await server.start()
+    const node = (server as unknown as { serverNode: ServerNode }).serverNode
+    // paired with a matter.js test controller: only a paired bridge has anyone to tell
+    await TestFabric({
+      fabrics: node.env.get(MatterFabricManager),
+    })
+    const versionBefore = node.state.basicInformation.configurationVersion
+
+    // Something else is writing the bridge's basic information, and takes a
+    // second over it. A controller that is subscribing again does this.
+    let release = (): void => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let lockTaken = (): void => {}
+    const taken = new Promise<void>((resolve) => {
+      lockTaken = resolve
+    })
+    const otherWrite = node.act(async (agent) => {
+      const basicInformation = agent.get(BasicInformationServer)
+      await agent.context.transaction.addResources(basicInformation)
+      await agent.context.transaction.begin()
+      lockTaken()
+      await held
+    })
+    await taken
+    setTimeout(release, 1000)
+
+    await server.registerPlatformAccessories('homebridge-test', 'Test', [
+      light('notify-1'),
+    ])
+    await otherWrite
+
+    // the change of structure is signalled by a higher configuration version
+    expect(node.state.basicInformation.configurationVersion).toBe(versionBefore + 1)
+  }, 30000)
 })
