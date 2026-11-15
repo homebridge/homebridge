@@ -238,9 +238,6 @@ function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLif
     }),
     getIsRunning: vi.fn(() => running),
     cleanupHandlers: [],
-    getShutdownHandler: () => null,
-    setShutdownHandler: vi.fn(),
-    onStop: vi.fn(async () => {}),
     ...overrides,
   }
 
@@ -257,8 +254,7 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     serverNodeCreateCalls.length = 0
     serverNodeCreateInvocationIndex = 0
 
-    // ServerLifecycle.start() registers SIGINT/SIGTERM handlers on the real process.
-    // Stub them out so each `start()` call doesn't leak listeners across tests.
+    // Watched so the tests can check start() adds no listener to the real process.
     vi.spyOn(process, 'on').mockImplementation(() => process)
 
     lifecycle = new ServerLifecycle()
@@ -335,6 +331,15 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
       const signalSets = sharedVarsState.calls.filter(c => c.op === 'set' && c.name === 'runtime.signals')
       expect(signalSets.length).toBeGreaterThan(0)
       expect((sharedVarsState.store.runtime as Record<string, unknown>)?.signals).toBe(false)
+    })
+
+    // The manager stops every server on shutdown. A listener per server stopped
+    // each one twice, and the eleventh server in a process made Node warn.
+    it('adds no signal listener of its own', async () => {
+      await lifecycle.start(createMockDeps())
+
+      expect(process.on).not.toHaveBeenCalledWith('SIGINT', expect.anything())
+      expect(process.on).not.toHaveBeenCalledWith('SIGTERM', expect.anything())
     })
   })
 
@@ -603,16 +608,14 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     lifecycle = new ServerLifecycle()
   })
 
-  it('still runs full cleanup when serverNode + shutdownHandler are set but isRunning is false', async () => {
+  it('still runs full cleanup when the serverNode is set but isRunning is false', async () => {
     // Models the external-accessory window between start() and runServer():
-    // matter.js handlers are registered and the ServerNode is created, but
-    // isRunning is still false. A naive stop() that returns on !isRunning
-    // would leak the handlers — these assertions pin the new behaviour.
+    // the ServerNode is created, but isRunning is still false. A naive stop()
+    // that returns on !isRunning would leak the node — these assertions pin
+    // the behaviour.
     const close = vi.fn(async () => {})
     const setServerNode = vi.fn()
-    const setShutdownHandler = vi.fn()
     const cleanupHandler = vi.fn(async () => {})
-    const shutdownHandler = vi.fn(async () => {})
 
     let serverNode: unknown = { close }
     let running = false
@@ -626,8 +629,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       setIsRunning: vi.fn((v) => {
         running = v
       }),
-      getShutdownHandler: () => shutdownHandler,
-      setShutdownHandler,
       cleanupHandlers: [cleanupHandler],
     })
 
@@ -635,7 +636,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
 
     expect(close).toHaveBeenCalledTimes(1)
     expect(cleanupHandler).toHaveBeenCalledTimes(1)
-    expect(setShutdownHandler).toHaveBeenCalledWith(null)
     // cleanup() nulls out the serverNode reference so the next stop() is a no-op.
     expect(setServerNode).toHaveBeenCalledWith(null)
   })
@@ -643,8 +643,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
   it('runs cleanup handlers then rethrows when serverNode.close() throws', async () => {
     // A never-ran ServerNode may throw on close(). Three requirements:
     //   1. cleanupHandlers must still run so process-level state is released.
-    //      The SIGINT/SIGTERM handler is deliberately KEPT (see the dedicated
-    //      test below) so the still-bound node retains a shutdown hook.
     //   2. stop() must reject so the caller knows the port may still be
     //      bound — `publishExternalMatterAccessory` gates port release on
     //      stop() resolving cleanly, and a swallowed close error would
@@ -657,107 +655,23 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       throw new Error('close failed')
     })
     const cleanupHandler = vi.fn(async () => {})
-    const setShutdownHandler = vi.fn()
     const setServerNode = vi.fn()
     const setAggregator = vi.fn()
-    const shutdownHandler = vi.fn(async () => {})
 
     const deps = createMockDeps({
       getServerNode: vi.fn(() => ({ close }) as never),
       setServerNode,
       setAggregator,
       getIsRunning: vi.fn(() => false),
-      getShutdownHandler: () => shutdownHandler,
-      setShutdownHandler,
       cleanupHandlers: [cleanupHandler],
     })
 
     await expect(lifecycle.stop(deps, new Map())).rejects.toThrow('close failed')
 
     expect(cleanupHandler).toHaveBeenCalledTimes(1)
-    // The shutdown handler is preserved (not nulled) so the orphaned node
-    // still tears down on process exit.
-    expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
     // Reference preservation: we did NOT null out serverNode or aggregator.
     expect(setServerNode).not.toHaveBeenCalledWith(null)
     expect(setAggregator).not.toHaveBeenCalledWith(null)
-  })
-
-  it('keeps the SIGINT/SIGTERM shutdown handler registered when close() fails (#3944)', async () => {
-    // When close() fails the node may still be bound to its port. The sole
-    // caller (ExternalMatterAccessoryPublisher) never retries stop(), so if
-    // cleanup removed the process shutdown handler the orphaned node would be
-    // left with no graceful-shutdown hook. cleanup() must therefore leave the
-    // SIGINT/SIGTERM handler in place while close() failed.
-    const offSpy = vi.spyOn(process, 'off')
-    try {
-      const close = vi.fn(async () => {
-        throw new Error('close failed')
-      })
-      const setShutdownHandler = vi.fn()
-      const shutdownHandler = vi.fn(async () => {})
-
-      const deps = createMockDeps({
-        getServerNode: vi.fn(() => ({ close }) as never),
-        getIsRunning: vi.fn(() => false),
-        // A real handler must be visible to cleanup() via the getter, otherwise
-        // the assertions below pass vacuously (a null handler is never detached
-        // regardless of the fix).
-        getShutdownHandler: () => shutdownHandler,
-        setShutdownHandler,
-        cleanupHandlers: [],
-      })
-
-      await expect(lifecycle.stop(deps, new Map())).rejects.toThrow('close failed')
-
-      // The (real, registered) handler was neither detached from the process
-      // nor cleared, because close() failed and the node is being preserved.
-      expect(offSpy).not.toHaveBeenCalledWith('SIGINT', shutdownHandler)
-      expect(offSpy).not.toHaveBeenCalledWith('SIGTERM', shutdownHandler)
-      expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
-    } finally {
-      offSpy.mockRestore()
-    }
-  })
-
-  it.each([false, true])('continues shutdown after cache rejection (close also fails: %s)', async (closeFails) => {
-    const close = vi.fn(async () => {
-      if (closeFails) {
-        throw new Error('close failed')
-      }
-    })
-    const save = vi.fn().mockRejectedValue(new Error('disk full'))
-    const cancelPendingSave = vi.fn()
-    const cleanupHandler = vi.fn(async () => {})
-    const setServerNode = vi.fn()
-    const deps = createMockDeps({
-      getServerNode: vi.fn(() => ({ close }) as never),
-      setServerNode,
-      getIsRunning: vi.fn(() => true),
-      getAccessoryCache: vi.fn(() => ({ save, cancelPendingSave }) as never),
-      cleanupHandlers: [cleanupHandler],
-    })
-    const accessories = new Map<string, any>([
-      [
-        'uuid-1',
-        { UUID: 'uuid-1' },
-      ],
-    ])
-    const { Logger } = await import('../../logger.js')
-    const log = Logger.withPrefix('test')
-
-    const error = await lifecycle.stop(deps, accessories as never).then(() => undefined, error => error)
-    expect(error?.message).toBe(closeFails ? 'close failed' : undefined)
-    expect(accessories.size).toBe(closeFails ? 1 : 0)
-    expect(setServerNode.mock.calls).toEqual(closeFails
-      ? []
-      : [
-          [null],
-        ])
-    expect(close).toHaveBeenCalledTimes(1)
-    expect(cleanupHandler).toHaveBeenCalledTimes(1)
-    expect(log.debug).not.toHaveBeenCalledWith('Saved accessory cache before shutdown')
-    expect(log.error).toHaveBeenCalledWith('Failed to save accessory cache before shutdown:', expect.any(Error))
   })
 
   it('cancels a pending debounced cache save before clearing the map (#3944)', async () => {
@@ -849,7 +763,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       setIsRunning: vi.fn((v) => {
         running = v
       }),
-      getShutdownHandler: () => vi.fn(async () => {}) as never,
       cleanupHandlers: [],
     })
 
@@ -870,7 +783,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     const deps = createMockDeps({
       getServerNode: vi.fn(() => null),
       getIsRunning: vi.fn(() => false),
-      getShutdownHandler: () => null,
     })
 
     await expect(lifecycle.stop(deps, new Map())).resolves.toBeUndefined()
@@ -1020,62 +932,12 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     expect(close).not.toHaveBeenCalled()
   })
 
-  it('detaches the SIGINT/SIGTERM handler registered mid-start when a later step fails (#3944)', async () => {
-    // Regression for the deps snapshot bug: getLifecycleDeps used to copy
-    // `shutdownHandler` by value when the deps object was built (null at that
-    // point). start() registers the handler partway through via
-    // setShutdownHandler, so a cleanup() in the SAME failed start() read the
-    // stale null and never detached the process listeners. With a
-    // getShutdownHandler getter, cleanup sees the live handler and removes it.
-    const offSpy = vi.spyOn(process, 'off')
-    const close = vi.fn(async () => {})
-    const { ServerNode } = await import('@matter/main')
-    vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      start: vi.fn(async () => {}),
-      construction: {
-        closed: new Promise<void>(() => {}),
-      },
-      add: vi.fn(),
-      close,
-    } as never)
-
-    // Fail AFTER the shutdown handler is registered — startServerNode runs
-    // after setShutdownHandler in start(). This is the exact window flagged.
-    const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...a: unknown[]) => Promise<void> }
-    vi.spyOn(proto, 'startServerNode').mockRejectedValueOnce(new Error('boom in startServerNode'))
-
-    // Wire shutdownHandler the way the real manager does: a getter over mutable
-    // state that setShutdownHandler updates. A by-value snapshot would leave
-    // getShutdownHandler returning null and reproduce the leak.
-    let stored: (() => Promise<void>) | null = null
-    const setShutdownHandler = vi.fn((h: (() => Promise<void>) | null) => {
-      stored = h
-    })
-    const deps = createMockDeps({
-      getShutdownHandler: () => stored,
-      setShutdownHandler,
-    })
-
-    await expect(lifecycle.start(deps)).rejects.toThrow('boom in startServerNode')
-
-    // A handler was registered during start()...
-    expect(setShutdownHandler).toHaveBeenCalled()
-    // ...and cleanup() saw it via the getter and detached both listeners.
-    expect(offSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function))
-    expect(offSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function))
-    // ...then cleared the stored handler.
-    expect(setShutdownHandler).toHaveBeenLastCalledWith(null)
-  })
-
-  it('preserves the node reference and keeps the shutdown handler when the half-built node fails to close (#3944)', async () => {
-    // Complement of the test above: when start() fails after registering the
-    // handler AND closing the half-built node also fails, the node may still be
-    // bound to its port (the caller keeps the port reserved via
-    // portMayStillBeBound). cleanup() must therefore NOT null the node reference
-    // and NOT detach the SIGINT/SIGTERM handler — otherwise the orphaned,
-    // still-bound node is left with no retry handle and no graceful-shutdown
-    // hook on process exit.
-    const offSpy = vi.spyOn(process, 'off')
+  it('preserves the node reference when the half-built node fails to close (#3944)', async () => {
+    // When start() fails AND closing the half-built node also fails, the node
+    // may still be bound to its port (the caller keeps the port reserved via
+    // portMayStillBeBound). cleanup() must therefore NOT null the node
+    // reference — otherwise the orphaned, still-bound node is left with no
+    // retry handle.
     const close = vi.fn(async () => {
       throw new Error('close failed')
     })
@@ -1097,10 +959,6 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...a: unknown[]) => Promise<void> }
     vi.spyOn(proto, 'startServerNode').mockRejectedValueOnce(new Error('boom in startServerNode'))
 
-    let stored: (() => Promise<void>) | null = null
-    const setShutdownHandler = vi.fn((h: (() => Promise<void>) | null) => {
-      stored = h
-    })
     // Keep getServerNode/setServerNode linked so start() can hand the created
     // node back to the catch path (where close() runs), while still spying on
     // setServerNode to assert the reference is never nulled.
@@ -1111,8 +969,6 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const deps = createMockDeps({
       getServerNode: vi.fn(() => serverNode as never),
       setServerNode,
-      getShutdownHandler: () => stored,
-      setShutdownHandler,
     })
 
     let thrown: any
@@ -1125,10 +981,6 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
 
     // Node reference preserved (never nulled) — retry handle survives.
     expect(setServerNode).not.toHaveBeenCalledWith(null)
-    // Shutdown handler kept registered — graceful-shutdown hook survives.
-    expect(offSpy).not.toHaveBeenCalledWith('SIGINT', stored)
-    expect(offSpy).not.toHaveBeenCalledWith('SIGTERM', stored)
-    expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
   })
 })
 
