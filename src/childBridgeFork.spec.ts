@@ -316,6 +316,49 @@ describe('childBridgeFork - Matter enablement', () => {
   })
 })
 
+describe('childBridgeFork - matter.js that can not be loaded', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('loads the plugin and carries on without Matter', async () => {
+    const fork = new ChildBridgeFork()
+    vi.spyOn(HAPStorage, 'setCustomStoragePath').mockImplementation(() => {})
+    vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    vi.spyOn(HomebridgeAPI.prototype, 'loadMatterAPI').mockRejectedValue(new Error('Cannot find package \'@matter/nodejs\''))
+    const plugin = {
+      load: vi.fn().mockResolvedValue(undefined),
+      getPluginIdentifier: () => 'homebridge-example',
+      version: '1.0.0',
+    } as unknown as Plugin
+    vi.spyOn(PluginManager.prototype, 'loadPlugin').mockReturnValue(plugin)
+    const initialize = vi.spyOn(PluginManager.prototype, 'initializePlugin').mockResolvedValue(undefined)
+
+    await expect(fork.loadPlugin({
+      type: PluginType.PLATFORM,
+      identifier: 'homebridge-example',
+      pluginPath: '/unused',
+      pluginConfig: [],
+      bridgeConfig: {
+        username: '0E:DC:5D:BE:D6:75',
+        name: 'Child',
+        pin: '031-45-154',
+        matter: {},
+      },
+      homebridgeConfig: {
+        bridge: { username: 'CC:22:3D:E3:CE:30', name: 'Main', pin: '031-45-154' },
+        accessories: [],
+        platforms: [],
+      },
+      bridgeOptions: { cachedAccessoriesDir: '/unused', cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+    })).resolves.toBeUndefined()
+
+    expect(initialize).toHaveBeenCalledOnce()
+    expect((fork as any).matterLoaded).toBe(false)
+    expect((fork as any).api.isMatterEnabled()).toBe(false)
+  })
+})
+
 describe('childBridgeFork - Matter Accessory Guard', () => {
   it('should not have matterManager when type is ACCESSORY even with matter config', () => {
     const fork = new ChildBridgeFork()

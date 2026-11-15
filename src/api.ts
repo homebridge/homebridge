@@ -729,6 +729,27 @@ export class HomebridgeAPI extends EventEmitter implements API {
     return this._matterAPILoadPromise
   }
 
+  /**
+   * Load the Matter API, and say whether Matter can be used in this run.
+   *
+   * matter.js may fail to load at all (a package the installer left out, a
+   * Node.js version one of its packages does not accept). That must not stop
+   * a bridge that also serves HomeKit: the failure is logged once, Matter
+   * stays off (`api.matter` is undefined, `isMatterEnabled()` is false) and
+   * the caller carries on without it.
+   *
+   * @internal
+   */
+  async tryLoadMatterAPI(): Promise<boolean> {
+    try {
+      await this.loadMatterAPI()
+      return true
+    } catch (error: unknown) {
+      log.error('Matter could not be loaded, so Matter is switched off for this run. HomeKit is not affected.', error)
+      return false
+    }
+  }
+
   constructor() {
     super()
   }

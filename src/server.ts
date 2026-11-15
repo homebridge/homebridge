@@ -224,14 +224,15 @@ export class Server {
     // Matter runs in that child's process, so it must not make api.matter or
     // isMatterEnabled() true for plugins on the main bridge - the same rule
     // isHapEnabled() follows.
-    const matterIsActive = isMatterActive(this.config.bridge.matter)
+    let matterIsActive = isMatterActive(this.config.bridge.matter)
 
     // Eagerly load the MatterAPI facade before plugins initialize, so api.matter
     // is defined when plugin code runs on a Matter-enabled main bridge. The heavy
     // MatterBridgeManager init still happens after plugins load (below) — only
     // the API surface needs to be ready early.
+    // If matter.js can not be loaded, the bridge starts without Matter.
     if (matterIsActive) {
-      await this.api.loadMatterAPI()
+      matterIsActive = await this.api.tryLoadMatterAPI()
     }
 
     // initialize plugins

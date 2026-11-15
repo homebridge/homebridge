@@ -29,6 +29,33 @@ const accessoryName = 'MyCoolAccessory'
 const platformName = 'MyCoolPlatform'
 
 describe('homebridgeAPI', () => {
+  describe('tryLoadMatterAPI', () => {
+    it('says Matter can be used once the Matter API is loaded', async () => {
+      const api = new HomebridgeAPI()
+
+      await expect(api.tryLoadMatterAPI()).resolves.toBe(true)
+
+      expect(api.matter).toBeDefined()
+      expect(api.isMatterEnabled()).toBe(true)
+    })
+
+    // matter.js can fail to load at all, for example when the installer left
+    // out one of its packages. A bridge that also serves HomeKit must still start.
+    it('logs the failure and leaves Matter off when matter.js can not be loaded', async () => {
+      const api = new HomebridgeAPI()
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      const missing = new Error('Cannot find package \'@matter/nodejs\'')
+      vi.spyOn(api, 'loadMatterAPI').mockRejectedValue(missing)
+
+      await expect(api.tryLoadMatterAPI()).resolves.toBe(false)
+
+      expect(errors).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Matter could not be loaded'), missing)
+      expect(api.matter).toBeUndefined()
+      expect(api.isMatterEnabled()).toBe(false)
+      errors.mockRestore()
+    })
+  })
+
   describe('signalShutdown', () => {
     it('still calls the other shutdown listeners when one throws or rejects', async () => {
       const api = new HomebridgeAPI()
