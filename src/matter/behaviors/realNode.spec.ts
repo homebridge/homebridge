@@ -18,7 +18,7 @@ import { MatterStatus } from '../errors.js'
 import { AccessoryManager } from '../server/AccessoryManager.js'
 import { StateManager } from '../server/StateManager.js'
 import { deviceTypes } from '../types.js'
-import { BehaviorRegistry, RegistryManager } from './index.js'
+import { BehaviorRegistry, HomebridgeThermostatServer, RegistryManager } from './index.js'
 
 /**
  * The Homebridge behaviors on a real matter.js node.
@@ -1371,6 +1371,48 @@ describe('texts longer than Matter allows, on a real node', () => {
     for (const text of [info.nodeLabel, info.serialNumber, info.vendorName]) {
       expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(32)
       expect(text.isWellFormed()).toBe(true)
+    }
+  })
+})
+
+describe('a thermostat matter.js refuses, on a real node', () => {
+  it('fails its own registration with the reason, and leaves no rejection for Node to end Homebridge on', async () => {
+    const unhandled: unknown[] = []
+    const note = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', note)
+
+    try {
+      // matter.js's own thermostat set-up is async, and refuses some thermostats
+      // (a deprecated feature, limits it can not reconcile). Make it refuse this one.
+      const matterThermostat = Object.getPrototypeOf(HomebridgeThermostatServer.prototype) as { initialize: () => Promise<void> }
+      vi.spyOn(matterThermostat, 'initialize').mockImplementation(async () => {
+        throw new Error('matter.js refused this thermostat')
+      })
+
+      const error: Error = await register({
+        deviceType: deviceTypes.Thermostat,
+        clusters: {
+          thermostat: {
+            localTemperature: 2000,
+            occupiedHeatingSetpoint: 2000,
+            systemMode: 4,
+            controlSequenceOfOperation: 2,
+          },
+        },
+        // with a handler, Homebridge's own thermostat class is on the endpoint
+        handlers: {
+          thermostat: {
+            systemModeChange: async () => {},
+          },
+        },
+      }).then(() => new Error('registered'), failure => failure)
+      await settle()
+
+      expect(error.message).toMatch(/^Failed to register accessory: /)
+      expect(error.message).toContain('matter.js refused this thermostat')
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off('unhandledRejection', note)
     }
   })
 })

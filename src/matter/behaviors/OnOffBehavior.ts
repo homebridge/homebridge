@@ -16,8 +16,8 @@ export class HomebridgeOnOffServer extends OnOffServer {
     return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
   }
 
-  override initialize(): void {
-    super.initialize()
+  override async initialize(): Promise<void> {
+    await super.initialize()
 
     // Report every change to this cluster, not only the ones its own on/off
     // commands made. A brightness command can turn a light on or off through
