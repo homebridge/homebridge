@@ -1942,3 +1942,28 @@ describe('level commands matter.js ignores or adjusts, on a real node', () => {
     expect(calls).toEqual([])
   })
 })
+
+describe('a closure with no handlers, moved on a real node', () => {
+  it('keeps the secure state when it is moved and stopped', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.Closure,
+      clusters: {
+        closureControl: {
+          mainState: 0,
+          currentErrorList: [],
+          overallCurrentState: { position: 0, secureState: true },
+          overallTargetState: { position: 0 },
+        },
+      },
+    })
+
+    await invoke(endpoint, 'closureControl', 'moveTo', { position: 1 })
+    expect(stateOf(endpoint, 'closureControl').overallCurrentState).toEqual({ position: 1, secureState: false })
+
+    await invoke(endpoint, 'closureControl', 'stop')
+    expect(stateOf(endpoint, 'closureControl').overallTargetState).toEqual({ position: 1 })
+
+    await invoke(endpoint, 'closureControl', 'moveTo', { position: 0 })
+    expect(stateOf(endpoint, 'closureControl').overallCurrentState).toEqual({ position: 0, secureState: true })
+  })
+})
