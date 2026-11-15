@@ -39,6 +39,9 @@ export default function cli(): void {
 
   let shuttingDown = false
 
+  // `-P` and `-U` need a value (`<path>`). With an optional value (`[path]`) a start script that ran
+  // `homebridge -U $HB_DIR` with an empty variable was not stopped: Homebridge started with the default
+  // storage folder, which may be the wrong one.
   const program = new Command()
   program
     .version(getVersion())
@@ -46,11 +49,11 @@ export default function cli(): void {
     .option('-C, --color', 'force color in logging', () => forceColourLogging = true)
     .option('-D, --debug', 'turn on debug level logging', () => debugModeEnabled = true)
     .option('-I, --insecure', 'allow unauthenticated requests (for easier hacking)', () => insecureAccess = true)
-    .option('-P, --plugin-path [path]', 'look for plugins installed at [path] as well as the default locations ([path] can also point to a single plugin)', path => customPluginPath = path)
+    .option('-P, --plugin-path <path>', 'look for plugins installed at <path> as well as the default locations (<path> can also point to a single plugin)', path => customPluginPath = path)
     .option('-Q, --no-qrcode', 'do not issue QRcode in logging', () => hideQRCode = true)
     .option('-K, --keep-orphans', 'keep cached accessories for which the associated plugin is not loaded', () => keepOrphans = true)
     .option('-T, --no-timestamp', 'do not issue timestamps in logging', () => noLogTimestamps = true)
-    .option('-U, --user-storage-path [path]', 'look for homebridge user files at [path] instead of the default location (~/.homebridge)', path => customStoragePath = path)
+    .option('-U, --user-storage-path <path>', 'look for homebridge user files at <path> instead of the default location (~/.homebridge)', path => customStoragePath = path)
     .option('--strict-plugin-resolution', 'only load plugins from the --plugin-path if set, otherwise from the primary global node_modules', () => strictPluginResolution = true)
     .parse(process.argv)
 

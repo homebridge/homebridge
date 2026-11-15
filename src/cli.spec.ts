@@ -107,6 +107,71 @@ describe('cli', () => {
     expect(fiveSecondCalls).toHaveLength(1)
   })
 
+  describe('the path options', () => {
+    const originalArgv = process.argv
+    let exitSpy: any
+    let stderrSpy: any
+
+    beforeEach(() => {
+      exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+        throw new Error(`process.exit(${code})`)
+      }) as any)
+      stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    })
+
+    afterEach(() => {
+      process.argv = originalArgv
+      exitSpy.mockRestore()
+      stderrSpy.mockRestore()
+    })
+
+    it.each([
+      {
+        argv: ['-U'],
+        option: '-U, --user-storage-path <path>',
+      },
+      {
+        argv: ['-P'],
+        option: '-P, --plugin-path <path>',
+      },
+      {
+        argv: ['-P', '/plugins', '-U'],
+        option: '-U, --user-storage-path <path>',
+      },
+    ])('stops with an error when $argv has no path', async ({ argv, option }) => {
+      const { User } = await import('./user.js')
+      vi.mocked(User.persistPath).mockClear()
+      const { default: cli } = await import('./cli.js')
+      process.argv = ['node', 'homebridge', ...argv]
+
+      expect(() => cli()).toThrow('process.exit(1)')
+
+      const written = stderrSpy.mock.calls.flat().join('')
+      expect(written).toContain(`error: option '${option}' argument missing`)
+      // Homebridge did not carry on with the default storage folder
+      expect(User.persistPath).not.toHaveBeenCalled()
+    })
+
+    it('uses the storage path that is given', async () => {
+      const { User } = await import('./user.js')
+      vi.mocked(User.setStoragePath).mockClear()
+      const { default: cli } = await import('./cli.js')
+      process.argv = [
+        'node',
+        'homebridge',
+        '-P',
+        '/plugins',
+        '-U',
+        '/storage',
+      ]
+
+      cli()
+
+      expect(User.setStoragePath).toHaveBeenCalledExactlyOnceWith('/storage')
+      expect(exitSpy).not.toHaveBeenCalled()
+    })
+  })
+
   describe('a fatal error', () => {
     async function logged(): Promise<string> {
       const { Logger } = await import('./logger.js')
