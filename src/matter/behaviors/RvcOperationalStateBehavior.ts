@@ -6,9 +6,7 @@
 
 import { RvcOperationalStateServer } from '@matter/main/behaviors/rvc-operational-state'
 import { RvcOperationalState } from '@matter/main/clusters/rvc-operational-state'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
@@ -88,35 +86,19 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'rvcOperationalState', command)
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'rvcOperationalState', command)
 
-      // Only reached if handler succeeded - the plugin handler already
-      // updated state via the API, so the base implementation is not called
+    // Only reached if handler succeeded - the plugin handler already
+    // updated state via the API, so the base implementation is not called
 
-      // Sync state to cache (operational state should be updated by plugin via updateAccessoryState)
-      this.syncOperationalStateToCache()
+    // Sync state to cache (operational state should be updated by plugin via updateAccessoryState)
+    this.syncOperationalStateToCache()
 
-      return {
-        commandResponseState: {
-          errorStateId: RvcOperationalState.ErrorState.NoError,
-        },
-      }
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      const verb = { pause: 'pause', resume: 'resume', goHome: 'go home' }[command]
-      throw new StatusResponseError(`Failed to ${verb}: ${message}`, Status.Failure)
+    return {
+      commandResponseState: {
+        errorStateId: RvcOperationalState.ErrorState.NoError,
+      },
     }
   }
 }

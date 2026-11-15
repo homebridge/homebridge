@@ -99,10 +99,10 @@ describe('homebridgeRvcOperationalStateServer', () => {
     })
 
     it.each([
-      ['pause', 'Failed to pause: sensor jammed'],
-      ['resume', 'Failed to resume: sensor jammed'],
-      ['goHome', 'Failed to go home: sensor jammed'],
-    ])('should wrap a plain handler error for %s', async (command, expectedMessage) => {
+      ['pause', 'sensor jammed'],
+      ['resume', 'sensor jammed'],
+      ['goHome', 'sensor jammed'],
+    ])('should pass on a handler error for %s', async (command, expectedMessage) => {
       ;(mockRegistry.executeHandler as any).mockRejectedValue(new Error('sensor jammed'))
 
       // the per-command wording is the one thing the collapse had to keep, and
@@ -113,7 +113,7 @@ describe('homebridgeRvcOperationalStateServer', () => {
     it('should stringify a non-Error rejection rather than crashing the endpoint', async () => {
       ;(mockRegistry.executeHandler as any).mockRejectedValue('just a string')
 
-      await expect(behavior.goHome()).rejects.toThrow('Failed to go home: just a string')
+      await expect(behavior.goHome()).rejects.toThrow('just a string')
     })
   })
 })

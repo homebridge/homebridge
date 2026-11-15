@@ -8,9 +8,7 @@ import type { ServiceAreaState } from '../clusterTypes.js'
 
 import { ServiceAreaServer } from '@matter/main/behaviors/service-area'
 import { ServiceArea } from '@matter/main/clusters/service-area'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 
 /**
@@ -62,38 +60,23 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Check the request first, with matter.js's own rules: an area the
-      // device does not have is refused without the plugin being called.
-      const { result: checked } = this.assertSelectServiceArea(request)
-      if (checked.status !== ServiceArea.SelectAreasStatus.Success) {
-        return checked
-      }
-
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'serviceArea', 'selectAreas', request)
-
-      // Only reached if handler succeeded - call base implementation
-      const result = await super.selectAreas(request)
-
-      // Sync state to cache
-      this.syncServiceAreaStateToCache()
-
-      return result
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to select areas: ${message}`, Status.Failure)
+    // Check the request first, with matter.js's own rules: an area the
+    // device does not have is refused without the plugin being called.
+    const { result: checked } = this.assertSelectServiceArea(request)
+    if (checked.status !== ServiceArea.SelectAreasStatus.Success) {
+      return checked
     }
+
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'serviceArea', 'selectAreas', request)
+
+    // Only reached if handler succeeded - call base implementation
+    const result = await super.selectAreas(request)
+
+    // Sync state to cache
+    this.syncServiceAreaStateToCache()
+
+    return result
   }
 
   /**
@@ -107,39 +90,24 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Check the request first, with matter.js's own rules: an area that is
-      // not selected is refused without the plugin being called.
-      const result = this.assertSkipServiceArea(request)
-      if (result.status !== ServiceArea.SkipAreaStatus.Success) {
-        return result
-      }
-
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'serviceArea', 'skipArea', request)
-
-      // Only reached if handler succeeded. There is no base implementation to
-      // call: matter.js leaves skipArea itself unimplemented (super.skipArea()
-      // throws), because what a skip does to the progress and the current area
-      // is up to the device. The plugin reports that with updateAccessoryState.
-
-      // Sync state to cache (include progress for skip operations)
-      this.syncServiceAreaStateToCache(true)
-
+    // Check the request first, with matter.js's own rules: an area that is
+    // not selected is refused without the plugin being called.
+    const result = this.assertSkipServiceArea(request)
+    if (result.status !== ServiceArea.SkipAreaStatus.Success) {
       return result
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to skip area: ${message}`, Status.Failure)
     }
+
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'serviceArea', 'skipArea', request)
+
+    // Only reached if handler succeeded. There is no base implementation to
+    // call: matter.js leaves skipArea itself unimplemented (super.skipArea()
+    // throws), because what a skip does to the progress and the current area
+    // is up to the device. The plugin reports that with updateAccessoryState.
+
+    // Sync state to cache (include progress for skip operations)
+    this.syncServiceAreaStateToCache(true)
+
+    return result
   }
 }
