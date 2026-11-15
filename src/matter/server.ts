@@ -121,10 +121,7 @@ export class MatterServer extends EventEmitter {
     // Initialize sub-modules
     this.commissioningManager = new CommissioningManager()
 
-    this.fabricManager = new FabricManager(
-      () => this.serverNode,
-      () => this.serverLifecycle.matterStoragePath,
-    )
+    this.fabricManager = new FabricManager(() => this.serverNode)
 
     this.serverLifecycle = new ServerLifecycle()
 
