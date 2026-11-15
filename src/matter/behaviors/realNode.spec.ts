@@ -196,6 +196,32 @@ describe('onOff on a real node', () => {
   })
 })
 
+describe('getAccessoryState on a real node', () => {
+  it('reads every attribute of a cluster from the live endpoint, with big numbers as plain numbers', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff: false },
+        levelControl: { currentLevel: 100, minLevel: 1, maxLevel: 254 },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+          off: async () => {},
+        },
+      },
+    })
+
+    await invoke(endpoint, 'onOff', 'on')
+
+    expect(stateManager.getAccessoryState('test-uuid', 'onOff')).toMatchObject({ onOff: true })
+    const level = stateManager.getAccessoryState('test-uuid', 'levelControl')
+    expect(level).toMatchObject({ currentLevel: 100, minLevel: 1, maxLevel: 254 })
+    expect(Object.values(level ?? {}).some(value => typeof value === 'bigint' || typeof value === 'function')).toBe(false)
+    expect(stateManager.getAccessoryState('test-uuid', 'colorControl')).toBeUndefined()
+  })
+})
+
 describe('levelControl on a real node', () => {
   const options = { optionsMask: {}, optionsOverride: {} }
 
