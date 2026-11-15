@@ -2,7 +2,7 @@ import type { ServerNode } from '@matter/main'
 
 import type { MatterAccessory } from './types.js'
 
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
@@ -331,6 +331,49 @@ describe('matterServer storage on real matter.js nodes', () => {
       [true, 1],
     ])
   }, 30000)
+
+  describe('stored matter data that can not be read', () => {
+    /** Create a bridge's storage with one run, and return the folder of its node. */
+    async function storedNode(uniqueId: string, port: number): Promise<string> {
+      const first = bridgeServer(uniqueId, port)
+      await first.start()
+      await first.stop()
+      return join(matterPath, uniqueId, uniqueId)
+    }
+
+    it('sets the data aside without deleting it, and asks for a restart', async () => {
+      const nodeFolder = await storedNode('BABABABABAB1', 55993)
+      // a fabric entry matter.js can not turn back into a fabric
+      writeFileSync(join(nodeFolder, 'fabrics.fabrics'), JSON.stringify([
+        { fabricIndex: 1, rootPublicKey: 'x' },
+      ]))
+
+      const second = bridgeServer('BABABABABAB1', 55993)
+      const failure = await second.start().then(() => undefined, (error: Error) => error.message)
+      expect(failure).toMatch(/set aside as .*BABABABABAB1\.corrupt-.*nothing was deleted.*Restart Homebridge/)
+
+      const setAside = readdirSync(join(matterPath, 'BABABABABAB1')).filter(name => name.startsWith('BABABABABAB1.corrupt-'))
+      expect(setAside).toHaveLength(1)
+      // the unreadable file is still there, to look at or to put back
+      expect(readFileSync(join(matterPath, 'BABABABABAB1', setAside[0], 'fabrics.fabrics'), 'utf-8')).toContain('rootPublicKey')
+    }, 30000)
+
+    // A file that can not be opened is not bad data. (root can open anything, so this can not be shown as root.)
+    it.skipIf(process.getuid?.() === 0)('leaves the data alone when it is only not readable', async () => {
+      const nodeFolder = await storedNode('BABABABABAB2', 55994)
+      const fabrics = join(nodeFolder, 'fabrics.fabrics')
+      writeFileSync(fabrics, '[]')
+      chmodSync(fabrics, 0o000)
+
+      const second = bridgeServer('BABABABABAB2', 55994)
+      const failure = await second.start().then(() => undefined, (error: Error) => error.message)
+      expect(failure).toBeDefined()
+
+      chmodSync(fabrics, 0o644)
+      expect(readdirSync(join(matterPath, 'BABABABABAB2')).filter(name => name.includes('corrupt'))).toEqual([])
+      expect(existsSync(fabrics)).toBe(true)
+    }, 30000)
+  })
 
   // #4047: a container killed hard leaves matter.js's lock files behind, and
   // in the next container the process id they name belongs to another program.

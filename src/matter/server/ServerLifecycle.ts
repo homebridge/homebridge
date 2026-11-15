@@ -14,7 +14,7 @@ import type { CommissioningDeps, CommissioningManager } from './CommissioningMan
 import type { FabricManager } from './FabricManager.js'
 
 import { constants } from 'node:fs'
-import { access, mkdir, rm, stat } from 'node:fs/promises'
+import { access, mkdir, rename } from 'node:fs/promises'
 import { homedir, release } from 'node:os'
 import { isAbsolute, join, normalize, relative, resolve } from 'node:path'
 import process from 'node:process'
@@ -43,6 +43,12 @@ import {
 import { reclaimStaleStorageLock } from './storageLock.js'
 
 const log = Logger.withPrefix('Matter/Server')
+
+/** Messages of matter.js for stored data it can not read back. */
+const CORRUPT_STORAGE_MESSAGES = ['Invalid public key encoding', 'FabricManager unavailable', 'key-input']
+
+/** The `code` of a system error, such as EACCES, ENOSPC or EMFILE. */
+const SYSTEM_ERROR_CODE_RE = /^E[A-Z0-9]+$/
 
 export interface ServerLifecycleDeps {
   config: MatterServerConfig
@@ -140,7 +146,36 @@ export class ServerLifecycle {
   }
 
   /**
-   * Create ServerNode with automatic recovery from corrupted storage
+   * Whether a failed node creation was caused by stored data that matter.js
+   * can not read back (a key it can not decode, a fabric entry of the wrong
+   * shape), as opposed to the storage not being reachable at all.
+   *
+   * A system error anywhere in the chain (permission denied, disk full, too
+   * many open files) is never corruption: the data is fine, and whoever fixes
+   * the cause gets every pairing back.
+   */
+  private isCorruptStorageError(error: unknown): boolean {
+    let corrupt = false
+    let current: unknown = error
+    for (let depth = 0; current instanceof Error && depth < 10; depth++) {
+      const { message, cause } = current
+      const code = (current as { code?: unknown }).code
+      if (typeof code === 'string' && SYSTEM_ERROR_CODE_RE.test(code)) {
+        return false
+      }
+      if (CORRUPT_STORAGE_MESSAGES.some(text => message.includes(text))) {
+        corrupt = true
+      }
+      current = cause
+    }
+    return corrupt
+  }
+
+  /**
+   * Create the ServerNode. When its stored data turns out to be unreadable,
+   * the node's folder is set aside under a new name, so the next start begins
+   * a new bridge. Nothing is deleted: the pairings in the old folder are lost
+   * to this bridge, but the folder is there to look at or put back.
    */
   async createServerNodeWithRecovery(
     nodeOptions: Parameters<typeof MatterServerNode.create>[0],
@@ -149,85 +184,42 @@ export class ServerLifecycle {
     try {
       return await this.createServerNode(nodeOptions)
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : ''
-      const causeMessage = error instanceof Error && error.cause instanceof Error
-        ? error.cause.message
-        : ''
-      const isStorageError = errorMessage.includes('Invalid public key encoding')
-        || errorMessage.includes('FabricManager unavailable')
-        || errorMessage.includes('key-input')
-        || causeMessage.includes('Invalid public key encoding')
-
-      if (!isStorageError) {
+      if (!this.isCorruptStorageError(error) || !this.matterStoragePath) {
         throw error
       }
 
-      log.warn('Detected corrupted Matter storage, attempting automatic recovery...')
-
-      // This server's own folder. Not read back from the matter.js environment:
-      // the default environment is shared by every server in the process.
-      const storageLocation = this.matterStoragePath
-
-      if (!storageLocation) {
-        throw new Error('Storage location not set, cannot recover from corrupted storage')
-      }
-
-      const serverNodeStorePath = join(storageLocation, sanitizedId)
-      const serverNodeStoreJsonFile = `${serverNodeStorePath}.json`
-
+      const nodeStorePath = join(this.matterStoragePath, sanitizedId)
+      const setAsidePath = `${nodeStorePath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      log.error('The stored Matter data of this bridge can not be read:', error)
       try {
-        let removedSomething = false
-
-        // Delete the ServerNodeStore subdirectory
-        try {
-          await stat(serverNodeStorePath)
-          log.info(`Removing corrupted ServerNodeStore directory: ${serverNodeStorePath}`)
-          await rm(serverNodeStorePath, { recursive: true, force: true })
-          removedSomething = true
-        } catch (err: unknown) {
-          const code = err instanceof Error && 'code' in err
-            ? (err as any).code
-            : undefined
-          if (code !== 'ENOENT') {
-            throw err
-          }
-        }
-
-        // Delete the ServerNodeStore JSON file
-        try {
-          await stat(serverNodeStoreJsonFile)
-          log.info(`Removing corrupted ServerNodeStore JSON file: ${serverNodeStoreJsonFile}`)
-          await rm(serverNodeStoreJsonFile, { force: true })
-          removedSomething = true
-        } catch (err: unknown) {
-          const code = err instanceof Error && 'code' in err
-            ? (err as any).code
-            : undefined
-          if (code !== 'ENOENT') {
-            throw err
-          }
-        }
-
-        if (removedSomething) {
-          log.info('Corrupted storage removed, retrying ServerNode creation...')
-        } else {
-          log.warn('No corrupted storage files found, corruption may be elsewhere')
-        }
-
-        const serverNode = await this.createServerNode(nodeOptions)
-        log.info('Successfully recovered from corrupted Matter storage')
-        return serverNode
-      } catch (retryError) {
-        log.error('Failed to recover from corrupted storage:', retryError)
-        log.error('Original error:', error)
-        throw new Error(
-          'Matter storage is corrupted and automatic recovery failed. '
-          + `Please manually delete: ${serverNodeStorePath}`,
-        )
+        await rename(nodeStorePath, setAsidePath)
+      } catch (renameError) {
+        log.error(`Could not set the unreadable Matter data aside (${nodeStorePath}):`, renameError)
+        throw error
       }
+      // No second attempt in this run: matter.js keeps the storage it opened
+      // for the failed attempt, so creating the node again here fails as well.
+      // The next start finds no stored data and begins a new bridge.
+      throw new Error(
+        `The stored Matter data of this bridge could not be read. It was set aside as ${setAsidePath}; nothing was deleted. `
+        + 'Restart Homebridge: this bridge then starts as a new, unpaired Matter bridge, to be removed from your controllers and paired again.',
+        { cause: error },
+      )
     }
+  }
+
+  /**
+   * This server's own matter.js environment, with its own storage folder.
+   *
+   * Environment.default is one object for the whole process, so setting the
+   * folder there let two servers that start at the same time (two external
+   * accessories, say) open their node storage in whichever folder was set
+   * last. Everything else is inherited from the default.
+   */
+  private createEnvironment(id: string): Environment {
+    this.environment = new Environment(`homebridge-${id}`, Environment.default)
+    this.environment.set(Filesystem, new NodeJsFilesystem(this.matterStoragePath!))
+    return this.environment
   }
 
   /**
@@ -279,13 +271,7 @@ export class ServerLifecycle {
     this.matterStoragePath = join(normalizedPath, bridgeId)
     await mkdir(this.matterStoragePath, { recursive: true })
 
-    // Give this server its own matter.js environment, with its own storage
-    // folder. Environment.default is one object for the whole process, so
-    // setting the folder there let two servers that start at the same time
-    // (two external accessories, say) open their node storage in whichever
-    // folder was set last. Everything else is inherited from the default.
-    this.environment = new Environment(`homebridge-${bridgeId}`, Environment.default)
-    this.environment.set(Filesystem, new NodeJsFilesystem(this.matterStoragePath))
+    this.createEnvironment(bridgeId)
 
     // Create accessory cache
     const { MatterAccessoryCache } = await import('../accessoryCache.js')
