@@ -1376,6 +1376,21 @@ describe('childBridgeService', () => {
       })
     })
 
+    it('resolves with undefined at once when the child process is not running', async () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      // stopped, restarting, or waiting to be restarted after a crash
+      child.connected = false
+
+      // No timer is advanced: before, this waited out the full timeout.
+      await expect(service.requestMatterAccessories(500)).resolves.toBeUndefined()
+      expect(vi.getTimerCount()).toBe(0)
+      expect(child.sentMessages.some(m => m.id === ChildProcessMessageEventType.GET_MATTER_ACCESSORIES)).toBe(false)
+    })
+
     it('resolves with undefined on timeout', async () => {
       vi.useFakeTimers()
       const { service } = buildService()

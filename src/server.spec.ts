@@ -868,6 +868,73 @@ describe('server', () => {
     })
   })
 
+  describe('handleGetMatterAccessories (which child bridges are asked)', () => {
+    const childA = 'CC:00:00:00:00:A1'
+    const childB = 'CC:00:00:00:00:B1'
+
+    function serverWithTwoChildren() {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+      ;(server as any).matterMonitoringActive = true
+      const children = [childA, childB].map((username) => {
+        const child = {
+          getMetadata: () => ({ username }),
+          requestMatterAccessories: vi.fn().mockResolvedValue({
+            bridgeUsername: username,
+            accessories: [
+              { uuid: `acc-${username}` },
+            ],
+          }),
+        }
+        ;(server as any).childBridges.set(username, child)
+        return child
+      })
+      const listed = () => {
+        const event = (sendSpy.mock.calls as [string, any][]).find(([, payload]) => payload?.type === 'accessoriesData')
+        return event?.[1].data.accessories.map((accessory: { uuid: string }) => accessory.uuid)
+      }
+      return { server, children, listed }
+    }
+
+    it('asks every child bridge when the request names no bridge', async () => {
+      const { server, children, listed } = serverWithTwoChildren()
+
+      await (server as any).handleGetMatterAccessories({ correlationId: 'corr-list' })
+
+      expect(children[0].requestMatterAccessories).toHaveBeenCalledTimes(1)
+      expect(children[1].requestMatterAccessories).toHaveBeenCalledTimes(1)
+      expect(listed()).toEqual([`acc-${childA}`, `acc-${childB}`])
+    })
+
+    // The filter was applied to the main bridge only: every child bridge was
+    // still asked, and every answer added to the list.
+    it('asks only the child bridge the request names', async () => {
+      const { server, children, listed } = serverWithTwoChildren()
+
+      await (server as any).handleGetMatterAccessories({
+        bridgeUsername: childB.toLowerCase(),
+        correlationId: 'corr-list',
+      })
+
+      expect(children[0].requestMatterAccessories).not.toHaveBeenCalled()
+      expect(children[1].requestMatterAccessories).toHaveBeenCalledTimes(1)
+      expect(listed()).toEqual([`acc-${childB}`])
+    })
+
+    it('asks no child bridge when the request names the main bridge', async () => {
+      const { server, children, listed } = serverWithTwoChildren()
+
+      await (server as any).handleGetMatterAccessories({ bridgeUsername: (server as any).config.bridge.username, correlationId: 'corr-list' })
+
+      expect(children[0].requestMatterAccessories).not.toHaveBeenCalled()
+      expect(children[1].requestMatterAccessories).not.toHaveBeenCalled()
+      expect(listed()).toEqual([])
+    })
+  })
+
   describe('handleMatterAccessoryControl (forwarding to active child bridges only)', () => {
     it('does not forward a control request to a child with matter.enabled=false', async () => {
       const server = new Server({
