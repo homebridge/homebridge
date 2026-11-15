@@ -1,6 +1,6 @@
 import type { MatterAccessory } from './types.js'
 
-import { existsSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
@@ -112,6 +112,72 @@ describe('matterServer storage on real matter.js nodes', () => {
 
     expect(calls).toEqual(['before restart', 'after restart'])
   }, 30000)
+
+  describe('a restored accessory the plugin registers again', () => {
+    const lamp = (overrides: Partial<MatterAccessory> = {}): MatterAccessory => ({
+      UUID: 'uuid-lamp',
+      displayName: 'Lamp',
+      deviceType: deviceTypes.OnOffLight,
+      serialNumber: 'S',
+      manufacturer: 'Test',
+      model: 'Test',
+      firmwareRevision: '1.0.0',
+      context: {},
+      // the plugin declares "off" at every start, whatever the lamp is doing
+      clusters: {
+        onOff: { onOff: false },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+          off: async () => {},
+        },
+      },
+      ...overrides,
+    })
+
+    /** Run a first session that leaves the lamp switched on in the cache. */
+    async function firstSession(uniqueId: string, port: number): Promise<void> {
+      const before = bridgeServer(uniqueId, port)
+      await before.start()
+      await before.registerPlatformAccessories('plugin', 'Platform', [
+        lamp(),
+      ])
+      await before.updateAccessoryState('uuid-lamp', 'onOff', { onOff: true })
+      const cacheFile = join(matterPath, uniqueId, 'accessories.json')
+      await vi.waitFor(() => expect(existsSync(cacheFile) && readFileSync(cacheFile, 'utf-8')).toMatch(/"onOff":\s*true/), { timeout: 5000, interval: 100 })
+      await before.stop()
+    }
+
+    it('keeps the saved state in the record, not the defaults the plugin declares', async () => {
+      await firstSession('FFFFFFFFFFF1', 55985)
+      const after = bridgeServer('FFFFFFFFFFF1', 55985)
+      await after.start()
+
+      await after.registerPlatformAccessories('plugin', 'Platform', [
+        lamp(),
+      ])
+
+      // the endpoint (what controllers see) and the record (what the ui and the cache see) agree
+      expect(after.getLiveState('uuid-lamp').onOff?.onOff).toBe(true)
+      expect(after.getAccessory('uuid-lamp')?.clusters?.onOff).toEqual({ onOff: true })
+    }, 30000)
+
+    it('puts a new name and firmware version on the live accessory', async () => {
+      await firstSession('FFFFFFFFFFF2', 55986)
+      const after = bridgeServer('FFFFFFFFFFF2', 55986)
+      await after.start()
+
+      await after.registerPlatformAccessories('plugin', 'Platform', [
+        lamp({ displayName: 'Lamp renamed', firmwareRevision: '2.0.0' }),
+      ])
+
+      expect(after.getLiveState('uuid-lamp').bridgedDeviceBasicInformation).toMatchObject({
+        nodeLabel: 'Lamp renamed',
+        softwareVersionString: '2.0.0',
+      })
+    }, 30000)
+  })
 
   // #4047: a container killed hard leaves matter.js's lock files behind, and
   // in the next container the process id they name belongs to another program.
