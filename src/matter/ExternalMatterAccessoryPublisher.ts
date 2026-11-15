@@ -93,22 +93,32 @@ export async function publishExternalMatterAccessory(
 
   log.info(`Allocated port ${port} for external Matter accessory: ${accessory.displayName}`)
 
-  // Create dedicated Matter server for this accessory
-  const matterServer = new MatterServer({
-    port,
-    uniqueId,
-    storagePath: User.matterPath(),
-    displayName: accessory.displayName || 'Matter Device',
-    manufacturer: accessory.manufacturer,
-    model: accessory.model,
-    firmwareRevision: accessory.firmwareRevision,
-    serialNumber: accessory.serialNumber || uniqueId, // use uniqueId as fallback serial number
-    debugModeEnabled: context.debugModeEnabled,
-    hideQRCode: context.hideQRCode,
-    externalAccessory: true, // external accessory, added before server runs
-    networkInterfaces: context.networkInterfaces,
-    disableIpv4: context.disableIpv4,
-  })
+  // Create dedicated Matter server for this accessory. The constructor checks
+  // its config and throws when it does not accept it (a port above 65534,
+  // say). Nothing is bound at that point, so the port goes straight back:
+  // it used to stay taken for the rest of the run.
+  let matterServer: MatterServer
+  try {
+    matterServer = new MatterServer({
+      port,
+      uniqueId,
+      storagePath: User.matterPath(),
+      displayName: accessory.displayName,
+      manufacturer: accessory.manufacturer,
+      model: accessory.model,
+      firmwareRevision: accessory.firmwareRevision,
+      serialNumber: accessory.serialNumber || uniqueId, // use uniqueId as fallback serial number
+      debugModeEnabled: context.debugModeEnabled,
+      hideQRCode: context.hideQRCode,
+      externalAccessory: true, // external accessory, added before server runs
+      networkInterfaces: context.networkInterfaces,
+      disableIpv4: context.disableIpv4,
+
+    })
+  } catch (error) {
+    context.portService.releaseMatterPort?.(uniqueId)
+    throw error
+  }
 
   let started = false
   try {
