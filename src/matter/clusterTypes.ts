@@ -7,7 +7,7 @@
  * Types are derived from @matter/main/clusters where possible.
  */
 
-import type { WindowCovering } from '@matter/main/clusters'
+import type { ClosureControl, MediaPlayback, PumpConfigurationAndControl, SmokeCoAlarm, WindowCovering } from '@matter/main/clusters'
 
 /**
  * Base interface for any cluster state
@@ -27,6 +27,11 @@ export interface OnOffState {
  * LevelControl cluster state
  */
 export interface LevelControlState {
+  /**
+   * The level, from minLevel to maxLevel. Matter also allows null here (the
+   * level is not known), and a read can return it; the type does not say so
+   * only so that existing plugin code keeps compiling.
+   */
   currentLevel?: number
   minLevel?: number
   maxLevel?: number
@@ -56,7 +61,9 @@ export interface ColorControlState {
   // XY Color
   currentX?: number
   currentY?: number
+  /** @deprecated Not an attribute: it is a field of the MoveToColor command. The attribute is `currentX`. */
   colorX?: number
+  /** @deprecated Not an attribute: it is a field of the MoveToColor command. The attribute is `currentY`. */
   colorY?: number
 
   // Color mode - can be ColorMode or EnhancedColorMode from Matter spec
@@ -69,8 +76,26 @@ export interface ColorControlState {
   // Color temperature coupling (optional, requires ColorTemperature feature)
   coupleColorTempToLevelMinMireds?: number
 
-  // Transition time (not part of state, but used in commands)
+  /** @deprecated Not an attribute: it is a field of the color commands, and matter.js refuses it in a state update. */
   transitionTime?: number
+
+  // Time left of a color change, in tenths of a second
+  remainingTime?: number
+
+  // What the light can do; matter.js works it out from the features
+  colorCapabilities?: {
+    hueSaturation?: boolean
+    enhancedHue?: boolean
+    colorLoop?: boolean
+    xy?: boolean
+    colorTemperature?: boolean
+  }
+
+  // The color temperature the light starts with (null = the one it had), requires the ColorTemperature feature
+  startUpColorTemperatureMireds?: number | null
+
+  // Number of color primaries (0 when the light does not say)
+  numberOfPrimaries?: number | null
 }
 
 /**
@@ -129,6 +154,7 @@ export interface WindowCoveringState {
   configStatus?: {
     operational?: boolean
     onlineReserved?: boolean
+    /** @deprecated Matter has no such field (its name is `onlineReserved`), and matter.js refuses it. */
     online?: boolean
     liftMovementReversed?: boolean
     liftPositionAware?: boolean
@@ -185,6 +211,7 @@ export interface FanControlState {
 export interface ThermostatState {
   // Temperature measurements
   localTemperature?: number | null // read-only, autopopulated from externalMeasuredIndoorTemperature or TemperatureMeasurement cluster
+  localTemperatureCalibration?: number // added to the measured temperature, in tenths of degrees Celsius
   externalMeasuredIndoorTemperature?: number | null // writable state for external temperature sensor (in hundredths of degrees Celsius)
   outdoorTemperature?: number | null
 
@@ -216,7 +243,7 @@ export interface ThermostatState {
   // Other configuration
   remoteSensing?: number
   controlSequenceOfOperation?: number // 0-5: CoolingOnly, CoolingWithReheat, HeatingOnly, HeatingWithReheat, CoolingAndHeating, CoolingAndHeatingWithReheat
-  systemMode?: number // 0=Off, 1=Auto, 3=Cool, 4=Heat, 5=EmergencyHeat, 6=Precooling, 7=FanOnly
+  systemMode?: number // 0=Off, 1=Auto, 3=Cool, 4=Heat, 5=EmergencyHeat, 6=Precooling, 7=FanOnly, 8=Dry, 9=Sleep
   thermostatRunningMode?: number // current running state
   startOfWeek?: number
   numberOfWeeklyTransitions?: number
@@ -238,9 +265,9 @@ export interface DoorLockState {
 }
 
 /**
- * RVC (Robotic Vacuum Cleaner) Operational State
+ * RVC (Robotic Vacuum Cleaner) Operational State cluster state
  */
-export interface RvcOperationalState {
+export interface RvcOperationalStateState {
   phaseList?: string[] | null
   currentPhase?: number | null
   countdownTime?: number | null
@@ -257,7 +284,17 @@ export interface RvcOperationalState {
 }
 
 /**
+ * @deprecated Use {@link RvcOperationalStateState}. This name is also the name
+ * of the matter.js cluster, which made the two easy to mix up.
+ */
+export type RvcOperationalState = RvcOperationalStateState
+
+/**
  * RVC Run Mode state
+ *
+ * Matter wants at least one mode tag on every mode (`modeTags`), and one mode
+ * tagged Idle (16384) for a run mode. It is optional here only so that
+ * existing plugin code keeps compiling.
  */
 export interface RvcRunModeState {
   supportedModes?: Array<{
@@ -266,7 +303,9 @@ export interface RvcRunModeState {
     modeTags?: Array<{ value: number }>
   }>
   currentMode?: number
+  /** @deprecated This cluster has no such attribute in Matter, and matter.js refuses it. */
   startUpMode?: number | null
+  /** @deprecated This cluster has no such attribute in Matter, and matter.js refuses it. */
   onMode?: number | null
 }
 
@@ -280,7 +319,9 @@ export interface RvcCleanModeState {
     modeTags?: Array<{ value: number }>
   }>
   currentMode?: number
+  /** @deprecated This cluster has no such attribute in Matter, and matter.js refuses it. */
   startUpMode?: number | null
+  /** @deprecated This cluster has no such attribute in Matter, and matter.js refuses it. */
   onMode?: number | null
 }
 
@@ -294,7 +335,9 @@ export interface WaterHeaterModeState {
     modeTags?: Array<{ value: number }>
   }>
   currentMode?: number
+  /** @deprecated This cluster has no such attribute in Matter, and matter.js refuses it. */
   startUpMode?: number | null
+  /** @deprecated This cluster has no such attribute in Matter, and matter.js refuses it. */
   onMode?: number | null
 }
 
@@ -426,6 +469,33 @@ export interface ServiceAreaState {
     totalOperationalTime?: number | null
   }>
 }
+
+/**
+ * Smoke CO Alarm state. `smokeState` turns on the SmokeAlarm feature and
+ * `coState` the CoAlarm one.
+ *
+ * Matter requires a smoke alarm to say how it is powered. Declare
+ * `powerSource` state next to this cluster (for a battery: `status`, `order`,
+ * `description` and `batPercentRemaining`), or matter.js logs a device type
+ * warning at every start.
+ */
+export type SmokeCoAlarmState = SmokeCoAlarm.Attributes
+
+/**
+ * Closure Control state, for a garage door, gate or similar. See
+ * `ClosureControlHandlers` for what Homebridge records after a command.
+ */
+export type ClosureControlState = ClosureControl.Attributes
+
+/**
+ * Media Playback state. `currentState`: 0 = playing, 1 = paused, 2 = not playing, 3 = buffering.
+ */
+export type MediaPlaybackState = MediaPlayback.Attributes
+
+/**
+ * Pump Configuration And Control state
+ */
+export type PumpConfigurationAndControlState = PumpConfigurationAndControl.Attributes
 
 /**
  * Power Source state

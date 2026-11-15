@@ -24,7 +24,7 @@ import type {
   OnOffState,
   PowerSourceState,
   RvcCleanModeState,
-  RvcOperationalState,
+  RvcOperationalStateState,
   RvcRunModeState,
   ServiceAreaState,
   ThermostatState,
@@ -64,6 +64,13 @@ interface ConcentrationMeasurementState {
  * Plugin developers get autocomplete for known clusters while unknown clusters
  * fall back to `Record<string, unknown>`.
  *
+ * Not every cluster is in this map on purpose. Adding one changes its type
+ * from `Record<string, unknown>` to the typed one, and plugin code that builds
+ * the state as a `Record<string, unknown>` first then stops compiling. The
+ * state types of the clusters left out (SmokeCoAlarmState, ClosureControlState,
+ * MediaPlaybackState, PumpConfigurationAndControlState) are in clusterTypes.ts
+ * for a plugin to use by name.
+ *
  * @example
  * ```typescript
  * // With typed overload on api.matter:
@@ -85,7 +92,7 @@ export interface ClusterStateMap {
   fanControl: FanControlState
 
   // RVC clusters
-  rvcOperationalState: RvcOperationalState
+  rvcOperationalState: RvcOperationalStateState
   rvcRunMode: RvcRunModeState
   rvcCleanMode: RvcCleanModeState
   serviceArea: ServiceAreaState
