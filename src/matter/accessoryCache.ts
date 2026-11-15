@@ -193,6 +193,7 @@ export class MatterAccessoryCache {
 
     // Schedule a new save after the debounce period
     this.saveDebounceTimer = setTimeout(() => {
+      this.saveDebounceTimer = null
       this.save(accessories).catch((error) => {
         log.error('Debounced cache save failed:', error)
       })
@@ -217,6 +218,11 @@ export class MatterAccessoryCache {
       return true
     }
     return false
+  }
+
+  /** True while a debounced save is waiting to be written. */
+  hasPendingSave(): boolean {
+    return this.saveDebounceTimer !== null
   }
 
   /**
