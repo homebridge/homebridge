@@ -62,6 +62,13 @@ export type { Logger, Logging } from './logger.js'
  * ═══════════════════════════════════════════════════════════════════════
  * Matter Protocol - Plugin API Exports
  * ═══════════════════════════════════════════════════════════════════════
+ *
+ * ⚠️ The Matter VALUES exported below (`MatterStatus`, `clusters`, `devices`,
+ * `deviceTypes`, `clusterNames`, the Matter error classes and enums) are
+ * deprecated on this entry. Because of them, importing any value from
+ * `'homebridge'` loads all of matter.js. Take them from `'homebridge/matter'`
+ * (see `src/matterExports.ts`) or, better, from `api.matter`. They will be
+ * removed from this entry in a later release; the types stay.
  */
 
 /**

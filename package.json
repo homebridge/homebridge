@@ -12,9 +12,25 @@
   "bugs": {
     "url": "https://github.com/homebridge/homebridge/issues"
   },
-  "exports": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./matter": {
+      "types": "./dist/matterExports.d.ts",
+      "default": "./dist/matterExports.js"
+    }
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "matter": [
+        "dist/matterExports.d.ts"
+      ]
+    }
+  },
   "maintainers": [
     "oznu <dev@oz.nu>",
     "Andreas Bauer <mail@anderl-bauer.de>"
