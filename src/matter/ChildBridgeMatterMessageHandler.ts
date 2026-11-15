@@ -173,7 +173,7 @@ export class ChildBridgeMatterMessageHandler {
         }
         this.sendMessage('matterEvent', controlResponse)
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         // Silently ignore if this bridge doesn't own the accessory — the
         // parent broadcasts to all matter children, so a "wrong bridge"
         // here is expected, not a real failure.
@@ -181,15 +181,19 @@ export class ChildBridgeMatterMessageHandler {
           log.debug(`Accessory ${data.uuid} not on child bridge ${this.bridgeUsername}, ignoring`)
           return
         }
-        log.error(`Failed to control ${data.uuid} on child bridge ${this.bridgeUsername}: ${error.message}`)
+        // A plugin handler can reject with anything, `null` included. Reading
+        // `.message` off it threw inside this catch: an unhandled rejection,
+        // which ends the child bridge process.
+        const message = error instanceof Error
+          ? error.message
+          : 'Unknown error'
+        log.error(`Failed to control ${data.uuid} on child bridge ${this.bridgeUsername}: ${message}`)
         const event: MatterEvent = {
           type: 'accessoryControlResponse',
           correlationId,
           data: {
             success: false,
-            error: error instanceof Error
-              ? error.message
-              : 'Unknown error',
+            error: message,
             uuid: data.uuid,
           },
         }

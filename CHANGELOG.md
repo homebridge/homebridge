@@ -110,6 +110,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: do not load the plugin or start the bridge in a child process that was told to stop
 - fix: restart a crashed child bridge at once when asked, instead of waiting out the back-off
 - fix(matter): list only the child bridge the ui asks for, and skip one that is not running
+- fix(matter): keep a child bridge running when a plugin handler rejects a ui control with no error
 
 ### Homebridge Dependencies
 
