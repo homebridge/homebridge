@@ -24,7 +24,8 @@ import { lockStateForWrite } from './stateLock.js'
  * Custom ColorControl Server that calls plugin handlers
  *
  * ColorControl handles color changes for lights (hue, saturation, XY color, color temperature).
- * Plugin developers can override these *Logic methods to handle color changes in their hardware.
+ * A plugin registers a handler under the name of the *Logic method (see ColorControlHandlers);
+ * each override here calls that handler and then lets matter.js store the new color.
  *
  * Features (Xy, ColorTemperature, HueSaturation) are added by the device type, not this behavior.
  * This ensures each device only gets the features it needs.
@@ -86,7 +87,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
   /**
    * Called when color temperature is changed
    * @param colorTemperatureMireds - Target color temperature in mireds (micro reciprocal degrees)
-   * @param transitionTime - Transition time in seconds (0 = as fast as possible)
+   * @param transitionTime - Transition time in tenths of a second (0 = as fast as possible)
    */
   override async moveToColorTemperatureLogic(colorTemperatureMireds: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
@@ -117,7 +118,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    * Called when hue and saturation are changed together
    * @param hue - Target hue value (0-254 for normal hue, 0-65535 for enhanced hue)
    * @param saturation - Target saturation value (0-254)
-   * @param transitionTime - Transition time in seconds (0 = as fast as possible)
+   * @param transitionTime - Transition time in tenths of a second (0 = as fast as possible)
    */
   override async moveToHueAndSaturationLogic(hue: number, saturation: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
@@ -158,7 +159,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    * Called when XY color coordinates are changed
    * @param targetX - Target X value (0-65535 representing 0.0-1.0 in CIE color space)
    * @param targetY - Target Y value (0-65535 representing 0.0-1.0 in CIE color space)
-   * @param transitionTime - Transition time in seconds (0 = as fast as possible)
+   * @param transitionTime - Transition time in tenths of a second (0 = as fast as possible)
    */
   override async moveToColorLogic(targetX: number, targetY: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
@@ -191,7 +192,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    * Called when hue is changed individually
    * @param targetHue - Target hue value
    * @param direction - Direction to move (shortest, longest, up, down)
-   * @param transitionTime - Transition time in seconds
+   * @param transitionTime - Transition time in tenths of a second
    * @param isEnhancedHue - Whether this is enhanced hue (16-bit) or normal hue (8-bit)
    */
   override async moveToHueLogic(targetHue: number, direction: ColorControl.Direction, transitionTime: number, isEnhancedHue = false): Promise<void> {
@@ -228,7 +229,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
   /**
    * Called when saturation is changed individually
    * @param targetSaturation - Target saturation value (0-254)
-   * @param transitionTime - Transition time in seconds
+   * @param transitionTime - Transition time in tenths of a second
    */
   override async moveToSaturationLogic(targetSaturation: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id

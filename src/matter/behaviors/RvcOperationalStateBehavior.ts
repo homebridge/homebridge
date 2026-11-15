@@ -76,7 +76,8 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
    * Run one of the operational commands through the plugin's handler.
    *
    * All three commands behave identically: the plugin handler does the real
-   * work (and updates state via the API, so the base implementation is not
+   * work (and is expected to report the new state with updateAccessoryState;
+   * nothing here changes the operational state, and the base implementation is not
    * called), the resulting state is synced to the cache, and a handler error
    * becomes a proper Matter error response rather than crashing the endpoint.
    * They were three copies of this method before being collapsed.
@@ -91,8 +92,9 @@ export class HomebridgeRvcOperationalStateServer extends RvcOperationalStateServ
     const { response } = await registry.runHandler(endpointId, 'rvcOperationalState', command)
     await lockStateForWrite(this)
 
-    // Only reached if handler succeeded - the plugin handler already
-    // updated state via the API, so the base implementation is not called
+    // Only reached if handler succeeded. The operational state is the plugin's
+    // to report (updateAccessoryState): no base implementation is called, and
+    // nothing here checks that the plugin did.
 
     // Sync state to cache (operational state should be updated by plugin via updateAccessoryState)
     this.syncOperationalStateToCache()

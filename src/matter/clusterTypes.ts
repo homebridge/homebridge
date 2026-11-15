@@ -1,10 +1,12 @@
 /**
  * Cluster State Types
  *
- * TypeScript interfaces for Matter cluster state objects.
- * These are used in behavior files to avoid repeated 'as any' casts.
+ * TypeScript interfaces for Matter cluster state objects: what a plugin
+ * declares in `clusters`, writes with updateAccessoryState() and reads with
+ * getAccessoryState().
  *
- * Types are derived from @matter/main/clusters where possible.
+ * Most are written out by hand, with the attributes a plugin sets. A few are
+ * taken from @matter/main/clusters as they are.
  */
 
 import type { ClosureControl, MediaPlayback, PumpConfigurationAndControl, SmokeCoAlarm, WindowCovering } from '@matter/main/clusters'

@@ -35,7 +35,10 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     // React to systemMode attribute changes (off, heat, cool, auto, etc.)
     this.reactTo(this.events.systemMode$Changed, this.#handleSystemModeChange, { offline: true })
 
-    // React to changes of the setpoints (the target temperatures). Which of
+    // React to changes of the setpoints (the target temperatures). These use
+    // the "changing" event, raised while the write is still being made, where
+    // the system mode above uses "changed", raised after it. Either way the
+    // reaction runs on its own, after the write was accepted. Which of
     // them exist depends on the features (Heating, Cooling, Occupancy), so the
     // base type does not list their events.
     const events = this.events as unknown as Record<string, Parameters<typeof this.reactTo>[0] | undefined>

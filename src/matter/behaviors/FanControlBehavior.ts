@@ -24,10 +24,10 @@ export class HomebridgeFanControlServer extends FanControlServer {
   override async initialize(): Promise<void> {
     await super.initialize()
 
-    // React to fanMode attribute changes (on/off)
+    // React to fanMode attribute changes (off, low, medium, high, on, auto, smart)
     this.reactTo(this.events.fanMode$Changed, this.#handleFanModeChange, { offline: true })
 
-    // React to percentSetting attribute changes (speed)
+    // React to percentSetting attribute changes (the speed asked for, 0 to 100)
     this.reactTo(this.events.percentSetting$Changed, this.#handlePercentSettingChange, { offline: true })
   }
 

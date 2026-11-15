@@ -2,8 +2,9 @@
  * DoorLock Cluster Behavior
  *
  * Handles door lock commands for smart locks.
- * Uses the featureless DoorLockBehavior base to avoid advertising credential
- * features (PIN, RFID, etc.) that cause issues with Apple Home.
+ * Uses the DoorLockBehavior base, which implements no command, so that lock
+ * and unlock can be done here without matter.js's own DoorLockServer logic
+ * (see the class comment).
  */
 
 import { DoorLockBehavior } from '@matter/main/behaviors/door-lock'
@@ -15,9 +16,12 @@ import { lockStateForWrite } from './stateLock.js'
 /**
  * Custom DoorLock Server that calls plugin handlers.
  *
- * Extends DoorLockBehavior (no credential features) instead of DoorLockServer
- * (which includes PinCredential, RfidCredential, etc.). This prevents Apple Home
- * from seeing credential capabilities that aren't fully implemented.
+ * Extends DoorLockBehavior, not matter.js's DoorLockServer. DoorLockServer's
+ * lockDoor and unlockDoor do much more than set the state (they check who is
+ * asking, the operating mode and auto-relock, and raise the LockOperation
+ * event), and they refuse a command that does not come from a paired
+ * controller - which is how the Homebridge UI sends one. So lock and unlock
+ * set `lockState` here themselves. No LockOperation event is raised.
  */
 export class HomebridgeDoorLockServer extends DoorLockBehavior {
   /**
@@ -38,10 +42,8 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update the Matter attribute.
-    // We extend the featureless DoorLockBehavior (not DoorLockServer) to avoid
-    // advertising credential features, which means there is no working
-    // super.lockDoor() to delegate to — calling it throws. Set the lockState
-    // attribute directly, mirroring DoorLockServer.lockDoor().
+    // DoorLockBehavior has no working super.lockDoor() to delegate to
+    // (calling it throws), so set the lockState attribute directly.
     this.state.lockState = DoorLock.LockState.Locked
 
     // Sync lock state to cache
@@ -57,8 +59,8 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update the Matter attribute.
-    // See lockDoor() above: the featureless base has no working super.unlockDoor(),
-    // so set the lockState attribute directly, mirroring DoorLockServer.unlockDoor().
+    // See lockDoor() above: the base has no working super.unlockDoor(),
+    // so set the lockState attribute directly.
     this.state.lockState = DoorLock.LockState.Unlocked
 
     // Sync lock state to cache

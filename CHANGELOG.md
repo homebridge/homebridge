@@ -153,6 +153,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): match the cluster state types to matter.js 0.18 and add types for four more clusters
 - feat(matter): let a handler answer a mode change, vacuum, media or key command with its own status
 - refactor(matter): use real types in place of casts in the registry, thermostat and command mapper
+- docs(matter): correct comments on color transition times, the door lock base and the vacuum state
 
 ### Homebridge Dependencies
 
