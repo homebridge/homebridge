@@ -28,6 +28,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): answer a robot vacuum's skip area command instead of always failing it
 - fix(matter): check a robot vacuum's select areas request before calling the plugin
 - fix(matter): stop calling a plugin's fan and thermostat handlers for the state it reports itself
+- fix(matter): put the old value back when a fan or thermostat change handler fails
 
 ### Homebridge Dependencies
 

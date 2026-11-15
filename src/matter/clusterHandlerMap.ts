@@ -93,6 +93,12 @@ export interface WindowCoveringHandlers {
 
 /**
  * Thermostat cluster handler methods
+ *
+ * The `...Change` handlers are called after a controller (or the Homebridge
+ * UI) has written the attribute. They are not called for state the plugin
+ * reports itself with `updateAccessoryState()`. The write is already accepted
+ * by then, so a handler can not refuse it: when one throws, the error is
+ * logged and the old value is put back.
  */
 export interface ThermostatHandlers {
   systemModeChange?: MatterCommandHandler<{ systemMode: number, oldSystemMode: number }>
@@ -109,6 +115,12 @@ export interface ThermostatHandlers {
 
 /**
  * FanControl cluster handler methods
+ *
+ * The `...Change` handlers are called after a controller (or the Homebridge
+ * UI) has written the attribute. They are not called for state the plugin
+ * reports itself with `updateAccessoryState()`. The write is already accepted
+ * by then, so a handler can not refuse it: when one throws, the error is
+ * logged and the old value is put back.
  */
 export interface FanControlHandlers {
   fanModeChange?: MatterCommandHandler<{

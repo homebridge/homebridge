@@ -13,6 +13,7 @@ import { Status, StatusResponseError } from '@matter/main/types'
 import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 import { isPluginUpdate } from './pluginUpdates.js'
+import { revertFailedChange } from './revertFailedChange.js'
 
 /**
  * Custom Thermostat Server that calls plugin handlers
@@ -125,18 +126,10 @@ export class HomebridgeThermostatServer extends ThermostatServer {
       // Sync state to cache
       registry.syncStateToCache(endpointId, 'thermostat', { systemMode: value })
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change system mode: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'thermostat', 'systemMode', value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'thermostat', { systemMode: oldValue })
     }
   }
 
@@ -164,18 +157,10 @@ export class HomebridgeThermostatServer extends ThermostatServer {
       // Sync state to cache
       registry.syncStateToCache(endpointId, 'thermostat', { occupiedHeatingSetpoint: value })
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change heating setpoint: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'thermostat', 'occupiedHeatingSetpoint', value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'thermostat', { occupiedHeatingSetpoint: oldValue })
     }
   }
 
@@ -203,18 +188,10 @@ export class HomebridgeThermostatServer extends ThermostatServer {
       // Sync state to cache
       registry.syncStateToCache(endpointId, 'thermostat', { occupiedCoolingSetpoint: value })
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change cooling setpoint: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'thermostat', 'occupiedCoolingSetpoint', value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'thermostat', { occupiedCoolingSetpoint: oldValue })
     }
   }
 

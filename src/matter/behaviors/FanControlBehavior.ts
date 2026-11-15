@@ -5,11 +5,10 @@
  */
 
 import { FanControlBehavior, FanControlServer } from '@matter/main/behaviors/fan-control'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 import { isPluginUpdate } from './pluginUpdates.js'
+import { revertFailedChange } from './revertFailedChange.js'
 
 /**
  * Custom FanControl Server that calls plugin handlers
@@ -61,18 +60,10 @@ export class HomebridgeFanControlServer extends FanControlServer {
       }
       registry.syncStateToCache(endpointId, 'fanControl', stateUpdate)
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change fan mode: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'fanControl', 'fanMode', value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'fanControl', { fanMode: oldValue })
     }
   }
 
@@ -106,18 +97,10 @@ export class HomebridgeFanControlServer extends FanControlServer {
       }
       registry.syncStateToCache(endpointId, 'fanControl', stateUpdate)
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change fan speed: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'fanControl', 'percentSetting', value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'fanControl', { percentSetting: oldValue })
     }
   }
 }
