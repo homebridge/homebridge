@@ -1286,3 +1286,85 @@ describe('serverLifecycle — a node that goes offline without being asked to', 
     expect(offlineListeners).toEqual([])
   })
 })
+
+/** A SIGTERM while Matter is still starting: stop() runs before start() is done. */
+describe('serverLifecycle — a stop that comes while the server is still starting', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+  let nodeStart: ReturnType<typeof vi.fn>
+  let nodeClose: ReturnType<typeof vi.fn>
+  let finishCreate: () => void
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    nodeStart = vi.fn(async () => {})
+    nodeClose = vi.fn(async () => {})
+    const created = new Promise<void>((resolve) => {
+      finishCreate = resolve
+    })
+    vi.mocked(MatterServerNode.create).mockImplementation(async () => {
+      await created
+      return {
+        start: nodeStart,
+        construction: {
+          closed: new Promise<void>(() => {}),
+        },
+        lifecycle: {
+          shouldBeOnline: true,
+          offline: {
+            on: vi.fn(),
+            off: vi.fn(),
+          },
+        },
+        add: vi.fn(),
+        close: nodeClose,
+      } as never
+    })
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+    lifecycle = new ServerLifecycle()
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return {
+        load: vi.fn(async () => new Map()),
+        cancelPendingSave: vi.fn(),
+        hasPendingSave: vi.fn(() => false),
+      } as never
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('does not put the node on the network afterwards, and closes it', async () => {
+    const deps = createMockDeps()
+    const starting = lifecycle.start(deps)
+    const outcome = starting.then(() => 'started', (error: Error) => error.message)
+    // let start() get as far as creating the node
+    await vi.waitFor(() => expect(MatterServerNode.create).toHaveBeenCalled())
+
+    // the node does not exist yet, so there is nothing for stop() to close
+    await lifecycle.stop(deps, new Map())
+    finishCreate()
+
+    expect(await outcome).toContain('cancelled because it was asked to stop')
+    expect(nodeStart).not.toHaveBeenCalled()
+    expect(nodeClose).toHaveBeenCalledTimes(1)
+    expect(deps.getIsRunning()).toBe(false)
+    expect(deps.getServerNode()).toBeNull()
+  })
+
+  it('starts as normal the next time', async () => {
+    const deps = createMockDeps()
+    const first = lifecycle.start(deps).catch(() => {})
+    await vi.waitFor(() => expect(MatterServerNode.create).toHaveBeenCalled())
+    await lifecycle.stop(deps, new Map())
+    finishCreate()
+    await first
+
+    await lifecycle.start(deps)
+
+    expect(nodeStart).toHaveBeenCalledTimes(1)
+    expect(deps.getIsRunning()).toBe(true)
+  })
+})
