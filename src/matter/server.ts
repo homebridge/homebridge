@@ -20,7 +20,7 @@ import { Logger } from '../logger.js'
 import { MatterAccessoryCache } from './accessoryCache.js'
 import { BehaviorRegistry, RegistryManager } from './behaviors/index.js'
 import { applyDeclaredClusterFeatures } from './clusterFeatures.js'
-import { createHomebridgeLogFormatter } from './logFormatter.js'
+import { createHomebridgeLogFormatter, QUIET_FACILITY_LEVELS } from './logFormatter.js'
 import {
   AccessoryManager,
   AccessoryQuery,
@@ -123,6 +123,7 @@ export class MatterServer extends EventEmitter {
       MatterLogger.level = MatterLogLevel.NOTICE
     }
 
+    MatterLogger.facilityLevels = { ...QUIET_FACILITY_LEVELS }
     MatterLogger.format = createHomebridgeLogFormatter({ debug: this.config.debugModeEnabled })
 
     // Warnings and errors go to stderr and the rest to stdout, the same split

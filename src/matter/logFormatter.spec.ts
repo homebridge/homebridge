@@ -95,25 +95,6 @@ describe('logFormatter', () => {
       })
     })
 
-    describe('the Commissioning facility', () => {
-      const line = (level: number): string => createHomebridgeLogFormatter()({
-        now: new Date(),
-        facility: 'Commissioning',
-        values: ['the message'],
-        level,
-      })
-
-      it('is left out for the pairing codes and state, which homebridge prints itself', () => {
-        expect(line(LogLevel.NOTICE)).toBe('')
-        expect(line(LogLevel.INFO)).toBe('')
-      })
-
-      it('is shown for a warning or an error', () => {
-        expect(line(LogLevel.WARN)).toContain('the message')
-        expect(line(LogLevel.ERROR)).toContain('the message')
-      })
-    })
-
     it('should trim long MessageChannel messages', () => {
       const formatter = createHomebridgeLogFormatter()
       const longMessage = 'a'.repeat(2000)

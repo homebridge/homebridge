@@ -230,6 +230,33 @@ describe('matterServer.updatePlatformAccessories', () => {
 })
 
 describe('matterServer logging of matter.js', () => {
+  // matter.js drops these lines itself, by the facility levels it is given
+  it('leaves out the pairing codes and the optional-feature warnings matter.js prints, and keeps its commissioning warnings', async () => {
+    const { Logger: MatterLogger } = await import('@matter/main')
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const server = new MatterServer({ uniqueId: 'AA:BB:CC:DD:EE:02', debugModeEnabled: true })
+    expect(server).toBeDefined()
+
+    MatterLogger.get('Commissioning').notice('the pairing code')
+    MatterLogger.get('Commissioning').info('the pairing state')
+    MatterLogger.get('ValidatedElements').warn('an optional feature is not there')
+    MatterLogger.get('ValidatedElements').error('nor is this one')
+    MatterLogger.get('Commissioning').warn('a commissioning warning')
+    MatterLogger.get('Commissioning').error('a commissioning error')
+    MatterLogger.get('SomethingElse').notice('a normal line')
+
+    const lines = (spy: typeof stdout) => spy.mock.calls.map(call => String(call[0])).filter(line => !line.includes('[Matter/Server]'))
+    expect(lines(stdout)).toEqual([
+      expect.stringContaining('a normal line'),
+    ])
+    expect(lines(stderr)).toEqual([
+      expect.stringContaining('a commissioning warning'),
+      expect.stringContaining('a commissioning error'),
+    ])
+    vi.restoreAllMocks()
+  })
+
   it('writes matter.js warnings and errors to stderr and the rest to stdout, as the homebridge logger does', async () => {
     const { Logger: MatterLogger, LogLevel } = await import('@matter/main')
     const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
