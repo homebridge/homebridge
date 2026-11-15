@@ -1686,3 +1686,74 @@ describe('a window covering with state and no handlers, on a real node', () => {
     expect(stateOf(endpoint, 'windowCovering').targetPositionLiftPercent100ths).toBe(0)
   })
 })
+
+describe('an ev charger on a real node', () => {
+  /** A charger with the given supply state and energyEvse handlers. */
+  function charger(supplyState: number, handlers: Record<string, (request: unknown) => Promise<void>>) {
+    return register({
+      deviceType: deviceTypes.EnergyEvse,
+      clusters: {
+        energyEvse: {
+          state: 0,
+          supplyState,
+          faultState: 0,
+          chargingEnabledUntil: null,
+          circuitCapacity: 32000,
+          minimumChargeCurrent: 6000,
+          maximumChargeCurrent: 32000,
+          sessionId: null,
+          sessionDuration: null,
+          sessionEnergyCharged: null,
+        },
+        energyEvseMode: {
+          supportedModes: [
+            {
+              label: 'Manual',
+              mode: 0,
+              modeTags: [
+                { value: 16384 },
+              ],
+            },
+            {
+              label: 'Auto',
+              mode: 1,
+              modeTags: [
+                { value: 16385 },
+              ],
+            },
+          ],
+          currentMode: 0,
+        },
+      },
+      handlers: { energyEvse: handlers },
+    })
+  }
+
+  it('refuses StartDiagnostics on a charger that is not disabled, without calling the plugin', async () => {
+    const calls: string[] = []
+    const endpoint = await charger(1, {
+      startDiagnostics: async () => {
+        calls.push('startDiagnostics')
+      },
+    })
+
+    await expect(invoke(endpoint, 'energyEvse', 'startDiagnostics')).rejects.toThrow('Diagnostics can only start when the charger is disabled')
+
+    expect(calls).toEqual([])
+    expect(stateOf(endpoint, 'energyEvse').supplyState).toBe(1)
+  })
+
+  it('calls the plugin for StartDiagnostics on a disabled charger', async () => {
+    const calls: string[] = []
+    const endpoint = await charger(0, {
+      startDiagnostics: async () => {
+        calls.push('startDiagnostics')
+      },
+    })
+
+    await invoke(endpoint, 'energyEvse', 'startDiagnostics')
+
+    expect(calls).toEqual(['startDiagnostics'])
+    expect(stateOf(endpoint, 'energyEvse').supplyState).toBe(4)
+  })
+})

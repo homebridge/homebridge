@@ -52,6 +52,13 @@ const FeatureRichEnergyEvseServer = EnergyEvseServer.with(
  */
 const chargingTargets = new WeakMap<object, EnergyEvse.ChargingTargetSchedule[]>()
 
+/** The spec only allows diagnostics on a charger that has been disabled first. */
+function assertDiagnosticsAllowed(supplyState: EnergyEvse.SupplyState): void {
+  if (supplyState !== EnergyEvse.SupplyState.Disabled) {
+    throw new StatusResponseError('Diagnostics can only start when the charger is disabled', Status.Failure)
+  }
+}
+
 /**
  * Default EnergyEvse Server.
  *
@@ -94,10 +101,7 @@ export class DefaultEnergyEvseServer extends FeatureRichEnergyEvseServer {
   }
 
   override async startDiagnostics(): Promise<void> {
-    // The spec only allows diagnostics on a charger that has been disabled first
-    if (this.state.supplyState !== EnergyEvse.SupplyState.Disabled) {
-      throw new StatusResponseError('Diagnostics can only start when the charger is disabled', Status.Failure)
-    }
+    assertDiagnosticsAllowed(this.state.supplyState)
     this.state.supplyState = EnergyEvse.SupplyState.DisabledDiagnostics
   }
 
@@ -150,6 +154,9 @@ export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
   }
 
   override async startDiagnostics(): Promise<void> {
+    // Checked before the plugin is told, so its handler only runs for a
+    // request the charger is going to accept
+    assertDiagnosticsAllowed(this.state.supplyState)
     await this.run('startDiagnostics', 'start diagnostics', () => super.startDiagnostics())
   }
 
