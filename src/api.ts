@@ -141,11 +141,9 @@ export interface DynamicPlatformPlugin extends PlatformPlugin {
    * - Every accessory must be registered again at every start (see `registerPlatformAccessories()`).
    * - It is not called for an external accessory (a robot vacuum cleaner): only the accessories
    *   of the bridge are cached. Nothing is kept for an external accessory but its pairing.
-   * - `context`: Homebridge keeps the cached context when the accessory is registered again
-   *   with another structure (device type, parts, features), or when it was not rebuilt at
-   *   start. When the registration matches the restored accessory, the `context` of the
-   *   registered object is used. To be sure a value is kept, copy the cached `context` into
-   *   the accessory you register.
+   * - `context`: the `context` of the registered object is used. The cached context is kept
+   *   only when the registered object has none (no `context`, or an empty one). To be sure a
+   *   value is kept, copy the cached `context` into the accessory you register.
    *
    * @param {MatterAccessory} accessory - cached Matter accessory
    */
@@ -447,8 +445,11 @@ export interface MatterAPI {
    * so a restored accessory answers every command with a failure until it is registered again.
    *
    * When an accessory is restored from the cache, its cached state is kept: the `clusters`
-   * values passed here are the starting state for a new accessory only. To set the current
-   * state of a restored accessory, call `updateAccessoryState()` once this promise resolves (#4015).
+   * values passed here are the starting state for a new accessory only. One exception: a
+   * value the plugin declares differently from the last time it registered the accessory (a
+   * new `maxLevel`, a room added to `supportedAreas`) is a new setting, and it is used. To set
+   * the current state of a restored accessory, call `updateAccessoryState()` once this promise
+   * resolves (#4015).
    *
    * An accessory that can not be registered is logged and skipped, and the promise still
    * resolves (HAP throws for a bad accessory). That is so for one that fails the checks here
