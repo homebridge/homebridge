@@ -1043,6 +1043,24 @@ describe('clusters that answer with their own status, on a real node', () => {
     await expect(invoke(endpoint, 'mediaPlayback', 'play')).resolves.toEqual({ status: 1 })
   })
 
+  // a handler that ends with an axios call, or with `return fetch(url)`
+  it.each([
+    [
+      'an axios-like response',
+      async () => ({ status: 200, data: {} }),
+    ],
+    [
+      'a fetch response',
+      async () => new Response(null, { status: 204 }),
+    ],
+  ])('ignores %s a handler returns: it is not an answer', async (_name, handler) => {
+    const endpoint = await mediaPlayer(handler as unknown as () => Promise<void>)
+
+    // 0 = Success
+    await expect(invoke(endpoint, 'keypadInput', 'sendKey', { keyCode: 1 })).resolves.toEqual({ status: 0 })
+    await expect(invoke(endpoint, 'mediaPlayback', 'play')).resolves.toEqual({ status: 0 })
+  })
+
   it('still passes on a matter status the plugin threw on purpose', async () => {
     const endpoint = await mediaPlayer(busy)
 

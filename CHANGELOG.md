@@ -260,6 +260,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): write the pairing files one save at a time, so two saves at once both work
 - docs(matter): list the two unoccupied setpoint change handlers with the other five
 - fix(matter): make each attribute of the four new cluster state types optional, like the others
+- fix(matter): read only a matter answer from what a handler returns, not an http response
 
 ### Homebridge Dependencies
 
