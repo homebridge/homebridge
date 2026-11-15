@@ -951,12 +951,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
       log.info(`One of your plugins incorrectly registered an external accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`)
     }
 
+    // check all of them before changing any: a bad one must not leave the others half registered
     accessories.forEach((accessory) => {
       // noinspection SuspiciousTypeOfGuard
       if (!(accessory instanceof PlatformAccessory)) {
         throw new TypeError(`${pluginIdentifier} attempt to register an accessory that isn't PlatformAccessory!`)
       }
+    })
 
+    accessories.forEach((accessory) => {
       accessory._associatedPlugin = pluginIdentifier
     })
 
@@ -964,12 +967,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   registerPlatformAccessories(pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: PlatformAccessory[]): void {
+    // check all of them before changing any: a bad one must not leave the others half registered
     accessories.forEach((accessory) => {
       // noinspection SuspiciousTypeOfGuard
       if (!(accessory instanceof PlatformAccessory)) {
         throw new TypeError(`${pluginIdentifier} - ${platformName} attempt to register an accessory that isn't PlatformAccessory!`)
       }
+    })
 
+    accessories.forEach((accessory) => {
       accessory._associatedPlugin = pluginIdentifier
       accessory._associatedPlatform = platformName
     })

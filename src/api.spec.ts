@@ -265,6 +265,24 @@ describe('homebridgeAPI', () => {
       expect(events).toEqual([])
     })
 
+    it('leaves every accessory untouched when one in the same call is not a PlatformAccessory', () => {
+      const good = new PlatformAccessory('Good', uuid.generate('good'))
+      const alsoGood = new PlatformAccessory('Also good', uuid.generate('also-good'))
+
+      expect(() => api.registerPlatformAccessories(pluginName, platformName, [
+        good,
+        { displayName: 'Fake' } as any,
+      ])).toThrow(TypeError)
+      expect(() => api.publishExternalAccessories(pluginName, [
+        alsoGood,
+        { displayName: 'Fake' } as any,
+      ])).toThrow(TypeError)
+
+      expect(good._associatedPlugin).toBeUndefined()
+      expect(good._associatedPlatform).toBeUndefined()
+      expect(alsoGood._associatedPlugin).toBeUndefined()
+    })
+
     it('updatePlatformAccessories passes the accessories on', () => {
       listenFor(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES)
       const accessories = [
