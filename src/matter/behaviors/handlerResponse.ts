@@ -12,7 +12,7 @@ import type { Behavior } from '@matter/main'
 import { ModeUtils } from '@matter/main/behaviors/mode-base'
 import { ModeBase } from '@matter/main/clusters'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -54,7 +54,7 @@ export async function changeToModeWithHandler(
   refuse?: () => ModeBase.ChangeToModeResponse | undefined,
 ): Promise<ModeBase.ChangeToModeResponse> {
   const endpointId = behavior.endpoint.id
-  const registry = getRegistryManager(behavior.endpoint).getRegistry(endpointId)
+  const registry = registryOf(behavior.endpoint)
 
   // matter.js only checks the mode in its own changeToMode, after the handler has run
   const modeCheck = ModeUtils.assertModeChange(behavior.state.supportedModes, behavior.state.currentMode, request.newMode)

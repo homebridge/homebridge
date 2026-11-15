@@ -7,7 +7,7 @@
 import { ClosureControlServer } from '@matter/main/behaviors/closure-control'
 import { ClosureControl } from '@matter/main/clusters/closure-control'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -133,18 +133,11 @@ export class DefaultClosureControlServer extends ClosureControlServer {
  */
 export class HomebridgeClosureControlServer extends DefaultClosureControlServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Handle 'moveTo' command
    */
   override async moveTo(request: ClosureControl.MoveToRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'closureControl', 'moveTo', request)
@@ -166,7 +159,7 @@ export class HomebridgeClosureControlServer extends DefaultClosureControlServer 
    */
   override async stop(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'closureControl', 'stop')

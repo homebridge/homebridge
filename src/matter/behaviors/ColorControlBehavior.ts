@@ -17,7 +17,7 @@ import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { ColorControlServer } from '@matter/main/behaviors/color-control'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -31,13 +31,6 @@ import { lockStateForWrite } from './stateLock.js'
  * This ensures each device only gets the features it needs.
  */
 export class HomebridgeColorControlServer extends ColorControlServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   /**
    * True while matter.js is calling one of these methods as a step of its own
    * work, not because a controller asked for it. The plugin was (or will be)
@@ -91,7 +84,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    */
   override async moveToColorTemperatureLogic(colorTemperatureMireds: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler, if the plugin registered one
     await this.runOptionalHandler(
@@ -122,7 +115,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    */
   override async moveToHueAndSaturationLogic(hue: number, saturation: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler, if the plugin registered one
     await this.runOptionalHandler(
@@ -163,7 +156,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    */
   override async moveToColorLogic(targetX: number, targetY: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler, if the plugin registered one
     await this.runOptionalHandler(
@@ -197,7 +190,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    */
   override async moveToHueLogic(targetHue: number, direction: ColorControl.Direction, transitionTime: number, isEnhancedHue = false): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler, if the plugin registered one
     await this.runOptionalHandler(
@@ -233,7 +226,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    */
   override async moveToSaturationLogic(targetSaturation: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler, if the plugin registered one
     await this.runOptionalHandler(
@@ -260,7 +253,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    */
   override async stopAllColorMovement(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler, if the plugin registered one
     await this.runOptionalHandler(
@@ -278,7 +271,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    * through stopAllColorMovement, so the plugin's stop handler is called here.
    */
   override async stopMoveStepLogic(): Promise<void> {
-    await this.runOptionalHandler(this.getRegistry(), this.endpoint.id, 'stopAllColorMovement')
+    await this.runOptionalHandler(registryOf(this.endpoint), this.endpoint.id, 'stopAllColorMovement')
 
     await super.stopMoveStepLogic()
   }

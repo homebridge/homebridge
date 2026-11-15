@@ -9,7 +9,7 @@ import type { Identify } from '@matter/main/clusters'
 import { IdentifyServer } from '@matter/main/behaviors/identify'
 
 import { Logger } from '../../logger.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 const log = Logger.withPrefix('Matter/Identify')
@@ -29,19 +29,12 @@ export class HomebridgeIdentifyServer extends IdentifyServer {
   }
 
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Pass an identify effect on to the plugin's `triggerEffect` handler. The
    * command has been answered by then, so a handler that fails is logged.
    */
   async #tellPluginOfEffect(effect: Identify.TriggerEffectRequest): Promise<void> {
     try {
-      await this.getRegistry().executeHandler(this.endpoint.id, 'identify', 'triggerEffect', effect)
+      await registryOf(this.endpoint).executeHandler(this.endpoint.id, 'identify', 'triggerEffect', effect)
     } catch (error) {
       log.warn(`The triggerEffect handler of ${this.endpoint.id} failed:`, error)
     }
@@ -49,7 +42,7 @@ export class HomebridgeIdentifyServer extends IdentifyServer {
 
   override async identify(request: Identify.IdentifyRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'identify', 'identify', request)

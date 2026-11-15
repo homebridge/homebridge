@@ -8,7 +8,7 @@ import type { WindowCovering } from '@matter/main/clusters'
 
 import { WindowCoveringServer } from '@matter/main/behaviors/window-covering'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -43,13 +43,6 @@ const POSITION_ATTRIBUTES = [
  */
 export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Sync the positions to the cache after a command: lift and tilt, as open,
    * close and stop move both on a covering that has both.
    */
@@ -61,7 +54,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
         stateUpdate[attribute] = value
       }
     }
-    this.getRegistry().syncStateToCache(this.endpoint.id, 'windowCovering', stateUpdate)
+    registryOf(this.endpoint).syncStateToCache(this.endpoint.id, 'windowCovering', stateUpdate)
   }
 
   /**
@@ -72,7 +65,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
    */
   private async runOpenOrClose(commandName: 'upOrOpen' | 'downOrClose', percent100ths: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
     if (registry.getHandler(endpointId, 'windowCovering', commandName)) {
       await registry.executeHandler(endpointId, 'windowCovering', commandName)
       await lockStateForWrite(this)
@@ -130,7 +123,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
 
   override async stopMotion(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'windowCovering', 'stopMotion')
@@ -148,7 +141,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     }
 
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(
@@ -171,7 +164,7 @@ export class HomebridgeWindowCoveringServer extends FeatureRichWindowCoveringSer
     }
 
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Execute user handler
     await registry.executeHandler(

@@ -9,7 +9,7 @@ import type { ServiceAreaState } from '../clusterTypes.js'
 import { ServiceAreaServer } from '@matter/main/behaviors/service-area'
 import { ServiceArea } from '@matter/main/clusters/service-area'
 
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
 import { statusResponse } from './handlerResponse.js'
 import { lockStateForWrite } from './stateLock.js'
 
@@ -18,13 +18,6 @@ import { lockStateForWrite } from './stateLock.js'
  */
 export class HomebridgeServiceAreaServer extends ServiceAreaServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Sync current service area state to cache for UI updates
    * Helper method to avoid code duplication
    *
@@ -32,7 +25,7 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
    */
   private syncServiceAreaStateToCache(includeProgress = false): void {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
     const currentState = this.state as ServiceAreaState
     const stateUpdate: Partial<ServiceAreaState> = {}
 
@@ -60,7 +53,7 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
    */
   override async selectAreas(request: ServiceArea.SelectAreasRequest): Promise<ServiceArea.SelectAreasResponse> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Check the request first, with matter.js's own rules: an area the
     // device does not have is refused without the plugin being called.
@@ -96,7 +89,7 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
    */
   override async skipArea(request: ServiceArea.SkipAreaRequest): Promise<ServiceArea.SkipAreaResponse> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     // Check the request first, with matter.js's own rules: an area that is
     // not selected is refused without the plugin being called.
