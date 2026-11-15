@@ -55,6 +55,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: let a plugin unregister an accessory that is not on the bridge without an error
 - fix: keep one characteristic warning listener on an accessory that is registered again
 - fix: start with a damaged accessory cache file, and keep the good backup when restoring from it
+- fix: only save an accessory passed to updatePlatformAccessories when it is already in the cache
 
 ### Homebridge Dependencies
 

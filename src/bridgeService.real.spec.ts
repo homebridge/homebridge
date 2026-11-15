@@ -223,3 +223,64 @@ describe('loading the cached accessories from disk', () => {
     expect(readFileSync(backupFile(), 'utf-8')).toBe(content)
   })
 })
+
+describe('updatePlatformAccessories on the real bridge', () => {
+  const savedNames = () => (JSON.parse(readFileSync(join(storageDir, 'cachedAccessories'), 'utf-8')) as { displayName: string }[]).map(entry => entry.displayName)
+
+  beforeEach(async () => {
+    // the cache is only written once it has been loaded
+    await service.loadCachedPlatformAccessoriesFromDisk()
+  })
+
+  it('saves the new details of a registered accessory', () => {
+    const lamp = accessory('Lamp')
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+
+    lamp.context.room = 'hall'
+    api.updatePlatformAccessories([lamp])
+
+    expect(cached()).toEqual(['Lamp'])
+    expect(JSON.parse(readFileSync(join(storageDir, 'cachedAccessories'), 'utf-8'))[0].context).toEqual({ room: 'hall' })
+  })
+
+  it('does not add an accessory that was never registered, or was unregistered, to the cache', () => {
+    const [lamp, gone, never] = [
+      accessory('Lamp'),
+      accessory('Gone'),
+      accessory('Never'),
+    ]
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp, gone])
+    api.unregisterPlatformAccessories(PLUGIN, PLATFORM, [gone])
+
+    // a late update for an accessory the plugin already removed, and one it never registered
+    api.updatePlatformAccessories([gone, never, lamp])
+
+    expect(cached()).toEqual(['Lamp'])
+    expect(savedNames()).toEqual(['Lamp'])
+  })
+
+  it('keeps saving the cache after it was given an external accessory', () => {
+    const [lamp, fan] = [
+      accessory('Lamp'),
+      accessory('Fan'),
+    ]
+    // an external accessory has a plugin but no platform, and can not be saved in the cache
+    const external = accessory('External')
+    external._associatedPlugin = PLUGIN
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+
+    api.updatePlatformAccessories([external])
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [fan])
+
+    expect(savedNames()).toEqual(['Lamp', 'Fan'])
+  })
+
+  it('saves an accessory once when it is given twice', () => {
+    const lamp = accessory('Lamp')
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp])
+
+    api.updatePlatformAccessories([lamp, lamp])
+
+    expect(savedNames()).toEqual(['Lamp'])
+  })
+})
