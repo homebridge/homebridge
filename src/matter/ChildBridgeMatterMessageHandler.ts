@@ -152,6 +152,17 @@ export class ChildBridgeMatterMessageHandler {
 
     log.debug(`Matter control request for child bridge ${this.bridgeUsername}: uuid=${data.uuid}, cluster=${data.cluster}, part=${data.partId || 'main'}`)
 
+    // Tell the main process at once that this bridge has the accessory. It
+    // answers "Accessory not found" when no bridge says so within two
+    // seconds, and a plugin handler that talks to a cloud can take longer.
+    if (correlationId && this.matterManager.ownsAccessory(data.uuid)) {
+      this.sendMessage('matterEvent', {
+        type: 'accessoryControlClaimed',
+        correlationId,
+        data: { uuid: data.uuid },
+      })
+    }
+
     this.matterManager.handleTriggerCommand(data.uuid, data.cluster, data.attributes, data.partId)
       .then(() => {
         log.debug(`Successfully controlled accessory ${data.uuid} on child bridge ${this.bridgeUsername}`)

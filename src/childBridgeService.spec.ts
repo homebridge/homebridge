@@ -643,6 +643,27 @@ describe('childBridgeService', () => {
       expect(ipcService.sendMessage).toHaveBeenCalled()
     })
 
+    it('on MATTER_EVENT accessoryControlClaimed, cancels the fallback and does not tell the UI', () => {
+      const { service, ipcService } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.onAccessoryControlResponse = vi.fn()
+      service.start()
+      const child = childProcesses.list[0]
+      ipcService.sendMessage.mockClear()
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoryControlClaimed',
+          correlationId: 'corr-slow',
+          data: { uuid: 'abc' },
+        },
+      })
+
+      expect(service.onAccessoryControlResponse).toHaveBeenCalledWith('corr-slow')
+      expect(ipcService.sendMessage).not.toHaveBeenCalled()
+    })
+
     it('on MATTER_EVENT accessoryControlResponse without a correlationId, forwards but cancels nothing', () => {
       const { service, ipcService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)

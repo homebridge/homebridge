@@ -27,6 +27,7 @@ export type MatterEventType
     | 'accessoryRemoved'
     | 'externalBridgeRegistration' // Register an external Matter bridge (child → main)
     | 'externalBridgeUnregistration' // The external Matter bridge is gone (child → main)
+    | 'accessoryControlClaimed' // The child has the accessory and is running the command (child → main, not passed on to the UI)
 
 /**
  * Matter event payload structure

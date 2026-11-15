@@ -613,6 +613,12 @@ export class ChildBridgeService {
               // Pass the child bridge username (not identifier) so it can be looked up in childBridges Map
               this.onExternalBridgeRegistered(data.externalBridgeUsername, this.bridgeConfig.username)
             }
+          } else if (matterEvent.type === 'accessoryControlClaimed') {
+            // The child has the accessory and runs the command: no "not
+            // found" fallback. Its own response follows when the plugin is done.
+            if (matterEvent.correlationId) {
+              this.onAccessoryControlResponse?.(matterEvent.correlationId)
+            }
           } else if (matterEvent.type === 'externalBridgeUnregistration') {
             // The plugin unregistered the external accessory: nothing is routed to it any more
             const data = matterEvent.data as { externalBridgeUsername: string }
