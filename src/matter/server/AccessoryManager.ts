@@ -31,6 +31,7 @@ import { sendToParent } from '../../util/ipc.js'
 import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
 import { declaredClusterFeatures } from '../clusterFeatures.js'
+import { deviceErrorFrom } from '../MatterError.js'
 import {
   applyDeviceEnergyManagementFeatures,
   applyElectricalMeasurementClusters,
@@ -467,7 +468,7 @@ export class AccessoryManager {
       deps.accessoryCache?.release(accessory.UUID)
     } catch (error) {
       log.error(`Failed to register Matter accessory ${accessory.displayName}:`, error)
-      throw new MatterDeviceError(`Failed to register accessory: ${error}`)
+      throw deviceErrorFrom('Failed to register accessory', error)
     }
   }
 
@@ -525,7 +526,7 @@ export class AccessoryManager {
       }
     } catch (error) {
       log.error(`Failed to unregister Matter accessory ${uuid}:`, error)
-      throw new MatterDeviceError(`Failed to unregister accessory: ${error}`)
+      throw deviceErrorFrom('Failed to unregister accessory', error)
     }
   }
 
