@@ -3,6 +3,7 @@ import type { Plugin } from './plugin.js'
 import type { PluginManager } from './pluginManager.js'
 
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -435,4 +436,88 @@ describe('publishExternalAccessories on the real bridge', () => {
     expect(tv.publish).not.toHaveBeenCalled()
     expect(speaker.publish).toHaveBeenCalledTimes(1)
   })
+
+  it('gives an accessory a random port when its port from the pool is in use by another program', async () => {
+    const { port, close } = await holdPort()
+    const tv = external('TV')
+    vi.spyOn(ExternalPortService.prototype, 'requestPort').mockResolvedValue(port)
+    const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+    try {
+      await service.handlePublishExternalAccessories([tv.accessory])
+    } finally {
+      await close()
+    }
+
+    // HAP-NodeJS picks a free port itself when it is given none
+    expect(tv.publish.mock.calls[0][0]).toMatchObject({ port: undefined })
+    expect(warnings.mock.calls[0][0]).toContain('in use by another program')
+    expect(warnings.mock.calls[0]).toContain(port)
+  })
+
+  it('keeps the port from the pool when it is free', async () => {
+    const { port, close } = await holdPort()
+    await close()
+    const tv = external('TV')
+    vi.spyOn(ExternalPortService.prototype, 'requestPort').mockResolvedValue(port)
+
+    await service.handlePublishExternalAccessories([tv.accessory])
+
+    expect(tv.publish.mock.calls[0][0]).toMatchObject({ port })
+  })
 })
+
+describe('the port of the bridge', () => {
+  /** A bridge service like the one of every test, with a port set for the bridge. */
+  function serviceOnPort(port: number): BridgeService {
+    return new BridgeService(api, {} as PluginManager, new ExternalPortService(), {
+      cachedAccessoriesDir: storageDir,
+      cachedAccessoriesItemName: 'cachedAccessories',
+      externalAccessoriesItemName: 'externalAccessories',
+    }, {
+      name: 'Port Bridge',
+      username: 'CC:22:3D:E3:CE:31',
+      pin: '031-45-154',
+      port,
+    })
+  }
+
+  it('is named in an error when another program is using it', async () => {
+    const { port, close } = await holdPort()
+    const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+
+    try {
+      await serviceOnPort(port).checkBridgePort()
+    } finally {
+      await close()
+    }
+
+    const logged = errors.mock.calls.map(call => call.join(' ')).join('\n')
+    expect(logged).toContain('in use by another program')
+    expect(errors.mock.calls[0]).toContain(port)
+  })
+
+  it('gives no error when it is free, or when none is set', async () => {
+    const { port, close } = await holdPort()
+    await close()
+    const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+
+    await serviceOnPort(port).checkBridgePort()
+    await service.checkBridgePort()
+
+    expect(errors).not.toHaveBeenCalled()
+  })
+})
+
+/** Listen on a free port, as another program would, until `close` is called. */
+function holdPort(): Promise<{ port: number, close: () => Promise<void> }> {
+  return new Promise((resolve) => {
+    const server = createServer()
+    server.listen(0, () => {
+      resolve({
+        port: (server.address() as { port: number }).port,
+        close: () => new Promise<void>(done => server.close(() => done())),
+      })
+    })
+  })
+}
