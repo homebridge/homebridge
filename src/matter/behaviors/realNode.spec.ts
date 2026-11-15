@@ -1547,7 +1547,8 @@ describe('a command the plugin has no handler for, on a real node', () => {
     expect(calls).toEqual([])
   })
 
-  it('locks a door lock in Matter when the plugin only has an unlock handler', async () => {
+  // A lock or a valve is not reported as changed when nothing changed it (decided by BP)
+  it('refuses to lock a door lock when the plugin only has an unlock handler, and leaves it unlocked', async () => {
     const endpoint = await register({
       deviceType: deviceTypes.DoorLock,
       clusters: {
@@ -1565,10 +1566,59 @@ describe('a command the plugin has no handler for, on a real node', () => {
       },
     })
 
-    await invoke(endpoint, 'doorLock', 'lockDoor', {})
+    await expect(invoke(endpoint, 'doorLock', 'lockDoor', {})).rejects.toThrow('There is no doorLock.lockDoor handler')
+
+    // 2 = unlocked
+    expect(stateOf(endpoint, 'doorLock').lockState).toBe(2)
+  })
+
+  it('refuses to unlock a door lock when the plugin only has a lock handler, and leaves it locked', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.DoorLock,
+      clusters: {
+        doorLock: {
+          lockState: 1,
+          lockType: 0,
+          actuatorEnabled: true,
+          operatingMode: 0,
+        },
+      },
+      handlers: {
+        doorLock: {
+          lockDoor: async () => {},
+        },
+      },
+    })
+
+    await expect(invoke(endpoint, 'doorLock', 'unlockDoor', {})).rejects.toThrow('There is no doorLock.unlockDoor handler')
 
     // 1 = locked
     expect(stateOf(endpoint, 'doorLock').lockState).toBe(1)
+  })
+
+  it('refuses to open a valve when the plugin has no handler for that command', async () => {
+    const valve = (currentState: number, handlers: Record<string, () => Promise<void>>) => register({
+      deviceType: deviceTypes.WaterValve,
+      clusters: {
+        valveConfigurationAndControl: {
+          openDuration: null,
+          defaultOpenDuration: null,
+          remainingDuration: null,
+          currentState,
+          targetState: currentState,
+        },
+      },
+      handlers: {
+        valveConfigurationAndControl: handlers,
+      },
+    } as never)
+
+    // 0 = closed: only a close handler, so it is not opened
+    const closed = await valve(0, {
+      close: async () => {},
+    })
+    await expect(invoke(closed, 'valveConfigurationAndControl', 'open', {})).rejects.toThrow('There is no valveConfigurationAndControl.open handler')
+    expect(stateOf(closed, 'valveConfigurationAndControl').currentState).toBe(0)
   })
 
   it('tells a blind with only a go-to-percentage handler to open and to close', async () => {

@@ -7,6 +7,7 @@
 import { ValveConfigurationAndControlServer } from '@matter/main/behaviors/valve-configuration-and-control'
 import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
 
+import { HandlerFailure } from './BehaviorRegistry.js'
 import { registryOf } from './EndpointContext.js'
 import { lockStateForWrite } from './stateLock.js'
 
@@ -50,7 +51,12 @@ export class HomebridgeValveConfigurationAndControlServer extends DefaultValveCo
     // Execute user handler. A controller always sends a request; the
     // Homebridge UI calls the command with none, so the handler is given an
     // empty one and can read request.openDuration either way.
-    await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'open', request ?? {})
+    const handled = await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'open', request ?? {})
+    // A valve is not reported as open when nothing opened it (decided by BP):
+    // with handlers for the valve but none for this command, it fails and the state stays.
+    if (!handled) {
+      throw new HandlerFailure('There is no valveConfigurationAndControl.open handler, so the valve was not opened')
+    }
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state via super
@@ -71,7 +77,11 @@ export class HomebridgeValveConfigurationAndControlServer extends DefaultValveCo
     const registry = registryOf(this.endpoint)
 
     // Execute user handler
-    await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'close')
+    const handled = await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'close')
+    // Not reported as closed when nothing closed it (see open)
+    if (!handled) {
+      throw new HandlerFailure('There is no valveConfigurationAndControl.close handler, so the valve was not closed')
+    }
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state via super

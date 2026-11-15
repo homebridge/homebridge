@@ -307,6 +307,12 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
    * is reported to the controller as a plain failure. Identify is a handler too
    * (`identify.identify`), where HAP has an `identify` event.
    *
+   * Every handler is optional: a command with no handler changes the Matter state without
+   * calling the plugin. Not so for a door lock and a valve with handlers for some of their
+   * commands: `doorLock.lockDoor` / `unlockDoor` and `valveConfigurationAndControl.open` /
+   * `close` with no handler fail, and the state stays, so a lock is never shown as unlocked
+   * when nothing unlocked it.
+   *
    * Known clusters (onOff, levelControl, colorControl, etc.) provide full autocomplete
    * for handler method names and argument types.
    *
