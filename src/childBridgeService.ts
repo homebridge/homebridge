@@ -423,12 +423,15 @@ export class ChildBridgeService {
 
   /**
    * Control a Matter accessory on this child bridge
+   *
+   * @returns false when the request could not be sent, because the child
+   * process is not running (stopped, restarting, or waiting to be restarted)
    */
-  public controlMatterAccessory(data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, correlationId?: string }): void {
+  public controlMatterAccessory(data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, correlationId?: string }): boolean {
     // The correlationId (when the UI sent one) rides through to the child,
     // whose message handler echoes it on its accessoryControlResponse - that
     // is what lets the UI match the response to its pending request.
-    this.sendMessage(ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL, data)
+    return this.sendMessage(ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL, data)
   }
 
   private get bridgeStatus(): ChildBridgeStatus {
@@ -660,14 +663,17 @@ export class ChildBridgeService {
    * Helper function to send a message to the child process
    * @param type
    * @param data
+   * @returns whether the message was sent: it is dropped when the child is not connected
    */
-  private sendMessage<T = unknown>(type: ChildProcessMessageEventType, data?: T): void {
+  private sendMessage<T = unknown>(type: ChildProcessMessageEventType, data?: T): boolean {
     if (this.child && this.child.connected) {
       this.child.send({
         id: type,
         data,
       })
+      return true
     }
+    return false
   }
 
   /**
