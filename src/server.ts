@@ -74,6 +74,20 @@ function validatePin(pin: unknown, setting: string): void {
   }
 }
 
+/**
+ * Read a TCP port from the config: a whole number from 1 to 65535. A number
+ * written as a text ("51826") is taken as that number, as it was by Node.js
+ * for a bridge port; anything else gives `undefined`.
+ */
+function parsePort(value: unknown): number | undefined {
+  const port = typeof value === 'string' && /^\d+$/.test(value.trim())
+    ? Number(value)
+    : value
+  return typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535
+    ? port
+    : undefined
+}
+
 export interface HomebridgeOptions {
   keepOrphanedCachedAccessories?: boolean
   hideQRCode?: boolean
@@ -437,10 +451,18 @@ export class Server {
     }
 
     if (config.ports !== undefined) {
-      if (config.ports.start && config.ports.end) {
-        if (config.ports.start > config.ports.end) {
+      if (config.ports?.start && config.ports.end) {
+        // Texts were used as they were: the port after "52100" was "521001".
+        const start = parsePort(config.ports.start)
+        const end = parsePort(config.ports.end)
+        if (start === undefined || end === undefined) {
+          log.error('Invalid configuration for \'ports\'. \'start\' and \'end\' must be whole numbers from 1 to 65535! Ignoring it!')
+          config.ports = undefined
+        } else if (start > end) {
           log.error('Invalid port pool configuration. End should be greater than or equal to start.')
           config.ports = undefined
+        } else {
+          config.ports = { start, end }
         }
       } else {
         log.error('Invalid configuration for \'ports\'. Missing \'start\' and \'end\' properties! Ignoring it!')
@@ -473,6 +495,15 @@ export class Server {
     }
 
     validatePin(config.bridge.pin, 'bridge.pin')
+
+    // No port, or 0, lets the system pick a free one
+    if (config.bridge.port !== undefined && config.bridge.port !== null && config.bridge.port !== 0) {
+      const port = parsePort(config.bridge.port)
+      if (port === undefined) {
+        log.error('Value provided in bridge.port is not valid: it must be a whole number from 1 to 65535. Using a random port instead.')
+      }
+      config.bridge.port = port
+    }
 
     // Validate the main bridge HAP config (shape + externalsOnly/enabled coherence).
     validateHapConfig(config.bridge, { bridgeLabel: 'main bridge' })
