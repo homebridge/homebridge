@@ -362,6 +362,16 @@ export class Server {
 
   private publishBridge(): void {
     this.bridgeService.publishBridge()
+
+    // The setup payload comes from what publish() stores on the bridge. When
+    // the publish failed before that (it is logged by the bridge service),
+    // asking for the payload threw "Cannot generate setupURI on an accessory
+    // that isn't published yet!" and stopped Homebridge with that as the reason.
+    if (!this.bridgeService.bridge._accessoryInfo) {
+      log.error('The bridge was not published, so there is no setup code to show.')
+      return
+    }
+
     this.printSetupInfo(this.config.bridge.pin)
   }
 

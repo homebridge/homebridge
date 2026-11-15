@@ -1580,6 +1580,24 @@ describe('server', () => {
     })
   })
 
+  describe('publishBridge when the publish failed early', () => {
+    it('does not throw for the missing setup payload, and prints no setup code', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      // publish() rejected before it stored anything on the bridge; the bridge service only logs that
+      vi.spyOn((server as any).bridgeService, 'publishBridge').mockImplementation(() => {})
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      consoleLogSpy.mockClear()
+
+      expect(() => (server as any).publishBridge()).not.toThrow()
+
+      expect(errors.mock.calls.flat().join(' ')).toMatch(/was not published/)
+      expect(consoleLogSpy).not.toHaveBeenCalled()
+    })
+  })
+
   describe('printSetupInfo (QR error level hoisted to module load)', () => {
     it('does not call qrcode.setErrorLevel from printSetupInfo (already set at module load)', async () => {
       const qrcodeModule = await import('qrcode-terminal')
