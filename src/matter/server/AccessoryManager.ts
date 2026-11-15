@@ -576,7 +576,7 @@ export class AccessoryManager {
    * endpoint is built from the cache, so without this a renamed accessory or
    * a new firmware version only showed after one more restart.
    */
-  private async updateBridgedInformation(endpoint: Endpoint | undefined, accessory: MatterAccessory, config: MatterServerConfig): Promise<void> {
+  async updateBridgedInformation(endpoint: Endpoint | undefined, accessory: MatterAccessory, config: MatterServerConfig): Promise<void> {
     if (!endpoint || config.externalAccessory) {
       return
     }

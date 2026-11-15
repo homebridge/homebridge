@@ -451,6 +451,55 @@ describe('matterServer storage on real matter.js nodes', () => {
     })
   })
 
+  it('takes only the name, the device information and the context from an update', async () => {
+    const server = bridgeServer('update-fields-bridge', 5593)
+    await server.start()
+    const handlers = {
+      onOff: {
+        on: async () => {},
+      },
+    }
+    await server.registerPlatformAccessories('homebridge-test', 'Test', [
+      light('fields-1', { handlers }),
+    ])
+    const before = server.getAccessory('fields-1')!
+
+    // the shape a plugin is given in configureMatterAccessory: a plain copy of
+    // the device type, the state of the last save, no handlers
+    await server.updatePlatformAccessories([
+      {
+        UUID: 'fields-1',
+        displayName: 'Renamed',
+        deviceType: { name: 'DimmableLight' } as never,
+        serialNumber: 'S2',
+        manufacturer: 'Test',
+        model: 'Test',
+        firmwareRevision: undefined,
+        context: { room: 'hall' },
+        clusters: {
+          onOff: { onOff: true },
+          levelControl: { currentLevel: 1 },
+        },
+        handlers: undefined,
+        parts: undefined,
+      },
+    ])
+
+    const after = server.getAccessory('fields-1')!
+    expect(after).toMatchObject({
+      displayName: 'Renamed',
+      serialNumber: 'S2',
+      context: { room: 'hall' },
+    })
+    expect(after.deviceType).toBe(before.deviceType)
+    expect(after.clusters).toBe(before.clusters)
+    expect(after.handlers).toBe(handlers)
+    // and the name reaches the device a controller sees
+    const live = (server as unknown as { accessories: Map<string, { endpoint: { state: Record<string, Record<string, unknown>> } }> }).accessories
+    const endpoint = live.get('fields-1')!.endpoint
+    expect(endpoint.state.bridgedDeviceBasicInformation).toMatchObject({ nodeLabel: 'Renamed', serialNumber: 'S2' })
+  })
+
   it('adds no SIGINT or SIGTERM listener for a server', async () => {
     const before = {
       sigint: process.listenerCount('SIGINT'),
