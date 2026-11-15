@@ -2,10 +2,16 @@ import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 import type { AccessoryManagerDeps } from './AccessoryManager.js'
 
 import { EventEmitter } from 'node:events'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
+import { join } from 'node:path'
+import process from 'node:process'
 
+import { Filesystem } from '@matter/general'
 import { Endpoint, Environment, ServerNode } from '@matter/main'
 import { AggregatorEndpoint } from '@matter/main/endpoints'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { NodeJsFilesystem } from '@matter/nodejs'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../../logger.js'
 import { BehaviorRegistry, RegistryManager } from '../behaviors/index.js'
@@ -35,11 +41,23 @@ let node: ServerNode
 let accessories: Map<string, InternalMatterAccessory>
 let deps: AccessoryManagerDeps
 let nodeCount = 0
+let nodeId: string
+let storageRoot: string
+
+beforeAll(() => {
+  storageRoot = mkdtempSync(join(tmpdir(), 'hb-matter-measurements-'))
+})
 
 beforeEach(async () => {
   Environment.default.vars.set('storage.driver', 'memory')
+  nodeId = `measurements-${process.pid}-${nodeCount++}`
+  // The node's own environment keeps its storage out of the home directory:
+  // with only the memory driver, matter.js still made a folder per node in ~/.matter.
+  const environment = new Environment(nodeId, Environment.default)
+  environment.set(Filesystem, new NodeJsFilesystem(join(storageRoot, nodeId)))
   node = await ServerNode.create({
-    id: `measurements-${nodeCount++}`,
+    id: nodeId,
+    environment,
     network: { port: 0 },
   } as any)
   const aggregator = new Endpoint(AggregatorEndpoint, { id: 'aggregator' })
@@ -62,6 +80,10 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.restoreAllMocks()
   await node.close()
+})
+
+afterAll(() => {
+  rmSync(storageRoot, { recursive: true, force: true })
 })
 
 async function register(accessory: Partial<MatterAccessory>): Promise<Endpoint> {
@@ -276,5 +298,11 @@ describe('the other optional measurements', () => {
 
     expect(state(endpoint).relativeHumidityMeasurement).toBeUndefined()
     expect(state(endpoint).thermostat.localTemperature).toBe(2000)
+  })
+})
+
+describe('the test node', () => {
+  it('keeps its storage out of the home directory', () => {
+    expect(existsSync(join(homedir(), '.matter', nodeId))).toBe(false)
   })
 })
