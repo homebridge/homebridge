@@ -11,25 +11,8 @@ import { WaterHeaterManagementServer } from '@matter/main/behaviors/water-heater
 import { WaterHeaterModeServer } from '@matter/main/behaviors/water-heater-mode'
 import { ModeBase } from '@matter/main/clusters'
 import { WaterHeaterManagement } from '@matter/main/clusters/water-heater-management'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
-
-/**
- * Wrap a handler failure the way every Homebridge behavior does: a Matter
- * status the plugin threw on purpose goes back to the controller as it is,
- * anything else becomes a plain Failure so the endpoint stays up.
- */
-function asStatusError(error: unknown, action: string): unknown {
-  if (MatterStatus.isMatterProtocolError(error)) {
-    return error
-  }
-  const message = error instanceof Error
-    ? error.message
-    : String(error)
-  return new StatusResponseError(`Failed to ${action}: ${message}`, Status.Failure)
-}
 
 /**
  * Custom WaterHeaterMode Server that calls plugin handlers.
@@ -54,20 +37,16 @@ export class HomebridgeWaterHeaterModeServer extends WaterHeaterModeServer {
       return modeCheck
     }
 
-    try {
-      await registry.executeHandler(endpointId, 'waterHeaterMode', 'changeToMode', request)
+    await registry.executeHandler(endpointId, 'waterHeaterMode', 'changeToMode', request)
 
-      // Only reached if the handler succeeded
-      const result = await super.changeToMode(request)
+    // Only reached if the handler succeeded
+    const result = await super.changeToMode(request)
 
-      if (request?.newMode !== undefined) {
-        registry.syncStateToCache(endpointId, 'waterHeaterMode', { currentMode: request.newMode })
-      }
-
-      return result
-    } catch (error) {
-      throw asStatusError(error, 'change water heater mode')
+    if (request?.newMode !== undefined) {
+      registry.syncStateToCache(endpointId, 'waterHeaterMode', { currentMode: request.newMode })
     }
+
+    return result
   }
 }
 
@@ -106,25 +85,17 @@ export class HomebridgeWaterHeaterManagementServer extends DefaultWaterHeaterMan
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      await registry.executeHandler(endpointId, 'waterHeaterManagement', 'boost', request)
-      await super.boost(request)
-      registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Active })
-    } catch (error) {
-      throw asStatusError(error, 'boost water heater')
-    }
+    await registry.executeHandler(endpointId, 'waterHeaterManagement', 'boost', request)
+    await super.boost(request)
+    registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Active })
   }
 
   override async cancelBoost(): Promise<void> {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      await registry.executeHandler(endpointId, 'waterHeaterManagement', 'cancelBoost')
-      await super.cancelBoost()
-      registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Inactive })
-    } catch (error) {
-      throw asStatusError(error, 'cancel water heater boost')
-    }
+    await registry.executeHandler(endpointId, 'waterHeaterManagement', 'cancelBoost')
+    await super.cancelBoost()
+    registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Inactive })
   }
 }

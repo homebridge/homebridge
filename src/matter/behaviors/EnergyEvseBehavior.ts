@@ -15,23 +15,7 @@ import { ModeBase } from '@matter/main/clusters'
 import { EnergyEvse } from '@matter/main/clusters/energy-evse'
 import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
-
-/**
- * Wrap a handler failure the way every Homebridge behavior does: a Matter
- * status the plugin threw on purpose goes back to the controller as it is,
- * anything else becomes a plain Failure so the endpoint stays up.
- */
-function asStatusError(error: unknown, action: string): unknown {
-  if (MatterStatus.isMatterProtocolError(error)) {
-    return error
-  }
-  const message = error instanceof Error
-    ? error.message
-    : String(error)
-  return new StatusResponseError(`Failed to ${action}: ${message}`, Status.Failure)
-}
 
 /**
  * Run the plugin's handler for a command, if it registered one. A charger that
@@ -139,18 +123,14 @@ export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      await runOptionalHandler(registry, endpointId, commandName, request)
-      await apply()
-      registry.syncStateToCache(endpointId, 'energyEvse', {
-        supplyState: this.state.supplyState,
-        chargingEnabledUntil: this.state.chargingEnabledUntil,
-        minimumChargeCurrent: this.state.minimumChargeCurrent,
-        maximumChargeCurrent: this.state.maximumChargeCurrent,
-      })
-    } catch (error) {
-      throw asStatusError(error, action)
-    }
+    await runOptionalHandler(registry, endpointId, commandName, request)
+    await apply()
+    registry.syncStateToCache(endpointId, 'energyEvse', {
+      supplyState: this.state.supplyState,
+      chargingEnabledUntil: this.state.chargingEnabledUntil,
+      minimumChargeCurrent: this.state.minimumChargeCurrent,
+      maximumChargeCurrent: this.state.maximumChargeCurrent,
+    })
   }
 
   override async disable(): Promise<void> {
@@ -200,19 +180,15 @@ export class HomebridgeEnergyEvseModeServer extends EnergyEvseModeServer {
       return modeCheck
     }
 
-    try {
-      await registry.executeHandler(endpointId, 'energyEvseMode', 'changeToMode', request)
+    await registry.executeHandler(endpointId, 'energyEvseMode', 'changeToMode', request)
 
-      // Only reached if the handler succeeded
-      const result = await super.changeToMode(request)
+    // Only reached if the handler succeeded
+    const result = await super.changeToMode(request)
 
-      if (request?.newMode !== undefined) {
-        registry.syncStateToCache(endpointId, 'energyEvseMode', { currentMode: request.newMode })
-      }
-
-      return result
-    } catch (error) {
-      throw asStatusError(error, 'change charger mode')
+    if (request?.newMode !== undefined) {
+      registry.syncStateToCache(endpointId, 'energyEvseMode', { currentMode: request.newMode })
     }
+
+    return result
   }
 }

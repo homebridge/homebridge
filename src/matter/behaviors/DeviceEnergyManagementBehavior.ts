@@ -13,25 +13,8 @@ import { DeviceEnergyManagementModeServer } from '@matter/main/behaviors/device-
 import { ModeUtils } from '@matter/main/behaviors/mode-base'
 import { ModeBase } from '@matter/main/clusters'
 import { DeviceEnergyManagement } from '@matter/main/clusters/device-energy-management'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
-
-/**
- * Wrap a handler failure the way every Homebridge behavior does: a Matter
- * status the plugin threw on purpose goes back to the controller as it is,
- * anything else becomes a plain Failure so the endpoint stays up.
- */
-function asStatusError(error: unknown, action: string): unknown {
-  if (MatterStatus.isMatterProtocolError(error)) {
-    return error
-  }
-  const message = error instanceof Error
-    ? error.message
-    : String(error)
-  return new StatusResponseError(`Failed to ${action}: ${message}`, Status.Failure)
-}
 
 /**
  * Run the plugin's handler for a command, if it registered one. Every handler
@@ -142,13 +125,9 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      await runOptionalHandler(registry, endpointId, 'deviceEnergyManagement', commandName, request)
-      await apply()
-      registry.syncStateToCache(endpointId, 'deviceEnergyManagement', { esaState: this.state.esaState })
-    } catch (error) {
-      throw asStatusError(error, action)
-    }
+    await runOptionalHandler(registry, endpointId, 'deviceEnergyManagement', commandName, request)
+    await apply()
+    registry.syncStateToCache(endpointId, 'deviceEnergyManagement', { esaState: this.state.esaState })
   }
 
   override async powerAdjustRequest(request: DeviceEnergyManagement.PowerAdjustRequest): Promise<void> {
@@ -183,12 +162,8 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
     // Not routed through run(): super.cancelRequest() calls the overridden
     // cancel/resume methods, which ask the plugin themselves
     const endpointId = this.endpoint.id
-    try {
-      await runOptionalHandler(this.getRegistry(), endpointId, 'deviceEnergyManagement', 'cancelRequest')
-      await super.cancelRequest()
-    } catch (error) {
-      throw asStatusError(error, 'cancel the request')
-    }
+    await runOptionalHandler(this.getRegistry(), endpointId, 'deviceEnergyManagement', 'cancelRequest')
+    await super.cancelRequest()
   }
 }
 
@@ -214,19 +189,15 @@ export class HomebridgeDeviceEnergyManagementModeServer extends DeviceEnergyMana
       return modeCheck
     }
 
-    try {
-      await registry.executeHandler(endpointId, 'deviceEnergyManagementMode', 'changeToMode', request)
+    await registry.executeHandler(endpointId, 'deviceEnergyManagementMode', 'changeToMode', request)
 
-      // Only reached if the handler succeeded
-      const result = await super.changeToMode(request)
+    // Only reached if the handler succeeded
+    const result = await super.changeToMode(request)
 
-      if (request?.newMode !== undefined) {
-        registry.syncStateToCache(endpointId, 'deviceEnergyManagementMode', { currentMode: request.newMode })
-      }
-
-      return result
-    } catch (error) {
-      throw asStatusError(error, 'change energy management mode')
+    if (request?.newMode !== undefined) {
+      registry.syncStateToCache(endpointId, 'deviceEnergyManagementMode', { currentMode: request.newMode })
     }
+
+    return result
   }
 }

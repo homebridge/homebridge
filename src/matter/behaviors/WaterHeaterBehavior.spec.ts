@@ -117,7 +117,7 @@ describe('homebridgeWaterHeaterManagementServer', () => {
   it('leaves the state alone when the plugin refuses', async () => {
     registry.executeHandler = vi.fn().mockRejectedValue(new Error('tank is cold'))
 
-    await expect(behavior.boost(boostRequest)).rejects.toThrow('Failed to boost water heater: tank is cold')
+    await expect(behavior.boost(boostRequest)).rejects.toThrow('tank is cold')
     expect(state.boostState).toBe(0)
     expect(registry.syncStateToCache).not.toHaveBeenCalled()
   })
