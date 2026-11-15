@@ -7,6 +7,9 @@
 
 import type { ServerNode } from '@matter/main'
 
+import { FabricManager as MatterFabricManager } from '@matter/main/protocol'
+import { FabricIndex } from '@matter/main/types'
+
 import { Logger } from '../../logger.js'
 import { MatterDeviceError } from '../types.js'
 
@@ -96,21 +99,14 @@ export class FabricManager {
     try {
       log.info(`Removing fabric ${fabricIndex}...`)
 
-      interface ServerNodeWithFabrics {
-        state?: {
-          commissioning?: {
-            removeFabric?: (fabricIndex: number) => Promise<void>
-          }
-        }
+      // matter.js closes the controller's sessions and subscriptions, deletes
+      // the fabric and tells the commissioning code, which updates the pairing
+      // list the same way as when a controller removes the bridge itself.
+      const fabric = serverNode.env.get(MatterFabricManager).maybeFor(FabricIndex(fabricIndex))
+      if (!fabric) {
+        throw new MatterDeviceError(`No controller is paired with fabric index ${fabricIndex}`)
       }
-      const serverState = serverNode as unknown as ServerNodeWithFabrics
-      const removeFabric = serverState?.state?.commissioning?.removeFabric
-
-      if (typeof removeFabric !== 'function') {
-        throw new MatterDeviceError('Fabric removal not supported by Matter.js version')
-      }
-
-      await removeFabric(fabricIndex)
+      await fabric.leave()
       log.info(`Fabric ${fabricIndex} removed successfully`)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error
