@@ -65,6 +65,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: read nested conditions, fallback lists and sub-path maps in a plugin's exports field
 - fix: start without the global npm folder when npm can not be run to find it
 - fix: log what stopped homebridge when the thrown value is not an error object
+- fix: end with exit code 1 after a fatal error so a supervisor restarts homebridge
 
 ### Homebridge Dependencies
 

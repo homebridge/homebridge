@@ -111,6 +111,11 @@ export default function cli(): void {
       ? (error.stack ?? error.message)
       : `Homebridge is stopping on a thrown value that is not an Error: ${inspect(error)}`)
 
+    // A fatal error is not a clean stop. Without this the process ended with
+    // exit code 0 whenever the teardown finished before the force-exit timer,
+    // and a supervisor set to restart on failure (docker, systemd) did not.
+    process.exitCode = 1
+
     if (!shuttingDown) {
       process.kill(process.pid, 'SIGTERM')
     }

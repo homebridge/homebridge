@@ -140,6 +140,18 @@ describe('cli', () => {
       expect(await logged()).toContain(shows)
     })
 
+    it('ends the process with exit code 1, also when the teardown finishes at once', () => {
+      uncaughtException(new Error('plugin bug'))
+
+      expect(process.exitCode).toBe(1)
+    })
+
+    it('leaves the exit code alone for a normal stop by signal', () => {
+      signalHandlers.SIGTERM('SIGTERM', 15)
+
+      expect(process.exitCode).toBeUndefined()
+    })
+
     it('starts the shutdown', () => {
       uncaughtException(new Error('plugin bug'))
 
