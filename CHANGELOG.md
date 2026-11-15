@@ -96,6 +96,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): let a command the plugin has no handler for change the state instead of failing
 - fix(matter): let two commands sent together for one accessory both succeed
 - fix(matter): keep the clean mode and service area of a robot vacuum that has no handlers
+- fix(matter): answer a command for a window covering with no handlers instead of an internal error
 
 ### Homebridge Dependencies
 

@@ -1663,3 +1663,26 @@ describe('a robot vacuum with state and no handlers, on a real node', () => {
     })
   })
 })
+
+describe('a window covering with state and no handlers, on a real node', () => {
+  it('answers open and close by moving in Matter, not with an internal error', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.WindowCovering,
+      clusters: {
+        windowCovering: {
+          type: 0,
+          endProductType: 0,
+          configStatus: { operational: true, liftPositionAware: true },
+          targetPositionLiftPercent100ths: 5000,
+          currentPositionLiftPercent100ths: 5000,
+        },
+      },
+    })
+
+    await invoke(endpoint, 'windowCovering', 'downOrClose')
+    expect(stateOf(endpoint, 'windowCovering').targetPositionLiftPercent100ths).toBe(10000)
+
+    await invoke(endpoint, 'windowCovering', 'upOrOpen')
+    expect(stateOf(endpoint, 'windowCovering').targetPositionLiftPercent100ths).toBe(0)
+  })
+})
