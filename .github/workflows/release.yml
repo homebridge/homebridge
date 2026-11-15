@@ -13,8 +13,9 @@ on:
       - beta-*.*.*
       - alpha-*.*.*
 
+# The npm publish job asks for `id-token: write` itself (see below). The other jobs run shared
+# workflows and third-party actions, which must not be able to get a publish token.
 permissions:
-  id-token: write
   contents: write
 
 concurrency:
@@ -31,12 +32,16 @@ jobs:
     steps:
       - name: Determine NPM Tag
         id: npm-tag
+        # The branch name reaches the script as an environment variable, never as script text.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
+          if [[ "$EVENT_NAME" == "release" ]]; then
             echo "tag=latest" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/heads/beta-* ]]; then
+          elif [[ "$REF" == refs/heads/beta-* ]]; then
             echo "tag=beta" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/heads/alpha-* ]]; then
+          elif [[ "$REF" == refs/heads/alpha-* ]]; then
             echo "tag=alpha" >> $GITHUB_OUTPUT
           else
             echo "tag=none" >> $GITHUB_OUTPUT
@@ -83,6 +88,9 @@ jobs:
        needs.build_and_test_beta.result == 'skipped')
     name: Publish To NPM (${{ needs.determine-npm-tag.outputs.npm_tag }})
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
     outputs:
       npm_version: ${{ steps.get-published-version.outputs.version }}
     steps:
@@ -95,30 +103,37 @@ jobs:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
 
+      # npm 11.5.1 is the first version that can publish with OIDC. Stay on npm 11, so a new major
+      # version of npm is not picked up by the job that publishes without anyone looking at it first.
       - name: Upgrade NPM (OIDC Support)
-        run: npm install -g npm@latest
+        run: npm install -g npm@^11.5.1
 
       - name: Install Dependencies
         run: npm ci
 
       - name: Handle Prerelease Versioning
         if: needs.determine-npm-tag.outputs.npm_tag == 'beta' || needs.determine-npm-tag.outputs.npm_tag == 'alpha'
+        env:
+          REF: ${{ github.ref }}
+          NPM_TAG: ${{ needs.determine-npm-tag.outputs.npm_tag }}
         run: |
           # Download versioning script from homebridge/.github
           mkdir -p .github
           wget -q https://raw.githubusercontent.com/homebridge/.github/latest/.github/npm-version-script-esm.js -O .github/npm-version-script-esm.js
 
           # Run the script to set base version
-          node .github/npm-version-script-esm.js ${{ github.ref }} ${{ needs.determine-npm-tag.outputs.npm_tag }}
+          node .github/npm-version-script-esm.js "$REF" "$NPM_TAG"
 
           # Add prerelease suffix
-          npm version pre --preid=${{ needs.determine-npm-tag.outputs.npm_tag }} --no-git-tag-version
+          npm version pre --preid="$NPM_TAG" --no-git-tag-version
 
       - name: Build
         run: npm run build
 
       - name: NPM Publish (OIDC)
-        run: npm publish --tag ${{ needs.determine-npm-tag.outputs.npm_tag }} --provenance --access public
+        env:
+          NPM_TAG: ${{ needs.determine-npm-tag.outputs.npm_tag }}
+        run: npm publish --tag "$NPM_TAG" --provenance --access public
 
       - name: Get Published Version
         id: get-published-version

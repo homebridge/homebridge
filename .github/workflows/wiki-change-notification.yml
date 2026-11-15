@@ -7,7 +7,9 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - uses: oznu/gh-wiki-edit-discord-notification@main
+      # Pinned to a commit (the tip of `main` on 2026-11-15): this action is given the Discord webhook
+      # secret, so it must not follow a branch that can change without a review here.
+      - uses: oznu/gh-wiki-edit-discord-notification@dfc866fd048f04c239ad113eef3c6c73504d333e # main
         with:
           discord-webhook-url: ${{ secrets.DISCORD_WEBHOOK_WIKI_EDIT }}
           ignore-collaborators: true
