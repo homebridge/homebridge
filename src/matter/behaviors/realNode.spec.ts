@@ -2988,4 +2988,59 @@ describe('a vacuum command in a state Matter does not allow it in, on a real nod
     })
     expect(calls).toEqual(['resume'])
   })
+
+  it('tells the UI a command was refused, in place of reporting success', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.RoboticVacuumCleaner,
+      clusters: {
+        rvcRunMode: {
+          supportedModes: [
+            {
+              label: 'Idle',
+              mode: 0,
+              modeTags: [
+                { value: 16384 },
+              ],
+            },
+            {
+              label: 'Cleaning',
+              mode: 1,
+              modeTags: [
+                { value: 16385 },
+              ],
+            },
+          ],
+          currentMode: 0,
+        },
+        rvcOperationalState: {
+          operationalStateList: [0, 1, 2, 3, 64, 65, 66].map(operationalStateId => ({ operationalStateId })),
+          // 66 = docked
+          operationalState: 66,
+        },
+      },
+      handlers: {
+        rvcRunMode: {
+          changeToMode: async () => {},
+        },
+        rvcOperationalState: {
+          pause: async () => {},
+          resume: async () => {},
+          goHome: async () => {},
+        },
+      },
+    })
+    void endpoint
+
+    // what the UI asks for goes through triggerCommand: going home from the dock is refused
+    const error = await stateManager.triggerCommand('test-uuid', 'rvcOperationalState', 'goHome').catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toContain('rvcOperationalState.goHome was refused')
+
+    // and a mode the vacuum does not list is refused too
+    const modeError = await stateManager.triggerCommand('test-uuid', 'rvcRunMode', 'changeToMode', { newMode: 7 }).catch((caught: unknown) => caught)
+    expect((modeError as Error).message).toContain('rvcRunMode.changeToMode was refused')
+
+    // one that is allowed still resolves
+    await expect(stateManager.triggerCommand('test-uuid', 'rvcOperationalState', 'resume')).resolves.toBeUndefined()
+  })
 })

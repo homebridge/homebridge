@@ -22,6 +22,35 @@ import { MatterDeviceError } from '../types.js'
 const log = Logger.withPrefix('Matter/Server')
 
 /**
+ * Why a command's answer says it was not done, or undefined when it was: an
+ * answer with a status other than 0 (mode change, key press, media and area
+ * commands), or a vacuum's answer with an error state other than 0.
+ */
+function refusalIn(response: unknown): string | undefined {
+  if (typeof response !== 'object' || response === null) {
+    return undefined
+  }
+  const { status, statusText, commandResponseState } = response as {
+    status?: unknown
+    statusText?: unknown
+    commandResponseState?: { errorStateId?: unknown, errorStateLabel?: unknown, errorStateDetails?: unknown }
+  }
+  if (typeof status === 'number' && status !== 0) {
+    return typeof statusText === 'string' && statusText
+      ? `status ${status} (${statusText})`
+      : `status ${status}`
+  }
+  const errorStateId = commandResponseState?.errorStateId
+  if (typeof errorStateId === 'number' && errorStateId !== 0) {
+    const details = commandResponseState?.errorStateDetails ?? commandResponseState?.errorStateLabel
+    return typeof details === 'string' && details
+      ? `error state ${errorStateId} (${details})`
+      : `error state ${errorStateId}`
+  }
+  return undefined
+}
+
+/**
  * Recursively convert bigint values to numbers. matter.js can surface int64
  * attributes (e.g. ElectricalPowerMeasurement.activePower, energy readings)
  * as bigint, which JSON.stringify cannot serialize - and state read results
@@ -359,12 +388,20 @@ export class StateManager {
           : undefined
       const run = previous.catch(() => {}).then(() => targetEndpoint.commandsOf(cluster)[command](request))
       this.commandQueues.set(targetEndpoint, run)
+      let response: unknown
       try {
-        await run
+        response = await run
       } finally {
         if (this.commandQueues.get(targetEndpoint) === run) {
           this.commandQueues.delete(targetEndpoint)
         }
+      }
+      // Some commands do not fail but answer that they can not be done (a
+      // vacuum sent home from its dock, a mode it does not have). The UI was
+      // told such a command worked.
+      const refusal = refusalIn(response)
+      if (refusal) {
+        throw new MatterDeviceError(`${cluster}.${command} was refused: ${refusal}`)
       }
 
       log.debug(`Command ${cluster}.${command} succeeded for ${displayName}${partInfo}`)
