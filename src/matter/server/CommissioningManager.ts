@@ -15,6 +15,7 @@ import { randomBytes } from 'node:crypto'
 import { rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { ObserverGroup } from '@matter/main'
 import { SubscriptionsServer } from '@matter/node'
 import { QrCode } from '@matter/types/schema'
 
@@ -57,13 +58,10 @@ export class CommissioningManager {
   public readonly productId: number
   public commissioningInfo: CommissioningInfo = {}
 
-  // Stored references so commissioning Observable listeners can be removed in
-  // teardownCommissioningEventListeners(). matter.js Observables require the
-  // exact same observer reference passed to .off() that was passed to .on().
-  // Bound at registration time so each CommissioningDeps closure stays consistent.
-  private onFabricsChanged: ((fabricIndex: number, action: unknown) => void) | null = null
-  private onCommissioned: (() => void) | null = null
-  private onDecommissioned: (() => void) | null = null
+  // The commissioning listeners, held as a group so cleanup can remove them in
+  // one go and release what they capture (the node, the fabric manager, the emitter).
+  private readonly observers = new ObserverGroup()
+  private listening = false
 
   constructor() {
     this.vendorId = DEFAULT_VENDOR_ID
@@ -305,7 +303,7 @@ export class CommissioningManager {
       return
     }
 
-    if (this.onFabricsChanged || this.onCommissioned || this.onDecommissioned) {
+    if (this.listening) {
       log.debug('Commissioning event listeners already registered, skipping')
       return
     }
@@ -313,8 +311,15 @@ export class CommissioningManager {
     log.debug('Setting up commissioning event listeners')
 
     try {
-      // Listen for fabric changes (add/remove/update)
-      this.onFabricsChanged = (fabricIndex, action) => {
+      const events = deps.serverNode.events.commissioning
+
+      // Every fabric change (added, removed, updated). matter.js raises this
+      // after it has updated its fabric list, and after `commissioned` or
+      // `decommissioned` for the first and the last fabric, so this is the one
+      // place that saves the new state and tells the UI. Doing it from the
+      // other two events as well wrote the file twice at the same moment and
+      // told the UI twice.
+      this.observers.on(events.fabricsChanged, (fabricIndex, action) => {
         log.info(`Fabric ${action}: index ${fabricIndex}`)
 
         if (action === 'deleted') {
@@ -323,45 +328,21 @@ export class CommissioningManager {
           })
         }
 
-        // Compute commissioning state once and reuse for both the file update
-        // and the IPC emit, then push the snapshot into updateCommissioningFile
-        // so it doesn't redo the same fabric reads.
         const snapshot = deps.fabricManager.getCommissioningSnapshot()
         this.updateCommissioningFile(deps, snapshot).catch((error) => {
           log.warn('Failed to update commissioning file after fabric change:', error)
         })
         deps.emitter.emit('commissioning-status-changed', snapshot.commissioned, snapshot.fabricCount)
-      }
-      deps.serverNode.events.commissioning.fabricsChanged.on(this.onFabricsChanged)
-
-      // Listen for commissioning (first fabric added)
-      this.onCommissioned = () => {
-        log.info('Bridge commissioned')
-
-        const snapshot = deps.fabricManager.getCommissioningSnapshot()
-        this.updateCommissioningFile(deps, snapshot).catch((error) => {
-          log.warn('Failed to update commissioning file after commissioning:', error)
-        })
-        deps.emitter.emit('commissioning-status-changed', true, snapshot.fabricCount)
-      }
-      deps.serverNode.events.commissioning.commissioned.on(this.onCommissioned)
-
-      // Listen for decommissioning (last fabric removed)
-      this.onDecommissioned = () => {
-        log.info('Bridge decommissioned')
-
-        this.updateCommissioningFile(deps).catch((error) => {
-          log.warn('Failed to update commissioning file after decommissioning:', error)
-        })
-        deps.emitter.emit('commissioning-status-changed', false, 0)
-      }
-      deps.serverNode.events.commissioning.decommissioned.on(this.onDecommissioned)
+      })
+      this.observers.on(events.commissioned, () => log.info('Bridge commissioned'))
+      this.observers.on(events.decommissioned, () => log.info('Bridge decommissioned'))
+      this.listening = true
 
       log.debug('Commissioning event listeners registered successfully')
     } catch (error) {
       log.error('Failed to set up commissioning event listeners:', error)
       // Roll back any partial registration so a retry can succeed
-      this.teardownCommissioningEventListeners(deps.serverNode)
+      this.teardownCommissioningEventListeners()
     }
   }
 
@@ -401,31 +382,14 @@ export class CommissioningManager {
    * Without this, the matter.js Observable retains the observer across stop()
    * cycles, holding the entire CommissioningDeps graph from GC.
    */
-  teardownCommissioningEventListeners(serverNode: ServerNode | null): void {
-    if (!serverNode) {
-      this.onFabricsChanged = null
-      this.onCommissioned = null
-      this.onDecommissioned = null
-      return
-    }
-
+  teardownCommissioningEventListeners(): void {
     try {
-      if (this.onFabricsChanged) {
-        serverNode.events.commissioning.fabricsChanged.off(this.onFabricsChanged)
-      }
-      if (this.onCommissioned) {
-        serverNode.events.commissioning.commissioned.off(this.onCommissioned)
-      }
-      if (this.onDecommissioned) {
-        serverNode.events.commissioning.decommissioned.off(this.onDecommissioned)
-      }
+      this.observers.close()
       log.debug('Commissioning event listeners removed')
     } catch (error) {
       log.debug('Error removing commissioning event listeners:', error)
     } finally {
-      this.onFabricsChanged = null
-      this.onCommissioned = null
-      this.onDecommissioned = null
+      this.listening = false
     }
   }
 

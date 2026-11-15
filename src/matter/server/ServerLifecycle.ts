@@ -480,7 +480,7 @@ export class ServerLifecycle {
       // the manager) are released on stop().
       deps.commissioningManager.setupCommissioningEventListeners(deps.getCommissioningDeps())
       deps.cleanupHandlers.push(() => {
-        deps.commissioningManager.teardownCommissioningEventListeners(deps.getServerNode())
+        deps.commissioningManager.teardownCommissioningEventListeners()
       })
 
       // Create aggregator endpoint for bridge pattern
