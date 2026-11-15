@@ -4,7 +4,7 @@ import process from 'node:process'
 import { inspect } from 'node:util'
 
 import { HAPStorage } from '@homebridge/hap-nodejs'
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
 import { satisfies } from 'semver'
 
 import { Logger } from './logger.js'
@@ -22,6 +22,19 @@ const requiredNodeVersion = getRequiredNodeVersion()
 if (requiredNodeVersion && !satisfies(process.version, requiredNodeVersion)) {
   log.warn(`Homebridge requires a Node.js version of ${requiredNodeVersion} which does \
 not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://homebridge.io/w/JTKEF`)
+}
+
+/**
+ * Read the value of `-P` or `-U`. commander takes the next word as the value
+ * even when it is the next option: with an empty variable, `-U $HB_DIR -I`
+ * stored everything in a folder called "-I" and dropped `-I`. A path that
+ * really starts with a dash can be written as `./-name`.
+ */
+function pathArgument(path: string): string {
+  if (path.startsWith('-')) {
+    throw new InvalidArgumentError('This looks like the next option, not a path. Give the path, or write a path that starts with a dash as ./-name.')
+  }
+  return path
 }
 
 export default function cli(): void {
@@ -47,11 +60,11 @@ export default function cli(): void {
     .option('-C, --color', 'force color in logging', () => forceColourLogging = true)
     .option('-D, --debug', 'turn on debug level logging', () => debugModeEnabled = true)
     .option('-I, --insecure', 'allow unauthenticated requests (for easier hacking)', () => insecureAccess = true)
-    .option('-P, --plugin-path <path>', 'look for plugins installed at <path> as well as the default locations (<path> can also point to a single plugin)', path => customPluginPath = path)
+    .option('-P, --plugin-path <path>', 'look for plugins installed at <path> as well as the default locations (<path> can also point to a single plugin)', path => customPluginPath = pathArgument(path))
     .option('-Q, --no-qrcode', 'do not issue QRcode in logging', () => hideQRCode = true)
     .option('-K, --keep-orphans', 'keep cached accessories for which the associated plugin is not loaded', () => keepOrphans = true)
     .option('-T, --no-timestamp', 'do not issue timestamps in logging', () => noLogTimestamps = true)
-    .option('-U, --user-storage-path <path>', 'look for homebridge user files at <path> instead of the default location (~/.homebridge)', path => customStoragePath = path)
+    .option('-U, --user-storage-path <path>', 'look for homebridge user files at <path> instead of the default location (~/.homebridge)', path => customStoragePath = pathArgument(path))
     .option('--strict-plugin-resolution', 'only load plugins from the --plugin-path if set, otherwise from the primary global node_modules', () => strictPluginResolution = true)
     .parse(process.argv)
 
