@@ -264,6 +264,15 @@ export class AccessoryManager {
           && clusterFeatureShape(existing.deviceType) === clusterFeatureShape(accessory.deviceType)
         if (sameShape) {
           log.info(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
+          // The endpoint keeps the state it was restored with. Keep the record
+          // (what the UI lists and the cache saves) the same: the plugin's
+          // registration declares its start-up defaults, and taking those
+          // would save "off" for a lamp that is on.
+          this.keepKnownState(accessory.clusters, existing.clusters)
+          for (const part of accessory.parts ?? []) {
+            this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters)
+          }
+          await this.updateBridgedInformation(existing.endpoint, accessory, deps.config)
           deps.accessories.set(accessory.UUID, {
             ...existing,
             ...accessory,
@@ -515,6 +524,56 @@ export class AccessoryManager {
   /**
    * Restore cached state for an accessory
    */
+  /**
+   * Put the values already known for an accessory over the ones its plugin
+   * declares, for the clusters and attributes the plugin still declares.
+   */
+  private keepKnownState(declared: MatterAccessory['clusters'], known: MatterAccessory['clusters']): void {
+    if (!declared || !known) {
+      return
+    }
+    for (const [clusterName, declaredAttributes] of Object.entries(declared)) {
+      const knownAttributes = known[clusterName] as Record<string, unknown> | undefined
+      if (!knownAttributes || !declaredAttributes) {
+        continue
+      }
+      for (const attributeName of Object.keys(declaredAttributes)) {
+        if (attributeName in knownAttributes) {
+          (declaredAttributes as Record<string, unknown>)[attributeName] = knownAttributes[attributeName]
+        }
+      }
+    }
+  }
+
+  /**
+   * Bring the name, maker, model, serial number and firmware version on a
+   * bridged endpoint in line with what its plugin now registers. A restored
+   * endpoint is built from the cache, so without this a renamed accessory or
+   * a new firmware version only showed after one more restart.
+   */
+  private async updateBridgedInformation(endpoint: Endpoint | undefined, accessory: MatterAccessory, config: MatterServerConfig): Promise<void> {
+    if (!endpoint || config.externalAccessory) {
+      return
+    }
+    const current = (endpoint.state as Record<string, Record<string, unknown> | undefined> | undefined)?.bridgedDeviceBasicInformation
+    if (!current) {
+      return
+    }
+    const wanted: Record<string, unknown> = this.createEndpointOptions(accessory, config).bridgedDeviceBasicInformation ?? {}
+    const changed = Object.fromEntries(
+      Object.entries(wanted).filter(([name, value]) => name !== 'reachable' && value !== undefined && value !== current[name]),
+    )
+    if (Object.keys(changed).length === 0) {
+      return
+    }
+    try {
+      await endpoint.setStateOf('bridgedDeviceBasicInformation', changed)
+      log.debug(`Updated the bridged device information of ${accessory.displayName}:`, changed)
+    } catch (error) {
+      log.warn(`Could not update the bridged device information of ${accessory.displayName}:`, error)
+    }
+  }
+
   private restoreCachedState(accessory: MatterAccessory, accessoryCache: MatterAccessoryCache | null): void {
     if (accessoryCache && accessoryCache.hasCached(accessory.UUID)) {
       const cached = accessoryCache.getCached(accessory.UUID)
