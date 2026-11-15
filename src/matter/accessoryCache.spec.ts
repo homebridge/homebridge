@@ -514,6 +514,60 @@ describe('matterAccessoryCache', () => {
       })
     })
 
+    it('saves the names of the clusters that have handlers, for the accessory and its parts', async () => {
+      mockedMkdir.mockResolvedValue(undefined as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+
+      const accessories = new Map<string, InternalMatterAccessory>()
+      accessories.set('test-uuid', {
+        _associatedPlugin: 'homebridge-test',
+        _associatedPlatform: 'TestPlatform',
+        UUID: 'test-uuid',
+        displayName: 'TV',
+        deviceType: { name: 'MediaPlayer', code: 40 } as any,
+        serialNumber: 'SN-001',
+        manufacturer: 'Test',
+        model: 'Test',
+        clusters: {
+          onOff: { onOff: false },
+        },
+        // keypadInput has no state, so nothing else in the entry names it
+        handlers: {
+          onOff: {
+            on: async () => {},
+          },
+          keypadInput: {
+            sendKey: async () => {},
+          },
+        },
+        parts: [
+          {
+            id: 'part-1',
+            deviceType: { name: 'OnOffLight', code: 256 } as any,
+            clusters: {},
+            handlers: {
+              identify: {
+                identify: async () => {},
+              },
+            },
+          },
+          {
+            id: 'part-2',
+            deviceType: { name: 'OnOffLight', code: 256 } as any,
+            clusters: {},
+          },
+        ],
+      } as any)
+
+      await cache.save(accessories)
+
+      const savedData = JSON.parse(mockedWriteFile.mock.calls[0][1] as string) as SerializedMatterAccessory[]
+      expect(savedData[0].handlerClusters).toEqual(['keypadInput', 'onOff'])
+      expect(savedData[0].parts![0].handlerClusters).toEqual(['identify'])
+      expect(savedData[0].parts![1].handlerClusters).toBeUndefined()
+    })
+
     it('should ensure directory exists on first save', async () => {
       mockedMkdir.mockResolvedValue(undefined as any)
       mockedWriteFile.mockResolvedValue(undefined)

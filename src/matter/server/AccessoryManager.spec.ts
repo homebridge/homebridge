@@ -553,6 +553,8 @@ describe('accessoryManager', () => {
         const deps = createMockDeps()
         const restored = {
           ...createMockAccessory(),
+          // a restore makes an empty handler stub per cached cluster
+          handlers: { onOff: {} },
           endpoint: { marker: 'restored-endpoint' },
           registered: false,
           _restoredFromCache: true,
@@ -579,6 +581,40 @@ describe('accessoryManager', () => {
         expect(deps.accessories.size).toBe(1)
         // The plugin's handlers were wired to the existing endpoint.
         expect(deps.behaviorRegistry.registerHandler).toHaveBeenCalledWith('test-uuid-001', 'onOff', 'on', expect.any(Function))
+      })
+
+      // The Homebridge behavior that calls a plugin's handlers is only on the
+      // endpoint for clusters that had a handler set when it was built. A cache
+      // written before the handler names were saved knows nothing of a cluster
+      // with handlers and no state (keypadInput), so attaching in place would
+      // wire the handlers to an endpoint that never calls them.
+      it('re-registers when the plugin has handlers for a cluster the restored accessory had none for', async () => {
+        const deps = createMockDeps()
+        deps.accessories.set('test-uuid-001', {
+          ...createMockAccessory(),
+          handlers: { onOff: {} },
+          endpoint: {
+            marker: 'restored-endpoint',
+            close: vi.fn(),
+          },
+          registered: false,
+          _restoredFromCache: true,
+        } as any)
+        const unregisterSpy = vi.spyOn(manager, 'unregisterAccessory')
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory({
+          handlers: {
+            onOff: {
+              on: vi.fn(),
+            },
+            keypadInput: {
+              sendKey: vi.fn(),
+            },
+          },
+        } as any), deps)
+
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toEqual(expect.objectContaining({ marker: 'restored-endpoint' }))
       })
 
       it('treats an omitted feature and an explicit false value as the same shape', async () => {

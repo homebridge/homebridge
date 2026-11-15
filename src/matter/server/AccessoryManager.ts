@@ -234,7 +234,21 @@ export class AccessoryManager {
         const clusterFeatureShape = (deviceType: unknown) => JSON.stringify(
           Object.entries(declaredClusterFeatures(deviceType) ?? {}).sort(([left], [right]) => left.localeCompare(right)),
         )
+        // Every cluster the plugin has handlers for must have had a handler
+        // set on the restored accessory too (a real one or the restore's empty
+        // stub), because the Homebridge behavior that calls the handlers is
+        // only put on the endpoint for those clusters. A cache written before
+        // the handler names were saved does not know a cluster with handlers
+        // and no state: without this check its handlers were attached to an
+        // endpoint that never calls them.
+        const handlersCovered = (restored?: Record<string, unknown>, wanted?: Record<string, unknown>) =>
+          Object.keys(wanted ?? {}).every(clusterName => restored?.[clusterName] !== undefined)
+        const restoredParts = existing._parts ?? existing.parts ?? []
+        const partHandlersCovered = (accessory.parts ?? []).every(part =>
+          handlersCovered(restoredParts.find(restoredPart => restoredPart.id === part.id)?.handlers, part.handlers))
         const sameShape = (existing.deviceType as { name?: string })?.name === (accessory.deviceType as { name?: string })?.name
+          && handlersCovered(existing.handlers, accessory.handlers)
+          && partHandlersCovered
           && partShape(existing._parts ?? existing.parts) === partShape(accessory.parts)
           && featureShape(existing.features) === featureShape(accessory.features)
           && behaviorKeys(existing.deviceType) === behaviorKeys(accessory.deviceType)

@@ -35,6 +35,8 @@ export interface SerializedMatterAccessoryPart {
       [attributeName: string]: unknown
     }
   }
+  /** Names of the clusters the plugin registered handlers for, see handlerClusterNames */
+  handlerClusters?: string[]
 }
 
 /**
@@ -65,7 +67,24 @@ export interface SerializedMatterAccessory {
       [attributeName: string]: unknown
     }
   }
+  /**
+   * Names of the clusters the plugin registered handlers for. The handlers
+   * are functions and cannot be saved, but a restore needs to know which
+   * clusters had them: a cluster with handlers and no state to declare
+   * (keypadInput, say) is otherwise restored without its Homebridge behavior.
+   */
+  handlerClusters?: string[]
   parts?: SerializedMatterAccessoryPart[]
+}
+
+/**
+ * The sorted names of the clusters a handlers object covers, or undefined when there are none.
+ */
+export function handlerClusterNames(handlers?: Record<string, unknown>): string[] | undefined {
+  const names = Object.keys(handlers ?? {}).sort()
+  return names.length > 0
+    ? names
+    : undefined
 }
 
 /**
@@ -340,6 +359,7 @@ export class MatterAccessoryCache {
           },
           features: structuredClone(part.features),
           clusters: structuredClone(part.clusters),
+          handlerClusters: handlerClusterNames(part.handlers),
         }
       })
     }
@@ -359,6 +379,7 @@ export class MatterAccessoryCache {
       softwareVersion: accessory.softwareVersion,
       context: accessory.context,
       clusters: structuredClone(accessory.clusters),
+      handlerClusters: handlerClusterNames(accessory.handlers),
       parts: serializedParts,
     }
   }

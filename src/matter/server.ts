@@ -450,12 +450,17 @@ export class MatterServer extends EventEmitter {
 
         // Handlers are functions and cannot be cached, but custom behaviors
         // (e.g. the OnOff server on switch device types) are only attached for
-        // clusters that have handlers. Synthesize empty stubs per cached
-        // cluster so the restored endpoint is structurally identical to the
-        // original; the plugin's re-registration supplies the real handlers.
-        const stubHandlers = (clusters?: Record<string, unknown>) => {
+        // clusters that have handlers. Synthesize an empty stub per cached
+        // cluster, and per cluster the plugin had handlers for (some have
+        // handlers and no state, like keypadInput), so the restored endpoint
+        // carries the same behaviors as the original; the plugin's
+        // re-registration supplies the real handlers.
+        const stubHandlers = (clusters?: Record<string, unknown>, handlerClusters?: string[]) => {
           const handlers: Record<string, Record<string, never>> = {}
-          for (const clusterName of Object.keys(clusters ?? {})) {
+          for (const clusterName of [
+            ...Object.keys(clusters ?? {}),
+            ...(handlerClusters ?? []),
+          ]) {
             handlers[clusterName] = {}
           }
           return Object.keys(handlers).length > 0
@@ -483,7 +488,7 @@ export class MatterServer extends EventEmitter {
                   deviceType: partType && applyDeclaredClusterFeatures(partType, part.deviceType?.clusterFeatures),
                   features: part.features,
                   clusters: part.clusters ?? {},
-                  handlers: stubHandlers(part.clusters),
+                  handlers: stubHandlers(part.clusters, part.handlerClusters),
                 }
               })
               .filter((part): part is typeof part & { deviceType: EndpointType } => part.deviceType !== undefined)
@@ -501,7 +506,7 @@ export class MatterServer extends EventEmitter {
               features: serialized.features,
               context: serialized.context ?? {},
               clusters: serialized.clusters ?? {},
-              handlers: stubHandlers(serialized.clusters),
+              handlers: stubHandlers(serialized.clusters, serialized.handlerClusters),
               registered: false,
               _restoredFromCache: true,
               _associatedPlugin: serialized.plugin,

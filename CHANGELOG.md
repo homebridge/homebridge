@@ -21,6 +21,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: keep a child bridge running when the bridge refuses one of its accessories
 - fix(matter): keep the storage of matter servers that start together in their own folders
 - fix(matter): stop reporting an unpaired bridge as paired once its accessory cache is saved
+- fix(matter): keep calling the handlers of a cluster with no state after a restart
 
 ### Homebridge Dependencies
 
