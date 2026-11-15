@@ -323,6 +323,11 @@ export class ChildBridgeService {
   // matching the pattern used by MatterBridgeManager (#3915).
   private readonly _onApiShutdown = (): void => {
     this.shuttingDown = true
+    // A restart that was waiting out its back-off is not going to happen.
+    if (this.scheduledRestartTimeout) {
+      clearTimeout(this.scheduledRestartTimeout)
+      this.scheduledRestartTimeout = undefined
+    }
     this.teardown()
   }
 
@@ -694,6 +699,8 @@ export class ChildBridgeService {
           this.startChildProcess()
         }
       }, delay * 1000)
+      // Homebridge does not stay up just to restart a child bridge.
+      this.scheduledRestartTimeout.unref()
     } else {
       // Signal-based or non-1 exit codes: restart immediately, but the cap
       // above still applies, so we won't loop forever on a hard crash.
