@@ -1,3 +1,5 @@
+import type { ServerNode } from '@matter/main'
+
 import type { MatterAccessory } from './types.js'
 
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
@@ -5,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 
+import { FabricManager as MatterFabricManager, TestFabric } from '@matter/protocol'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { User } from '../user.js'
@@ -215,6 +218,67 @@ describe('matterServer storage on real matter.js nodes', () => {
     expect(after.getLiveState('uuid-shape').levelControl?.currentLevel).toBe(10)
     expect(dimmable.context).toEqual({ room: 'hall' })
   }, 30000)
+
+  describe('which controllers a bridge is paired with', () => {
+    /** Pair the server with a matter.js test controller (a real fabric with made-up keys). */
+    async function pair(server: MatterServer): Promise<void> {
+      const node = (server as unknown as { serverNode: ServerNode }).serverNode
+      await TestFabric({
+        fabrics: node.env.get(MatterFabricManager),
+      })
+    }
+
+    it('reports none for a bridge that was never paired', async () => {
+      const server = bridgeServer('ADADADADADA1', 55989)
+      await server.start()
+      await server.registerPlatformAccessories('plugin', 'Platform', [
+        {
+          UUID: 'uuid-any',
+          displayName: 'Any',
+          deviceType: deviceTypes.OnOffLight,
+          serialNumber: 'S',
+          manufacturer: 'Test',
+          model: 'Test',
+          context: {},
+          clusters: {
+            onOff: { onOff: false },
+          },
+        },
+      ])
+
+      expect(server.getCommissioningSnapshot()).toEqual({ commissioned: false, fabricCount: 0, fabrics: [] })
+      expect(server.isCommissioned()).toBe(false)
+    }, 30000)
+
+    it('reports the controller as soon as it is paired, and again after a restart before going online', async () => {
+      const before = bridgeServer('ADADADADADA2', 55990)
+      await before.start()
+      await pair(before)
+
+      const paired = {
+        commissioned: true,
+        fabricCount: 1,
+        fabrics: [
+          expect.objectContaining({ fabricIndex: 1, label: 'mock-fabric-1', rootVendorId: 0xFFF1 }),
+        ],
+      }
+      expect(before.getCommissioningSnapshot()).toEqual(paired)
+      expect(before.isCommissioned()).toBe(true)
+      expect(before.hasFabric(1)).toBe(true)
+      expect(before.hasFabric(2)).toBe(false)
+      await before.stop()
+
+      // built from storage, and not online yet (#4009)
+      const after = bridgeServer('ADADADADADA2', 55990)
+      await after.start()
+
+      expect(after.getCommissioningSnapshot()).toEqual(paired)
+      expect(after.getFabricInfo()[0]).toMatchObject({
+        fabricId: expect.any(String),
+        nodeId: expect.any(String),
+      })
+    }, 30000)
+  })
 
   // #4047: a container killed hard leaves matter.js's lock files behind, and
   // in the next container the process id they name belongs to another program.
