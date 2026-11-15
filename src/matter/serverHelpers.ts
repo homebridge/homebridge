@@ -256,11 +256,13 @@ export function determineColorControlFeaturesFromClusters(
  */
 export function detectWindowCoveringFeatures(accessory: MatterAccessory): string[] {
   const features: string[] = []
-  const wcCluster = accessory.clusters?.windowCovering as Record<string, unknown> | undefined
+  const declared = accessory.clusters?.windowCovering as Record<string, unknown> | undefined
+  const hasHandlers = accessory.handlers?.windowCovering !== undefined
 
-  if (!wcCluster) {
+  if (!declared && !hasHandlers) {
     return features
   }
+  const wcCluster = declared ?? {}
 
   // Detect lift capability
   const hasLiftAttrs = 'targetPositionLiftPercent100ths' in wcCluster
@@ -289,6 +291,13 @@ export function detectWindowCoveringFeatures(accessory: MatterAccessory): string
 
   if (hasTiltAttrs) {
     features.push('Tilt', 'PositionAwareTilt')
+  }
+
+  // A covering that can only open and close declares no position at all.
+  // Matter still wants Lift or Tilt on every window covering, so it gets Lift:
+  // open, close and stop are all that feature brings on its own.
+  if (features.length === 0) {
+    features.push('Lift')
   }
 
   return features

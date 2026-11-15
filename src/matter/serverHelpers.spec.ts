@@ -486,6 +486,29 @@ describe('serverHelpers', () => {
       const features = detectWindowCoveringFeatures(accessory)
       expect(features).toEqual([])
     })
+
+    it('gives Lift to a covering that declares no position', () => {
+      const accessory = {
+        displayName: 'Open/close blind',
+        clusters: { windowCovering: {} },
+      } as any
+
+      expect(detectWindowCoveringFeatures(accessory)).toEqual(['Lift'])
+    })
+
+    it('gives Lift to a covering that only has handlers', () => {
+      const accessory = {
+        displayName: 'Open/close blind',
+        clusters: {},
+        handlers: {
+          windowCovering: {
+            upOrOpen: async () => {},
+          },
+        },
+      } as any
+
+      expect(detectWindowCoveringFeatures(accessory)).toEqual(['Lift'])
+    })
   })
 
   describe('applyWindowCoveringFeatures', () => {
