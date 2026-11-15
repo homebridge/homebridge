@@ -158,6 +158,38 @@ describe('matterConfigCollector', () => {
       )
     })
 
+    it.each([
+      {
+        what: 'ports given as text',
+        pool: { start: '5530', end: '5541' },
+      },
+      {
+        what: 'a port that is not a whole number',
+        pool: { start: 5530.5, end: 5541 },
+      },
+      {
+        what: 'a negative port',
+        pool: { start: -5, end: 5541 },
+      },
+      {
+        what: 'a port below 1025',
+        pool: { start: 80, end: 5541 },
+      },
+      {
+        what: 'a port above 65534',
+        pool: { start: 5530, end: 70000 },
+      },
+    ])('should reject matterPorts with $what', ({ pool }) => {
+      mockConfig.matterPorts = pool as any
+
+      MatterConfigCollector.validateMatterPortsPool(mockConfig)
+
+      expect(mockConfig.matterPorts).toBeUndefined()
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('must be whole numbers from 1025 to 65534'),
+      )
+    })
+
     it('should do nothing if matterPorts is undefined', () => {
       mockConfig.matterPorts = undefined
 
