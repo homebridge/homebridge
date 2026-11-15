@@ -30,6 +30,50 @@ const log = Logger.internal
 /**
  * Represents a loaded Homebridge plugin.
  */
+/**
+ * The entry file a package's `exports` field gives for importing the package
+ * itself, or undefined when it names none (it only lists sub-paths, say).
+ *
+ * `exports` may be a string, a list of fallbacks, a map of sub-paths (keys
+ * that start with a dot, where "." is the package itself) or a map of
+ * conditions, and conditions may be nested to any depth, see
+ * https://nodejs.org/api/packages.html#package-entry-points
+ */
+function entryFromExports(exports: unknown): string | undefined {
+  if (typeof exports === 'string') {
+    return exports
+  }
+
+  if (Array.isArray(exports)) {
+    for (const fallback of exports) {
+      const entry = entryFromExports(fallback)
+      if (entry) {
+        return entry
+      }
+    }
+    return undefined
+  }
+
+  if (typeof exports !== 'object' || exports === null) {
+    return undefined
+  }
+
+  const map = exports as Record<string, unknown>
+  if (Object.keys(map).some(key => key.startsWith('.'))) {
+    // a map of sub-paths: only "." is the package's own entry
+    return entryFromExports(map['.'])
+  }
+
+  // a map of conditions, in the order Homebridge has always preferred them
+  for (const condition of ['import', 'require', 'node', 'default']) {
+    const entry = entryFromExports(map[condition])
+    if (entry) {
+      return entry
+    }
+  }
+  return undefined
+}
+
 export class Plugin {
   private readonly pluginName: PluginName
   private readonly scope?: string // npm package scope
@@ -58,27 +102,8 @@ export class Plugin {
     this.main = ''
 
     // figure out the main module
-    // exports is available - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_package_entry_points
-    if (packageJSON.exports) {
-      // main entrypoint - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_main_entry_point_export
-      if (typeof packageJSON.exports === 'string') {
-        this.main = packageJSON.exports
-      } else { // subpath export - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_subpath_exports
-        // conditional exports - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_conditional_exports
-        const exports = packageJSON.exports.import || packageJSON.exports.require || packageJSON.exports.node || packageJSON.exports.default || packageJSON.exports['.']
-
-        // check if conditional export is nested
-        if (typeof exports !== 'string') {
-          if (exports.import) {
-            this.main = exports.import
-          } else {
-            this.main = exports.require || exports.node || exports.default
-          }
-        } else {
-          this.main = exports
-        }
-      }
-    }
+    // exports is available - https://nodejs.org/api/packages.html#package-entry-points
+    this.main = entryFromExports(packageJSON.exports) ?? ''
 
     // exports search was not successful, fallback to package.main, using index.js as fallback
     if (!this.main) {

@@ -26,13 +26,19 @@ const log = Logger.internal
 const require = createRequire(import.meta.url)
 const paths = require.resolve.paths('')
 
+/**
+ * The `exports` field of a package.json: a file, a list of fallbacks, or a
+ * map of sub-paths or conditions, nested to any depth.
+ */
+export type PackageExports = string | null | PackageExports[] | { [key: string]: PackageExports }
+
 export interface PackageJSON { // incomplete type for package.json (just stuff we use here)
   name: string
   version: string
   keywords?: string[]
 
-  // see https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_package_entry_points
-  exports?: string | Record<string, string | Record<string, string>>
+  // see https://nodejs.org/api/packages.html#package-entry-points
+  exports?: PackageExports
   main?: string
 
   /**
