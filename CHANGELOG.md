@@ -71,6 +71,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: ignore an ipc message of null instead of throwing in the message listener
 - fix: end a child bridge as soon as its teardown is done, and tear down when its parent has gone
 - fix(matter): never hand the main bridge's matter port out to a child bridge or accessory as well
+- fix(matter): only remove the vendor from a product label where it is a word of its own
 
 ### Homebridge Dependencies
 
