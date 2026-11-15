@@ -124,7 +124,9 @@ export interface BridgeConfiguration {
    * accepted for back-compat and normalized to `{ enabled: <boolean> }` by
    * `validateHapConfig`. The type allows it so existing configs keep compiling.
    *
-   * @deprecated Pass `hap` as a boolean is deprecated; use `{ enabled }` instead.
+   * Only the boolean form is deprecated: use `{ enabled }` instead. (There is
+   * no `deprecated` tag here on purpose. A tag marks the whole property, so
+   * editors and the docs would strike through the object form as well.)
    */
   hap?: BridgeHapConfig | boolean
   matter?: MatterConfig
