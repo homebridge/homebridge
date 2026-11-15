@@ -231,6 +231,14 @@ describe('matter utilities', () => {
       expect(stripVendorFromLabel('Front Door', 'Eufy')).toBe('Front Door')
     })
 
+    it('returns an empty string when the vendor is inside a word, which matter.js refuses too', () => {
+      expect(stripVendorFromLabel('LGTV Lounge', 'LG')).toBe('')
+      expect(stripVendorFromLabel('Evening Lamp', 'Eve')).toBe('')
+      expect(stripVendorFromLabel('Lamp 2000', '200')).toBe('')
+      // with another case it is not the vendor, for matter.js either
+      expect(stripVendorFromLabel('Garage Door', 'GE')).toBe('Garage Door')
+    })
+
     it('returns an empty string when stripping consumes the entire label', () => {
       // Matches the main-bridge edge case where displayName === vendorName.
       // Callers are expected to supply a non-vendor fallback in this case.
@@ -255,10 +263,8 @@ describe('matter utilities', () => {
 
     it.each([
       { label: 'Garage Door', vendor: 'GE' },
-      { label: 'Evening Lamp', vendor: 'Eve' },
       { label: 'Bulgaria Lamp', vendor: 'LG' },
-      { label: 'Lamp 2000', vendor: '200' },
-    ])('leaves "$label" alone for the vendor "$vendor", which is only part of a word', ({ label, vendor }) => {
+    ])('leaves "$label" alone for the vendor "$vendor", which is only part of a word with another case', ({ label, vendor }) => {
       expect(stripVendorFromLabel(label, vendor)).toBe(label)
     })
 

@@ -150,8 +150,9 @@ export function appendUsernameSuffix(baseUsername: string, suffix: string): MacA
  * Removes every case-insensitive occurrence of `vendor` as a whole word from
  * `label`, collapses whitespace, and trims leading/trailing separators. A
  * word that only contains the vendor's letters is kept. Returns an
- * empty string if stripping consumes the entire label — callers should
- * provide a non-vendor fallback in that case.
+ * empty string if stripping consumes the entire label, or if the vendor is
+ * still in it with the same case (inside a word) — callers should provide a
+ * non-vendor fallback in that case.
  *
  * @param label - The candidate label (e.g. an accessory display name)
  * @param vendor - The vendor name to strip
@@ -163,6 +164,7 @@ export function appendUsernameSuffix(baseUsername: string, suffix: string): MacA
  * stripVendorFromLabel('Govee Light', 'govee')    // 'Light'
  * stripVendorFromLabel('Homebridge', 'Homebridge') // '' (caller supplies fallback)
  * stripVendorFromLabel('Garage Door', 'GE')        // 'Garage Door'
+ * stripVendorFromLabel('LGTV Lounge', 'LG')        // '' (the vendor is inside a word)
  * ```
  */
 export function stripVendorFromLabel(label: string | undefined, vendor: string | undefined): string {
@@ -175,13 +177,19 @@ export function stripVendorFromLabel(label: string | undefined, vendor: string |
   // The vendor as a word of its own only: a name that merely contains the
   // vendor's letters ("Garage Door" for the vendor "GE") is left alone.
   const vendorAsWord = new RegExp(`(?<![\\p{L}\\p{N}])${vendor.replace(REGEXP_SPECIAL_RE, '\\$&')}(?![\\p{L}\\p{N}])`, 'giu')
-  if (!vendorAsWord.test(label)) {
-    return label
-  }
-  return label
-    .replace(vendorAsWord, '')
-    .replace(/\s+/g, ' ')
-    .replace(/^[\s\-_:,]+|[\s\-_:,]+$/g, '')
+  const stripped = vendorAsWord.test(label)
+    ? label
+        .replace(vendorAsWord, '')
+        .replace(/\s+/g, ' ')
+        .replace(/^[\s\-_:,]+|[\s\-_:,]+$/g, '')
+    : label
+  // matter.js warns, and the spec does not allow it, when the label holds the
+  // vendor anywhere, with the same case: inside a word too ("LGTV Lounge" for
+  // the vendor "LG"). Cutting it out of a word gives nonsense ("ning Lamp"
+  // for "Evening Lamp" and "Eve"), so the caller's fallback is used instead.
+  return stripped.includes(vendor)
+    ? ''
+    : stripped
 }
 
 /**
