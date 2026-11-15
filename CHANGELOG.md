@@ -58,6 +58,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: start with a damaged accessory cache file, and keep the good backup when restoring from it
 - fix: only save an accessory passed to updatePlatformAccessories when it is already in the cache
 - fix: skip a plugin block whose _bridge has no valid username instead of crashing at start-up
+- fix: load the other accessories of a static platform when the bridge refuses one of them
 
 ### Homebridge Dependencies
 

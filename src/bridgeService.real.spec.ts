@@ -1,3 +1,5 @@
+import type { StaticPlatformPlugin } from './api.js'
+import type { Plugin } from './plugin.js'
 import type { PluginManager } from './pluginManager.js'
 
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -282,5 +284,48 @@ describe('updatePlatformAccessories on the real bridge', () => {
     api.updatePlatformAccessories([lamp, lamp])
 
     expect(savedNames()).toEqual(['Lamp'])
+  })
+})
+
+describe('a static platform on the real bridge', () => {
+  /** An old-style accessory with one switch service. */
+  const staticAccessory = (name: string) => ({
+    name,
+    getServices: () => [
+      new Service.Switch(name),
+    ],
+  })
+
+  it('loads the other accessories when the bridge refuses one', async () => {
+    const platform = {
+      accessories: (callback: (accessories: unknown[]) => void) => callback([
+        staticAccessory('Lamp'),
+        staticAccessory('Refused'),
+        staticAccessory('Fan'),
+      ]),
+    }
+    // HAP-NodeJS from v2.3.1 refuses a second accessory with the same UUID
+    const add = service.bridge.addBridgedAccessory.bind(service.bridge)
+    vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation((hapAccessory, deferUpdate) => {
+      if (hapAccessory.displayName === 'Refused') {
+        throw new Error('Cannot bridge Refused: an accessory with the same UUID is already bridged')
+      }
+      return add(hapAccessory, deferUpdate)
+    })
+    const errors: unknown[][] = []
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      errors.push(args)
+    })
+
+    await expect(service.loadPlatformAccessories(
+      {
+        getPluginIdentifier: () => PLUGIN,
+      } as Plugin,
+      platform as unknown as StaticPlatformPlugin,
+      PLATFORM,
+      Logger.withPrefix('Static'),
+    )).resolves.toBeUndefined()
+
+    expect(bridged()).toEqual(['Lamp', 'Fan'])
   })
 })
