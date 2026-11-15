@@ -13,6 +13,7 @@ import type { BehaviorRegistry, RegistryManager } from '../behaviors/index.js'
 import type { MatterEvent } from '../ipc-types.js'
 import type { MatterServerConfig } from '../sharedTypes.js'
 import type {
+  DeclaredClusterState,
   InternalMatterAccessory,
   InternalMatterAccessoryPart,
   MatterAccessory,
@@ -21,6 +22,7 @@ import type {
 } from '../types.js'
 
 import { EventEmitter } from 'node:events'
+import { isDeepStrictEqual } from 'node:util'
 
 import { Endpoint } from '@matter/main'
 import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer, FixedLabelServer, PowerSourceServer } from '@matter/main/behaviors'
@@ -30,6 +32,7 @@ import { Logger } from '../../logger.js'
 import { sendToParent } from '../../util/ipc.js'
 import { setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
+import { notePluginUpdate } from '../behaviors/pluginUpdates.js'
 import { lockStateForWrite } from '../behaviors/stateLock.js'
 import { declaredClusterFeatures } from '../clusterFeatures.js'
 import { truncateUtf8 } from '../configValidator.js'
@@ -203,6 +206,25 @@ function lacksCluster(endpoint: Endpoint | undefined, clusterName: string): bool
   }
 }
 
+/**
+ * A copy of the cluster state a plugin declares for an accessory and its parts.
+ */
+function declaredStateOf(accessory: MatterAccessory): DeclaredClusterState | undefined {
+  try {
+    const parts = Object.fromEntries((accessory.parts ?? []).map(part => [
+      part.id,
+      structuredClone(part.clusters),
+    ]))
+    return {
+      clusters: structuredClone(accessory.clusters),
+      ...(Object.keys(parts).length > 0 && { parts }),
+    }
+  } catch {
+    // a value that can not be copied: there is nothing to compare with next time
+    return undefined
+  }
+}
+
 export class AccessoryManager {
   /**
    * Register a single Matter accessory
@@ -222,6 +244,12 @@ export class AccessoryManager {
     }
 
     validateAccessoryRequiredFields(accessory)
+
+    // What the plugin declares now, before any known value is put over it. A
+    // restore from the cache brings the plugin's last declaration with it.
+    const declared = (accessory as InternalMatterAccessory)._restoredFromCache
+      ? (accessory as InternalMatterAccessory)._declared
+      : declaredStateOf(accessory)
 
     let preservedUniqueId: string | undefined
 
@@ -290,9 +318,11 @@ export class AccessoryManager {
           // (what the UI lists and the cache saves) the same: the plugin's
           // registration declares its start-up defaults, and taking those
           // would save "off" for a lamp that is on.
-          this.keepKnownState(accessory.clusters, existing.clusters)
+          const changed = this.keepKnownState(accessory.clusters, existing.clusters, existing._declared?.clusters)
+          await this.applyNewSettings(existing.endpoint, accessory.displayName, changed)
           for (const part of accessory.parts ?? []) {
-            this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters)
+            const partChanged = this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters, existing._declared?.parts?.[part.id])
+            await this.applyNewSettings(existing._parts?.find(restoredPart => restoredPart.id === part.id)?.endpoint, `${accessory.displayName} (part ${part.id})`, partChanged)
           }
           await this.updateBridgedInformation(existing.endpoint, accessory, deps.config)
           deps.accessories.set(accessory.UUID, {
@@ -302,6 +332,7 @@ export class AccessoryManager {
             _parts: existing._parts,
             registered: true,
             _restoredFromCache: false,
+            _declared: declared,
           })
           this.warnForUnknownAttributes(accessory, existing.endpoint, existing._parts)
           this.registerAccessoryHandlers(accessory, deps)
@@ -332,9 +363,9 @@ export class AccessoryManager {
         // context it restored over to the new accessory.
         deps.accessoryCache?.retain(accessory.UUID)
         await this.unregisterAccessory(accessory.UUID, deps, { keepStorage: true })
-        this.keepKnownState(accessory.clusters, existing.clusters)
+        this.keepKnownState(accessory.clusters, existing.clusters, existing._declared?.clusters)
         for (const part of accessory.parts ?? []) {
-          this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters)
+          this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters, existing._declared?.parts?.[part.id])
         }
         if (existing.context) {
           accessory.context = existing.context
@@ -350,6 +381,7 @@ export class AccessoryManager {
     }
 
     this.restoreCachedState(accessory, deps.accessoryCache)
+    ;(accessory as InternalMatterAccessory)._declared = declared
 
     if (deps.accessories.size >= 1000) {
       throw new MatterDeviceError(
@@ -657,25 +689,69 @@ export class AccessoryManager {
   }
 
   /**
-   * Restore cached state for an accessory
-   */
-  /**
    * Put the values already known for an accessory over the ones its plugin
-   * declares, for the clusters and attributes the plugin still declares.
+   * declares, for the clusters and attributes the plugin still declares. A
+   * plugin declares its start-up defaults at every start ("off" for a lamp
+   * that is on), so the known value is the true one.
+   *
+   * Not when the plugin now declares an attribute differently from the last
+   * time (`lastDeclared`): that is a new setting (a new `maxLevel`, a room
+   * added to `supportedAreas`), and the plugin's value is kept. Before, the
+   * known value won for good. With no last declaration (a cache written by an
+   * older version), the known value wins, as it did.
+   *
+   * @returns the attributes where the plugin's new value was kept, by cluster
    */
-  private keepKnownState(declared: MatterAccessory['clusters'], known: MatterAccessory['clusters']): void {
+  private keepKnownState(
+    declared: MatterAccessory['clusters'],
+    known: MatterAccessory['clusters'],
+    lastDeclared?: MatterAccessory['clusters'],
+  ): Record<string, Record<string, unknown>> {
+    const changed: Record<string, Record<string, unknown>> = {}
     if (!declared || !known) {
-      return
+      return changed
     }
     for (const [clusterName, declaredAttributes] of Object.entries(declared)) {
       const knownAttributes = known[clusterName] as Record<string, unknown> | undefined
       if (!knownAttributes || !declaredAttributes) {
         continue
       }
-      for (const attributeName of Object.keys(declaredAttributes)) {
-        if (attributeName in knownAttributes) {
+      const lastAttributes = lastDeclared?.[clusterName] as Record<string, unknown> | undefined
+      for (const [attributeName, value] of Object.entries(declaredAttributes)) {
+        if (!(attributeName in knownAttributes)) {
+          continue
+        }
+        const isNewSetting = lastDeclared !== undefined
+          && !isDeepStrictEqual(lastAttributes?.[attributeName], value)
+          && !isDeepStrictEqual(knownAttributes[attributeName], value)
+        if (isNewSetting) {
+          (changed[clusterName] ??= {})[attributeName] = value
+        } else {
           (declaredAttributes as Record<string, unknown>)[attributeName] = knownAttributes[attributeName]
         }
+      }
+    }
+    return changed
+  }
+
+  /**
+   * Put the new settings a plugin declares (see keepKnownState) on an
+   * endpoint that was built from the cache. A value matter.js refuses is
+   * logged; the endpoint keeps the one it has.
+   */
+  private async applyNewSettings(endpoint: Endpoint | undefined, label: string, changed: Record<string, Record<string, unknown>>): Promise<void> {
+    if (!endpoint) {
+      return
+    }
+    for (const [clusterName, attributes] of Object.entries(changed)) {
+      try {
+        const current = (endpoint.state as Record<string, Record<string, unknown> | undefined>)[clusterName]
+        // the plugin's own value: no change handler of the plugin is called for it
+        notePluginUpdate(endpoint, clusterName, attributes, current)
+        await endpoint.set({ [clusterName]: attributes })
+        log.debug(`Took the new ${clusterName} settings ${label} declares:`, attributes)
+      } catch (error) {
+        log.warn(`Matter accessory "${label}": could not take the new ${clusterName} settings it declares (${Object.keys(attributes).join(', ')}):`, error)
       }
     }
   }
@@ -713,27 +789,11 @@ export class AccessoryManager {
     if (accessoryCache && accessoryCache.hasCached(accessory.UUID)) {
       const cached = accessoryCache.getCached(accessory.UUID)
       if (cached?.clusters && accessory.clusters) {
-        for (const [clusterName, cachedAttrs] of Object.entries(cached.clusters)) {
-          if (!accessory.clusters[clusterName]) {
-            // Skip clusters that the accessory no longer declares
-            continue
-          }
-
-          // Only restore attributes that the accessory's current definition includes
-          const currentAttrs = accessory.clusters[clusterName] as Record<string, unknown>
-          const filteredCached: Record<string, unknown> = {}
-          for (const key of Object.keys(cachedAttrs as Record<string, unknown>)) {
-            if (key in currentAttrs) {
-              filteredCached[key] = (cachedAttrs as Record<string, unknown>)[key]
-            }
-          }
-
-          accessory.clusters[clusterName] = {
-            ...currentAttrs,
-            ...filteredCached,
-          }
+        // Only the attributes the accessory still declares; a new setting it declares is kept
+        this.keepKnownState(accessory.clusters, cached.clusters, cached.declared?.clusters)
+        for (const part of accessory.parts ?? []) {
+          this.keepKnownState(part.clusters, cached.parts?.find(cachedPart => cachedPart.id === part.id)?.clusters, cached.declared?.parts?.[part.id])
         }
-
         if (cached.context) {
           accessory.context = cached.context
         }

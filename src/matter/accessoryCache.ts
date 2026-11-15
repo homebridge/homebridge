@@ -7,7 +7,7 @@
  * Similar to HAP's cached accessories, but designed for Matter's simpler API.
  */
 
-import type { InternalMatterAccessory } from './types.js'
+import type { DeclaredClusterState, InternalMatterAccessory } from './types.js'
 
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -75,6 +75,11 @@ export interface SerializedMatterAccessory {
    */
   handlerClusters?: string[]
   parts?: SerializedMatterAccessoryPart[]
+  /**
+   * What the plugin declared at its last registration, before the known state
+   * was put over it. Missing in a cache written before this was saved.
+   */
+  declared?: DeclaredClusterState
 }
 
 /**
@@ -473,6 +478,7 @@ export class MatterAccessoryCache {
       clusters: structuredClone(accessory.clusters),
       handlerClusters: handlerClusterNames(accessory.handlers),
       parts: serializedParts,
+      declared: structuredClone(accessory._declared),
     }
   }
 }
