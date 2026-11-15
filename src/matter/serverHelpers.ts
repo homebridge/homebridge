@@ -14,8 +14,6 @@ import { Logger } from '../logger.js'
 import { DefaultDeviceEnergyManagementServer } from './behaviors/DeviceEnergyManagementBehavior.js'
 import { DefaultEnergyEvseServer } from './behaviors/EnergyEvseBehavior.js'
 import {
-  HomebridgeRvcCleanModeServer,
-  HomebridgeServiceAreaServer,
   HomebridgeWindowCoveringServer,
 } from './behaviors/index.js'
 import { extractDeclaredFeatures } from './clusterFeatures.js'
@@ -776,29 +774,6 @@ export function applyEnergyEvseFeatures(deviceType: EndpointType, accessory: Mat
 }
 
 /**
- * Detect ServiceArea features from cluster attributes
- */
-export function detectServiceAreaFeatures(
-  serviceAreaCluster: Record<string, unknown> | undefined,
-): string[] {
-  const features: string[] = []
-
-  if (!serviceAreaCluster) {
-    return features
-  }
-
-  if ('supportedMaps' in serviceAreaCluster) {
-    features.push('Maps')
-  }
-
-  if ('progress' in serviceAreaCluster) {
-    features.push('ProgressReporting')
-  }
-
-  return features
-}
-
-/**
  * Accessories (and parts) whose device type already carries the WindowCovering
  * cluster with its features, so the plain handler-calling behavior must not be
  * put on top of it. Only needed between two steps of one registration, and
@@ -887,59 +862,6 @@ export function applyWindowCoveringFeatures(
   markWindowCoveringComposed(accessory)
 
   return modifiedDeviceType
-}
-
-/**
- * Build custom behaviors for RoboticVacuumCleaner devices
- */
-export function buildRvcCustomBehaviors(
-  accessory: MatterAccessory,
-  serviceAreaFeatures: string[] | null,
-): BehaviorType[] {
-  const customBehaviors: BehaviorType[] = []
-  const { RvcCleanModeServer, ServiceAreaServer } = devices.RoboticVacuumCleanerRequirements
-
-  if (accessory.clusters?.rvcCleanMode) {
-    if (accessory.handlers?.rvcCleanMode) {
-      customBehaviors.push(HomebridgeRvcCleanModeServer)
-      log.info('Adding custom RvcCleanMode behavior with handlers')
-    } else {
-      customBehaviors.push(RvcCleanModeServer)
-      log.info('Adding base RvcCleanMode server')
-    }
-  }
-
-  if (accessory.clusters?.serviceArea) {
-    let behaviorClass: BehaviorType = accessory.handlers?.serviceArea
-      ? HomebridgeServiceAreaServer
-      : ServiceAreaServer
-
-    if (serviceAreaFeatures && serviceAreaFeatures.length > 0) {
-      behaviorClass = (behaviorClass as any).with(...serviceAreaFeatures)
-      log.info(`ServiceArea ${accessory.handlers?.serviceArea ? 'custom behavior' : 'base server'} will have features: ${serviceAreaFeatures.join(', ')}`)
-    }
-
-    customBehaviors.push(behaviorClass)
-  }
-
-  return customBehaviors
-}
-
-/**
- * Apply detected features to a behavior class
- */
-export function applyFeaturesToBehavior(
-  behaviorClass: BehaviorType,
-  features: string[] | null,
-  clusterName: string,
-): BehaviorType {
-  if (!features || features.length === 0) {
-    return behaviorClass
-  }
-
-  const modifiedBehavior = (behaviorClass as any).with(...features)
-  log.info(`${clusterName} custom behavior will preserve features: ${features.join(', ')}`)
-  return modifiedBehavior
 }
 
 /**

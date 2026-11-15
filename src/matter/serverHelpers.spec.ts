@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
-  applyFeaturesToBehavior,
   applyLevelControlLightingFloor,
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
@@ -12,7 +11,6 @@ import {
   CLUSTER_IDS,
   detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
-  detectServiceAreaFeatures,
   detectSmokeCoAlarmFeatures,
   detectThermostatFeatures,
   detectWindowCoveringFeatures,
@@ -531,48 +529,6 @@ describe('serverHelpers', () => {
       } as any
 
       const features = detectWindowCoveringFeatures(accessory)
-      expect(features).toEqual([])
-    })
-  })
-
-  describe('detectServiceAreaFeatures', () => {
-    it('should detect Maps feature', () => {
-      const cluster = {
-        supportedMaps: [],
-      }
-
-      const features = detectServiceAreaFeatures(cluster)
-      expect(features).toContain('Maps')
-    })
-
-    it('should detect ProgressReporting feature', () => {
-      const cluster = {
-        progress: [],
-      }
-
-      const features = detectServiceAreaFeatures(cluster)
-      expect(features).toContain('ProgressReporting')
-    })
-
-    it('should detect multiple features', () => {
-      const cluster = {
-        supportedMaps: [],
-        progress: [],
-      }
-
-      const features = detectServiceAreaFeatures(cluster)
-      expect(features).toEqual(['Maps', 'ProgressReporting'])
-    })
-
-    it('should return empty array when cluster is undefined', () => {
-      const features = detectServiceAreaFeatures(undefined)
-      expect(features).toEqual([])
-    })
-
-    it('should return empty array when no features present', () => {
-      const cluster = {}
-
-      const features = detectServiceAreaFeatures(cluster)
       expect(features).toEqual([])
     })
   })
@@ -1224,34 +1180,6 @@ describe('serverHelpers', () => {
       const twice = applyElectricalMeasurementClusters(once, accessory, detection) as any
 
       expect(twice).toBe(once)
-    })
-  })
-
-  describe('applyFeaturesToBehavior', () => {
-    it('should return original behavior when features is null', () => {
-      const mockBehavior = { id: 'test' } as any
-      const result = applyFeaturesToBehavior(mockBehavior, null, 'TestCluster')
-
-      expect(result).toBe(mockBehavior)
-    })
-
-    it('should return original behavior when features is empty', () => {
-      const mockBehavior = { id: 'test' } as any
-      const result = applyFeaturesToBehavior(mockBehavior, [], 'TestCluster')
-
-      expect(result).toBe(mockBehavior)
-    })
-
-    it('should apply features to behavior when features provided', () => {
-      const extendedBehavior = { id: 'extended' } as any
-      const mockBehavior = {
-        id: 'test',
-        with: () => extendedBehavior,
-      } as any
-
-      const result = applyFeaturesToBehavior(mockBehavior, ['Feature1', 'Feature2'], 'TestCluster')
-
-      expect(result).toBe(extendedBehavior)
     })
   })
 

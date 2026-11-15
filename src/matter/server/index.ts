@@ -1,13 +1,12 @@
 export { AccessoryManager } from './AccessoryManager.js'
 export { AccessoryQuery } from './AccessoryQuery.js'
-export { CORE_CLUSTER_BEHAVIOR_MAP, FULL_CLUSTER_BEHAVIOR_MAP } from './BehaviorMap.js'
+export { CORE_CLUSTER_BEHAVIOR_MAP } from './BehaviorMap.js'
 export { CommissioningManager } from './CommissioningManager.js'
 export { FabricManager } from './FabricManager.js'
 export {
   DEFAULT_MATTER_PORT,
   DEFAULT_PRODUCT_ID,
   DEFAULT_VENDOR_ID,
-  MAX_DEVICES_PER_BRIDGE,
   MAX_PASSCODE_ATTEMPTS,
   validateAndSanitizeConfig,
 } from './ServerConfig.js'
