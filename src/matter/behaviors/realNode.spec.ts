@@ -2611,6 +2611,96 @@ describe('an attribute the cluster does not have, on a real node', () => {
   })
 })
 
+describe('the energy mode of a device energy management device, on a real node', () => {
+  const modes = {
+    supportedModes: [
+      {
+        label: 'No optimisation',
+        mode: 0,
+        modeTags: [
+          { value: 16384 },
+        ],
+      },
+      {
+        label: 'Local',
+        mode: 1,
+        modeTags: [
+          { value: 16386 },
+        ],
+      },
+      {
+        label: 'Grid',
+        mode: 2,
+        modeTags: [
+          { value: 16387 },
+        ],
+      },
+    ],
+    currentMode: 0,
+  }
+  const deviceEnergyManagement = {
+    esaType: 13,
+    esaCanGenerate: false,
+    esaState: 1,
+    absMinPower: 0,
+    absMaxPower: 5000000,
+    powerAdjustmentCapability: {
+      powerAdjustCapability: [
+        {
+          minPower: 0,
+          maxPower: 5000000,
+          minDuration: 60,
+          maxDuration: 3600,
+        },
+      ],
+      cause: 0,
+    },
+    optOutState: 0,
+  }
+  // the power adjustment handlers turn on the PowerAdjustment feature the cluster needs
+  const powerAdjustment = {
+    powerAdjustRequest: async () => {},
+    cancelPowerAdjustRequest: async () => {},
+  }
+
+  it('is exposed when the plugin declares it without a handler for it', async () => {
+    const endpoint = await register({
+      deviceType: deviceTypes.DeviceEnergyManagement,
+      clusters: {
+        deviceEnergyManagement,
+        deviceEnergyManagementMode: modes,
+      },
+      handlers: { deviceEnergyManagement: powerAdjustment },
+    } as never)
+
+    expect(stateOf(endpoint, 'deviceEnergyManagementMode')).toMatchObject({ currentMode: 0 })
+    await invoke(endpoint, 'deviceEnergyManagementMode', 'changeToMode', { newMode: 2 })
+    expect(stateOf(endpoint, 'deviceEnergyManagementMode').currentMode).toBe(2)
+  })
+
+  it('calls the handler when the plugin has one', async () => {
+    const calls: number[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.DeviceEnergyManagement,
+      clusters: {
+        deviceEnergyManagement,
+        deviceEnergyManagementMode: modes,
+      },
+      handlers: {
+        deviceEnergyManagement: powerAdjustment,
+        deviceEnergyManagementMode: {
+          changeToMode: async (request: { newMode: number }) => {
+            calls.push(request.newMode)
+          },
+        },
+      },
+    } as never)
+
+    await invoke(endpoint, 'deviceEnergyManagementMode', 'changeToMode', { newMode: 1 })
+    expect(calls).toEqual([1])
+  })
+})
+
 describe('the live state for the UI, on a real node', () => {
   it('can be written as JSON when a struct holds a bigint', async () => {
     const endpoint = await register({

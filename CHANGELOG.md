@@ -266,6 +266,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: start with the default bridge again for a bridge section of null, with a warning
 - fix(matter): use the fallback label when the vendor name is inside a word of the name
 - fix(matter): tell a plugin with only a level handler where a timed level move stopped
+- fix(matter): keep the energy mode a device energy management plugin declares without a handler
 
 ### Homebridge Dependencies
 
