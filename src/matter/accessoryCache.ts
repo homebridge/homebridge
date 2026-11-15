@@ -94,6 +94,8 @@ export class MatterAccessoryCache {
   private readonly cacheFilePath: string
   private cachedAccessories: Map<string, SerializedMatterAccessory> = new Map()
   private readonly retained: Map<string, SerializedMatterAccessory> = new Map()
+  /** Accessories already reported as not savable, so the log line is not repeated at every save. */
+  private readonly unsavable: Set<string> = new Set()
   private cacheLoaded = false
   private cacheReadFailed = false
   private saveQueue: Promise<void> = Promise.resolve()
@@ -263,8 +265,17 @@ export class MatterAccessoryCache {
     const tempFilePath = `${this.cacheFilePath}.tmp`
 
     try {
-      // Serialize accessories (strip out functions and non-serializable objects)
-      const serialized: SerializedMatterAccessory[] = Array.from(accessories.values(), accessory => this.serializeAccessory(accessory))
+      // Serialize accessories (strip out functions and non-serializable objects).
+      // Each one on its own: an accessory with a value that can not be copied
+      // (a function in its cluster state) must not stop the save for the rest.
+      let serialized: SerializedMatterAccessory[] = []
+      for (const accessory of accessories.values()) {
+        try {
+          serialized.push(this.serializeAccessory(accessory))
+        } catch (error) {
+          this.keepPreviousEntry(serialized, accessory.UUID, accessory.displayName, error)
+        }
+      }
       // Entries held for an accessory that is being registered again
       for (const [uuid, entry] of this.retained) {
         if (!accessories.has(uuid)) {
@@ -281,7 +292,25 @@ export class MatterAccessoryCache {
       }
 
       // Write to temporary file first (atomic write pattern to prevent corruption)
-      await writeFile(tempFilePath, JSON.stringify(serialized, null, 2), 'utf-8')
+      let contents: string
+      try {
+        contents = JSON.stringify(serialized, null, 2)
+      } catch {
+        // One entry can not be written as JSON (a bigint or a circular
+        // reference in a plugin's context). Find it, and save the others.
+        const writable: SerializedMatterAccessory[] = []
+        for (const entry of serialized) {
+          try {
+            JSON.stringify(entry)
+            writable.push(entry)
+          } catch (error) {
+            this.keepPreviousEntry(writable, entry.uuid, entry.displayName, error)
+          }
+        }
+        serialized = writable
+        contents = JSON.stringify(serialized, null, 2)
+      }
+      await writeFile(tempFilePath, contents, 'utf-8')
 
       // Atomically move temp file to final location
       await rename(tempFilePath, this.cacheFilePath)
@@ -308,6 +337,28 @@ export class MatterAccessoryCache {
         log.debug('Could not clean up temporary cache file:', cleanupError)
       }
       throw error
+    }
+  }
+
+  /**
+   * For an accessory that can not be saved: say which one and why (once per
+   * accessory), and put the entry of its last good save in its place, so the
+   * accessory is still restored at the next start.
+   */
+  private keepPreviousEntry(entries: SerializedMatterAccessory[], uuid: string, displayName: string, error: unknown): void {
+    const previous = this.cachedAccessories.get(uuid)
+    if (previous) {
+      entries.push(previous)
+    }
+    if (!this.unsavable.has(uuid)) {
+      this.unsavable.add(uuid)
+      const reason = error instanceof Error
+        ? error.message
+        : String(error)
+      log.error(`Matter accessory ${displayName} (${uuid}) can not be saved to the cache: ${reason}. ${previous
+        ? 'Its last saved entry is kept.'
+        : 'It is left out of the cache.'} The other accessories are saved as normal. `
+        + 'The plugin has put a value in the accessory context or cluster state that can not be written as JSON.')
     }
   }
 
