@@ -472,6 +472,7 @@ describe('homebridgeAPI', () => {
         hasActiveMatter: () => true,
         isBridgeServerStarting: () => false,
         getBridgeStartFailure: () => undefined,
+        hasBridgeServerStopped: () => false,
       }
     })
 

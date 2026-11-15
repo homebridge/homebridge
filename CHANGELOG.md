@@ -231,6 +231,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: say in plain words when the port set for a child bridge is in use by another program
 - fix: let a child bridge wait for the hap goodbye and the matter servers when it shuts down
 - fix(matter): send the ui updates for a main bridge external accessory published while it watches
+- fix(matter): tell a plugin the matter server has stopped, not that it is still starting
 
 ### Homebridge Dependencies
 

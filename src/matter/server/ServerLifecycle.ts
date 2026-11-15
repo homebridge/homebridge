@@ -86,6 +86,8 @@ export interface ServerLifecycleDeps {
   getAggregator: () => Endpoint<typeof AggregatorEndpointType> | null
   setIsRunning: (running: boolean) => void
   getIsRunning: () => boolean
+  /** Told when matter.js took the node offline without Homebridge asking. */
+  noteStoppedByItself?: () => void
   cleanupHandlers: Array<() => void | Promise<void>>
 }
 
@@ -679,6 +681,7 @@ export class ServerLifecycle {
         return
       }
       deps.setIsRunning(false)
+      deps.noteStoppedByItself?.()
       log.error(
         `The Matter server on port ${deps.config.port} went offline without being asked to. matter.js shut it down, `
         + 'most likely after an internal error, which is logged above. Its accessories can not be reached over Matter until Homebridge is restarted.',

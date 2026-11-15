@@ -1246,7 +1246,8 @@ describe('serverLifecycle — a node that goes offline without being asked to', 
 
   it('is reported as an error and no longer counts as running', async () => {
     const errorSpy = await mockedLogError()
-    const deps = createMockDeps()
+    const noteStoppedByItself = vi.fn()
+    const deps = createMockDeps({ noteStoppedByItself })
     await lifecycle.start(deps)
     expect(deps.getIsRunning()).toBe(true)
 
@@ -1255,6 +1256,7 @@ describe('serverLifecycle — a node that goes offline without being asked to', 
     goOffline()
 
     expect(deps.getIsRunning()).toBe(false)
+    expect(noteStoppedByItself).toHaveBeenCalledOnce()
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('went offline without being asked to'))
   })
 

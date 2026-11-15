@@ -82,6 +82,8 @@ export class MatterServer extends EventEmitter {
   private readonly behaviorRegistry: BehaviorRegistry
   private readonly registryManager: RegistryManager
   private isRunning = false
+  // matter.js took the node offline without being asked (an internal error)
+  private stoppedByItself = false
   private lastRegistrationAt = 0
   private registrationsInFlight = 0
   private cleanupHandlers: Array<() => void | Promise<void>> = []
@@ -399,7 +401,16 @@ export class MatterServer extends EventEmitter {
    * "starting", or they would be silently dropped (#3970).
    */
   isDeferredPreOnline(): boolean {
-    return this.config.deferOnline === true && !this.isRunning && this.aggregator !== null
+    return this.config.deferOnline === true && !this.isRunning && this.aggregator !== null && !this.stoppedByItself
+  }
+
+  /**
+   * True once matter.js has taken this server's node offline without
+   * Homebridge asking, which it does after an internal error. Nothing starts
+   * the server again in this run.
+   */
+  hasStoppedByItself(): boolean {
+    return this.stoppedByItself
   }
 
   enableStateMonitoring(): void {
@@ -562,6 +573,9 @@ export class MatterServer extends EventEmitter {
         this.isRunning = running
       },
       getIsRunning: () => this.isRunning,
+      noteStoppedByItself: () => {
+        this.stoppedByItself = true
+      },
       cleanupHandlers: this.cleanupHandlers,
     }
   }
