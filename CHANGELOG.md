@@ -163,6 +163,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: do not start an accessory or platform of a plugin whose initializer failed
 - fix: apply the plugins list of config.json when the plugin path points at a single plugin
 - fix: stop with an error when -U or -P is given without a path instead of using the default
+- docs: say when a hap enum imported from homebridge stays in a plugin at run time
 
 ### Homebridge Dependencies
 
