@@ -1,11 +1,14 @@
 import type { Plugin } from './plugin.js'
 
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import process from 'node:process'
 
 import { HAPStorage } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PluginType } from './api.js'
+import { HomebridgeAPI, PluginType } from './api.js'
 import { ChildBridgeFork } from './childBridgeFork.js'
 import { ChildProcessMessageEventType } from './childBridgeService.js'
 import { Logger } from './logger.js'
@@ -235,6 +238,71 @@ describe('childBridgeFork - Matter Accessory Guard', () => {
     // The guard should NOT fire for platform type
     expect((fork as any).bridgeConfig.matter).toBeTruthy()
     expect((fork as any).type).not.toBe(PluginType.ACCESSORY)
+  })
+})
+
+describe('childBridgeFork - startBridge with accessory plugins', () => {
+  let storageDir: string
+
+  beforeEach(() => {
+    storageDir = mkdtempSync(join(tmpdir(), 'hb-child-fork-'))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    rmSync(storageDir, { recursive: true, force: true })
+  })
+
+  // Builds a fork that is ready for startBridge(), with one accessory plugin
+  // whose accessories each expose a single Switch service.
+  function buildAccessoryFork(pluginConfig: Array<Record<string, unknown>>) {
+    const fork = new ChildBridgeFork()
+    const sendMessage = vi.spyOn(fork, 'sendMessage').mockImplementation(() => {})
+    vi.spyOn(fork, 'publishHapIfEnabled').mockImplementation(() => {})
+    vi.spyOn(fork, 'sendPairedStatusEvent').mockImplementation(() => {})
+    vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+    vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+
+    const api = new HomebridgeAPI()
+    class SwitchAccessory {
+      getServices() {
+        return [
+          new api.hap.Service.Switch('Switch'),
+        ]
+      }
+    }
+    const plugin = {
+      getPluginIdentifier: () => 'homebridge-example',
+      getAccessoryConstructor: () => SwitchAccessory,
+    } as unknown as Plugin
+
+    Object.assign(fork as any, {
+      api,
+      type: PluginType.ACCESSORY,
+      identifier: 'ExampleAccessory',
+      pluginConfig,
+      pluginManager: {
+        getPluginForAccessory: () => plugin,
+      },
+      externalPortService: {},
+      bridgeConfig: { username: '0E:DC:5D:BE:D6:75', name: 'Child', pin: '031-45-154' },
+      bridgeOptions: { cachedAccessoriesDir: storageDir, cachedAccessoriesItemName: 'cachedAccessories', externalAccessoriesItemName: 'externalAccessories' },
+    })
+
+    return { fork, sendMessage }
+  }
+
+  it('skips an accessory with no name and still loads the others and comes online', async () => {
+    const { fork, sendMessage } = buildAccessoryFork([
+      { accessory: 'ExampleAccessory' },
+      { accessory: 'ExampleAccessory', name: 'Lamp' },
+    ])
+
+    await fork.startBridge()
+
+    const bridged = (fork as any).bridgeService.bridge.bridgedAccessories
+    expect(bridged.map((accessory: { displayName: string }) => accessory.displayName)).toEqual(['Lamp'])
+    expect(sendMessage).toHaveBeenCalledWith(ChildProcessMessageEventType.ONLINE)
   })
 })
 
