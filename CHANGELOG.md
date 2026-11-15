@@ -128,6 +128,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: drop a cached accessory whose uuid is on the bridge already before the plugin is given it
 - docs: say that the firmware revision of a cached accessory is reset to 0 on every start
 - fix: type the identify listener of a platform accessory with the arguments it is called with
+- perf: write the accessory cache at most once a second however often a plugin saves it
 
 ### Homebridge Dependencies
 
