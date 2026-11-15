@@ -224,7 +224,7 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
   /** Display name for the accessory */
   displayName: string
 
-  /** Matter device type (e.g., OnOffLightDevice, DimmableLightDevice, etc.) */
+  /** Matter device type, from `api.matter.deviceTypes` (e.g. `OnOffLight`, `DimmableLight`) */
   deviceType: EndpointType
 
   /** Optional Matter cluster features implemented by this endpoint. */
@@ -283,6 +283,23 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
    *
    * These handlers are called when a user controls the accessory via the Home app.
    * Use handlers to send commands to your actual device (cloud API, local network, etc.).
+   *
+   * What reaches a plugin, and what does not (there is no general handler like HAP's `onSet`):
+   * - Every command of a cluster Homebridge has a behavior for (`on`, `moveToLevel`,
+   *   `lockDoor` and so on) calls the handler of that name.
+   * - Five attributes a controller writes directly have a `...Change` handler:
+   *   `fanControl.fanModeChange`, `fanControl.percentSettingChange`,
+   *   `thermostat.systemModeChange`, `thermostat.occupiedHeatingSetpointChange` and
+   *   `thermostat.occupiedCoolingSetpointChange`.
+   * - Any other attribute a controller writes changes the Matter state, and the plugin is
+   *   not told.
+   * - State the plugin sends itself with `api.matter.updateAccessoryState()` calls none of
+   *   these handlers.
+   *
+   * To answer a controller with a specific Matter status, throw one of the errors on
+   * `api.matter.status` (for example `new api.matter.status.Busy('...')`). Any other error
+   * is reported to the controller as a plain failure. Identify is a handler too
+   * (`identify.identify`), where HAP has an `identify` event.
    *
    * Known clusters (onOff, levelControl, colorControl, etc.) provide full autocomplete
    * for handler method names and argument types.
