@@ -9,6 +9,12 @@ import type { FabricInfo } from './server/FabricManager.js'
 
 /**
  * Matter event types
+ *
+ * `accessoryAdded` and `accessoryRemoved` come from the Matter server itself
+ * (server/AccessoryManager.ts), not from a manager. It sends them with
+ * `IpcOutgoingEvent.MATTER_EVENT`; in a child bridge they reach the main
+ * process only because that id is the same string as
+ * `ChildProcessMessageEventType.MATTER_EVENT` (`'matterEvent'`).
  */
 export type MatterEventType
   = | 'monitoringStarted'

@@ -666,7 +666,7 @@ export class Server {
   }
 
   /**
-   * Validate an external bridge config
+   * Validate a child bridge config (the `_bridge` block of a platform or accessory)
    */
   private validateChildBridgeConfig(type: PluginType, identifier: string, bridgeConfig: BridgeConfiguration): void {
     // All child bridges require username
@@ -699,7 +699,7 @@ export class Server {
         // only a single platform can exist on one child bridge
         throw new Error(
           `Error loading the ${type} "${identifier}" requested in your config.json - `
-          + `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each platform child bridge must have it's own unique username.`,
+          + `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each platform child bridge must have its own unique username.`,
         )
       } else if (childBridge?.identifier !== identifier) {
         // only accessories of the same type can be added to the same child bridge
@@ -715,7 +715,7 @@ export class Server {
     if (bridgeConfig.username === this.config.bridge.username) {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - `
-        + `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have it's own unique username.`,
+        + `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have its own unique username.`,
       )
     }
 
@@ -1122,9 +1122,6 @@ export class Server {
   }
 
   /**
-   * Handle Matter accessory control command
-   */
-  /**
    * Send an `accessoryControlResponse` back over IPC, echoing the request's
    * `correlationId` when one was given. The UI parks each control request
    * under its correlationId and its dispatcher only delivers events that
@@ -1188,6 +1185,9 @@ export class Server {
     this.armMatterControlFallback(data.uuid, data.correlationId, `child bridge ${childBridge.identifier} did not claim it`)
   }
 
+  /**
+   * Handle Matter accessory control command
+   */
   private async handleMatterAccessoryControl(data?: {
     uuid: string
     cluster: string

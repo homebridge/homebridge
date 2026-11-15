@@ -60,7 +60,9 @@ export const enum ChildProcessMessageEventType {
   START = 'start',
 
   /**
-   * Sent from the child process when the bridge is online
+   * Sent from the child process once the bridge has been started: its
+   * accessories are loaded and the HAP publish has been asked for. The bridge
+   * may not be advertised on the network yet at that moment.
    */
   ONLINE = 'online',
 
@@ -115,6 +117,12 @@ export const enum ChildProcessMessageEventType {
    * Unified Matter event from child process
    * Includes: accessoriesData, accessoryInfoData, accessoryControlResponse,
    * accessoryUpdate, accessoryAdded, accessoryRemoved
+   *
+   * accessoryAdded and accessoryRemoved are sent by the Matter server itself
+   * (matter/server/AccessoryManager.ts) with IpcOutgoingEvent.MATTER_EVENT,
+   * the id the main process uses towards the UI. In a child bridge that only
+   * reaches this handler because the two ids are the same string: keep
+   * them equal.
    */
   MATTER_EVENT = 'matterEvent',
 }
@@ -127,7 +135,7 @@ export const enum ChildBridgeStatus {
   PENDING = 'pending',
 
   /**
-   * The child bridge is online and has published it's accessory
+   * The child bridge is online and has published its accessory
    */
   OK = 'ok',
 
@@ -857,8 +865,8 @@ export class ChildBridgeService {
       const child = this.child
       child.kill('SIGTERM')
       // If the child has not exited within 10s, escalate to SIGKILL.
-      // The 'close' handler will clear this in the normal-exit path because
-      // child.connected becomes false before close fires.
+      // Nothing clears this timer. In the normal-exit path it does nothing
+      // when it fires, because child.connected is false by then.
       const sigkillTimer = setTimeout(() => {
         if (child.connected) {
           this.log.warn('Child bridge did not exit within 10s of SIGTERM; escalating to SIGKILL.')
