@@ -60,6 +60,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: skip a plugin block whose _bridge has no valid username instead of crashing at start-up
 - fix: load the other accessories of a static platform when the bridge refuses one of them
 - fix: log a duplicate external accessory instead of ending homebridge with an unhandled error
+- fix: call every shutdown listener and finish the teardown when one plugin's listener throws
 
 ### Homebridge Dependencies
 
