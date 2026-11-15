@@ -183,7 +183,7 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
     map: (attributes) => {
       // Direct commands via _command attribute
       if ('_command' in attributes) {
-        const cmd = attributes._command as string
+        const cmd = attributes._command
 
         if (cmd === 'upOrOpen' || cmd === 'downOrClose' || cmd === 'stopMotion') {
           return { command: cmd }
@@ -223,7 +223,7 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
     map: (attributes) => {
       // Direct command via _command attribute
       if ('_command' in attributes) {
-        const cmd = attributes._command as string
+        const cmd = attributes._command
 
         if (cmd === 'lockDoor' || cmd === 'unlockDoor') {
           return { command: cmd }
@@ -253,7 +253,7 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
     map: (attributes) => {
       // Direct command via _command attribute
       if ('_command' in attributes) {
-        const cmd = attributes._command as string
+        const cmd = attributes._command
 
         if (cmd === 'open' || cmd === 'close') {
           return { command: cmd }
@@ -308,7 +308,7 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
     map: (attributes) => {
       // Direct command invocation via _command attribute
       if ('_command' in attributes) {
-        const cmd = attributes._command as string
+        const cmd = attributes._command
         if (cmd === 'pause' || cmd === 'resume' || cmd === 'goHome') {
           return { command: cmd }
         }
@@ -320,8 +320,7 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
       // 1 = Running → resume, 2 = Paused → pause
       // Other states (0=Stopped, 64+=dock states) → state-only update
       if ('operationalState' in attributes) {
-        const state = attributes.operationalState as number
-        switch (state) {
+        switch (attributes.operationalState) {
           case 1: // Running
             return { command: 'resume' }
           case 2: // Paused

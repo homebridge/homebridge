@@ -80,16 +80,18 @@ export class BehaviorRegistry {
     commandName: string,
     handler: MatterCommandHandler,
   ): void {
-    if (!this.handlers.has(endpointId)) {
-      this.handlers.set(endpointId, new Map())
+    let endpointHandlers = this.handlers.get(endpointId)
+    if (!endpointHandlers) {
+      endpointHandlers = new Map()
+      this.handlers.set(endpointId, endpointHandlers)
     }
 
-    const endpointHandlers = this.handlers.get(endpointId)!
-    if (!endpointHandlers.has(clusterName)) {
-      endpointHandlers.set(clusterName, new Map())
+    let clusterHandlers = endpointHandlers.get(clusterName)
+    if (!clusterHandlers) {
+      clusterHandlers = new Map()
+      endpointHandlers.set(clusterName, clusterHandlers)
     }
 
-    const clusterHandlers = endpointHandlers.get(clusterName)!
     clusterHandlers.set(commandName, handler)
 
     log.debug(`Registered handler: ${endpointId}.${clusterName}.${commandName}`)

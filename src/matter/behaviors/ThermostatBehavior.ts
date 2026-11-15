@@ -76,16 +76,17 @@ export class HomebridgeThermostatServer extends ThermostatServer {
   protected linkExternalReadings(): void {
     const features = this.features as { localTemperatureNotExposed?: boolean, occupancy?: boolean }
     const state = this.state as { externalMeasuredIndoorTemperature?: number | null, externallyMeasuredOccupancy?: boolean }
-    const events = this.events as any
+    // Which of these events exist depends on the features, so the base type does not list them
+    const events = this.events as unknown as Record<string, Parameters<typeof this.reactTo>[0] | undefined>
 
     if (!features.localTemperatureNotExposed && state.externalMeasuredIndoorTemperature !== undefined) {
       this.mirrorTemperature(state.externalMeasuredIndoorTemperature)
-      this.reactTo(events.externalMeasuredIndoorTemperature$Changed, this.mirrorTemperature)
+      this.maybeReactTo(events.externalMeasuredIndoorTemperature$Changed, this.mirrorTemperature)
     }
 
     if (features.occupancy && state.externallyMeasuredOccupancy !== undefined) {
       this.mirrorOccupancy(state.externallyMeasuredOccupancy)
-      this.reactTo(events.externallyMeasuredOccupancy$Changed, this.mirrorOccupancy)
+      this.maybeReactTo(events.externallyMeasuredOccupancy$Changed, this.mirrorOccupancy)
     }
   }
 
@@ -200,10 +201,9 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     // Only reached if handler succeeded - update Matter state
     await super.setpointRaiseLower(request)
 
-    // Sync thermostat setpoints to cache
-    // Using 'as any' because these properties are feature-dependent (Heating/Cooling features)
-    // and may not be present in the base state type at compile time
-    const currentState = this.state as any
+    // Sync thermostat setpoints to cache. Which of them exist depends on the
+    // features (Heating, Cooling), so the base state type does not list them.
+    const currentState = this.state as { occupiedCoolingSetpoint?: number, occupiedHeatingSetpoint?: number }
     const stateUpdate: Record<string, number> = {}
     if (currentState.occupiedCoolingSetpoint !== undefined) {
       stateUpdate.occupiedCoolingSetpoint = currentState.occupiedCoolingSetpoint
