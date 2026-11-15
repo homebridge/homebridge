@@ -510,6 +510,32 @@ describe('matterBridgeManager', () => {
       })
     })
 
+    it('still lists the accessories when one cache entry has no device type', () => {
+      const manager = buildManager({ enabled: true })
+      const server = buildServer()
+      ;(manager as any).matterServer = {
+        ...server,
+        getAllCachedAccessories: () => [
+          // only the uuid of a cache entry is checked when the file is loaded
+          {
+            uuid: 'damaged-uuid',
+            displayName: 'Damaged',
+            parts: [
+              { id: 'part' },
+            ],
+          },
+          ...server.getAllCachedAccessories(),
+        ],
+      }
+
+      const accessories = manager.collectAllAccessories()
+
+      expect(accessories.map(accessory => [accessory.uuid, accessory.deviceType])).toEqual([
+        ['damaged-uuid', 'Device Code unknown'],
+        ['switch-uuid', 'OnOffLightSwitch'],
+      ])
+    })
+
     it('lists the external accessories in externalsOnly mode, where there is no bridge server', () => {
       const manager = buildManager({ enabled: false, externalsOnly: true })
       ;(manager as any).externalMatterServers.set('switch-uuid', {

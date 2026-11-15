@@ -578,7 +578,10 @@ export class MatterBridgeManager extends BaseMatterManager {
     const currentState = this.getCurrentStateFromServer(server, acc.uuid)
 
     // Convert device type object to string representation
-    const deviceTypeStr = acc.deviceType.name || `Device Code ${acc.deviceType.code || 'unknown'}`
+    // A cache entry is only checked for its uuid when loaded, so the device
+    // type may be missing. Reading its name without a check threw, and one
+    // such entry left the UI with no Matter accessories at all.
+    const deviceTypeStr = acc.deviceType?.name || `Device Code ${acc.deviceType?.code || 'unknown'}`
 
     return {
       // Identity
@@ -588,6 +591,8 @@ export class MatterBridgeManager extends BaseMatterManager {
       manufacturer: acc.manufacturer,
       model: acc.model,
       firmwareRevision: acc.firmwareRevision,
+      hardwareRevision: acc.hardwareRevision,
+      softwareVersion: acc.softwareVersion,
 
       // Device type
       deviceType: deviceTypeStr,
@@ -599,7 +604,7 @@ export class MatterBridgeManager extends BaseMatterManager {
       parts: acc.parts?.map(part => ({
         id: part.id,
         displayName: part.displayName,
-        deviceType: part.deviceType.name || `Device Code ${part.deviceType.code || 'unknown'}`,
+        deviceType: part.deviceType?.name || `Device Code ${part.deviceType?.code || 'unknown'}`,
         clusters: this.getCurrentStateFromServer(server, acc.uuid, part.id),
       })),
 
