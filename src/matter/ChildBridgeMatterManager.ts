@@ -158,10 +158,6 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   // which listeners were attached, so teardown removes the correct ones.
   private externalsOnlyMode = false
 
-  // Whether the UI has state monitoring switched on, so a server made later
-  // (an external accessory) can be given the same setting.
-  private stateMonitoringEnabled = false
-
   // The pending poll of runServerWhenSettled(), so teardown() can stop it.
   private deferOnlineTimer?: ReturnType<typeof setTimeout>
 
@@ -473,17 +469,8 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
             continue
           }
 
-          // Store the server instance
-          this.externalMatterServers.set(accessory.UUID, result.server)
-
-          // A server starts with monitoring off, and the UI switches it on
-          // once, for the servers that exist at that moment. An external
-          // accessory published after that (always the case when the child
-          // bridge restarts with the accessories page open) sent the UI no
-          // state updates until the page was opened again.
-          if (this.stateMonitoringEnabled) {
-            result.server.enableStateMonitoring()
-          }
+          // Store the server instance (with the UI's monitoring setting)
+          this.addExternalMatterServer(accessory.UUID, result.server)
 
           // Listen for state changes and forward to parent process
           // (same pattern as the child bridge server listener in initialize())
@@ -590,7 +577,6 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    */
   override enableStateMonitoring(): void {
     log.debug(`Enabling Matter state monitoring for child bridge ${this.bridgeConfig.username}`)
-    this.stateMonitoringEnabled = true
     super.enableStateMonitoring()
   }
 
@@ -600,7 +586,6 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    */
   override disableStateMonitoring(): void {
     log.debug(`Disabling Matter state monitoring for child bridge ${this.bridgeConfig.username}`)
-    this.stateMonitoringEnabled = false
     super.disableStateMonitoring()
   }
 

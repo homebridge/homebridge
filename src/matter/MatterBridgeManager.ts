@@ -375,8 +375,8 @@ export class MatterBridgeManager extends BaseMatterManager {
             continue
           }
 
-          // Store the server instance
-          this.externalMatterServers.set(accessory.UUID, result.server)
+          // Store the server instance (with the UI's monitoring setting)
+          this.addExternalMatterServer(accessory.UUID, result.server)
 
           // Listen for state changes and forward to UI via IPC
           // (same pattern as the main bridge server listener in initialize())
