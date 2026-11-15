@@ -10,7 +10,6 @@
     "types": ["node"],
     "strict": true,
     "declaration": true,
-    "declarationMap": true,
     "outDir": "./dist",
     "preserveConstEnums": true,
     "sourceMap": true,
