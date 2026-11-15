@@ -1,9 +1,15 @@
 import type { PluginManager } from '../pluginManager.js'
 import type { InternalMatterAccessory } from './types.js'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../logger.js'
+import { User } from '../user.js'
+import { generate } from '../util/mac.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { MatterServer } from './server.js'
 
@@ -407,6 +413,15 @@ describe('baseMatterManager', () => {
   })
 
   describe('handleUnregisterExternalAccessories', () => {
+    // No test in this block may reach the real Homebridge storage folder
+    beforeEach(() => {
+      vi.spyOn(User, 'matterPath').mockReturnValue(join(tmpdir(), 'hb-base-manager-not-there'))
+    })
+
+    afterEach(() => {
+      vi.mocked(User.matterPath).mockRestore()
+    })
+
     it('should stop external servers and clean up storage', async () => {
       const uuid = 'external-1'
       manager.addExternalServer(uuid, mockExternalServer)
@@ -415,10 +430,28 @@ describe('baseMatterManager', () => {
         { UUID: uuid, displayName: 'External 1' } as any,
       ]
 
-      await manager.handleUnregisterExternalAccessories(accessories)
+      // The storage folder is looked up through User.matterPath(). Point it at
+      // a temporary folder: without this the test ran a real recursive delete
+      // inside the Homebridge folder of whoever ran the tests.
+      const matterPath = mkdtempSync(join(tmpdir(), 'hb-base-manager-'))
+      vi.spyOn(User, 'matterPath').mockReturnValue(matterPath)
+      const storageFolder = join(matterPath, generate(uuid).replace(/:/g, ''))
+      mkdirSync(storageFolder)
+      writeFileSync(join(storageFolder, 'credentials.json'), '{}')
+      const otherFolder = join(matterPath, 'SOMEOTHERBRIDGE')
+      mkdirSync(otherFolder)
 
-      expect(mockExternalServer.stop).toHaveBeenCalled()
-      expect(manager.getExternalMatterServers().has(uuid)).toBe(false)
+      try {
+        await manager.handleUnregisterExternalAccessories(accessories)
+
+        expect(mockExternalServer.stop).toHaveBeenCalled()
+        expect(manager.getExternalMatterServers().has(uuid)).toBe(false)
+        // the accessory's own folder is removed, and nothing else
+        expect(existsSync(storageFolder)).toBe(false)
+        expect(existsSync(otherFolder)).toBe(true)
+      } finally {
+        rmSync(matterPath, { recursive: true, force: true })
+      }
     })
 
     it('should handle non-existent accessories gracefully', async () => {
@@ -503,6 +536,16 @@ describe('baseMatterManager', () => {
 
       expect(mockMatterServer.getAllCachedAccessories).toHaveBeenCalled()
       expect(mockPluginManager.getPlugin).toHaveBeenCalledWith('test-plugin')
+      // the platform is handed the accessory, in the plugin-facing shape
+      expect(mockPlugin.getActiveDynamicPlatform).toHaveBeenCalledWith('TestPlatform')
+      const { configureMatterAccessory } = mockPlugin.getActiveDynamicPlatform.mock.results[0].value
+      expect(configureMatterAccessory).toHaveBeenCalledTimes(1)
+      expect(configureMatterAccessory).toHaveBeenCalledWith(expect.objectContaining({
+        UUID: 'cached-1',
+        displayName: 'Cached Light',
+        context: {},
+      }))
+      expect(mockMatterServer.unregisterAccessory).not.toHaveBeenCalled()
     })
 
     it('should remove orphaned accessories when keepOrphaned is false', () => {
