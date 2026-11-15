@@ -1,19 +1,17 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
+    "target": "ES2024",
     "lib": [
-      "ESNext"
+      "ES2024"
     ],
     "rootDir": "./src",
     "module": "nodenext",
-    "moduleResolution": "nodenext",
     "types": ["node"],
     "strict": true,
     "declaration": true,
     "outDir": "./dist",
     "preserveConstEnums": true,
     "sourceMap": true,
-    "esModuleInterop": true,
     "skipLibCheck": true
   },
   "include": [

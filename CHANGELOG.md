@@ -180,6 +180,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - test: cover the prefix, the format parameters and the output stream of each log level
 - build: stop publishing the 83 declaration map files, which point at sources that are not published
 - build: remove three unused dev dependencies (ts-node, @types/debug, @prettier/plugin-xml)
+- build: compile to es2024, which node 22 runs in full, and drop tsconfig options that are defaults
 
 ### Homebridge Dependencies
 
