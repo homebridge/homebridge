@@ -13,23 +13,12 @@
 import type { EndpointType } from '@matter/main'
 
 import type { HomebridgeAPI, MatterAPI, MatterWorkTracker, PlatformName, PluginIdentifier } from '../api.js'
-import type { BaseMatterManager } from './BaseMatterManager.js'
-import type { InternalMatterAccessory, MatterAccessory, MatterServer } from './index.js'
+import type { InternalMatterAccessory, MatterAccessory } from './index.js'
 
 import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
 import { clusterNames, clusters, deviceRequirements, deviceTypes, MatterStatus, MatterTypes } from './index.js'
 import { SwitchAPIImpl } from './SwitchAPI.js'
-
-/**
- * Type helper to access internal properties on HomebridgeAPI
- * We use Record to avoid conflicts with private properties
- */
-interface HomebridgeAPIInternals {
-  _pendingExternalRegistrations?: Map<string, (value: void) => void>
-  _matterManager?: BaseMatterManager
-  _matterServer?: MatterServer | null
-}
 
 const log = Logger.withPrefix('Matter/API')
 
@@ -271,7 +260,7 @@ export class MatterAPIImpl implements MatterAPI {
    * @param cannotAction - leading clause, e.g. `${plugin}: Cannot register Matter accessories`
    */
   private assertMatterReady(cannotAction: string): void {
-    const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
+    const matterManager = this.api._matterManager
     if (!matterManager) {
       throw new Error(
         `${cannotAction} before Homebridge has finished launching. Do this from your platform's 'didFinishLaunching' event, not during plugin initialisation.`,
@@ -340,7 +329,7 @@ export class MatterAPIImpl implements MatterAPI {
       // can tell the accessory was not registered. External accessories are
       // unaffected — they run on their own dedicated server and already await a
       // completion resolver.
-      const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
+      const matterManager = this.api._matterManager
       const startFailure = matterManager?.getBridgeStartFailure()
       if (startFailure !== undefined) {
         throw new Error(
@@ -391,12 +380,7 @@ export class MatterAPIImpl implements MatterAPI {
       const registrationId = `${pluginIdentifier}-${Date.now()}-${Math.random()}`
       const registrationPromise = new Promise<void>((resolve) => {
         // Store the resolve function so it can be called when publishing completes
-        // Access internal properties through type assertion
-        const internalApi = this.api as unknown as HomebridgeAPIInternals
-        if (!internalApi._pendingExternalRegistrations) {
-          internalApi._pendingExternalRegistrations = new Map()
-        }
-        internalApi._pendingExternalRegistrations.set(registrationId, resolve)
+        this.api._addPendingExternalRegistration(registrationId, resolve)
       })
 
       // Emit event with registration ID
@@ -450,7 +434,7 @@ export class MatterAPIImpl implements MatterAPI {
     // each one lives. Only the UUID is needed for that, as for a HAP accessory:
     // the device type is not there on a `{ UUID }` object, and it is a plain
     // copy on the object a plugin is given in configureMatterAccessory.
-    const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
+    const matterManager = this.api._matterManager
     const normalAccessories: MatterAccessory[] = []
     const externalAccessories: MatterAccessory[] = []
 
@@ -566,8 +550,7 @@ export class MatterAPIImpl implements MatterAPI {
     )
 
     // Check external servers first (for accessories like robot vacuums)
-    const internalApi = this.api as unknown as HomebridgeAPIInternals
-    const matterManager = internalApi._matterManager
+    const matterManager = this.api._matterManager
     if (matterManager) {
       const externalServer = matterManager.getExternalServer(uuid)
       if (externalServer) {
@@ -576,7 +559,7 @@ export class MatterAPIImpl implements MatterAPI {
     }
 
     // Otherwise, try the main bridge server
-    const matterServer = internalApi._matterServer
+    const matterServer = this.api._matterServer
     if (!matterServer) {
       log.debug(`getAccessoryState: Matter server not available for accessory ${uuid}`)
       return undefined

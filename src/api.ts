@@ -1001,6 +1001,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   /**
+   * Internal method to remember the promise of an external accessory registration
+   * Called by MatterAPIImpl before it asks the manager to publish the accessories
+   * @internal
+   */
+  _addPendingExternalRegistration(registrationId: string, resolve: () => void): void {
+    this._pendingExternalRegistrations.set(registrationId, resolve)
+  }
+
+  /**
    * Internal method to resolve pending external accessory registrations
    * Called by MatterBridgeManager when external accessories finish publishing
    * @internal

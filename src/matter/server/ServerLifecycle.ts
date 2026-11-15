@@ -9,6 +9,7 @@ import type { ServerNode, VariableService } from '@matter/main'
 
 import type { MatterAccessoryCache } from '../accessoryCache.js'
 import type { MatterServerConfig } from '../sharedTypes.js'
+import type { InternalMatterAccessory } from '../types.js'
 import type { CommissioningDeps, CommissioningManager } from './CommissioningManager.js'
 import type { FabricManager } from './FabricManager.js'
 
@@ -699,7 +700,7 @@ export class ServerLifecycle {
    * publish failure called `stop()` in its catch block. Tear down any
    * resources we actually allocated, regardless of `isRunning`.
    */
-  async stop(deps: ServerLifecycleDeps, accessories: Map<string, any>): Promise<void> {
+  async stop(deps: ServerLifecycleDeps, accessories: Map<string, InternalMatterAccessory>): Promise<void> {
     const isRunning = deps.getIsRunning()
     const serverNode = deps.getServerNode()
 

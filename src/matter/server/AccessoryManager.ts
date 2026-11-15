@@ -1300,7 +1300,7 @@ export class AccessoryManager {
       await endpoint.act(async (agent) => {
         const descriptor = agent.get(DescriptorServer)
         await lockStateForWrite(descriptor)
-        descriptor.addDeviceTypes(deviceTypeName as never)
+        descriptor.addDeviceTypes(deviceTypeName)
       })
       log.debug(`Advertised ${deviceTypeName} device type for ${displayName}`)
     } catch (error) {
