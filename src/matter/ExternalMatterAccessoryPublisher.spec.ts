@@ -478,17 +478,19 @@ describe('externalMatterAccessoryPublisher', () => {
         expect(result).toBeNull()
       })
 
-      it('should handle very high port numbers', async () => {
+      it('gives the port back when the server does not accept its config', async () => {
+        // The real MatterServer refuses a port above 65534, which the port
+        // allocator's extended range can hand out. (This test used to expect
+        // 65535 to work, which only the mocked server allowed.)
         mockPortService.requestMatterPort.mockResolvedValue(65535)
+        mockPortService.releaseMatterPort = vi.fn().mockReturnValue(true)
+        vi.mocked(MatterServer).mockImplementationOnce(function () {
+          throw new Error('Invalid port: Port must be between 1025 and 65534 (got: 65535)')
+        } as never)
 
-        const result = await publishExternalMatterAccessory(mockAccessory, mockContext)
+        await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('Invalid port')
 
-        expect(result?.port).toBe(65535)
-        expect(MatterServer).toHaveBeenCalledWith(
-          expect.objectContaining({
-            port: 65535,
-          }),
-        )
+        expect(mockPortService.releaseMatterPort).toHaveBeenCalledWith('AABBCCDDEEFF')
       })
     })
   })

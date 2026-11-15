@@ -218,6 +218,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs(matter): correct comments that described how the matter code used to work
 - refactor(matter): replace casts and any in the matter api and server with the real types
 - refactor(matter): remove matter server methods and manager types that nothing uses
+- fix(matter): give the port back when an external accessory's server refuses its config
 
 ### Homebridge Dependencies
 
