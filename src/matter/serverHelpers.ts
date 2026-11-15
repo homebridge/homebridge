@@ -801,6 +801,21 @@ export function detectServiceAreaFeatures(
 }
 
 /**
+ * The covering types and end product types Matter allows for a covering with
+ * tilt (window covering cluster, conformance "LF & TL" and "!LF & TL"). The
+ * first of each is the one used when a plugin gives none that fits. 0xFF is
+ * "unknown", which is always allowed.
+ */
+const WINDOW_COVERING_WITH_LIFT_AND_TILT = {
+  type: [8, 0xFF], // TiltBlindLift
+  endProductType: [0x0A, 0x08, 0x0B, 0x0C, 0x0D, 0xFF], // InteriorBlind first
+}
+const WINDOW_COVERING_WITH_TILT_ONLY = {
+  type: [7, 6, 0xFF], // TiltBlindTiltOnly, Shutter
+  endProductType: [0x09, 0x15, 0x16, 0x17, 0xFF], // TiltOnlyInteriorBlind first
+}
+
+/**
  * Apply WindowCovering features to device type
  */
 export function applyWindowCoveringFeatures(
@@ -819,11 +834,22 @@ export function applyWindowCoveringFeatures(
   const windowCoveringWithFeatures = (HomebridgeWindowCoveringServer as any).with(...features)
   const modifiedDeviceType = (deviceType as any).with(windowCoveringWithFeatures)
 
-  const hasTiltFeatures = features.includes('Tilt')
-  if (hasTiltFeatures && accessory.clusters) {
-    const wcCluster = accessory.clusters.windowCovering as Record<string, unknown>
-    wcCluster.type = 8 // TiltBlindLift
-    log.debug('Set WindowCovering type to 8 (TiltBlindLift) for tilt-capable device')
+  // Matter only allows some covering types and end product types for a
+  // covering with tilt, and matter.js's defaults (both 0, a roller shade) are
+  // not among them. A value the plugin set is kept when Matter allows it for
+  // this covering; a missing or disallowed one is replaced, so the accessory
+  // can register.
+  const wcCluster = accessory.clusters?.windowCovering as Record<string, unknown> | undefined
+  if (wcCluster && features.includes('Tilt')) {
+    const allowed = features.includes('Lift')
+      ? WINDOW_COVERING_WITH_LIFT_AND_TILT
+      : WINDOW_COVERING_WITH_TILT_ONLY
+    for (const attribute of ['type', 'endProductType'] as const) {
+      if (!allowed[attribute].includes(wcCluster[attribute] as number)) {
+        wcCluster[attribute] = allowed[attribute][0]
+        log.debug(`Set WindowCovering ${attribute} to ${allowed[attribute][0]} for ${accessory.displayName}, a covering with tilt`)
+      }
+    }
   }
 
   if (!accessory.context) {
