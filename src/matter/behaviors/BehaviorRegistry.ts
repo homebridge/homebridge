@@ -104,13 +104,24 @@ export class BehaviorRegistry {
   }
 
   /**
+   * What a handler is told about where the command arrived: the accessory,
+   * and the part when it was one of the accessory's parts.
+   */
+  private contextOf(endpointId: string): MatterHandlerContext {
+    const part = this.partEndpoints.get(endpointId)
+    return part
+      ? { uuid: part.parentUuid, partId: part.partId }
+      : { uuid: endpointId }
+  }
+
+  /**
    * Execute a handler if it exists
    *
    * @param endpointId - Endpoint identifier
    * @param clusterName - Cluster name
    * @param commandName - Command name
    * @param args - Optional arguments to pass to the handler
-   * @param context - Optional context information
+   * @param context - Passed to the handler in place of the endpoint's own context
    * @returns True once the handler has run successfully
    * @throws a Matter status error: the plugin's own, or Failure when the handler threw anything else or is not registered
    */
@@ -127,7 +138,7 @@ export class BehaviorRegistry {
     }
 
     try {
-      await handler(args, context)
+      await handler(args, context ?? this.contextOf(endpointId))
       return true
     } catch (error) {
       log.error(`Handler error for ${endpointId}.${clusterName}.${commandName}:`, error)

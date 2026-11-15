@@ -128,7 +128,7 @@ describe('behaviorRegistry', () => {
       const args = { level: 100, transitionTime: 200 }
       const result = await registry.executeHandler('endpoint1', 'onOff', 'moveToLevel', args)
 
-      expect(handler).toHaveBeenCalledWith(args, undefined)
+      expect(handler).toHaveBeenCalledWith(args, { uuid: 'endpoint1' })
       expect(result).toBe(true)
     })
 

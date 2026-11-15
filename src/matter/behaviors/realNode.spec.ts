@@ -1285,3 +1285,64 @@ describe('a registration that fails, on a real node', () => {
     expect(deps.behaviorRegistry.getStats()).toMatchObject({ partCount: 2, handlerCount: 2 })
   })
 })
+
+describe('the context a handler is given, on a real node', () => {
+  it('names the accessory for a handler of the accessory itself', async () => {
+    const seen: unknown[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: false },
+      },
+      handlers: {
+        onOff: {
+          on: async (_args, context) => {
+            seen.push(context)
+          },
+        },
+      },
+    })
+
+    await invoke(endpoint, 'onOff', 'on')
+
+    expect(seen).toEqual([
+      { uuid: 'test-uuid' },
+    ])
+  })
+
+  it('names the accessory and the part for a handler of a part', async () => {
+    const seen: unknown[] = []
+    const outlet = (id: string) => ({
+      id,
+      displayName: id,
+      deviceType: deviceTypes.OnOffOutlet,
+      clusters: {
+        onOff: { onOff: false },
+      },
+      handlers: {
+        onOff: {
+          // one handler for every part, as the docs show
+          on: async (_args: unknown, context: { uuid: string, partId?: string }) => {
+            seen.push(context)
+          },
+        },
+      },
+    })
+    await register({
+      deviceType: deviceTypes.BridgedNode,
+      clusters: {},
+      parts: [
+        outlet('left'),
+        outlet('right'),
+      ],
+    } as never)
+
+    const parts = accessories.get('test-uuid')!._parts!
+    const right = parts.find(part => part.id === 'right')!.endpoint as Endpoint
+    await invoke(right, 'onOff', 'on')
+
+    expect(seen).toEqual([
+      { uuid: 'test-uuid', partId: 'right' },
+    ])
+  })
+})
