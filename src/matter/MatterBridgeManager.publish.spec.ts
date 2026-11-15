@@ -6,10 +6,13 @@ import type { HomebridgeOptions } from '../server.js'
 import type { InternalMatterAccessory } from './types.js'
 
 import { EventEmitter } from 'node:events'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../logger.js'
+import { User } from '../user.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterBridgeManager } from './MatterBridgeManager.js'
 
@@ -38,6 +41,7 @@ class FakeExternalServer extends EventEmitter {
 describe('matterBridgeManager: publishing an external accessory', () => {
   let manager: MatterBridgeManager
   let registerExternalMatterBridge: ReturnType<typeof vi.fn>
+  let unregisterExternalMatterBridge: ReturnType<typeof vi.fn>
 
   function publishResult(server: FakeExternalServer) {
     return {
@@ -56,6 +60,9 @@ describe('matterBridgeManager: publishing an external accessory', () => {
     vi.mocked(publishExternalMatterAccessory).mockReset()
     vi.spyOn(Logger.withPrefix('Matter/MainManager'), 'info').mockImplementation(() => {})
     registerExternalMatterBridge = vi.fn()
+    unregisterExternalMatterBridge = vi.fn()
+    // no test here may reach the real Homebridge storage folder
+    vi.spyOn(User, 'matterPath').mockReturnValue(join(tmpdir(), 'hb-main-manager-not-there'))
     manager = new MatterBridgeManager(
       {
         bridge: { name: 'Main', username: 'CC:22:3D:E3:CE:30', pin: '031-45-154' },
@@ -77,6 +84,7 @@ describe('matterBridgeManager: publishing an external accessory', () => {
       { debugModeEnabled: false } as HomebridgeOptions,
       {
         registerExternalMatterBridge,
+        unregisterExternalMatterBridge,
         ipcService: {
           sendMessage: vi.fn(),
         },
@@ -87,6 +95,21 @@ describe('matterBridgeManager: publishing an external accessory', () => {
   afterEach(async () => {
     await manager.teardown()
     vi.restoreAllMocks()
+  })
+
+  it('takes the bridge out of the routing list when the plugin unregisters the accessory', async () => {
+    const server = new FakeExternalServer()
+    vi.mocked(publishExternalMatterAccessory).mockResolvedValue(publishResult(server))
+    await manager.handlePublishExternalAccessories([
+      accessory('ext-1'),
+    ], 'registration-1')
+
+    await manager.handleUnregisterExternalAccessories([
+      accessory('ext-1'),
+    ])
+
+    expect(server.stop).toHaveBeenCalledOnce()
+    expect(unregisterExternalMatterBridge).toHaveBeenCalledWith('EE:00:00:00:00:01')
   })
 
   // The UI switches monitoring on once, for the servers that exist then. A

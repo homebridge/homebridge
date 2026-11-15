@@ -1596,6 +1596,18 @@ describe('server', () => {
         }
       })
 
+      it('no longer routes to an external accessory that was unregistered', async () => {
+        const { server, child } = serverWithNamedChild(true)
+        server.registerExternalMatterBridge('EE:00:00:00:00:01', childUsername)
+        expect((server as any).externalMatterBridgeRegistry.size).toBe(1)
+
+        server.unregisterExternalMatterBridge('ee:00:00:00:00:01')
+
+        expect((server as any).externalMatterBridgeRegistry.size).toBe(0)
+        await (server as any).handleMatterAccessoryControl({ ...request, bridgeUsername: 'EE:00:00:00:00:01' })
+        expect(child.controlMatterAccessory).not.toHaveBeenCalled()
+      })
+
       it('answers at once for an external accessory whose owning child is not running', async () => {
         const { server, sendSpy, child } = serverWithNamedChild(false)
         server.registerExternalMatterBridge('EE:00:00:00:00:01', childUsername)

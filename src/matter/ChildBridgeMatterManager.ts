@@ -71,6 +71,20 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     this.externalPortService.releaseMatterPort(uniqueId)
   }
 
+  protected override forgetExternalMatterBridge(username: string): void {
+    // The parent keeps the routing list: tell it, as it was told at publish
+    sendToParent({
+      id: 'matterEvent',
+      data: {
+        type: 'externalBridgeUnregistration',
+        data: {
+          externalBridgeUsername: username,
+          childBridgeUsername: this.bridgeConfig.username,
+        },
+      },
+    })
+  }
+
   // Stored listener references so they can be removed in teardown()
   private readonly _onPublishExternalMatterAccessories = (accessories: MatterAccessory[], registrationId: string): void => {
     this.handlePublishExternalAccessories(accessories as InternalMatterAccessory[], registrationId).catch((error) => {

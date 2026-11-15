@@ -5,9 +5,12 @@ import type { PluginManager } from '../pluginManager.js'
 import type { InternalMatterAccessory } from './types.js'
 
 import { EventEmitter } from 'node:events'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { User } from '../user.js'
 import { ChildBridgeMatterManager } from './ChildBridgeMatterManager.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 
@@ -164,6 +167,29 @@ describe('childBridgeMatterManager: publishing an external accessory', () => {
     expect(manager.getExternalServer('ext-2')).toBeUndefined()
     expect(manager.getExternalServer('ext-3')).toBe(server)
     expect(api._resolveExternalRegistration).toHaveBeenCalledWith('registration-1')
+  })
+
+  it('tells the parent when the plugin unregisters the accessory, so it is no longer routed to', async () => {
+    const server = new FakeExternalServer()
+    vi.mocked(publishExternalMatterAccessory).mockResolvedValue(publishResult(server))
+    await manager.handlePublishExternalAccessories([
+      accessory('ext-1'),
+    ], 'registration-1')
+    sendToParent.mockClear()
+    vi.spyOn(User, 'matterPath').mockReturnValue(join(tmpdir(), 'hb-child-manager-not-there'))
+
+    await manager.handleUnregisterExternalAccessories([
+      accessory('ext-1'),
+    ])
+
+    expect(sendToParent).toHaveBeenCalledWith({
+      id: 'matterEvent',
+      data: {
+        type: 'externalBridgeUnregistration',
+        data: { externalBridgeUsername: 'EE:00:00:00:00:01', childBridgeUsername: username },
+      },
+    })
+    vi.mocked(User.matterPath).mockRestore()
   })
 
   // The UI switches monitoring on once, for the servers that exist then. A

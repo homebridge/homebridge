@@ -112,6 +112,16 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Called when the server of an external accessory has been stopped and
+   * dropped (the plugin unregistered the accessory). Subclasses override to
+   * take the bridge out of the routing list the UI's requests go by.
+   */
+  // eslint-disable-next-line unused-imports/no-unused-vars
+  protected forgetExternalMatterBridge(username: string): void {
+    // overridden by subclasses
+  }
+
+  /**
    * Get an external Matter server by accessory UUID
    *
    * @param uuid - Accessory UUID
@@ -402,8 +412,11 @@ export abstract class BaseMatterManager {
           continue
         }
 
-        // Remove from the map
+        // Remove from the map, and from the list requests are routed by
         this.externalMatterServers.delete(accessory.UUID)
+        if (matterServer.username) {
+          this.forgetExternalMatterBridge(matterServer.username)
+        }
 
         // Clean up storage folder
         // Generate the same uniqueId that was used when creating the server

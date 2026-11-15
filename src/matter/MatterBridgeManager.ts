@@ -47,6 +47,7 @@ export class MatterBridgeManager extends BaseMatterManager {
     private readonly options: HomebridgeOptions,
     private readonly server: {
       registerExternalMatterBridge: (username: string, owner: string) => void
+      unregisterExternalMatterBridge: (username: string) => void
       ipcService: IpcService
     },
   ) {
@@ -59,6 +60,10 @@ export class MatterBridgeManager extends BaseMatterManager {
 
   protected override releaseExternalMatterPort(uniqueId: string): void {
     this.externalPortService.releaseMatterPort(uniqueId)
+  }
+
+  protected override forgetExternalMatterBridge(username: string): void {
+    this.server.unregisterExternalMatterBridge(username)
   }
 
   // Stored listener references so they can be removed in teardown()

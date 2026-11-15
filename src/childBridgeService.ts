@@ -299,6 +299,9 @@ export class ChildBridgeService {
   // Callback for external Matter bridge registration
   public onExternalBridgeRegistered?: (externalBridgeUsername: string, ownerUsername: string) => void
 
+  // Callback for an external Matter bridge that was unregistered
+  public onExternalBridgeUnregistered?: (externalBridgeUsername: string) => void
+
   // Callback fired when the child sends an accessoryInfoData response, so the
   // parent server can cancel its pending fallback timer for that lookup before
   // it fires a spurious "Timed out" event at the UI.
@@ -609,6 +612,10 @@ export class ChildBridgeService {
               // Pass the child bridge username (not identifier) so it can be looked up in childBridges Map
               this.onExternalBridgeRegistered(data.externalBridgeUsername, this.bridgeConfig.username)
             }
+          } else if (matterEvent.type === 'externalBridgeUnregistration') {
+            // The plugin unregistered the external accessory: nothing is routed to it any more
+            const data = matterEvent.data as { externalBridgeUsername: string }
+            this.onExternalBridgeUnregistered?.(data.externalBridgeUsername)
           } else {
             // accessoryInfoData responses must cancel the parent's fallback
             // timer for that uuid before being forwarded — otherwise the UI
