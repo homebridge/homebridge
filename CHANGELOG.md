@@ -171,6 +171,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - docs: mark api.version as deprecated, as it has been 2.7 since v1.3.0 and says nothing new
 - docs: bring CLAUDE.md and the copilot instructions in line with the code as it is now
 - test: make the logger timestamp tests pass on any locale and able to fail
+- test: make the storage path tests independent of each other and cover setting the path
 
 ### Homebridge Dependencies
 
