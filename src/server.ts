@@ -420,7 +420,12 @@ export class Server {
     if (typeof config !== 'object' || config === null || Array.isArray(config)) {
       throw new TypeError('Your config.json does not hold a configuration: it must be an object ({ ... }) with a "bridge" section.')
     }
-    if (config.bridge !== undefined && (typeof config.bridge !== 'object' || config.bridge === null || Array.isArray(config.bridge))) {
+    // "bridge": null got the default bridge before, as a missing section does: it still does
+    if (config.bridge === null) {
+      log.warn('The "bridge" section of your config.json is null, so the default bridge settings are used.')
+      config.bridge = undefined as unknown as BridgeConfiguration
+    }
+    if (config.bridge !== undefined && (typeof config.bridge !== 'object' || Array.isArray(config.bridge))) {
       throw new TypeError('The "bridge" section of your config.json must be an object ({ ... }) with "name", "username" and "pin".')
     }
 

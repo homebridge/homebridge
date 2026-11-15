@@ -638,6 +638,19 @@ describe('server', () => {
       })).toThrow(/"bridge" section/)
     })
 
+    it('uses the default bridge for a bridge section of null, as it did before, and says so', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, { ...mockConfig, bridge: null })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.name).toBe('Homebridge')
+      expect(warnings.mock.calls.flat().join(' ')).toContain('The "bridge" section of your config.json is null')
+    })
+
     it('skips entries in accessories and platforms that are not objects, and keeps the others', async () => {
       const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
       await fs.writeJson(configPath, {
