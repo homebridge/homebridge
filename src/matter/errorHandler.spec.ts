@@ -230,4 +230,25 @@ describe('matterErrorHandler', () => {
       expect(consoleErrorSpy.mock.calls.flat().join(' ')).toContain('Matter port is already in use. Please configure a different port')
     })
   })
+
+  describe('what it is given', () => {
+    it('does not reject when it is given something that is not an error', async () => {
+      await expect(errorHandler.handleError('just a text' as unknown as Error, 'server-runtime')).resolves.toBeUndefined()
+      await expect(errorHandler.handleError(undefined as unknown as Error)).resolves.toBeUndefined()
+      await expect(errorHandler.handleError({ message: 42 } as unknown as Error, 'server-stop')).resolves.toBeUndefined()
+
+      expect(consoleErrorSpy.mock.calls.flat().join(' ')).toContain('just a text')
+    })
+
+    it('names the kind of error once', async () => {
+      await errorHandler.handleError(new Error('the storage folder is gone'), 'server-stop')
+      await errorHandler.handleError(new Error('invalid value'), 'server-stop')
+      await errorHandler.handleError(new Error('it stopped'), 'server-runtime')
+
+      const logged = consoleErrorSpy.mock.calls.flat().join('\n')
+      expect(logged).toContain('Matter storage error: the storage folder is gone')
+      expect(logged).toContain('Matter configuration error: invalid value')
+      expect(logged).toContain('Matter server error: it stopped')
+    })
+  })
 })
