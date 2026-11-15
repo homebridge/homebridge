@@ -8,9 +8,7 @@ import type { Thermostat } from '@matter/main/clusters'
 
 import { Node } from '@matter/main'
 import { ThermostatServer } from '@matter/main/behaviors/thermostat'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
 import { getRegistryManager } from './EndpointContext.js'
 import { isPluginUpdate } from './pluginUpdates.js'
 import { revertFailedChange } from './revertFailedChange.js'
@@ -199,38 +197,23 @@ export class HomebridgeThermostatServer extends ThermostatServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'thermostat', 'setpointRaiseLower', request)
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'thermostat', 'setpointRaiseLower', request)
 
-      // Only reached if handler succeeded - update Matter state
-      await super.setpointRaiseLower(request)
+    // Only reached if handler succeeded - update Matter state
+    await super.setpointRaiseLower(request)
 
-      // Sync thermostat setpoints to cache
-      // Using 'as any' because these properties are feature-dependent (Heating/Cooling features)
-      // and may not be present in the base state type at compile time
-      const currentState = this.state as any
-      const stateUpdate: Record<string, number> = {}
-      if (currentState.occupiedCoolingSetpoint !== undefined) {
-        stateUpdate.occupiedCoolingSetpoint = currentState.occupiedCoolingSetpoint
-      }
-      if (currentState.occupiedHeatingSetpoint !== undefined) {
-        stateUpdate.occupiedHeatingSetpoint = currentState.occupiedHeatingSetpoint
-      }
-      registry.syncStateToCache(endpointId, 'thermostat', stateUpdate)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to adjust setpoint: ${message}`, Status.Failure)
+    // Sync thermostat setpoints to cache
+    // Using 'as any' because these properties are feature-dependent (Heating/Cooling features)
+    // and may not be present in the base state type at compile time
+    const currentState = this.state as any
+    const stateUpdate: Record<string, number> = {}
+    if (currentState.occupiedCoolingSetpoint !== undefined) {
+      stateUpdate.occupiedCoolingSetpoint = currentState.occupiedCoolingSetpoint
     }
+    if (currentState.occupiedHeatingSetpoint !== undefined) {
+      stateUpdate.occupiedHeatingSetpoint = currentState.occupiedHeatingSetpoint
+    }
+    registry.syncStateToCache(endpointId, 'thermostat', stateUpdate)
   }
 }
