@@ -455,6 +455,17 @@ export class Server {
       throw error
     }
 
+    // Valid JSON that is not an object ("null", a list, a text) has none of the settings read below
+    if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+      throw new TypeError('Your config.json does not hold a configuration: it must be an object ({ ... }) with a "bridge" section.')
+    }
+    if (config.bridge !== undefined && (typeof config.bridge !== 'object' || config.bridge === null || Array.isArray(config.bridge))) {
+      throw new TypeError('The "bridge" section of your config.json must be an object ({ ... }) with "name", "username" and "pin".')
+    }
+
+    config.accessories = Server.configBlocks(config.accessories, 'accessories')
+    config.platforms = Server.configBlocks(config.platforms, 'platforms')
+
     if (config.ports !== undefined) {
       if (config.ports?.start && config.ports.end) {
         // Texts were used as they were: the port after "52100" was "521001".
@@ -477,6 +488,14 @@ export class Server {
 
     const bridge: BridgeConfiguration = config.bridge || defaultBridge
     bridge.name = bridge.name || defaultBridge.name
+    if (typeof bridge.name !== 'string') {
+      // a name written as a number or true/false; anything else has no usable text
+      const name: unknown = bridge.name
+      bridge.name = typeof name === 'number' || typeof name === 'boolean'
+        ? String(name)
+        : defaultBridge.name
+      log.warn(`Value provided in bridge.name is not a text. Using "${bridge.name}" as the name of the bridge.`)
+    }
     bridge.username = bridge.username || defaultBridge.username
     bridge.pin = bridge.pin || defaultBridge.pin
     config.bridge = bridge
@@ -513,19 +532,6 @@ export class Server {
     // Validate the main bridge HAP config (shape + externalsOnly/enabled coherence).
     validateHapConfig(config.bridge, { bridgeLabel: 'main bridge' })
 
-    config.accessories = config.accessories || []
-    config.platforms = config.platforms || []
-
-    if (!Array.isArray(config.accessories)) {
-      log.error('Value provided for accessories must be an array[]')
-      config.accessories = []
-    }
-
-    if (!Array.isArray(config.platforms)) {
-      log.error('Value provided for platforms must be an array[]')
-      config.platforms = []
-    }
-
     log.info('Loaded config.json with %s accessories and %s platforms.', config.accessories.length, config.platforms.length)
 
     if (config.bridge.advertiser) {
@@ -543,6 +549,29 @@ export class Server {
     }
 
     return config as HomebridgeConfig
+  }
+
+  /**
+   * The `accessories` or `platforms` list from the config, without the
+   * entries that are not objects. Everything that walks these lists (the
+   * loaders, the port collectors, the Matter validation) reads properties of
+   * each entry, and a `null` entry made start-up fail with a TypeError.
+   */
+  private static configBlocks<T extends object>(value: unknown, section: 'accessories' | 'platforms'): T[] {
+    if (value === undefined || value === null) {
+      return []
+    }
+    if (!Array.isArray(value)) {
+      log.error(`Value provided for ${section} must be an array[]`)
+      return []
+    }
+    return value.filter((entry, index): entry is T => {
+      const isBlock = typeof entry === 'object' && entry !== null && !Array.isArray(entry)
+      if (!isBlock) {
+        log.warn(`Your config.json contains an entry in ${section} at position ${index + 1} that is not an object. Skipping entry...`)
+      }
+      return isBlock
+    })
   }
 
   private loadAccessories(): void {
