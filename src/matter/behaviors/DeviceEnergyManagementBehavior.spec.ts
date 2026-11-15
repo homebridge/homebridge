@@ -171,7 +171,7 @@ describe('homebridgeDeviceEnergyManagementServer', () => {
   it('leaves the state alone when the plugin refuses', async () => {
     registry.executeHandler = vi.fn().mockRejectedValue(new Error('battery is full'))
 
-    await expect(behavior.powerAdjustRequest(powerAdjustRequest)).rejects.toThrow('Failed to adjust power: battery is full')
+    await expect(behavior.powerAdjustRequest(powerAdjustRequest)).rejects.toThrow('battery is full')
     expect(state.esaState).toBe(Online)
     expect(registry.syncStateToCache).not.toHaveBeenCalled()
   })

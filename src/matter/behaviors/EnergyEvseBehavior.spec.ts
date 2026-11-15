@@ -157,7 +157,7 @@ describe('homebridgeEnergyEvseServer', () => {
   it('leaves the state alone when the plugin refuses', async () => {
     registry.executeHandler = vi.fn().mockRejectedValue(new Error('no car'))
 
-    await expect(behavior.enableCharging(enableChargingRequest)).rejects.toThrow('Failed to enable charging: no car')
+    await expect(behavior.enableCharging(enableChargingRequest)).rejects.toThrow('no car')
     expect(state.supplyState).toBe(Disabled)
     expect(registry.syncStateToCache).not.toHaveBeenCalled()
   })

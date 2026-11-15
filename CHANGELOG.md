@@ -44,6 +44,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): drop the repeated error wrapping from the covering, closure, lock and valve code
 - refactor(matter): drop the repeated error wrapping from the robot vacuum behaviors
 - refactor(matter): drop the repeated error wrapping from the thermostat and identify behaviors
+- refactor(matter): drop the repeated error wrapping from the water heater and energy behaviors
 
 ### Homebridge Dependencies
 
