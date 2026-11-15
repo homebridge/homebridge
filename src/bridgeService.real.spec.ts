@@ -356,6 +356,59 @@ describe('updatePlatformAccessories on the real bridge', () => {
   })
 })
 
+describe('saving the cached accessories', () => {
+  const savedNames = () => (JSON.parse(readFileSync(join(storageDir, 'cachedAccessories'), 'utf-8')) as { displayName: string }[]).map(entry => entry.displayName)
+
+  beforeEach(async () => {
+    await service.loadCachedPlatformAccessoriesFromDisk()
+  })
+
+  it.each([
+    {
+      what: 'a value that refers to itself',
+      spoil: (context: Record<string, unknown>) => {
+        context.self = context
+      },
+    },
+    {
+      what: 'a BigInt',
+      spoil: (context: Record<string, unknown>) => {
+        context.big = 10n
+      },
+    },
+  ])('saves the other accessories when the context of one holds $what', ({ spoil }) => {
+    const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    const [lamp, broken, fan] = [
+      accessory('Lamp'),
+      accessory('Broken'),
+      accessory('Fan'),
+    ]
+    spoil(broken.context)
+
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [lamp, broken])
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [fan])
+
+    expect(savedNames()).toEqual(['Lamp', 'Fan'])
+    // named once, with its plugin, however often the cache is saved
+    const aboutBroken = errors.mock.calls.filter(call => call.includes('Broken'))
+    expect(aboutBroken).toHaveLength(1)
+    expect(aboutBroken[0].join(' ')).toContain(PLUGIN)
+  })
+
+  it('saves an accessory again once its context can be written', () => {
+    vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    const broken = accessory('Broken')
+    broken.context.self = broken.context
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [broken])
+    expect(savedNames()).toEqual([])
+
+    delete broken.context.self
+    api.updatePlatformAccessories([broken])
+
+    expect(savedNames()).toEqual(['Broken'])
+  })
+})
+
 describe('a static platform on the real bridge', () => {
   /** An old-style accessory with one switch service. */
   const staticAccessory = (name: string) => ({
