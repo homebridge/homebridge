@@ -55,6 +55,7 @@ const CLUSTER_COMMAND_MAPPINGS: Record<string, AttributeToCommandMapping> = {
           command: 'moveToLevelWithOnOff',
           args: {
             level: attributes.currentLevel,
+            transitionTime: null,
             optionsMask: EXECUTE_IF_OFF,
             optionsOverride: EXECUTE_IF_OFF,
           },

@@ -31,8 +31,10 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    // Execute user handler
-    await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request)
+    // Execute user handler. A controller always sends a request; the
+    // Homebridge UI calls the command with none, so the handler is given an
+    // empty one and can read request.pinCode either way.
+    await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request ?? {})
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update the Matter attribute.
@@ -50,8 +52,8 @@ export class HomebridgeDoorLockServer extends DoorLockBehavior {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    // Execute user handler
-    await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request)
+    // Execute user handler (with an empty request from the UI, see lockDoor)
+    await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request ?? {})
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update the Matter attribute.

@@ -54,8 +54,10 @@ export class HomebridgeValveConfigurationAndControlServer extends DefaultValveCo
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    // Execute user handler
-    await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'open', request)
+    // Execute user handler. A controller always sends a request; the
+    // Homebridge UI calls the command with none, so the handler is given an
+    // empty one and can read request.openDuration either way.
+    await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'open', request ?? {})
     await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state via super

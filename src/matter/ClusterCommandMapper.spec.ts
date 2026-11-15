@@ -30,6 +30,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: 128,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
@@ -42,6 +43,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: 0,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
@@ -54,6 +56,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: 254,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
@@ -428,6 +431,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: null,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
@@ -440,6 +444,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: undefined,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
