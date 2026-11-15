@@ -453,3 +453,29 @@ describe('matterAPIImpl.registerPlatformAccessories — bridged registration bef
     expect(api.emit).toHaveBeenCalled()
   })
 })
+
+describe('matterAPIImpl — a cluster name homebridge does not know', () => {
+  it('is warned about once, not at every read and update', async () => {
+    const { Logger } = await import('../logger.js')
+    const warn = vi.mocked(Logger.withPrefix('test')).warn
+    warn.mockClear()
+    const impl = new MatterAPIImpl(makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        getExternalServer: () => undefined,
+      },
+    }))
+
+    // a plugin that polls its devices
+    for (let poll = 0; poll < 5; poll++) {
+      await impl.getAccessoryState('uuid-1', 'madeUpCluster')
+      await impl.updateAccessoryState('uuid-1', 'madeUpCluster', { value: poll })
+    }
+    await impl.getAccessoryState('uuid-1', 'anotherMadeUpCluster')
+
+    const warnings = warn.mock.calls.map(call => String(call[0])).filter(text => text.includes('Unknown cluster name'))
+    expect(warnings).toHaveLength(2)
+    expect(warnings[0]).toContain('\'madeUpCluster\'')
+    expect(warnings[1]).toContain('\'anotherMadeUpCluster\'')
+  })
+})
