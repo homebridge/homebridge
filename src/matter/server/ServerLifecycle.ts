@@ -35,7 +35,7 @@ import { User } from '../../user.js'
 import getVersion from '../../version.js'
 import { errorHandler } from '../errorHandler.js'
 import { MatterDeviceError } from '../types.js'
-import { stripVendorFromLabel } from '../utils.js'
+import { resolveInterfaceNames, stripVendorFromLabel } from '../utils.js'
 import {
   STORAGE_LOCK_RETRY_ATTEMPTS,
   STORAGE_LOCK_RETRY_DELAY_MS,
@@ -421,16 +421,27 @@ export class ServerLifecycle {
       }
 
       // Set mdns.networkInterface BEFORE creating the ServerNode.
-      if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
+      //
+      // bridge.bind may hold IP addresses as well as interface names (HAP takes
+      // both), but matter.js wants a name: given an address, or a name this
+      // machine does not have, its mDNS service fails and the node never
+      // starts. So work out the names, and say so when an entry matches nothing.
+      const { names: interfaceNames, unknown: unknownBindEntries } = resolveInterfaceNames(deps.config.networkInterfaces ?? [])
+      for (const entry of unknownBindEntries) {
+        log.warn(`bridge.bind entry "${entry}" is not the name or an address of a network interface on this machine. It is ignored for Matter.`)
+      }
+      if (interfaceNames.length > 0) {
         // Use the interface from bridge.bind — same interface Homebridge's HAP stack uses.
         // matter.js only accepts a single string for mdns.networkInterface.
-        const [primary, ...rest] = deps.config.networkInterfaces
+        const [primary, ...rest] = interfaceNames
         Environment.default.vars.set('mdns.networkInterface', primary)
         if (rest.length === 0) {
           log.info(`Configured Matter mDNS to bind to interface: ${primary}`)
         } else {
           log.info(`Configured Matter mDNS to bind to interface: ${primary} (matter.js only supports a single mDNS interface; the other interfaces in bridge.bind — ${rest.join(', ')} — are unused for mDNS).`)
         }
+      } else if (unknownBindEntries.length > 0) {
+        log.warn('No bridge.bind entry matches a network interface on this machine. Matter mDNS will listen on all network interfaces.')
       } else {
         // No bridge.bind configured — Matter mDNS will listen on all interfaces, consistent
         // with Homebridge's own HAP/ciao mDNS behaviour when bind is unset.
@@ -442,9 +453,9 @@ export class ServerLifecycle {
 
       // Configure network.interface for the Matter UDP transport after ServerNode creation.
       // (See comment above for why this must be post-creation.)
-      if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
+      if (interfaceNames.length > 0) {
         const interfaceConfig: Record<string, { type: number }> = {}
-        for (const interfaceName of deps.config.networkInterfaces) {
+        for (const interfaceName of interfaceNames) {
           interfaceConfig[interfaceName] = { type: 2 }
         }
         Environment.default.vars.set('network.interface', interfaceConfig)

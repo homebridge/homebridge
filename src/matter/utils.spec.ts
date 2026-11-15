@@ -2,6 +2,8 @@
  * Tests for Matter utility functions
  */
 
+import type { NetworkInterfaceInfo } from 'node:os'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -11,6 +13,7 @@ import {
   getMatterJsVersion,
   isNodeError,
   normalizeBindConfig,
+  resolveInterfaceNames,
   stripVendorFromLabel,
 } from './utils.js'
 
@@ -101,6 +104,51 @@ describe('matter utilities', () => {
     it('should preserve multiple addresses in array', () => {
       const addresses = ['192.168.1.1', '192.168.1.2', '10.0.0.1']
       expect(normalizeBindConfig(addresses)).toEqual(addresses)
+    })
+  })
+
+  describe('resolveInterfaceNames', () => {
+    const address = (value: string, family: 'IPv4' | 'IPv6' = 'IPv4') => ({ address: value, family }) as NetworkInterfaceInfo
+    const interfaces = {
+      eth0: [
+        address('192.168.1.10'),
+        address('fe80::1', 'IPv6'),
+      ],
+      wlan0: [
+        address('10.0.0.5'),
+      ],
+    }
+
+    it('keeps an interface name', () => {
+      expect(resolveInterfaceNames(['wlan0'], interfaces)).toEqual({
+        names: ['wlan0'],
+        unknown: [],
+      })
+    })
+
+    it('turns an address into the name of the interface that owns it', () => {
+      expect(resolveInterfaceNames(['192.168.1.10'], interfaces)).toEqual({
+        names: ['eth0'],
+        unknown: [],
+      })
+      expect(resolveInterfaceNames(['fe80::1%eth0'], interfaces)).toEqual({
+        names: ['eth0'],
+        unknown: [],
+      })
+    })
+
+    it('names an interface once when it is given by name and by address', () => {
+      expect(resolveInterfaceNames(['eth0', '192.168.1.10', 'wlan0'], interfaces)).toEqual({
+        names: ['eth0', 'wlan0'],
+        unknown: [],
+      })
+    })
+
+    it('reports an entry that is no interface and no address of one', () => {
+      expect(resolveInterfaceNames(['eth9', '192.168.99.99', 'wlan0'], interfaces)).toEqual({
+        names: ['wlan0'],
+        unknown: ['eth9', '192.168.99.99'],
+      })
     })
   })
 

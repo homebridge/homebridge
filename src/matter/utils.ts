@@ -5,6 +5,9 @@
  */
 
 import type { MacAddress } from '@homebridge/hap-nodejs'
+import type { NetworkInterfaceInfo } from 'node:os'
+
+import { networkInterfaces } from 'node:os'
 
 import { version as matterJsVersion } from '@matter/main'
 
@@ -66,6 +69,46 @@ export function normalizeBindConfig(bind: string | string[] | undefined): string
   return Array.isArray(bind)
     ? bind
     : [bind]
+}
+
+/**
+ * Turn `bridge.bind` entries into network interface names.
+ *
+ * `bridge.bind` may hold interface names or IP addresses, and HAP accepts
+ * both. matter.js only takes an interface NAME, and fails to start its mDNS
+ * service when it is given anything else. So an address is replaced by the
+ * name of the interface that owns it, and an entry that is neither a name nor
+ * an address of an interface on this machine is reported back as unknown.
+ *
+ * @param bind - the normalised `bridge.bind` entries
+ * @param interfaces - the machine's interfaces (injectable for tests)
+ * @returns the interface names, in order and without repeats, and the entries that matched nothing
+ *
+ * @example
+ * ```typescript
+ * resolveInterfaceNames(['192.168.1.10', 'wlan0', 'eth9'])
+ * // { names: ['eth0', 'wlan0'], unknown: ['eth9'] } on a machine where eth0 has 192.168.1.10
+ * ```
+ */
+export function resolveInterfaceNames(
+  bind: string[],
+  interfaces: Record<string, NetworkInterfaceInfo[] | undefined> = networkInterfaces(),
+): { names: string[], unknown: string[] } {
+  const names: string[] = []
+  const unknown: string[] = []
+  for (const entry of bind) {
+    const name = interfaces[entry]
+      ? entry
+      : Object.keys(interfaces).find(interfaceName =>
+          // an IPv6 address may carry a zone: fe80::1%eth0
+          interfaces[interfaceName]?.some(info => info.address === entry || info.address === entry.split('%')[0]))
+    if (!name) {
+      unknown.push(entry)
+    } else if (!names.includes(name)) {
+      names.push(name)
+    }
+  }
+  return { names, unknown }
 }
 
 /**
