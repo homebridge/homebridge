@@ -16,7 +16,6 @@ import {
   determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
-  extractLevelControlFeatures,
   extractThermostatFeatures,
   isWindowCoveringComposed,
   validateAccessoryRequiredFields,
@@ -275,38 +274,6 @@ describe('serverHelpers', () => {
     it('should return empty array when no features are enabled', () => {
       const features = extractThermostatFeatures({})
       expect(features).toEqual([])
-    })
-  })
-
-  describe('extractLevelControlFeatures', () => {
-    it('should extract OnOff feature', () => {
-      const features = extractLevelControlFeatures({ onOff: true })
-      expect(features).toContain('OnOff')
-    })
-
-    it('should extract Lighting feature', () => {
-      const features = extractLevelControlFeatures({ lighting: true })
-      expect(features).toContain('Lighting')
-    })
-
-    it('should extract Frequency feature', () => {
-      const features = extractLevelControlFeatures({ frequency: true })
-      expect(features).toContain('Frequency')
-    })
-
-    it('should extract multiple features in declaration order', () => {
-      const features = extractLevelControlFeatures({ onOff: true, lighting: true, frequency: true })
-      expect(features).toEqual(['OnOff', 'Lighting', 'Frequency'])
-    })
-
-    it('should return empty array when no features are declared (non-lighting device case)', () => {
-      const features = extractLevelControlFeatures({})
-      expect(features).toEqual([])
-    })
-
-    it('should omit Lighting when device type explicitly opts out', () => {
-      const features = extractLevelControlFeatures({ onOff: true, lighting: false })
-      expect(features).toEqual(['OnOff'])
     })
   })
 

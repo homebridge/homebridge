@@ -47,6 +47,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - refactor(matter): drop the repeated error wrapping from the water heater and energy behaviors
 - refactor(matter): remove helpers, a behavior map and six no-op classes that nothing uses
 - refactor(matter): look a device type's cluster up by name instead of searching by cluster number
+- refactor(matter): drop the level control work-around that matter.js 0.18 no longer needs
 
 ### Homebridge Dependencies
 

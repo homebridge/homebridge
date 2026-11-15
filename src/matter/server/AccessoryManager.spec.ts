@@ -113,7 +113,6 @@ vi.mock('../serverHelpers.js', () => ({
   applyElectricalMeasurementClusters: vi.fn((dt: any) => dt),
   detectBehaviorFeatures: vi.fn(() => null),
   extractColorControlFeatures: vi.fn(() => []),
-  extractLevelControlFeatures: vi.fn(() => []),
   extractThermostatFeatures: vi.fn(() => []),
   extractDeclaredFeatures: vi.fn(() => []),
   determineColorControlFeaturesFromHandlers: vi.fn(() => []),

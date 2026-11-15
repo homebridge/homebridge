@@ -54,7 +54,6 @@ import {
   determineColorControlFeaturesFromHandlers,
   extractColorControlFeatures,
   extractDeclaredFeatures,
-  extractLevelControlFeatures,
   extractThermostatFeatures,
   isWindowCoveringComposed,
   markWindowCoveringComposed,
@@ -154,9 +153,7 @@ const FEATURE_RICH_BEHAVIOR_CLUSTERS = new Set([
 const FEATURE_AWARE_CLUSTERS = new Set([
   'closureControl',
   'colorControl',
-  'levelControl',
   'mediaPlayback',
-  'serviceArea',
   'thermostat',
   'windowCovering',
 ])
@@ -828,39 +825,13 @@ export class AccessoryManager {
       )
     }
 
-    // LevelControl: matter.js's public `LevelControlServer` inherits the
-    // Lighting+OnOff feature set from its internal `LevelControlBase` (see
-    // LevelControlServer.ts line ~20: `LevelControlBehavior.with(OnOff, Lighting)`).
-    // The `.for(LevelControl)` pattern that's supposed to reset features is a
-    // no-op because the raw `LevelControl` cluster doesn't declare
-    // `supportedFeatures`, so `syncFeatures` returns the base schema unchanged.
-    //
-    // Consequence: on a Pump endpoint (whose device-type requirements put
-    // LevelControl in `optional`, not `SupportedBehaviors`), attaching our
-    // behavior as-is leaves `features.lighting === true` at runtime. matter.js
-    // then picks the spec's `[LT]` branch for MinLevel ("constraint 1 to 254")
-    // and rejects `minLevel: 0` with a ValidationError, plus
-    // `initializeLighting()` emits "currentLevel/minLevel invalid" warnings.
-    //
-    // Fix: detect the device type's declared LevelControl features and apply
-    // them via `.with(...)`. When the device type declares nothing (Pump and
-    // similar), fall back to an EMPTY feature set so `.with()` explicitly
-    // strips the inherited Lighting/OnOff — the `[!LT]` branch then applies,
-    // `minLevel: 0` is valid, and `initializeLighting()` is skipped.
-    //
-    // See homebridge#3905 and the matter.js Device Library spec § 5 (Pump).
-    let levelControlFeatures: string[] | null = null
-    if (accessory.handlers?.levelControl) {
-      levelControlFeatures = detectBehaviorFeatures(
-        deviceType,
-        'levelControl',
-        extractLevelControlFeatures,
-      )
-      if (levelControlFeatures === null) {
-        levelControlFeatures = []
-        log.debug(`[${accessory.displayName}] Device type declares no LevelControl requirement; stripping inherited Lighting via .with()`)
-      }
-    }
+    // LevelControl: the features the device type declares (a dimmable light's
+    // Lighting and OnOff). They are carried onto the Homebridge behavior by
+    // the general path in buildCustomBehaviors; they are read here as well
+    // because applyLevelControlLightingFloor needs to know about Lighting.
+    const levelControlFeatures = accessory.handlers?.levelControl
+      ? detectBehaviorFeatures(deviceType, 'levelControl', extractDeclaredFeatures)
+      : null
 
     return {
       windowCoveringFeatures,
@@ -1016,20 +987,6 @@ export class AccessoryManager {
         log.info(`Thermostat custom behavior will preserve features: ${features.thermostatFeatures.join(', ')}`)
       }
 
-      // LevelControl: unlike the branches above, we apply `.with(...)` even when
-      // the feature array is empty. That's deliberate — an empty feature set is
-      // what strips the Lighting/OnOff features HomebridgeLevelControlServer
-      // inherits from matter.js's LevelControlBase. See detectClusterFeatures()
-      // above for the full explanation.
-      if (clusterName === 'levelControl' && behaviorClass && features.levelControlFeatures !== null) {
-        behaviorClass = (behaviorClass as any).with(...features.levelControlFeatures)
-        if (features.levelControlFeatures.length > 0) {
-          log.info(`LevelControl custom behavior will preserve features: ${features.levelControlFeatures.join(', ')}`)
-        } else {
-          log.debug('LevelControl custom behavior applied with empty feature set (strips inherited Lighting)')
-        }
-      }
-
       if (clusterName === 'closureControl' && behaviorClass && features.closureControlFeatures && features.closureControlFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.closureControlFeatures)
         log.info(`ClosureControl custom behavior will preserve features: ${features.closureControlFeatures.join(', ')}`)
@@ -1038,11 +995,6 @@ export class AccessoryManager {
       if (clusterName === 'mediaPlayback' && behaviorClass && features.mediaPlaybackFeatures && features.mediaPlaybackFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.mediaPlaybackFeatures)
         log.info(`MediaPlayback custom behavior will preserve features: ${features.mediaPlaybackFeatures.join(', ')}`)
-      }
-
-      if (clusterName === 'serviceArea' && behaviorClass && features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
-        behaviorClass = (behaviorClass as any).with(...features.serviceAreaFeatures)
-        log.info(`ServiceArea custom behavior will preserve features: ${features.serviceAreaFeatures.join(', ')}`)
       }
 
       if (clusterName === 'windowCovering') {
