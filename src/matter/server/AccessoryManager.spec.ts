@@ -118,13 +118,6 @@ vi.mock('../serverHelpers.js', () => ({
   extractDeclaredFeatures: vi.fn(() => []),
   determineColorControlFeaturesFromHandlers: vi.fn(() => []),
   determineColorControlFeaturesFromClusters: vi.fn(() => []),
-  CLUSTER_IDS: {
-    CLOSURE_CONTROL: 0x0104,
-    COLOR_CONTROL: 0x0300,
-    LEVEL_CONTROL: 0x0008,
-    MEDIA_PLAYBACK: 0x0506,
-    THERMOSTAT: 0x0201,
-  },
 }))
 vi.mock('../types.js', () => {
   class MatterDeviceError extends Error {

@@ -45,7 +45,6 @@ import {
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
   applyWindowCoveringFeatures,
-  CLUSTER_IDS,
   detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
   detectSmokeCoAlarmFeatures,
@@ -781,7 +780,7 @@ export class AccessoryManager {
     if (accessory.handlers?.colorControl) {
       colorControlFeatures = detectBehaviorFeatures(
         deviceType,
-        CLUSTER_IDS.COLOR_CONTROL,
+        'colorControl',
         extractColorControlFeatures,
       )
       if (colorControlFeatures) {
@@ -801,7 +800,7 @@ export class AccessoryManager {
     if (accessory.handlers?.thermostat) {
       thermostatFeatures = detectBehaviorFeatures(
         deviceType,
-        CLUSTER_IDS.THERMOSTAT,
+        'thermostat',
         extractThermostatFeatures,
       )
     }
@@ -815,7 +814,7 @@ export class AccessoryManager {
     if (accessory.handlers?.closureControl) {
       closureControlFeatures = detectBehaviorFeatures(
         deviceType,
-        CLUSTER_IDS.CLOSURE_CONTROL,
+        'closureControl',
         extractDeclaredFeatures,
       )
     }
@@ -824,7 +823,7 @@ export class AccessoryManager {
     if (accessory.handlers?.mediaPlayback) {
       mediaPlaybackFeatures = detectBehaviorFeatures(
         deviceType,
-        CLUSTER_IDS.MEDIA_PLAYBACK,
+        'mediaPlayback',
         extractDeclaredFeatures,
       )
     }
@@ -854,7 +853,7 @@ export class AccessoryManager {
     if (accessory.handlers?.levelControl) {
       levelControlFeatures = detectBehaviorFeatures(
         deviceType,
-        CLUSTER_IDS.LEVEL_CONTROL,
+        'levelControl',
         extractLevelControlFeatures,
       )
       if (levelControlFeatures === null) {

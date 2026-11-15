@@ -29,45 +29,6 @@ const log = Logger.withPrefix('Matter/Server')
 export { applyDeclaredClusterFeatures, declaredClusterFeatures, extractDeclaredFeatures } from './clusterFeatures.js'
 
 /**
- * Cluster IDs from Matter specification
- * Using Matter.js Cluster references instead of magic numbers
- */
-export const CLUSTER_IDS = {
-  AIR_QUALITY: clusters.AirQuality.Cluster.id,
-  CARBON_MONOXIDE_CONCENTRATION: clusters.CarbonMonoxideConcentrationMeasurement.Cluster.id,
-  CLOSURE_CONTROL: clusters.ClosureControl.Cluster.id,
-  COLOR_CONTROL: clusters.ColorControl.Cluster.id,
-  DOOR_LOCK: clusters.DoorLock.Cluster.id,
-  KEYPAD_INPUT: clusters.KeypadInput.Cluster.id,
-  LEVEL_CONTROL: clusters.LevelControl.Cluster.id,
-  MEDIA_PLAYBACK: clusters.MediaPlayback.Cluster.id,
-  NITROGEN_DIOXIDE_CONCENTRATION: clusters.NitrogenDioxideConcentrationMeasurement.Cluster.id,
-  ON_OFF: clusters.OnOff.Cluster.id,
-  OZONE_CONCENTRATION: clusters.OzoneConcentrationMeasurement.Cluster.id,
-  PM10_CONCENTRATION: clusters.Pm10ConcentrationMeasurement.Cluster.id,
-  PM25_CONCENTRATION: clusters.Pm25ConcentrationMeasurement.Cluster.id,
-  THERMOSTAT: clusters.Thermostat.Cluster.id,
-  WINDOW_COVERING: clusters.WindowCovering.Cluster.id,
-} as const
-
-/**
- * Behavior info extracted from device type
- */
-interface BehaviorInfo {
-  id: string
-  cluster?: {
-    id: number
-    supportedFeatures?: Record<string, boolean>
-  }
-  /**
-   * Features of a composed behavior, as recorded by matter.js's `.with(...)`.
-   * This is where the feature flags actually live for the clusters inspected
-   * here; `cluster.supportedFeatures` stays undefined for them.
-   */
-  features?: Record<string, boolean>
-}
-
-/**
  * Validates required fields on a Matter accessory
  * @throws MatterDeviceError if validation fails
  */
@@ -155,70 +116,25 @@ export function validateAccessoryRequiredFields(accessory: MatterAccessory): voi
 }
 
 /**
- * Convert device type behaviors to array
- * Handles array, Set, object, or iterable formats
- */
-function convertBehaviorsToArray(behaviors: unknown): BehaviorInfo[] {
-  if (Array.isArray(behaviors)) {
-    return behaviors as BehaviorInfo[]
-  }
-
-  if (typeof behaviors === 'object' && behaviors !== null) {
-    const values = Object.values(behaviors)
-    if (values.length > 0) {
-      return values as BehaviorInfo[]
-    }
-  }
-
-  try {
-    return [...behaviors as Iterable<BehaviorInfo>]
-  } catch {
-    return []
-  }
-}
-
-/**
- * Find a specific behavior by cluster ID or name
- */
-function findBehaviorByCluster(behaviors: BehaviorInfo[], clusterIdOrName: number | string): BehaviorInfo | undefined {
-  return behaviors.find((behavior) => {
-    if (typeof clusterIdOrName === 'number') {
-      return behavior.cluster?.id === clusterIdOrName
-    }
-    return behavior.id === clusterIdOrName
-  })
-}
-
-/**
- * Generic feature detection from device type behaviors
- * Extracts supported features from a device type's cluster definition
+ * The features a device type composed one of its clusters with, passed through
+ * `featureExtractor` to turn matter.js's flags into feature names.
+ *
+ * A device type's behaviors are a plain record keyed by behavior id
+ * (`onOff`, `levelControl`), and matter.js keeps the flags of a composed
+ * behavior on the behavior class itself.
  *
  * @param deviceType - The Matter device type
- * @param clusterIdOrName - Cluster ID (number) or name (string)
- * @param featureExtractor - Function to extract feature names from supportedFeatures
- * @returns Array of detected features or null if cluster not found
+ * @param clusterName - The behavior id of the cluster, as used in the plugin API
+ * @param featureExtractor - Function to extract feature names from the feature flags
+ * @returns Array of detected features or null if the device type does not carry the cluster
  */
 export function detectBehaviorFeatures(
   deviceType: EndpointType,
-  clusterIdOrName: number | string,
+  clusterName: string,
   featureExtractor: (supportedFeatures: Record<string, boolean>) => string[],
 ): string[] | null {
-  const deviceTypeDef = deviceType as { behaviors?: unknown }
-  const existingBehaviors = deviceTypeDef.behaviors
-
-  if (!existingBehaviors) {
-    return null
-  }
-
-  const behaviorsArray = convertBehaviorsToArray(existingBehaviors)
-  const behavior = findBehaviorByCluster(behaviorsArray, clusterIdOrName)
-
-  // matter.js records a composed behavior's features on the behavior itself.
-  // `cluster.supportedFeatures` is only populated for clusters that declare it,
-  // which none of the ones we inspect here do — so relying on it alone meant
-  // this always returned null and every caller fell back to its "no features"
-  // path. Read the behavior's own features when the cluster does not carry them.
-  const supportedFeatures = behavior?.cluster?.supportedFeatures ?? behavior?.features
+  const behaviors = (deviceType as { behaviors?: Record<string, { features?: Record<string, boolean> } | undefined> }).behaviors
+  const supportedFeatures = behaviors?.[clusterName]?.features
 
   if (!supportedFeatures) {
     return null
