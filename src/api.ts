@@ -532,6 +532,11 @@ export interface MatterAPI {
 export interface API {
   /**
    * The homebridge API version as a floating point number.
+   *
+   * @deprecated This number has been `2.7` since Homebridge v1.3.0 (November 2020) and has not followed
+   * the additions to the API since then, so it can not be used to find out what the API supports.
+   * Use {@link versionGreaterOrEqual} (or {@link serverVersion}) instead. The value is kept as it is
+   * for plugins that read it.
    */
   readonly version: number
 
@@ -693,7 +698,10 @@ export declare interface HomebridgeAPI {
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export class HomebridgeAPI extends EventEmitter implements API {
-  public readonly version = 2.7 // homebridge API version
+  /**
+   * @deprecated Fixed at `2.7` since Homebridge v1.3.0: it tells a plugin nothing. See {@link API.version}.
+   */
+  public readonly version = 2.7 // homebridge API version (kept at this value on purpose)
   public readonly serverVersion = getVersion() // homebridge node module version
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
