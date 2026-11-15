@@ -472,6 +472,12 @@ export interface ServiceAreaState {
   }>
 }
 
+/*
+ * The four types below take matter.js's attributes of the cluster, where every
+ * attribute is required, features included. Like the other state types, each
+ * attribute is optional: a plugin declares the ones of its features.
+ */
+
 /**
  * Smoke CO Alarm state. `smokeState` turns on the SmokeAlarm feature and
  * `coState` the CoAlarm one.
@@ -481,23 +487,23 @@ export interface ServiceAreaState {
  * `description` and `batPercentRemaining`), or matter.js logs a device type
  * warning at every start.
  */
-export type SmokeCoAlarmState = SmokeCoAlarm.Attributes
+export type SmokeCoAlarmState = Partial<SmokeCoAlarm.Attributes>
 
 /**
  * Closure Control state, for a garage door, gate or similar. See
  * `ClosureControlHandlers` for what Homebridge records after a command.
  */
-export type ClosureControlState = ClosureControl.Attributes
+export type ClosureControlState = Partial<ClosureControl.Attributes>
 
 /**
  * Media Playback state. `currentState`: 0 = playing, 1 = paused, 2 = not playing, 3 = buffering.
  */
-export type MediaPlaybackState = MediaPlayback.Attributes
+export type MediaPlaybackState = Partial<MediaPlayback.Attributes>
 
 /**
  * Pump Configuration And Control state
  */
-export type PumpConfigurationAndControlState = PumpConfigurationAndControl.Attributes
+export type PumpConfigurationAndControlState = Partial<PumpConfigurationAndControl.Attributes>
 
 /**
  * Power Source state
