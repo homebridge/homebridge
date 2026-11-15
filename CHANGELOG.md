@@ -172,6 +172,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - test: make the logger timestamp tests pass on any locale and able to fail
 - test: make the storage path tests independent of each other and cover setting the path
 - test: let the matter lazy loading check see imports over several lines and through other files
+- test: cover the platform accessory calls of the api and let the getAccessoryState tests fail
 
 ### Homebridge Dependencies
 
