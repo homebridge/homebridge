@@ -225,6 +225,18 @@ function declaredStateOf(accessory: MatterAccessory): DeclaredClusterState | und
   }
 }
 
+/**
+ * The context an accessory keeps when its plugin registers it again: the
+ * plugin's, as on a registration that attaches to the restored accessory.
+ * The known one only when the plugin passes none.
+ */
+function contextToKeep(pluginContext: MatterAccessory['context'], knownContext: MatterAccessory['context']): MatterAccessory['context'] {
+  const pluginGaveNone = pluginContext === undefined || (typeof pluginContext === 'object' && pluginContext !== null && Object.keys(pluginContext).length === 0)
+  return pluginGaveNone && knownContext
+    ? knownContext
+    : pluginContext
+}
+
 export class AccessoryManager {
   /**
    * Register a single Matter accessory
@@ -367,9 +379,7 @@ export class AccessoryManager {
         for (const part of accessory.parts ?? []) {
           this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters, existing._declared?.parts?.[part.id])
         }
-        if (existing.context) {
-          accessory.context = existing.context
-        }
+        accessory.context = contextToKeep(accessory.context, existing.context)
       } else {
         throw new MatterDeviceError(
           `Matter accessory with UUID "${accessory.UUID}" is already registered.\n`
@@ -794,9 +804,7 @@ export class AccessoryManager {
         for (const part of accessory.parts ?? []) {
           this.keepKnownState(part.clusters, cached.parts?.find(cachedPart => cachedPart.id === part.id)?.clusters, cached.declared?.parts?.[part.id])
         }
-        if (cached.context) {
-          accessory.context = cached.context
-        }
+        accessory.context = contextToKeep(accessory.context, cached.context)
 
         log.debug(`Restored cached state for Matter accessory: ${accessory.displayName}`)
       }

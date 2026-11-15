@@ -269,6 +269,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): tell a plugin with only a level handler where a timed level move stopped
 - fix(matter): keep the energy mode a device energy management plugin declares without a handler
 - fix(matter): take a new setting a plugin declares for a restored accessory, not the cached one
+- fix(matter): keep the context a plugin passes when its restored accessory changed structure
 
 ### Homebridge Dependencies
 
