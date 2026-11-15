@@ -7,7 +7,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 
+import { CommissioningServer } from '@matter/node'
 import { FabricManager as MatterFabricManager, TestFabric } from '@matter/protocol'
+import { FabricIndex } from '@matter/types'
 import { ManualPairingCodeCodec, QrPairingCodeCodec } from '@matter/types/schema'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -297,6 +299,36 @@ describe('matterServer storage on real matter.js nodes', () => {
         vendorId: 0xFFF1,
         productId: 0x8001,
       }),
+    ])
+  }, 30000)
+
+  it('tells the ui once for each controller that is paired or removed', async () => {
+    const server = bridgeServer('AFAFAFAFAFAF', 55992)
+    await server.start()
+    const changes: unknown[][] = []
+    server.on('commissioning-status-changed', (...status: unknown[]) => changes.push(status))
+    const node = (server as unknown as { serverNode: ServerNode }).serverNode
+    const fabrics = node.env.get(MatterFabricManager)
+    const commissioningFile = () => JSON.parse(readFileSync(join(matterPath, 'AFAFAFAFAFAF', 'commissioning.json'), 'utf-8'))
+    // What matter.js does itself for a fabric change once the node is online
+    // (this node is not, so the test stands in for it).
+    const fabricChanged = (index: number, action: 'added' | 'deleted') =>
+      node.act(agent => agent.get(CommissioningServer).handleFabricChange(FabricIndex(index), action))
+
+    await TestFabric({ fabrics, index: 1 })
+    await fabricChanged(1, 'added')
+    const second = await TestFabric({ fabrics, index: 2 })
+    await fabricChanged(2, 'added')
+    await vi.waitFor(() => expect(commissioningFile()).toMatchObject({ commissioned: true, fabricCount: 2 }), { timeout: 5000, interval: 50 })
+
+    await second.leave()
+    await fabricChanged(2, 'deleted')
+    await vi.waitFor(() => expect(commissioningFile()).toMatchObject({ commissioned: true, fabricCount: 1 }), { timeout: 5000, interval: 50 })
+
+    expect(changes).toEqual([
+      [true, 1],
+      [true, 2],
+      [true, 1],
     ])
   }, 30000)
 
