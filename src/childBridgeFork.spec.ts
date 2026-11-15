@@ -77,6 +77,90 @@ describe('childBridgeFork — messages from the parent', () => {
   })
 })
 
+describe('childBridgeFork — ending the process', () => {
+  let registered: Record<string, any[]>
+  let shutdown: any
+  let exit: any
+  let timers: Array<{ ms: number, unref: ReturnType<typeof vi.fn> }>
+  let channelUnref: ReturnType<typeof vi.fn>
+  const originalChannel = Object.getOwnPropertyDescriptor(process, 'channel')
+
+  beforeEach(async () => {
+    registered = {}
+    vi.spyOn(process, 'on').mockImplementation((event: any, handler: any) => {
+      registered[event] = registered[event] || []
+      registered[event].push(handler)
+      return process
+    })
+    exit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
+    timers = []
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation(((_handler: unknown, ms: number) => {
+      const timer = {
+        ms,
+        unref: vi.fn(),
+      }
+      timers.push(timer)
+      return timer
+    }) as never)
+    channelUnref = vi.fn()
+    Object.defineProperty(process, 'channel', {
+      value: { unref: channelUnref },
+      configurable: true,
+    })
+    vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+
+    vi.resetModules()
+    const fork = await import('./childBridgeFork.js')
+    shutdown = vi.spyOn(fork.ChildBridgeFork.prototype, 'shutdown').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.resetModules()
+    process.exitCode = undefined
+    if (originalChannel) {
+      Object.defineProperty(process, 'channel', originalChannel)
+    } else {
+      delete (process as { channel?: unknown }).channel
+    }
+  })
+
+  it('tears down on SIGTERM and lets the process end by itself, with five seconds as the limit', () => {
+    registered.SIGTERM[0]()
+
+    expect(shutdown).toHaveBeenCalledTimes(1)
+    expect(process.exitCode).toBe(143)
+    // the ipc channel no longer keeps the process alive ...
+    expect(channelUnref).toHaveBeenCalledTimes(1)
+    // ... and the force-exit timer does not either
+    expect(timers).toEqual([
+      {
+        ms: 5000,
+        unref: expect.any(Function),
+      },
+    ])
+    expect(timers[0].unref).toHaveBeenCalledTimes(1)
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('tears down when the parent process has gone, instead of exiting at once', () => {
+    registered.disconnect[0]()
+
+    expect(shutdown).toHaveBeenCalledTimes(1)
+    expect(process.exitCode).toBe(1)
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('tears down once when a signal and a disconnect both arrive', () => {
+    registered.SIGTERM[0]()
+    registered.disconnect[0]()
+    registered.SIGINT[0]()
+
+    expect(shutdown).toHaveBeenCalledTimes(1)
+    expect(process.exitCode).toBe(143)
+  })
+})
+
 describe('childBridgeFork - public HAP enablement', () => {
   const originalTitle = process.title
 
