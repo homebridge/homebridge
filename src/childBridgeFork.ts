@@ -504,19 +504,30 @@ export class ChildBridgeFork {
     this.matterMessageHandler?.handleMatterAccessoryControl(data)
   }
 
-  shutdown(): void {
+  /**
+   * Take the bridge off the network, save the cache and tell the plugin.
+   * All of that is started before this returns. The promise is for the wait:
+   * it resolves once HAP has said goodbye for each accessory (or its time
+   * limit has passed) and the Matter servers have stopped. It never rejects.
+   */
+  async shutdown(): Promise<void> {
     this.shuttingDown = true
 
     // bridgeService is only assigned once the bridge has started, and a signal
     // can arrive before that.
-    this.bridgeService?.teardown()
+    let hapUnpublished: Promise<void> | undefined
+    try {
+      hapUnpublished = this.bridgeService?.teardown()
+    } catch (error: unknown) {
+      Logger.internal.error('Error during child bridge shutdown:', error)
+    }
 
     // Teardown Matter servers (main bridge and external accessories)
-    if (this.matterManager) {
-      this.matterManager.teardown().catch((error: unknown) => {
-        matterLogger.error('Error tearing down Matter manager:', error)
-      })
-    }
+    const matterStopped = this.matterManager?.teardown().catch((error: unknown) => {
+      matterLogger.error('Error tearing down Matter manager:', error)
+    })
+
+    await Promise.all([hapUnpublished, matterStopped])
   }
 }
 
@@ -613,11 +624,10 @@ function shutdownAndExit(reason: string, exitCode: number): void {
 
   Logger.internal.info('%s, shutting down child bridge process...', reason)
 
-  try {
-    childPluginFork.shutdown()
-  } catch (error: unknown) {
+  // Not waited for here: the process ends by itself when the teardown is done.
+  childPluginFork.shutdown().catch((error: unknown) => {
     Logger.internal.error('Error during child bridge shutdown:', error)
-  }
+  })
 
   process.exitCode = exitCode
   process.channel?.unref()
