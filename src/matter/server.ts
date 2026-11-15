@@ -268,7 +268,10 @@ export class MatterServer extends EventEmitter {
       // the cache's plain copy of the device type, parts with no handlers and
       // the state of the last save. Those replaced the live ones, and the
       // next save wrote the damage to the cache.
-      const existing = this.accessories.get(accessory.UUID)!
+      const existing = this.accessories.get(accessory.UUID)
+      if (!existing) {
+        continue
+      }
       const updated: InternalMatterAccessory = { ...existing }
       for (const field of UPDATABLE_ACCESSORY_FIELDS) {
         if (accessory[field] !== undefined) {
@@ -587,8 +590,8 @@ export class MatterServer extends EventEmitter {
         this.serverNode = node
       },
       getServerNode: () => this.serverNode,
-      setAggregator: (agg: any) => {
-        this.aggregator = agg
+      setAggregator: (aggregator: MatterServer['aggregator']) => {
+        this.aggregator = aggregator
       },
       getAggregator: () => this.aggregator,
       setIsRunning: (running: boolean) => {
