@@ -474,7 +474,12 @@ export class BridgeService {
         cachedAccessories = await this.restoreCachedAccessoriesBackup()
         fromBackup = true
       } else {
+        // The file may be fine and only this read failed (too many open
+        // files, a disk error). Writing the cache now would replace it with
+        // the few accessories registered since, so it is left alone.
         log.error('Not restoring cached accessories - some accessories may be reset.')
+        log.error(`The ${this.bridgeOptions.cachedAccessoriesItemName} file is left as it is: accessories will not be saved until Homebridge is restarted.`)
+        return
       }
     }
 

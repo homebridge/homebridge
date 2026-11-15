@@ -15,6 +15,7 @@ import { BridgeService } from './bridgeService.js'
 import { ExternalPortService } from './externalPortService.js'
 import { Logger } from './logger.js'
 import { PlatformAccessory } from './platformAccessory.js'
+import { StorageService } from './storageService.js'
 
 /**
  * BridgeService against the real HAP-NodeJS bridge and a real cache folder.
@@ -283,6 +284,22 @@ describe('loading the cached accessories from disk', () => {
 
     expect(cached()).toEqual(['From Backup'])
     expect(readFileSync(backupFile(), 'utf-8')).toBe(backup)
+  })
+
+  it('leaves a cache file alone that could not be read for a reason other than its content', async () => {
+    const content = JSON.stringify(serialized(accessory('Good')))
+    writeFileSync(cacheFile(), content)
+    vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    // a one-off failure of the read itself; the file on disk is fine
+    vi.spyOn(StorageService.prototype, 'getItem').mockRejectedValueOnce(Object.assign(new Error('EIO: i/o error, read'), { code: 'EIO' }))
+
+    await service.loadCachedPlatformAccessoriesFromDisk()
+    api.registerPlatformAccessories(PLUGIN, PLATFORM, [
+      accessory('New'),
+    ])
+    await service.teardown()
+
+    expect(readFileSync(cacheFile(), 'utf-8')).toBe(content)
   })
 
   it('backs up a cache file that was read without a problem', async () => {
