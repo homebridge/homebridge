@@ -5,24 +5,15 @@ import process from 'node:process'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Tests for the network.interface env-var handling added in
- *   fix: Matter crash when bridge bind config is set (network.interface env var)
+ * Tests for what ServerLifecycle.start() puts in the matter.js environment.
  *
- * Rationale: `Environment.default` is a process-wide singleton. Before the fix,
- *   (a) `environment.vars.set('network.interface', ...)` was called BEFORE
- *       `MatterServerNode.create()`, which caused `Behaviors.defaultsFor('network')`
- *       to see an `interface` key NetworkBehavior.State doesn't declare and the
- *       ValueCaster threw `[unsupported-cast] Property "interface" is unsupported`.
- *   (b) Even after fixing the ordering, a second ServerNode in the same process
- *       (e.g. an external accessory like RoboticVacuumCleaner) would still crash
- *       because the first server's `network.interface` was left in the singleton.
+ * `Environment.default` is a process-wide singleton. start() sets the mDNS
+ * variables on it before the node is created (matter.js reads them at that
+ * moment) and clears what an earlier server in the same process left there.
  *
- * The fix in ServerLifecycle.start() is:
- *   1. Before ServerNode creation, `delete` any existing `network.interface` from
- *      the env vars (VariableService.get returns a live reference so this mutates
- *      the backing store).
- *   2. After ServerNode creation, `set('network.interface', ...)` — safe because
- *      ServerNetworkRuntime reads it lazily via a getter at run() time.
+ * It no longer sets `network.interface` (#3910 was about the order it was set
+ * in). matter.js only uses that variable to label interfaces in a diagnostics
+ * list; it never limited which interfaces the Matter port listens on.
  */
 
 // Shared fake Environment.default.vars with matter.js dot-path semantics and
@@ -67,7 +58,7 @@ const sharedVarsState: FakeVarsState = { store: {}, calls: [] }
 const sharedVars = makeFakeVars(sharedVarsState)
 
 // Track ServerNode.create invocations so tests can anchor "before/after" assertions
-// against the network.interface clear/set operations on sharedVars.
+// against the clear/set operations on sharedVars.
 const serverNodeCreateCalls: Array<{ t: number, networkInterfaceAtCreate: unknown, mdnsIpv4AtCreate: unknown }> = []
 let serverNodeCreateInvocationIndex = 0
 
@@ -242,7 +233,7 @@ function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLif
   return deps
 }
 
-describe('serverLifecycle — network.interface env var handling (#3910)', () => {
+describe('serverLifecycle — the matter.js environment at start', () => {
   let lifecycle: InstanceType<typeof ServerLifecycle>
 
   beforeEach(() => {
@@ -272,51 +263,6 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
 
   afterEach(() => {
     vi.restoreAllMocks()
-  })
-
-  describe('clearing network.interface before ServerNode creation', () => {
-    it('deletes a pre-existing network.interface before MatterServerNode.create is called', async () => {
-      // Simulate a prior server having set network.interface on the singleton.
-      sharedVarsState.store.network = {
-        interface: {
-          eno1: { type: 2 },
-        },
-      }
-
-      await lifecycle.start(createMockDeps())
-
-      expect(serverNodeCreateCalls).toHaveLength(1)
-      expect(serverNodeCreateCalls[0].networkInterfaceAtCreate).toBeUndefined()
-    })
-
-    it('leaves the network vars object in place (only removes the interface key)', async () => {
-      sharedVarsState.store.network = {
-        interface: {
-          eno1: { type: 2 },
-        },
-        someOtherKey: 'preserved',
-      }
-
-      await lifecycle.start(createMockDeps())
-
-      const networkVars = sharedVarsState.store.network as Record<string, unknown>
-      expect(networkVars).toBeDefined()
-      expect('interface' in networkVars).toBe(false)
-      expect(networkVars.someOtherKey).toBe('preserved')
-    })
-
-    it('does not throw or mutate when no network vars exist', async () => {
-      await expect(lifecycle.start(createMockDeps())).resolves.not.toThrow()
-      // No networkInterfaces configured → nothing should have been set on `network`.
-      expect(sharedVarsState.store.network).toBeUndefined()
-    })
-
-    it('does not throw when network vars exist but have no interface key', async () => {
-      sharedVarsState.store.network = { unrelated: true }
-
-      await expect(lifecycle.start(createMockDeps())).resolves.not.toThrow()
-      expect((sharedVarsState.store.network as Record<string, unknown>).unrelated).toBe(true)
-    })
   })
 
   describe('process signals', () => {
@@ -435,187 +381,40 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     })
   })
 
-  describe('setting network.interface after ServerNode creation', () => {
-    it('sets network.interface only after MatterServerNode.create resolves', async () => {
-      const deps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eno1'],
-        },
-      })
-
-      await lifecycle.start(deps)
-
-      // Find the first 'set' call for 'network.interface' and confirm it came after
-      // ServerNode.create was invoked. Call ordering is preserved in sharedVarsState.calls.
-      const setCallIndex = sharedVarsState.calls.findIndex(c => c.op === 'set' && c.name === 'network.interface')
-      expect(setCallIndex).toBeGreaterThanOrEqual(0)
-
-      // ServerNode.create ran exactly once during this start()
-      expect(serverNodeCreateCalls).toHaveLength(1)
-      // …and at the moment of creation, interface was not yet set.
-      expect(serverNodeCreateCalls[0].networkInterfaceAtCreate).toBeUndefined()
-
-      // After start() completes, interface is present with the expected shape.
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({
-          eno1: { type: 2 },
-        })
+  describe('bridge.bind and the matter.js environment', () => {
+    const withBind = (networkInterfaces: string[]) => createMockDeps({
+      config: {
+        ...createMockDeps().config,
+        networkInterfaces,
+      },
     })
+    const touchedNetworkInterface = () => sharedVarsState.calls.filter(call => call.name === 'network.interface' || call.name === 'network')
 
-    it('gives matter.js the interface name when bridge.bind holds an address', async () => {
-      const deps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['10.0.0.5'],
-        },
-      })
-
-      await lifecycle.start(deps)
+    it('gives matter.js the interface name for mDNS when bridge.bind holds an address', async () => {
+      await lifecycle.start(withBind(['10.0.0.5']))
 
       expect((sharedVarsState.store.mdns as Record<string, unknown>).networkInterface).toBe('wlan0')
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface).toEqual({
-        wlan0: { type: 2 },
-      })
     })
 
-    it('sets no interface when bridge.bind matches nothing on this machine, so matter.js can still start', async () => {
-      const deps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eth9', '192.168.99.99'],
-        },
-      })
-
-      await lifecycle.start(deps)
+    it('sets no mDNS interface when bridge.bind matches nothing on this machine, so matter.js can still start', async () => {
+      await lifecycle.start(withBind(['eth9', '192.168.99.99']))
 
       expect((sharedVarsState.store.mdns as Record<string, unknown> | undefined)?.networkInterface).toBeUndefined()
-      expect((sharedVarsState.store.network as Record<string, unknown> | undefined)?.interface).toBeUndefined()
     })
 
-    it('encodes each configured interface with type=2', async () => {
-      const deps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eno1', 'wlan0'],
-        },
-      })
+    it('does not set network.interface: matter.js only labels a diagnostics list with it, and logs an error for it when the last controller is removed', async () => {
+      await lifecycle.start(withBind(['eno1', 'wlan0']))
 
-      await lifecycle.start(deps)
-
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({
-          eno1: { type: 2 },
-          wlan0: { type: 2 },
-        })
-    })
-
-    it('does not set network.interface when no networkInterfaces are configured', async () => {
-      await lifecycle.start(createMockDeps())
-
-      const setCalls = sharedVarsState.calls.filter(c => c.op === 'set' && c.name === 'network.interface')
-      expect(setCalls).toHaveLength(0)
       expect(sharedVarsState.store.network).toBeUndefined()
+      expect(touchedNetworkInterface()).toEqual([])
     })
 
-    it('does not set network.interface when networkInterfaces is an empty array', async () => {
-      const deps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: [],
-        },
-      })
+    it('leaves a network variable that something else set as it is', async () => {
+      sharedVarsState.store.network = { unrelated: true }
 
-      await lifecycle.start(deps)
+      await lifecycle.start(withBind(['eno1']))
 
-      const setCalls = sharedVarsState.calls.filter(c => c.op === 'set' && c.name === 'network.interface')
-      expect(setCalls).toHaveLength(0)
-    })
-  })
-
-  describe('sequential starts against the Environment.default singleton', () => {
-    it('a second start clears the first start\'s network.interface before creating its ServerNode', async () => {
-      // First lifecycle sets network.interface (main bridge).
-      const firstDeps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eno1'],
-        },
-      })
-      await lifecycle.start(firstDeps)
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({
-          eno1: { type: 2 },
-        })
-
-      // Second lifecycle (e.g. external accessory / RoboticVacuumCleaner) starts
-      // against the same Environment.default.
-      const secondLifecycle = new ServerLifecycle()
-      vi.spyOn(secondLifecycle, 'setupStorage').mockImplementation(async () => {
-        secondLifecycle.matterStoragePath = '/fake/storage/TEST0002'
-        return {
-          load: vi.fn(async () => new Map()),
-        } as never
-      })
-      const secondProto = Object.getPrototypeOf(secondLifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
-      vi.spyOn(secondProto, 'startServerNode').mockImplementation(async () => {})
-
-      const secondDeps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          uniqueId: 'TEST0002',
-          serialNumber: 'TEST0002',
-          externalAccessory: true,
-          networkInterfaces: ['eno1'],
-        },
-      })
-      await secondLifecycle.start(secondDeps)
-
-      // The second ServerNode.create must have seen a clean environment — this is
-      // the exact regression the PR guards against.
-      expect(serverNodeCreateCalls).toHaveLength(2)
-      expect(serverNodeCreateCalls[1].networkInterfaceAtCreate).toBeUndefined()
-
-      // After the second start completes, interface is reapplied for the runtime.
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({
-          eno1: { type: 2 },
-        })
-    })
-
-    it('a second start with no networkInterfaces leaves the first start\'s interface cleared', async () => {
-      const firstDeps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eno1'],
-        },
-      })
-      await lifecycle.start(firstDeps)
-
-      const secondLifecycle = new ServerLifecycle()
-      vi.spyOn(secondLifecycle, 'setupStorage').mockImplementation(async () => {
-        secondLifecycle.matterStoragePath = '/fake/storage/TEST0002'
-        return {
-          load: vi.fn(async () => new Map()),
-        } as never
-      })
-      const secondProto = Object.getPrototypeOf(secondLifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
-      vi.spyOn(secondProto, 'startServerNode').mockImplementation(async () => {})
-
-      await secondLifecycle.start(createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          uniqueId: 'TEST0002',
-          serialNumber: 'TEST0002',
-          externalAccessory: true,
-        },
-      }))
-
-      expect(serverNodeCreateCalls[1].networkInterfaceAtCreate).toBeUndefined()
-
-      // No networkInterfaces on the second lifecycle → interface remains unset after start too.
-      const networkVars = sharedVarsState.store.network as Record<string, unknown> | undefined
-      expect(networkVars?.interface).toBeUndefined()
+      expect(sharedVarsState.store.network).toEqual({ unrelated: true })
     })
   })
 })

@@ -383,24 +383,23 @@ export class ServerLifecycle {
         }
       }
 
-      // Determine the mDNS network interface to use.  MdnsService reads
-      // 'mdns.networkInterface' at construction time (inside createServerNodeWithRecovery),
-      // so this value MUST be set before calling createServerNodeWithRecovery().
+      // Determine the mDNS network interface to use. MdnsService reads
+      // 'mdns.networkInterface' when it is constructed (inside
+      // createServerNodeWithRecovery), so the value MUST be set before that call.
       //
-      // 'network.interface' (Matter UDP transport) is intentionally set AFTER ServerNode
-      // creation because Behaviors.defaultsFor('network') reads the full 'network' env
-      // subtree during construction and the ValueCaster rejects the unknown 'interface' key.
-      // ServerNetworkRuntime reads it lazily at run() time, so setting it post-creation is fine.
+      // ⚠️ bridge.bind limits Matter's mDNS only. The Matter port itself (UDP)
+      // listens on every interface: matter.js binds it to the addresses in
+      // `network.listeningAddressIpv4` / `listeningAddressIpv6`, which
+      // Homebridge does not set. `network.interface` was set here before in
+      // the belief that it did this. It does not: matter.js only reads it to
+      // label interfaces in the general diagnostics list, and logs an error
+      // for it ("Property interface is unsupported") each time the last
+      // controller removes the bridge.
 
       // Clear any previously set values from a prior server instance. Environment.default is
       // a singleton shared across all server instances in the process.
       // VariableService.get() returns a direct reference to the internal vars object, so
       // deleting the key here mutates the stored value without needing a private API.
-      const networkVars = Environment.default.vars.get<VariableService.Map>('network')
-      if (typeof networkVars === 'object' && networkVars !== null && 'interface' in networkVars) {
-        delete networkVars.interface
-        log.debug('Cleared network.interface from environment before ServerNode creation')
-      }
       const mdnsVars = Environment.default.vars.get<VariableService.Map>('mdns')
       if (typeof mdnsVars === 'object' && mdnsVars !== null && 'networkInterface' in mdnsVars) {
         delete mdnsVars.networkInterface
@@ -442,7 +441,7 @@ export class ServerLifecycle {
         const [primary, ...rest] = interfaceNames
         Environment.default.vars.set('mdns.networkInterface', primary)
         if (rest.length === 0) {
-          log.info(`Configured Matter mDNS to bind to interface: ${primary}`)
+          log.info(`Configured Matter mDNS to bind to interface: ${primary} (the Matter port itself listens on all interfaces)`)
         } else {
           log.info(`Configured Matter mDNS to bind to interface: ${primary} (matter.js only supports a single mDNS interface; the other interfaces in bridge.bind — ${rest.join(', ')} — are unused for mDNS).`)
         }
@@ -456,16 +455,6 @@ export class ServerLifecycle {
 
       const serverNode = await this.createServerNodeWithRecovery(nodeOptions, sanitizedId)
       deps.setServerNode(serverNode)
-
-      // Configure network.interface for the Matter UDP transport after ServerNode creation.
-      // (See comment above for why this must be post-creation.)
-      if (interfaceNames.length > 0) {
-        const interfaceConfig: Record<string, { type: number }> = {}
-        for (const interfaceName of interfaceNames) {
-          interfaceConfig[interfaceName] = { type: 2 }
-        }
-        Environment.default.vars.set('network.interface', interfaceConfig)
-      }
 
       // Set up commissioning event listeners. Register a matching cleanup
       // handler so the matter.js Observable observers (which capture deps and
