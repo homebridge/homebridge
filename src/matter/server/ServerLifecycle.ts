@@ -612,6 +612,39 @@ export class ServerLifecycle {
     })
 
     deps.setIsRunning(true)
+    this.watchForUnrequestedStop(serverNode, deps)
+  }
+
+  /**
+   * Notice a node that goes offline when Homebridge did not stop it.
+   *
+   * Every matter.js node in a process is a worker of one shared runtime, and
+   * a background task of any node that fails makes that runtime shut all of
+   * them down. Homebridge logged "stopped normally" and went on reporting the
+   * server as running. Now it says so, and no longer reports it as running.
+   * The server is not started again: the cause is an internal error, and a
+   * restart of Homebridge is the way to a known state.
+   *
+   * Two cases are not this one. Homebridge's own stop() marks the server as
+   * not running before it closes the node. And when the last controller
+   * removes the bridge, matter.js resets the node: it goes offline and comes
+   * straight back, still wanting to be online.
+   */
+  private watchForUnrequestedStop(serverNode: ServerNode, deps: ServerLifecycleDeps): void {
+    const onOffline = (): void => {
+      if (!deps.getIsRunning() || serverNode.lifecycle.shouldBeOnline) {
+        return
+      }
+      deps.setIsRunning(false)
+      log.error(
+        `The Matter server on port ${deps.config.port} went offline without being asked to. matter.js shut it down, `
+        + 'most likely after an internal error, which is logged above. Its accessories can not be reached over Matter until Homebridge is restarted.',
+      )
+    }
+    serverNode.lifecycle.offline.on(onOffline)
+    deps.cleanupHandlers.push(() => {
+      serverNode.lifecycle.offline.off(onOffline)
+    })
   }
 
   /**

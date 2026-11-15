@@ -1190,3 +1190,99 @@ describe('serverLifecycle — a node that fails to go online', () => {
     expect(deps.getIsRunning()).toBe(false)
   })
 })
+
+/**
+ * matter.js can shut a node down by itself: a failed background task of any
+ * node stops every node in the process.
+ */
+describe('serverLifecycle — a node that goes offline without being asked to', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+  let offlineListeners: Array<() => void>
+  let nodeLifecycle: { shouldBeOnline: boolean, offline: { on: (listener: () => void) => void, off: (listener: () => void) => void } }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    offlineListeners = []
+    nodeLifecycle = {
+      shouldBeOnline: true,
+      offline: {
+        on: (listener) => {
+          offlineListeners.push(listener)
+        },
+        off: (listener) => {
+          offlineListeners = offlineListeners.filter(existing => existing !== listener)
+        },
+      },
+    }
+    vi.mocked(MatterServerNode.create).mockImplementation(async () => ({
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
+      lifecycle: nodeLifecycle,
+      add: vi.fn(),
+      close: vi.fn(async () => {}),
+    }) as never)
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+    lifecycle = new ServerLifecycle()
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return {
+        load: vi.fn(async () => new Map()),
+        cancelPendingSave: vi.fn(),
+        hasPendingSave: vi.fn(() => false),
+      } as never
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const goOffline = (): void => offlineListeners.forEach(listener => listener())
+  // the logger is mocked in this file: every prefix shares one set of spies
+  const mockedLogError = async () => vi.mocked((await import('../../logger.js')).Logger.withPrefix('test')).error
+
+  it('is reported as an error and no longer counts as running', async () => {
+    const errorSpy = await mockedLogError()
+    const deps = createMockDeps()
+    await lifecycle.start(deps)
+    expect(deps.getIsRunning()).toBe(true)
+
+    // matter.js closed the node: it no longer wants to be online
+    nodeLifecycle.shouldBeOnline = false
+    goOffline()
+
+    expect(deps.getIsRunning()).toBe(false)
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('went offline without being asked to'))
+  })
+
+  it('is left alone while matter.js resets the node after the last controller removed it', async () => {
+    const errorSpy = await mockedLogError()
+    const deps = createMockDeps()
+    await lifecycle.start(deps)
+
+    // offline for the reset, and coming straight back
+    goOffline()
+
+    expect(deps.getIsRunning()).toBe(true)
+    expect(errorSpy).not.toHaveBeenCalled()
+  })
+
+  it('says nothing when homebridge stops the server itself', async () => {
+    const errorSpy = await mockedLogError()
+    const deps = createMockDeps()
+    await lifecycle.start(deps)
+    vi.mocked(deps.getServerNode()!.close).mockImplementation(async () => {
+      nodeLifecycle.shouldBeOnline = false
+      goOffline()
+    })
+
+    await lifecycle.stop(deps, new Map())
+
+    expect(errorSpy).not.toHaveBeenCalled()
+    // and the listener is taken off the node again
+    expect(offlineListeners).toEqual([])
+  })
+})

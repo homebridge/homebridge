@@ -202,6 +202,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): stop setting a matter.js network variable that did nothing but log an error
 - fix(matter): keep matter.js from reading its own config file, the command line and exit code
 - fix(matter): send matter.js warnings and errors to stderr, as homebridge's own are
+- fix(matter): report a matter server that matter.js shut down by itself, and stop calling it running
 
 ### Homebridge Dependencies
 
