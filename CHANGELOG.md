@@ -95,6 +95,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): fail only the registration of a thermostat matter.js refuses, not all of homebridge
 - fix(matter): let a command the plugin has no handler for change the state instead of failing
 - fix(matter): let two commands sent together for one accessory both succeed
+- fix(matter): keep the clean mode and service area of a robot vacuum that has no handlers
 
 ### Homebridge Dependencies
 
