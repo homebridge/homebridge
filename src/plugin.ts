@@ -14,6 +14,7 @@ import type {
 import type { PackageJSON } from './pluginManager.js'
 
 import assert from 'node:assert'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
@@ -212,7 +213,17 @@ meaning they carry an additional copy of homebridge and hap-nodejs. This not onl
 major incompatibility issues and thus is considered bad practice. Please inform the developer to update their plugin!`)
     }
 
-    const mainPath = join(this.pluginPath, this.main)
+    // Find the file the way require() does: a main with no extension gets
+    // ".js", and a main that is a folder gives its index.js. import() does
+    // neither, so a CommonJS plugin with `"main": "dist/index"` or
+    // `"main": "dist"`, which loaded on Homebridge 1, would fail here. When the
+    // file can not be found the path is used as it is, and import() says why.
+    let mainPath = join(this.pluginPath, this.main)
+    try {
+      mainPath = createRequire(join(this.pluginPath, 'package.json')).resolve(mainPath)
+    } catch {
+      // import() below reports the missing file
+    }
 
     // try to import it and grab the exported initialization hook
     // pathToFileURL(specifier).href to turn a path into a "file url"
