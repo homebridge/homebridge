@@ -258,20 +258,51 @@ describe('pluginManager', () => {
     })
   })
 
-  describe('...Name', () => {
-    it('should extract accessory name correctly', () => {
-      const accessoryId = 'homebridge-example-accessory.example'
-      expect(PluginManager.getAccessoryName(accessoryId)).toBe('example')
+  describe('accessory and platform identifiers', () => {
+    // [identifier as written in config.json, plugin part, accessory or platform name]
+    const forms: Array<[string, string, string]> = [
+      ['example', 'example', 'example'],
+      ['homebridge-example-plugin.example', 'homebridge-example-plugin', 'example'],
+      ['@organisation/homebridge-example.example', '@organisation/homebridge-example', 'example'],
+      // a scope may hold dots: only a dot after the `/` ends the plugin part
+      ['@my.scope/homebridge-x.Plat', '@my.scope/homebridge-x', 'Plat'],
+      ['@my.scope.two/homebridge-x.Plat', '@my.scope.two/homebridge-x', 'Plat'],
+      // everything after the first dot of the plugin part is the name
+      ['homebridge-x.My.Platform', 'homebridge-x', 'My.Platform'],
+      ['@organisation/homebridge-x.My.Platform', '@organisation/homebridge-x', 'My.Platform'],
+    ]
+
+    it.each(forms)('reads the accessory name of %s', (identifier, _plugin, name) => {
+      expect(PluginManager.getAccessoryName(identifier)).toBe(name)
     })
 
-    it('should extract platform name correctly', () => {
-      const accessoryId = 'homebridge-example-platform.example'
-      expect(PluginManager.getPlatformName(accessoryId)).toBe('example')
+    it.each(forms)('reads the platform name of %s', (identifier, _plugin, name) => {
+      expect(PluginManager.getPlatformName(identifier)).toBe(name)
     })
 
-    it('should extract plugin name correctly', () => {
-      const accessoryId = 'homebridge-example-plugin.example'
-      expect(PluginManager.getPluginIdentifier(accessoryId)).toBe('homebridge-example-plugin')
+    it.each(forms)('reads the plugin identifier of %s', (identifier, plugin) => {
+      expect(PluginManager.getPluginIdentifier(identifier)).toBe(plugin)
+    })
+
+    it('finds a platform and an accessory of a plugin whose scope holds a dot', async () => {
+      const api = new HomebridgeAPI()
+      const manager = new PluginManager(api)
+      const plugin = {
+        getPluginIdentifier: () => '@my.scope/homebridge-x',
+        registerPlatform: vi.fn(),
+        registerAccessory: vi.fn(),
+        initialize: (api: HomebridgeAPI) => {
+          api.registerPlatform('Plat', class {} as any)
+          api.registerAccessory('Acc', class {} as any)
+        },
+      } as any
+      ;(manager as any).plugins.set('@my.scope/homebridge-x', plugin)
+      await manager.initializePlugin(plugin, '@my.scope/homebridge-x')
+
+      expect(manager.getPluginForPlatform('@my.scope/homebridge-x.Plat')).toBe(plugin)
+      expect(manager.getPluginForAccessory('@my.scope/homebridge-x.Acc')).toBe(plugin)
+      expect(manager.getPluginForPlatform('Plat')).toBe(plugin)
+      expect(manager.getPluginForAccessory('Acc')).toBe(plugin)
     })
   })
 })
