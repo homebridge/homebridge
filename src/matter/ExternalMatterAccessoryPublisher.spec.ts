@@ -54,7 +54,7 @@ describe('externalMatterAccessoryPublisher', () => {
     // Mock MatterServer
     mockMatterServer = {
       start: vi.fn().mockResolvedValue(undefined),
-      registerPlatformAccessories: vi.fn().mockResolvedValue(undefined),
+      registerAccessory: vi.fn().mockResolvedValue(undefined),
       runServer: vi.fn().mockResolvedValue(undefined),
       getCommissioningInfo: vi.fn().mockReturnValue({
         qrCode: 'MT:MOCK-QR-CODE',
@@ -249,7 +249,7 @@ describe('externalMatterAccessoryPublisher', () => {
           callOrder.push('start')
           return Promise.resolve()
         })
-        mockMatterServer.registerPlatformAccessories.mockImplementation(() => {
+        mockMatterServer.registerAccessory.mockImplementation(() => {
           callOrder.push('register')
           return Promise.resolve()
         })
@@ -262,10 +262,10 @@ describe('externalMatterAccessoryPublisher', () => {
       it('should register accessory with plugin identifier', async () => {
         await publishExternalMatterAccessory(mockAccessory, mockContext)
 
-        expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledWith(
+        expect(mockMatterServer.registerAccessory).toHaveBeenCalledWith(
           'homebridge-test-plugin',
           'ExternalMatter',
-          [mockAccessory],
+          mockAccessory,
         )
       })
 
@@ -274,14 +274,12 @@ describe('externalMatterAccessoryPublisher', () => {
 
         await publishExternalMatterAccessory(accessoryNoPlugin, mockContext)
 
-        expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledWith('unknown', 'ExternalMatter', [
-          accessoryNoPlugin,
-        ])
+        expect(mockMatterServer.registerAccessory).toHaveBeenCalledWith('unknown', 'ExternalMatter', accessoryNoPlugin)
       })
 
       it('should run server after registering accessory', async () => {
         const callOrder: string[] = []
-        mockMatterServer.registerPlatformAccessories.mockImplementation(() => {
+        mockMatterServer.registerAccessory.mockImplementation(() => {
           callOrder.push('register')
           return Promise.resolve()
         })
@@ -299,13 +297,13 @@ describe('externalMatterAccessoryPublisher', () => {
         await publishExternalMatterAccessory(mockAccessory, mockContext)
 
         expect(mockMatterServer.start).toHaveBeenCalledOnce()
-        expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledOnce()
+        expect(mockMatterServer.registerAccessory).toHaveBeenCalledOnce()
         expect(mockMatterServer.runServer).toHaveBeenCalledOnce()
       })
 
-      it('stops the half-started server when registerPlatformAccessories rejects', async () => {
+      it('stops the half-started server when registerAccessory rejects', async () => {
         mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
-        mockMatterServer.registerPlatformAccessories.mockRejectedValueOnce(new Error('register failed'))
+        mockMatterServer.registerAccessory.mockRejectedValueOnce(new Error('register failed'))
 
         await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('register failed')
 

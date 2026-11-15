@@ -120,7 +120,7 @@ export async function publishExternalMatterAccessory(
     const pluginIdentifier = accessory._associatedPlugin || 'unknown'
 
     // Register the accessory to this dedicated server
-    await matterServer.registerPlatformAccessories(pluginIdentifier, 'ExternalMatter', [accessory])
+    await matterServer.registerAccessory(pluginIdentifier, 'ExternalMatter', accessory)
 
     // Now run the server with the device already attached (required for external accessories)
     await matterServer.runServer()

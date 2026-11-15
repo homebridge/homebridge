@@ -184,8 +184,31 @@ export class MatterServer extends EventEmitter {
     this.lastRegistrationAt = Date.now()
     try {
       for (const accessory of accessories) {
-        await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
+        // One accessory the bridge refuses (a duplicate UUID, a value Matter
+        // does not allow) must not stop the ones after it in the same call.
+        // registerAccessory has logged the reason.
+        try {
+          await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
+        } catch {
+          log.warn(`Skipped Matter accessory ${accessory?.displayName ?? accessory?.UUID} - the other accessories in this call are not affected`)
+        }
       }
+    } finally {
+      this.lastRegistrationAt = Date.now()
+      this.registrationsInFlight--
+    }
+  }
+
+  /**
+   * Register one accessory and fail when it can not be registered. For a
+   * caller that has to know: an external accessory's server is of no use
+   * without its accessory.
+   */
+  async registerAccessory(pluginIdentifier: string, platformName: string, accessory: MatterAccessory): Promise<void> {
+    this.registrationsInFlight++
+    this.lastRegistrationAt = Date.now()
+    try {
+      await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
     } finally {
       this.lastRegistrationAt = Date.now()
       this.registrationsInFlight--
@@ -198,7 +221,12 @@ export class MatterServer extends EventEmitter {
 
   async unregisterPlatformAccessories(_pluginIdentifier: string, _platformName: string, accessories: MatterAccessory[]): Promise<void> {
     for (const accessory of accessories) {
-      await this.accessoryManager.unregisterAccessory(accessory.UUID, this.getAccessoryManagerDeps())
+      // As for a registration: one failure does not stop the rest of the call
+      try {
+        await this.accessoryManager.unregisterAccessory(accessory.UUID, this.getAccessoryManagerDeps())
+      } catch {
+        log.warn(`Could not unregister Matter accessory ${accessory?.displayName ?? accessory?.UUID} - the other accessories in this call are not affected`)
+      }
     }
   }
 
