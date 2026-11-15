@@ -529,6 +529,18 @@ describe('childBridgeService', () => {
       expect(ipcService.sendMessage).toHaveBeenCalled()
     })
 
+    // typeof null is 'object', so a null message used to throw in the listener
+    it.each([null, undefined, 'text', 42])('ignores a message that is not an object (%s)', (message) => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      expect(() => child.emit('message', message)).not.toThrow()
+
+      expect(child.sentMessages).toEqual([])
+    })
+
     it('ignores messages without an id field', () => {
       const { service } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)

@@ -50,6 +50,33 @@ describe('childBridgeFork — parent disconnect handling', () => {
   })
 })
 
+describe('childBridgeFork — messages from the parent', () => {
+  let onSpy: any
+  let registered: Record<string, any[]>
+
+  beforeEach(() => {
+    registered = {}
+    onSpy = vi.spyOn(process, 'on').mockImplementation((event: any, handler: any) => {
+      registered[event] = registered[event] || []
+      registered[event].push(handler)
+      return process
+    })
+  })
+
+  afterEach(() => {
+    onSpy.mockRestore()
+    vi.resetModules()
+  })
+
+  // typeof null is 'object', so a null message used to throw in the listener
+  it.each([null, undefined, 'text', 42, {}])('ignores a message that is not an object with an id (%s)', async (message) => {
+    vi.resetModules()
+    await import('./childBridgeFork.js')
+
+    expect(() => registered.message[0](message)).not.toThrow()
+  })
+})
+
 describe('childBridgeFork - public HAP enablement', () => {
   const originalTitle = process.title
 
