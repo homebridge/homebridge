@@ -113,7 +113,6 @@ export async function publishExternalMatterAccessory(
       externalAccessory: true, // external accessory, added before server runs
       networkInterfaces: context.networkInterfaces,
       disableIpv4: context.disableIpv4,
-
     })
   } catch (error) {
     context.portService.releaseMatterPort?.(uniqueId)
