@@ -5,6 +5,7 @@
   "description": "HomeKit support for the impatient",
   "author": "Nick Farina",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/homebridge/homebridge#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/homebridge/homebridge.git"
