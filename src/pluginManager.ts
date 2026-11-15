@@ -17,6 +17,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { delimiter, join, resolve } from 'node:path'
 import process from 'node:process'
+import { inspect } from 'node:util'
 
 import { InternalAPIEvent } from './api.js'
 import { Logger } from './logger.js'
@@ -112,8 +113,8 @@ export class PluginManager {
     const absolutePath = resolve(parentPath, entry.name)
     try {
       return statSync(absolutePath).isDirectory()
-    } catch (error: any) {
-      log.debug(`Ignoring path ${absolutePath} - ${error.message}`)
+    } catch (error: unknown) {
+      log.debug(`Ignoring path ${absolutePath} - ${PluginManager.errorMessage(error)}`)
       return false
     }
   }
@@ -160,6 +161,25 @@ export class PluginManager {
     }
     log.warn(`config.${fieldName} must be an array of plugin identifiers; got ${typeof value} — ignoring this setting.`)
     return undefined
+  }
+
+  /**
+   * The message of a thrown value. A plugin can throw anything, not only an Error.
+   */
+  private static errorMessage(error: unknown): string {
+    return error instanceof Error
+      ? error.message
+      : String(error)
+  }
+
+  /**
+   * The stack of a thrown Error, or the thrown value as text when it is not an Error
+   * (`error.stack` of a thrown text is `undefined`, which said nothing in the log).
+   */
+  private static errorStack(error: unknown): string {
+    return error instanceof Error
+      ? (error.stack ?? error.message)
+      : `A value that is not an Error was thrown: ${inspect(error)}`
   }
 
   public static isQualifiedPluginIdentifier(identifier: string): boolean {
@@ -225,10 +245,10 @@ export class PluginManager {
     for (const [identifier, plugin] of this.plugins) {
       try {
         await plugin.load()
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error('====================')
         log.error(`ERROR LOADING PLUGIN ${identifier}:`)
-        log.error(error.stack)
+        log.error(PluginManager.errorStack(error))
         log.error('====================')
 
         this.plugins.delete(identifier)
@@ -257,10 +277,10 @@ export class PluginManager {
     try {
       this.currentInitializingPlugin = plugin
       await plugin.initialize(this.api) // call the plugin's initializer and pass it our API instance
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.error('====================')
       log.error(`ERROR INITIALIZING PLUGIN ${identifier}:`)
-      log.error(error.stack)
+      log.error(PluginManager.errorStack(error))
       log.error('====================')
 
       this.forgetPlugin(plugin, identifier)
@@ -365,11 +385,12 @@ export class PluginManager {
       accessoryIdentifier = `${plugin.getPluginIdentifier()}.${accessoryIdentifier}`
     } else {
       const pluginIdentifier = PluginManager.getPluginIdentifier(accessoryIdentifier)
-      if (!this.hasPluginRegistered(pluginIdentifier)) {
+      const registered = this.getPlugin(pluginIdentifier)
+      if (!registered) {
         throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`)
       }
 
-      plugin = this.getPlugin(pluginIdentifier)!
+      plugin = registered
     }
 
     return plugin
@@ -397,11 +418,12 @@ export class PluginManager {
       platformIdentifier = `${plugin.getPluginIdentifier()}.${platformIdentifier}`
     } else {
       const pluginIdentifier = PluginManager.getPluginIdentifier(platformIdentifier)
-      if (!this.hasPluginRegistered(pluginIdentifier)) {
+      const registered = this.getPlugin(pluginIdentifier)
+      if (!registered) {
         throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`)
       }
 
-      plugin = this.getPlugin(pluginIdentifier)!
+      plugin = registered
     }
 
     return plugin
@@ -460,8 +482,8 @@ export class PluginManager {
             return
           }
           this.loadPlugin(searchPath)
-        } catch (error: any) {
-          log.warn(error.message)
+        } catch (error: unknown) {
+          log.warn(PluginManager.errorMessage(error))
         }
       } else { // read through each directory in this node_modules folder
         let relativePluginPaths = readdirSync(searchPath, { withFileTypes: true })
@@ -489,8 +511,8 @@ export class PluginManager {
             try {
               const absolutePath = resolve(searchPath, pluginIdentifier)
               this.loadPlugin(absolutePath)
-            } catch (error: any) {
-              log.warn(error.message)
+            } catch (error: unknown) {
+              log.warn(PluginManager.errorMessage(error))
             }
           })
       }
@@ -528,11 +550,12 @@ export class PluginManager {
 
     try {
       packageJson = JSON.parse(readFileSync(packageJsonPath, { encoding: 'utf8' })) // attempt to parse package.json
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(`Plugin ${pluginPath} contains an invalid package.json. Error: ${error}`)
     }
 
-    if (!packageJson.name || !PluginManager.isQualifiedPluginIdentifier(packageJson.name)) {
+    // the file can hold anything: `null`, a list, a name that is a number
+    if (typeof packageJson !== 'object' || packageJson === null || typeof packageJson.name !== 'string' || !PluginManager.isQualifiedPluginIdentifier(packageJson.name)) {
       throw new Error(`Plugin ${pluginPath} does not have a package name that begins with 'homebridge-' or '@scope/homebridge-.`)
     }
 
