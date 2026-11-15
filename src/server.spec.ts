@@ -3,7 +3,7 @@ import type { MockInstance } from 'vitest'
 import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { HAPStorage } from '@homebridge/hap-nodejs'
+import { AccessoryEventTypes, HAPStorage } from '@homebridge/hap-nodejs'
 import fs from 'fs-extra'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -52,24 +52,104 @@ describe('server', () => {
     consoleLogSpy.mockRestore()
   })
 
-  it('creates an instance of the server without errors', async () => {
+  it('creates a server from the config file, with the status pending and nothing published', () => {
     const server = new Server({
       customStoragePath: homebridgeStorageFolder,
       hideQRCode: true,
-    })
+    }) as any
 
-    expect(server).toBeInstanceOf(Server)
+    expect(server.config.bridge).toMatchObject({ name: 'Homebridge', username: 'CC:22:3D:E3:CE:30', pin: '031-45-154' })
+    expect(server.bridgeService.bridge.displayName).toBe('Homebridge')
+    expect(server.serverStatus).toBe('pending')
+    expect(server.bridgeService.bridge._accessoryInfo).toBeUndefined()
   })
 
-  it('starts without errors', async () => {
-    const server = new Server({
-      customStoragePath: homebridgeStorageFolder,
-      hideQRCode: true,
+  describe('start and teardown', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+      consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
     })
 
-    await server.start()
+    it('publishes the main bridge once from the config, reports its status, and takes it down again', async () => {
+      // No plugin from this machine is loaded, and nothing goes on the network:
+      // the two calls that would do that are replaced.
+      const initialize = vi.spyOn(PluginManager.prototype, 'initializeInstalledPlugins').mockResolvedValue(undefined)
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const bridge = (server as any).bridgeService.bridge
+      const publish = vi.spyOn(bridge, 'publish').mockResolvedValue(undefined)
+      const unpublish = vi.spyOn(bridge, 'unpublish').mockResolvedValue(undefined)
+      const ipcStart = vi.spyOn(server.ipcService, 'start').mockImplementation(() => {})
+      const ipcStop = vi.spyOn(server.ipcService, 'stop').mockImplementation(() => {})
+      const statuses: string[] = []
+      vi.spyOn(server.ipcService, 'sendMessage').mockImplementation((event: string, data: any) => {
+        if (event === 'serverStatusUpdate') {
+          statuses.push(data.status)
+        }
+      })
+      const finished = vi.fn()
+      const shutdown = vi.fn()
+      ;(server as any).api.on('didFinishLaunching', finished)
+      ;(server as any).api.on('shutdown', shutdown)
 
-    expect(server).toBeInstanceOf(Server)
+      await server.start()
+
+      expect(initialize).toHaveBeenCalledTimes(1)
+      expect(ipcStart).toHaveBeenCalledTimes(1)
+      expect(finished).toHaveBeenCalledTimes(1)
+      expect(publish).toHaveBeenCalledTimes(1)
+      expect(publish.mock.calls[0][0]).toMatchObject({
+        username: 'CC:22:3D:E3:CE:30',
+        pincode: '031-45-154',
+        advertiser: 'ciao',
+      })
+      // insecure access is off unless asked for
+      expect(publish.mock.calls[0][1]).toBe(false)
+      // the status turns ok when HAP-NodeJS says the bridge is advertised
+      expect(statuses).toEqual([])
+      bridge.emit(AccessoryEventTypes.ADVERTISED)
+      expect(statuses).toEqual(['ok'])
+
+      await server.teardown()
+
+      expect(unpublish).toHaveBeenCalledTimes(1)
+      expect(shutdown).toHaveBeenCalledTimes(1)
+      expect(ipcStop).toHaveBeenCalledTimes(1)
+      expect(statuses).toEqual(['ok', 'down'])
+    })
+
+    it('does not publish the main bridge when HAP is turned off for it, and reports ok', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { enabled: false },
+          disableIpc: true,
+        },
+      })
+      try {
+        vi.spyOn(PluginManager.prototype, 'initializeInstalledPlugins').mockResolvedValue(undefined)
+        vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const publish = vi.spyOn((server as any).bridgeService.bridge, 'publish').mockResolvedValue(undefined)
+        const ipcStart = vi.spyOn(server.ipcService, 'start').mockImplementation(() => {})
+
+        await server.start()
+
+        expect(publish).not.toHaveBeenCalled()
+        // bridge.disableIpc
+        expect(ipcStart).not.toHaveBeenCalled()
+        expect((server as any).serverStatus).toBe('ok')
+      } finally {
+        await fs.writeJson(configPath, mockConfig)
+      }
+    })
   })
 
   describe('public HAP enablement during plugin initialization', () => {
