@@ -9,6 +9,7 @@ import { RvcRunModeServer } from '@matter/main/behaviors/rvc-run-mode'
 import { ModeBase } from '@matter/main/clusters'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom RvcRunMode Server that calls plugin handlers
@@ -40,6 +41,7 @@ export class HomebridgeRvcRunModeServer extends RvcRunModeServer {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'rvcRunMode', 'changeToMode', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - call base implementation
     const result = await super.changeToMode(request)

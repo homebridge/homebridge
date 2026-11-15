@@ -10,6 +10,7 @@ import { ServiceAreaServer } from '@matter/main/behaviors/service-area'
 import { ServiceArea } from '@matter/main/clusters/service-area'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom ServiceArea Server that calls plugin handlers
@@ -69,6 +70,7 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'serviceArea', 'selectAreas', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - call base implementation
     const result = await super.selectAreas(request)
@@ -99,6 +101,7 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'serviceArea', 'skipArea', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded. There is no base implementation to
     // call: matter.js leaves skipArea itself unimplemented (super.skipArea()

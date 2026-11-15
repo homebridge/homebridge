@@ -8,6 +8,7 @@ import { ClosureControlServer } from '@matter/main/behaviors/closure-control'
 import { ClosureControl } from '@matter/main/clusters/closure-control'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Default ClosureControl Server.
@@ -74,6 +75,7 @@ export class HomebridgeClosureControlServer extends DefaultClosureControlServer 
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'closureControl', 'moveTo', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state via super
     await super.moveTo(request)
@@ -95,6 +97,7 @@ export class HomebridgeClosureControlServer extends DefaultClosureControlServer 
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'closureControl', 'stop')
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state via super
     await super.stop()

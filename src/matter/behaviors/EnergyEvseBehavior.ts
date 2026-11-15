@@ -6,6 +6,8 @@
  * targets a controller sets. EnergyEvseMode picks how it decides when to charge.
  */
 
+import type { Behavior } from '@matter/main'
+
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { EnergyEvseServer } from '@matter/main/behaviors/energy-evse'
@@ -16,15 +18,17 @@ import { EnergyEvse } from '@matter/main/clusters/energy-evse'
 import { Status, StatusResponseError } from '@matter/main/types'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Run the plugin's handler for a command, if it registered one. A charger that
  * only switches charging on and off has no use for the targets commands, so a
  * missing handler falls through to the default behavior instead of failing.
  */
-async function runOptionalHandler(registry: BehaviorRegistry, endpointId: string, commandName: string, args?: unknown): Promise<void> {
+async function runOptionalHandler(behavior: Behavior, registry: BehaviorRegistry, endpointId: string, commandName: string, args?: unknown): Promise<void> {
   if (registry.getHandler(endpointId, 'energyEvse', commandName)) {
     await registry.executeHandler(endpointId, 'energyEvse', commandName, args)
+    await lockStateForWrite(behavior)
   }
 }
 
@@ -123,7 +127,7 @@ export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
     const endpointId = this.endpoint.id
     const registry = this.getRegistry()
 
-    await runOptionalHandler(registry, endpointId, commandName, request)
+    await runOptionalHandler(this, registry, endpointId, commandName, request)
     await apply()
     registry.syncStateToCache(endpointId, 'energyEvse', {
       supplyState: this.state.supplyState,
@@ -181,6 +185,7 @@ export class HomebridgeEnergyEvseModeServer extends EnergyEvseModeServer {
     }
 
     await registry.executeHandler(endpointId, 'energyEvseMode', 'changeToMode', request)
+    await lockStateForWrite(this)
 
     // Only reached if the handler succeeded
     const result = await super.changeToMode(request)

@@ -1497,3 +1497,91 @@ describe('a command the plugin has no handler for, on a real node', () => {
     expect(stateOf(endpoint, 'windowCovering').targetPositionLiftPercent100ths).toBe(10000)
   })
 })
+
+describe('two commands sent together, on a real node', () => {
+  const slow = (calls: string[], name: string) => async () => {
+    await new Promise(resolve => setTimeout(resolve, 30))
+    calls.push(name)
+  }
+
+  it('lets both succeed when a controller sends set-level and on as a pair', async () => {
+    const calls: string[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.DimmableLight,
+      clusters: {
+        onOff: { onOff: false },
+        levelControl: { currentLevel: 100 },
+      },
+      handlers: {
+        onOff: {
+          on: slow(calls, 'on'),
+          off: slow(calls, 'off'),
+        },
+        levelControl: {
+          moveToLevelWithOnOff: slow(calls, 'level'),
+        },
+      },
+    })
+
+    const results = await Promise.allSettled([
+      invoke(endpoint, 'levelControl', 'moveToLevelWithOnOff', {
+        level: 200,
+        transitionTime: 0,
+        optionsMask: {},
+        optionsOverride: {},
+      }),
+      invoke(endpoint, 'onOff', 'on'),
+    ])
+
+    expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled'])
+    expect(stateOf(endpoint, 'onOff').onOff).toBe(true)
+    expect(stateOf(endpoint, 'levelControl').currentLevel).toBe(200)
+  })
+
+  it('ends in the state of the last handler that ran, for on and off together', async () => {
+    const calls: string[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: false },
+      },
+      handlers: {
+        onOff: {
+          on: slow(calls, 'on'),
+          off: slow(calls, 'off'),
+        },
+      },
+    })
+
+    const results = await Promise.allSettled([
+      invoke(endpoint, 'onOff', 'on'),
+      invoke(endpoint, 'onOff', 'off'),
+    ])
+
+    expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled'])
+    expect(calls).toEqual(['on', 'off'])
+    expect(stateOf(endpoint, 'onOff').onOff).toBe(false)
+  })
+
+  it('lets the same command sent twice succeed both times', async () => {
+    const calls: string[] = []
+    const endpoint = await register({
+      deviceType: deviceTypes.OnOffLight,
+      clusters: {
+        onOff: { onOff: false },
+      },
+      handlers: {
+        onOff: {
+          on: slow(calls, 'on'),
+        },
+      },
+    })
+
+    const results = await Promise.allSettled([
+      invoke(endpoint, 'onOff', 'on'),
+      invoke(endpoint, 'onOff', 'on'),
+    ])
+
+    expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled'])
+  })
+})

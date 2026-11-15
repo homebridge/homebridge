@@ -8,6 +8,7 @@ import { ValveConfigurationAndControlServer } from '@matter/main/behaviors/valve
 import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Default ValveConfigurationAndControl Server.
@@ -55,6 +56,7 @@ export class HomebridgeValveConfigurationAndControlServer extends DefaultValveCo
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'open', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state via super
     await super.open(request)
@@ -75,6 +77,7 @@ export class HomebridgeValveConfigurationAndControlServer extends DefaultValveCo
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'close')
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state via super
     await super.close()

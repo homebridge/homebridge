@@ -9,6 +9,7 @@ import type { Identify } from '@matter/main/clusters'
 import { IdentifyServer } from '@matter/main/behaviors/identify'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom Identify Server that calls plugin handlers
@@ -27,6 +28,7 @@ export class HomebridgeIdentifyServer extends IdentifyServer {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'identify', 'identify', request)
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - call base implementation
     return await super.identify(request)

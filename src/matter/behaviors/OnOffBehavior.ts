@@ -7,6 +7,7 @@
 import { OnOffServer } from '@matter/main/behaviors/on-off'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 export class HomebridgeOnOffServer extends OnOffServer {
   /**
@@ -45,6 +46,7 @@ export class HomebridgeOnOffServer extends OnOffServer {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'onOff', 'on')
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state
     await super.on()
@@ -62,6 +64,7 @@ export class HomebridgeOnOffServer extends OnOffServer {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'onOff', 'off')
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state
     await super.off()
@@ -86,6 +89,7 @@ export class HomebridgeOnOffServer extends OnOffServer {
 
     // Execute user handler
     await registry.executeHandler(endpointId, 'onOff', 'toggle')
+    await lockStateForWrite(this)
 
     // Only reached if handler succeeded - update Matter state. Not through
     // super.toggle(): it would come back through the on() / off() overrides

@@ -18,6 +18,7 @@ import type { BehaviorRegistry } from './BehaviorRegistry.js'
 import { ColorControlServer } from '@matter/main/behaviors/color-control'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom ColorControl Server that calls plugin handlers
@@ -79,6 +80,7 @@ export class HomebridgeColorControlServer extends ColorControlServer {
       return
     }
     await registry.executeHandler(endpointId, 'colorControl', commandName, args)
+    await lockStateForWrite(this)
   }
 
   /**

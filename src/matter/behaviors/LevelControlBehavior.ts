@@ -8,6 +8,7 @@ import { LevelControlServer } from '@matter/main/behaviors/level-control'
 import { LevelControl } from '@matter/main/clusters/level-control'
 
 import { getRegistryManager } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 export class HomebridgeLevelControlServer extends LevelControlServer {
   /**
@@ -38,12 +39,14 @@ export class HomebridgeLevelControlServer extends LevelControlServer {
     const handlerName = registered(handlerNames)
     if (handlerName) {
       await registry.executeHandler(endpointId, 'levelControl', handlerName, request)
+      await lockStateForWrite(this)
       return
     }
 
     const targetHandlerName = target && registered(target.handlerNames)
     if (target && targetHandlerName) {
       await registry.executeHandler(endpointId, 'levelControl', targetHandlerName, target.request())
+      await lockStateForWrite(this)
     }
   }
 
