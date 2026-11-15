@@ -83,6 +83,21 @@ describe('matterPortAllocator', () => {
     })
   })
 
+  describe('with a reserved port', () => {
+    it('never hands out a port that was reserved after the allocator was made', async () => {
+      const allocator = new MatterPortAllocator()
+      allocator.reservePort(5540)
+
+      const ports: Array<number | undefined> = []
+      for (let request = 0; request < 12; request++) {
+        ports.push(await allocator.requestPort(`uuid-${request}`))
+      }
+
+      expect(ports).not.toContain(5540)
+      expect(new Set(ports).size).toBe(12)
+    })
+  })
+
   describe('with configured ports (already in use)', () => {
     it('should skip configured ports', async () => {
       // Ports 5530 and 5531 are already configured/in use

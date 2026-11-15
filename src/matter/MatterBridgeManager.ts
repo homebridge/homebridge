@@ -245,6 +245,9 @@ export class MatterBridgeManager extends BaseMatterManager {
           log.info(`Allocated port ${matterPort} from pool for main Matter bridge`)
         }
       }
+      // Whichever way the port was chosen, no child bridge or external Matter
+      // accessory may be given it as well.
+      this.externalPortService.reserveMatterPort(matterPort)
 
       // Create Matter server instance with config inheritance from main bridge
       const serialNumber = this.config.bridge.username.replace(COLON_RE, '')

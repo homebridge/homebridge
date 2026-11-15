@@ -10,6 +10,7 @@ import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
 import { MatterBridgeManager } from './MatterBridgeManager.js'
 import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
+import { MatterServer } from './server.js'
 import { AccessoryQuery } from './server/AccessoryQuery.js'
 
 describe('matterBridgeManager', () => {
@@ -83,6 +84,47 @@ describe('matterBridgeManager', () => {
       // warn-level logs from the existing handlers in modes where the server
       // is not running (externalsOnly or disabled).
       expect(mockApi.on).not.toHaveBeenCalled()
+    })
+  })
+
+  // The main bridge does not get its Matter port from the Matter allocator, so
+  // it has to tell the allocator which port it took: its default, 5540, lies
+  // inside the allocator's default range and was handed out a second time.
+  describe('initialize — the main bridge\'s Matter port', () => {
+    beforeEach(() => {
+      mockExternalPortService.reserveMatterPort = vi.fn()
+      // stop before a real server is started
+      vi.spyOn(MatterServer.prototype, 'start').mockRejectedValue(new Error('not started in this test'))
+      for (const level of ['info', 'warn', 'error', 'debug'] as const) {
+        vi.spyOn(Logger.prototype, level).mockImplementation(() => {})
+      }
+    })
+
+    it.each([
+      {
+        what: 'the default port',
+        matter: {},
+        pool: undefined,
+        port: 5540,
+      },
+      {
+        what: 'a port from the ports pool',
+        matter: {},
+        pool: 52100,
+        port: 52100,
+      },
+      {
+        what: 'a configured port',
+        matter: { port: 5555 },
+        pool: undefined,
+        port: 5555,
+      },
+    ])('reserves $what', async ({ matter, pool, port }) => {
+      vi.mocked(mockExternalPortService.requestPort).mockResolvedValue(pool)
+
+      await buildManager(matter).initialize()
+
+      expect(mockExternalPortService.reserveMatterPort).toHaveBeenCalledExactlyOnceWith(port)
     })
   })
 
