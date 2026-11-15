@@ -53,9 +53,7 @@ import {
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
-  extractColorControlFeatures,
   extractDeclaredFeatures,
-  extractThermostatFeatures,
   isWindowCoveringComposed,
   markWindowCoveringComposed,
   validateAccessoryRequiredFields,
@@ -74,9 +72,6 @@ interface DetectedClusterFeatures {
   windowCoveringFeatures: string[]
   serviceAreaFeatures: string[] | null
   colorControlFeatures: string[] | null
-  thermostatFeatures: string[] | null
-  closureControlFeatures: string[] | null
-  mediaPlaybackFeatures: string[] | null
   /**
    * LevelControl features to apply via `.with(...)`. `null` means the accessory
    * has no `levelControl` handler and we should leave the base class alone.
@@ -143,10 +138,7 @@ const FEATURE_RICH_BEHAVIOR_CLUSTERS = new Set([
  * which the Homebridge behavior overrides, so they still reach the plugin.
  */
 const FEATURE_AWARE_CLUSTERS = new Set([
-  'closureControl',
   'colorControl',
-  'mediaPlayback',
-  'thermostat',
   'windowCovering',
 ])
 
@@ -857,11 +849,9 @@ export class AccessoryManager {
 
     let colorControlFeatures: string[] | null = null
     if (accessory.handlers?.colorControl) {
-      colorControlFeatures = detectBehaviorFeatures(
-        deviceType,
-        'colorControl',
-        extractColorControlFeatures,
-      )
+      // Only asked here whether the device type has the cluster at all: the
+      // features themselves are worked out below.
+      colorControlFeatures = detectBehaviorFeatures(deviceType, 'colorControl', extractDeclaredFeatures)
       if (colorControlFeatures) {
         // Handlers first: they are the authority on what the plugin can actually do.
         // On a cache restore they are empty stubs though (functions cannot be cached),
@@ -873,38 +863,6 @@ export class AccessoryManager {
           ? fromHandlers
           : determineColorControlFeaturesFromClusters(accessory.clusters)
       }
-    }
-
-    let thermostatFeatures: string[] | null = null
-    if (accessory.handlers?.thermostat) {
-      thermostatFeatures = detectBehaviorFeatures(
-        deviceType,
-        'thermostat',
-        extractThermostatFeatures,
-      )
-    }
-
-    // ClosureControl and MediaPlayback are feature-gated too, and the device
-    // type is where the choice was made - Closure composes Positioning, and a
-    // plugin may have composed more. Read whatever is there so replacing the
-    // base behavior with the handler-calling one carries it across instead of
-    // resetting the cluster to its featureless form.
-    let closureControlFeatures: string[] | null = null
-    if (accessory.handlers?.closureControl) {
-      closureControlFeatures = detectBehaviorFeatures(
-        deviceType,
-        'closureControl',
-        extractDeclaredFeatures,
-      )
-    }
-
-    let mediaPlaybackFeatures: string[] | null = null
-    if (accessory.handlers?.mediaPlayback) {
-      mediaPlaybackFeatures = detectBehaviorFeatures(
-        deviceType,
-        'mediaPlayback',
-        extractDeclaredFeatures,
-      )
     }
 
     // LevelControl: the features the device type declares (a dimmable light's
@@ -919,9 +877,6 @@ export class AccessoryManager {
       windowCoveringFeatures,
       serviceAreaFeatures,
       colorControlFeatures,
-      thermostatFeatures,
-      closureControlFeatures,
-      mediaPlaybackFeatures,
       levelControlFeatures,
     }
   }
@@ -1068,21 +1023,6 @@ export class AccessoryManager {
         log.debug(`ColorControl custom behavior will preserve features: ${features.colorControlFeatures.join(', ')}`)
       }
 
-      if (clusterName === 'thermostat' && behaviorClass && features.thermostatFeatures && features.thermostatFeatures.length > 0) {
-        behaviorClass = (behaviorClass as any).with(...features.thermostatFeatures)
-        log.debug(`Thermostat custom behavior will preserve features: ${features.thermostatFeatures.join(', ')}`)
-      }
-
-      if (clusterName === 'closureControl' && behaviorClass && features.closureControlFeatures && features.closureControlFeatures.length > 0) {
-        behaviorClass = (behaviorClass as any).with(...features.closureControlFeatures)
-        log.debug(`ClosureControl custom behavior will preserve features: ${features.closureControlFeatures.join(', ')}`)
-      }
-
-      if (clusterName === 'mediaPlayback' && behaviorClass && features.mediaPlaybackFeatures && features.mediaPlaybackFeatures.length > 0) {
-        behaviorClass = (behaviorClass as any).with(...features.mediaPlaybackFeatures)
-        log.debug(`MediaPlayback custom behavior will preserve features: ${features.mediaPlaybackFeatures.join(', ')}`)
-      }
-
       if (clusterName === 'windowCovering') {
         log.debug(`WindowCovering handler found: behaviorClass=${!!behaviorClass}, windowCoveringFeatures=${features.windowCoveringFeatures}, length=${features.windowCoveringFeatures?.length}`)
         if (behaviorClass && features.windowCoveringFeatures && features.windowCoveringFeatures.length > 0) {
@@ -1097,7 +1037,9 @@ export class AccessoryManager {
       // already chose. Replacing the base behavior with the handler-calling one
       // otherwise resets the cluster to its featureless form - a fan composed
       // with Auto lost it, and so did an air quality sensor composed for the
-      // levels beyond Good and Poor. On a cache restore every cached cluster
+      // levels beyond Good and Poor. A thermostat, a closure (which composes
+      // Positioning) and a media player go this way too: the device type is
+      // where their features were chosen. On a cache restore every cached cluster
       // gets an empty handler stub, so it happened to every such accessory on
       // every restart, plugin handlers or not.
       if (behaviorClass && !FEATURE_AWARE_CLUSTERS.has(clusterName)) {

@@ -142,47 +142,6 @@ export function detectBehaviorFeatures(
 }
 
 /**
- * Extract ColorControl features from supportedFeatures
- */
-export function extractColorControlFeatures(supportedFeatures: Record<string, boolean>): string[] {
-  const features: string[] = []
-
-  if (supportedFeatures.hueSaturation) {
-    features.push('HueSaturation')
-  }
-  if (supportedFeatures.xy) {
-    features.push('Xy')
-  }
-  if (supportedFeatures.colorTemperature) {
-    features.push('ColorTemperature')
-  }
-
-  return features
-}
-
-/**
- * Extract Thermostat features from supportedFeatures
- */
-export function extractThermostatFeatures(supportedFeatures: Record<string, boolean>): string[] {
-  const features: string[] = []
-
-  if (supportedFeatures.heating) {
-    features.push('Heating')
-  }
-  if (supportedFeatures.cooling) {
-    features.push('Cooling')
-  }
-  if (supportedFeatures.occupancy) {
-    features.push('Occupancy')
-  }
-  if (supportedFeatures.autoMode) {
-    features.push('AutoMode')
-  }
-
-  return features
-}
-
-/**
  * Determine ColorControl features based on handlers
  * Only includes features that have corresponding handler methods
  */

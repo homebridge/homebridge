@@ -15,8 +15,6 @@ import {
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
-  extractColorControlFeatures,
-  extractThermostatFeatures,
   isWindowCoveringComposed,
   validateAccessoryRequiredFields,
 } from './serverHelpers.js'
@@ -201,79 +199,6 @@ describe('serverHelpers', () => {
       } as any
 
       expect(() => validateAccessoryRequiredFields(accessory)).toThrow(/part "part1" is missing or has invalid 'clusters' field/)
-    })
-  })
-
-  describe('extractColorControlFeatures', () => {
-    it('should extract HueSaturation feature', () => {
-      const features = extractColorControlFeatures({ hueSaturation: true })
-      expect(features).toContain('HueSaturation')
-    })
-
-    it('should extract Xy feature', () => {
-      const features = extractColorControlFeatures({ xy: true })
-      expect(features).toContain('Xy')
-    })
-
-    it('should extract ColorTemperature feature', () => {
-      const features = extractColorControlFeatures({ colorTemperature: true })
-      expect(features).toContain('ColorTemperature')
-    })
-
-    it('should extract multiple features', () => {
-      const features = extractColorControlFeatures({
-        hueSaturation: true,
-        xy: true,
-        colorTemperature: true,
-      })
-      expect(features).toEqual(['HueSaturation', 'Xy', 'ColorTemperature'])
-    })
-
-    it('should return empty array when no features are enabled', () => {
-      const features = extractColorControlFeatures({})
-      expect(features).toEqual([])
-    })
-  })
-
-  describe('extractThermostatFeatures', () => {
-    it('should extract Heating feature', () => {
-      const features = extractThermostatFeatures({ heating: true })
-      expect(features).toContain('Heating')
-    })
-
-    it('should extract Cooling feature', () => {
-      const features = extractThermostatFeatures({ cooling: true })
-      expect(features).toContain('Cooling')
-    })
-
-    it('should extract Occupancy feature', () => {
-      const features = extractThermostatFeatures({ occupancy: true })
-      expect(features).toContain('Occupancy')
-    })
-
-    it('should extract AutoMode feature', () => {
-      const features = extractThermostatFeatures({ autoMode: true })
-      expect(features).toContain('AutoMode')
-    })
-
-    it('should extract multiple features', () => {
-      const features = extractThermostatFeatures({
-        heating: true,
-        cooling: true,
-        occupancy: true,
-        autoMode: true,
-      })
-      expect(features).toEqual([
-        'Heating',
-        'Cooling',
-        'Occupancy',
-        'AutoMode',
-      ])
-    })
-
-    it('should return empty array when no features are enabled', () => {
-      const features = extractThermostatFeatures({})
-      expect(features).toEqual([])
     })
   })
 
