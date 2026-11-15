@@ -97,6 +97,16 @@ export interface DoorLockHandlers {
 
 /**
  * WindowCovering cluster handler methods
+ *
+ * Once a handler has returned, Matter holds the new target position, and the
+ * current position is set to the target at once: Homebridge does not know how
+ * long the motor takes. Controllers then show the covering as already there.
+ * A plugin that knows the real position reports it with
+ * `updateAccessoryState()` while the covering moves, and again when it stops.
+ *
+ * A covering that does not know its position (open and close only) gets
+ * `upOrOpen` for a go-to-percentage command of 0 and `downOrClose` for any
+ * other value, as Matter says.
  */
 export interface WindowCoveringHandlers {
   upOrOpen?: MatterCommandHandler
@@ -205,6 +215,12 @@ export interface ServiceAreaHandlers {
 /**
  * ClosureControl cluster handler methods
  *
+ * Once `moveTo` has returned, Matter holds the move as finished: the current
+ * state is set to the target at once and the main state to Stopped. No
+ * MovementCompleted or SecureStateChanged event is raised. A plugin that knows
+ * the real state (a garage door takes a while) reports `mainState` and
+ * `overallCurrentState` with `updateAccessoryState()` as the closure moves.
+ *
  * `stop` is not available on a closure composed with the Instantaneous
  * feature - such a closure reaches its target immediately, so the spec has
  * nothing for Stop to do.
@@ -242,6 +258,12 @@ export interface KeypadInputHandlers {
 
 /**
  * ValveConfigurationAndControl cluster handler methods
+ *
+ * Once `open` has returned, Matter holds the valve as open at once. The
+ * request's `openDuration` and `targetLevel` are given to the handler and not
+ * used otherwise: `openDuration` and `remainingDuration` are not set, and
+ * nothing closes the valve when the time is up. A plugin whose valve closes by
+ * itself reports that with `updateAccessoryState()`.
  */
 export interface ValveConfigurationAndControlHandlers {
   open?: MatterCommandHandler<ValveConfigurationAndControl.OpenRequest>
@@ -257,6 +279,11 @@ export interface WaterHeaterModeHandlers {
 
 /**
  * WaterHeaterManagement cluster handler methods
+ *
+ * Once `boost` has returned, `boostState` is Active, and it stays Active:
+ * nothing ends the boost when `boostInfo.duration` runs out. The plugin sets
+ * `boostState` back to 0 (Inactive) with `updateAccessoryState()` when its
+ * heater is done, or a controller sends CancelBoost.
  */
 export interface WaterHeaterManagementHandlers {
   boost?: MatterCommandHandler<WaterHeaterManagement.BoostRequest>
