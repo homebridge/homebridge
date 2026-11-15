@@ -733,11 +733,26 @@ export class BridgeService {
       return
     }
 
-    const updatedUUIDs = new Set(accessories.map(accessory => accessory.UUID))
-    this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(
-      accessory => !updatedUUIDs.has(accessory._associatedHAPAccessory.UUID),
-    )
-    this.cachedPlatformAccessories.push(...accessories)
+    // Swap in the object the plugin passed for each accessory that is in the
+    // cache, in place. One that is not in the cache is left out: it was never
+    // registered, was unregistered since, or is an external accessory (which
+    // can not be saved, and would make every later save of the cache fail).
+    const updated = new Map<string, PlatformAccessory>()
+    for (const accessory of accessories) {
+      updated.set(accessory.UUID, accessory)
+    }
+    this.cachedPlatformAccessories = this.cachedPlatformAccessories.map((cached) => {
+      const replacement = updated.get(cached.UUID)
+      updated.delete(cached.UUID)
+      return replacement ?? cached
+    })
+    for (const accessory of updated.values()) {
+      log.warn(
+        'Ignoring an update for the accessory \'%s\' (UUID: %s), which is not registered as a platform accessory on this bridge.',
+        accessory.displayName,
+        accessory.UUID,
+      )
+    }
 
     // Update persisted accessories
     this.saveCachedPlatformAccessoriesOnDisk()
