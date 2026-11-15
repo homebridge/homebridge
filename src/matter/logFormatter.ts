@@ -38,6 +38,23 @@ function isSessionDecryptFailure(facility: string, messageText: string): boolean
 }
 
 /**
+ * The matter.js facilities that Homebridge shows less of than the rest, as
+ * levels for `Logger.facilityLevels`. matter.js then drops their other lines
+ * itself, before they are formatted.
+ *
+ * - `ValidatedElements` only logs warnings about optional Matter features an
+ *   endpoint does not implement (and does not need to), so nothing below
+ *   fatal is shown.
+ * - `Commissioning` prints the pairing codes and the pairing state, which
+ *   Homebridge prints itself. Its warnings and errors are kept: they are not
+ *   about the codes.
+ */
+export const QUIET_FACILITY_LEVELS = {
+  ValidatedElements: LogLevel.FATAL,
+  Commissioning: LogLevel.WARN,
+}
+
+/**
  * Create a custom log formatter that matches the homebridge format.
  * Format: [timestamp] [Matter:Facility] message
  * Timestamp format matches system locale (via toLocaleString()).
@@ -59,18 +76,6 @@ export function createHomebridgeLogFormatter(options: { debug?: boolean } = {}):
 
       // If it's a log message with the expected structure
       if (msg.now && msg.facility && msg.values) {
-        // Suppress ValidatedElements logs - these are just validation warnings about
-        // optional Matter.js features that aren't implemented (and don't need to be)
-        if (msg.facility === 'ValidatedElements') {
-          return ''
-        }
-        // The Commissioning facility prints the pairing codes and the pairing
-        // state, which Homebridge prints itself. Its warnings and errors are
-        // kept: they are not about the codes, and were hidden with the rest.
-        if (msg.facility === 'Commissioning' && (msg.level === undefined || msg.level < LogLevel.WARN)) {
-          return ''
-        }
-
         // Format facility as [Matter:FacilityName] in cyan color
         const facility = formatCyan(`[Matter/${msg.facility}]`)
 
