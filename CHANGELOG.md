@@ -106,6 +106,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): stop waiting to bring a child bridge online once it is torn down
 - fix: drop the pairing details of an earlier child bridge process from its status
 - fix(matter): send the ui the same accessory fields from a child bridge as from the main bridge
+- fix(matter): send ui updates for an external accessory published after monitoring was switched on
 
 ### Homebridge Dependencies
 
