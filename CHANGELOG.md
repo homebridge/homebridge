@@ -68,6 +68,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: refresh a child bridge's config on restart when its username is lower case in config.json
 - fix: keep running when a message can not be sent because the parent process has gone
 - fix: ignore an ipc message of null instead of throwing in the message listener
+- fix: end a child bridge as soon as its teardown is done, and tear down when its parent has gone
 
 ### Homebridge Dependencies
 

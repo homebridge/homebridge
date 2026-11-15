@@ -538,16 +538,24 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
 })
 
 /**
- * Handle the sigterm shutdown signals
+ * Tear the child bridge down and let the process end, with `exitCode`.
+ *
+ * The process ends by itself once nothing is left to do: the HAP and Matter
+ * teardown, and whatever a plugin does in its shutdown listener. The IPC
+ * channel to the parent would keep it alive for ever, so it stops counting
+ * here. Before this the force-exit timer was the only way out, and every
+ * child bridge restart and every Homebridge shutdown waited the full five
+ * seconds. The timer stays as the upper limit, for a plugin that leaves
+ * something running.
  */
 let shuttingDown = false
-function signalHandler(signal: NodeJS.Signals, signalNum: number): void {
+function shutdownAndExit(reason: string, exitCode: number): void {
   if (shuttingDown) {
     return
   }
   shuttingDown = true
 
-  Logger.internal.info('Got %s, shutting down child bridge process...', signal)
+  Logger.internal.info('%s, shutting down child bridge process...', reason)
 
   try {
     childPluginFork.shutdown()
@@ -555,7 +563,16 @@ function signalHandler(signal: NodeJS.Signals, signalNum: number): void {
     Logger.internal.error('Error during child bridge shutdown:', error)
   }
 
-  setTimeout(() => process.exit(128 + signalNum), 5000).unref()
+  process.exitCode = exitCode
+  process.channel?.unref()
+  setTimeout(() => process.exit(exitCode), 5000).unref()
+}
+
+/**
+ * Handle the sigterm shutdown signals
+ */
+function signalHandler(signal: NodeJS.Signals, signalNum: number): void {
+  shutdownAndExit(`Got ${signal}`, 128 + signalNum)
 }
 
 process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))
@@ -564,11 +581,10 @@ process.on('SIGTERM', signalHandler.bind(undefined, 'SIGTERM', 15))
 /**
  * Ensure orphaned processes are cleaned up. The parent IPC channel emits
  * `disconnect` immediately when it closes — listen for that instead of
- * polling `process.connected` every 5 seconds, so a child whose parent
- * crashed exits without a multi-second delay (and we burn no idle ticks
- * in the steady state).
+ * polling `process.connected` every 5 seconds. The child goes through the same
+ * teardown as for a signal: the cached accessories are saved and the plugin
+ * gets its shutdown event, which a plain exit skipped.
  */
 process.on('disconnect', () => {
-  Logger.internal.info('Parent process disconnected, terminating process...')
-  process.exit(1)
+  shutdownAndExit('Parent process disconnected', 1)
 })
