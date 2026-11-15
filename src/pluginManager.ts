@@ -263,13 +263,39 @@ export class PluginManager {
       log.error(error.stack)
       log.error('====================')
 
-      this.plugins.delete(identifier)
+      this.forgetPlugin(plugin, identifier)
     } finally {
       // Clear the in-progress reference so any late async registration that
       // fires after this initializer settles is rejected by the registration
       // handlers' guard rather than getting attributed to a stale (and now
       // possibly deleted) plugin.
       this.currentInitializingPlugin = undefined
+    }
+  }
+
+  /**
+   * Remove every trace of a plugin whose initializer failed. Anything it registered before it
+   * failed must go too, or a config block that names the accessory or platform by its short name
+   * would still be started from a plugin that was just reported as failed.
+   */
+  private forgetPlugin(plugin: Plugin, identifier: PluginIdentifier): void {
+    this.plugins.delete(identifier)
+
+    for (const nameMap of [this.accessoryToPluginMap, this.platformToPluginMap]) {
+      for (const [name, plugins] of nameMap) {
+        const remaining = plugins.filter(registered => registered !== plugin)
+        if (remaining.length === 0) {
+          nameMap.delete(name)
+        } else if (remaining.length !== plugins.length) {
+          nameMap.set(name, remaining)
+        }
+      }
+    }
+
+    for (const [wrongIdentifier, realIdentifier] of this.pluginIdentifierTranslation) {
+      if (realIdentifier === identifier) {
+        this.pluginIdentifierTranslation.delete(wrongIdentifier)
+      }
     }
   }
 
