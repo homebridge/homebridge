@@ -70,6 +70,9 @@ export class ChildBridgeFork {
   private bridgeConfig!: BridgeConfiguration
   private bridgeOptions!: BridgeOptions
 
+  // Whether the Matter API was loaded for this bridge (Matter is configured, and matter.js could be loaded)
+  private matterLoaded = false
+
   private pendingPortRequests = new Map<MacAddress, PendingPortRequest>()
 
   constructor() {
@@ -130,8 +133,9 @@ export class ChildBridgeFork {
     // `isMatterActive` includes externalsOnly mode so plugins can still call
     // api.matter.publishExternalAccessories even when the bridge node itself
     // is suppressed.
+    // If matter.js can not be loaded, the child bridge starts without Matter.
     if (isMatterActive(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
-      await this.api.loadMatterAPI()
+      this.matterLoaded = await this.api.tryLoadMatterAPI()
     }
 
     // load plugin
@@ -155,7 +159,7 @@ export class ChildBridgeFork {
       matterLogger.warn('Matter is not supported on accessory child bridges. Ignoring matter configuration.')
     }
 
-    if (isMatterActive(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
+    if (this.matterLoaded) {
       matterLogger.info('Loading Matter support for child bridge...')
 
       // Note: api.loadMatterAPI() was already called at the start of loadPlugin()
