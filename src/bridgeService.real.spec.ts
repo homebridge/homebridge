@@ -329,3 +329,42 @@ describe('a static platform on the real bridge', () => {
     expect(bridged()).toEqual(['Lamp', 'Fan'])
   })
 })
+
+describe('publishExternalAccessories on the real bridge', () => {
+  /** An external accessory whose network publish is replaced, so nothing is advertised. */
+  function external(name: string): { accessory: PlatformAccessory, publish: ReturnType<typeof vi.fn> } {
+    const externalAccessory = accessory(name)
+    externalAccessory._associatedPlugin = PLUGIN
+    const publish = vi.fn(async () => {})
+    vi.spyOn(externalAccessory._associatedHAPAccessory, 'publish').mockImplementation(publish)
+    return { accessory: externalAccessory, publish }
+  }
+
+  it('publishes the others when one accessory of the batch is published already', async () => {
+    const [tv, speaker] = [
+      external('TV'),
+      external('Speaker'),
+    ]
+    await service.handlePublishExternalAccessories([tv.accessory])
+
+    // the plugin publishes the tv a second time, together with a new accessory
+    await expect(service.handlePublishExternalAccessories([tv.accessory, speaker.accessory])).resolves.toBeUndefined()
+
+    expect(tv.publish).toHaveBeenCalledTimes(1)
+    expect(speaker.publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('publishes the others when no port can be had for one accessory', async () => {
+    const [tv, speaker] = [
+      external('TV'),
+      external('Speaker'),
+    ]
+    const requestPort = vi.spyOn(ExternalPortService.prototype, 'requestPort')
+    requestPort.mockRejectedValueOnce(new Error('parent did not answer'))
+
+    await expect(service.handlePublishExternalAccessories([tv.accessory, speaker.accessory])).resolves.toBeUndefined()
+
+    expect(tv.publish).not.toHaveBeenCalled()
+    expect(speaker.publish).toHaveBeenCalledTimes(1)
+  })
+})
