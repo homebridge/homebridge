@@ -99,4 +99,31 @@ describe('matterServer accessory cache on real matter.js nodes', () => {
 
     expect(cachedUuids('cache-last-bridge')).toEqual([])
   }, 30000)
+
+  it('saves the other accessories when one has a context that can not be written as json', async () => {
+    await sessionWith('cache-bigint-bridge', 5601, [
+      light('bigint-1'),
+      light('bigint-2', {
+        context: { room: 'hall' },
+      }),
+    ])
+
+    const server = bridgeServer('cache-bigint-bridge', 5601)
+    await server.start()
+    await server.registerPlatformAccessories('homebridge-test', 'Test', [
+      light('bigint-1', { displayName: 'Renamed' }),
+      // a bigint, for an energy counter say: JSON has no way to write one
+      light('bigint-2', {
+        context: { counter: 10n },
+      }),
+      light('bigint-3'),
+    ])
+    await server.stop()
+
+    const entries = cachedEntries('cache-bigint-bridge')
+    expect(entries.map(entry => entry.uuid).sort()).toEqual(['bigint-1', 'bigint-2', 'bigint-3'])
+    expect(entries.find(entry => entry.uuid === 'bigint-1')?.displayName).toBe('Renamed')
+    // the entry of the last good save is kept for the one that can not be written
+    expect(entries.find(entry => entry.uuid === 'bigint-2')?.context).toEqual({ room: 'hall' })
+  }, 30000)
 })
