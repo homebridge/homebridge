@@ -189,6 +189,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix: keep a higher colour level of the terminal when colour is forced with -C
 - fix: name a scoped plugin in full in its version and dependency warnings
 - refactor: look up the plugin of an accessory and of a platform with one shared method
+- docs: correct comments in the api, the package entry and the logger that said little or were wrong
 
 ### Homebridge Dependencies
 

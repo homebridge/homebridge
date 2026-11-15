@@ -4,7 +4,7 @@ import chalk from 'chalk'
 
 /**
  * Log levels to indicate importance of the logged message.
- * Every level corresponds to a certain color.
+ * Every level gives the message a certain color (the timestamp is always white and the prefix cyan).
  *
  * - INFO: no color
  * - SUCCESS: green
@@ -187,8 +187,8 @@ export class Logger {
 }
 
 /**
- * Gets the prefix
- * @param prefix
+ * The prefix as it is written in front of a log message: in square brackets, in cyan.
+ * @param prefix - the name of the plugin, accessory or Homebridge part that logs
  */
 export function getLogPrefix(prefix: string): string {
   return chalk.cyan(`[${prefix}]`)

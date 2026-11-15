@@ -1,8 +1,8 @@
-/**
- * Export HAP
- */
 import type { API } from './api.js'
 
+/**
+ * The type of `api.hap`: everything HAP-NodeJS exports.
+ */
 // noinspection JSUnusedGlobalSymbols
 export type HAP = API['hap']
 
@@ -189,7 +189,7 @@ export type {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════
- * Matter Protocol - UI Integration Types
+ * Matter Protocol - device types, clusters and errors (values)
  * ═══════════════════════════════════════════════════════════════════════
  */
 
