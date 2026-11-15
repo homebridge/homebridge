@@ -300,13 +300,12 @@ export interface MatterAccessory<T extends UnknownContext = UnknownContext> {
   }
 
   /**
-   * Optional: Get current state handler
-   * Called when a Matter controller reads an attribute
-   * If not provided, the last set value is returned
+   * Never called. Homebridge has no hook for a controller reading an
+   * attribute: a controller is answered from the state the bridge holds.
+   * Unlike HAP's `onGet`, the plugin has to push every change, with
+   * `api.matter.updateAccessoryState()`.
    *
-   * @param cluster - Cluster name (e.g., 'onOff', 'levelControl')
-   * @param attribute - Attribute name to read
-   * @returns Current value of the attribute
+   * @deprecated Has never been called. Push changes with `api.matter.updateAccessoryState()`.
    */
   getState?: (cluster: string, attribute: string) => Promise<unknown> | unknown
 
