@@ -182,24 +182,39 @@ export class PluginManager {
     return match[2]
   }
 
-  public static getAccessoryName(identifier: AccessoryIdentifier): AccessoryName {
-    if (!identifier.includes('.')) {
-      return identifier
-    }
-
-    return identifier.split('.')[1]
+  /**
+   * Where the plugin part of an accessory or platform identifier ends (the index of the dot),
+   * or -1 when the identifier is a bare name.
+   *
+   * The forms are `Name`, `homebridge-x.Name` and `@scope/homebridge-x.Name`. A scope may hold dots
+   * (`@my.scope/homebridge-x.Name`), so for a scoped plugin only a dot after the `/` ends the plugin part.
+   */
+  private static pluginPartEnd(identifier: string): number {
+    const packageStart = identifier.startsWith('@')
+      ? identifier.indexOf('/') + 1
+      : 0
+    return identifier.indexOf('.', packageStart)
   }
 
-  public static getPlatformName(identifier: PlatformIdentifier): PlatformIdentifier {
-    if (!identifier.includes('.')) {
-      return identifier
-    }
+  public static getAccessoryName(identifier: AccessoryIdentifier): AccessoryName {
+    const end = PluginManager.pluginPartEnd(identifier)
+    return end === -1
+      ? identifier
+      : identifier.slice(end + 1)
+  }
 
-    return identifier.split('.')[1]
+  public static getPlatformName(identifier: PlatformIdentifier): PlatformName {
+    const end = PluginManager.pluginPartEnd(identifier)
+    return end === -1
+      ? identifier
+      : identifier.slice(end + 1)
   }
 
   public static getPluginIdentifier(identifier: AccessoryIdentifier | PlatformIdentifier): PluginIdentifier {
-    return identifier.split('.')[0]
+    const end = PluginManager.pluginPartEnd(identifier)
+    return end === -1
+      ? identifier
+      : identifier.slice(0, end)
   }
 
   public async initializeInstalledPlugins(): Promise<void> {
@@ -304,7 +319,7 @@ export class PluginManager {
 
   public getPluginForAccessory(accessoryIdentifier: AccessoryIdentifier | AccessoryName): Plugin {
     let plugin: Plugin
-    if (!accessoryIdentifier.includes('.')) { // see if it matches exactly one accessory
+    if (PluginManager.pluginPartEnd(accessoryIdentifier) === -1) { // see if it matches exactly one accessory
       let found = this.accessoryToPluginMap.get(accessoryIdentifier)
 
       if (!found) {
@@ -336,7 +351,7 @@ export class PluginManager {
 
   public getPluginForPlatform(platformIdentifier: PlatformIdentifier | PlatformName): Plugin {
     let plugin: Plugin
-    if (!platformIdentifier.includes('.')) { // see if it matches exactly one platform
+    if (PluginManager.pluginPartEnd(platformIdentifier) === -1) { // see if it matches exactly one platform
       let found = this.platformToPluginMap.get(platformIdentifier)
 
       if (!found) {
