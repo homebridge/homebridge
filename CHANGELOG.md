@@ -273,6 +273,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): refuse a lock, unlock, open or close that has no handler, and keep the state
 - fix(matter): match a bridge.bind address as HAP does (#4049) (@stalinCCCP415)
 - fix(matter): register an accessory whose saved mode is no longer in its list of modes (#4057)
+- chore(deps): dependency updates
 
 ### Homebridge Dependencies
 
@@ -280,8 +281,8 @@ All notable changes to `homebridge` will be documented in this file. This projec
 
 ### Matter Dependencies
 
-- `@matter/main` @ `v0.18.0`
-- `@matter/nodejs` @ `v0.18.0`
+- `@matter/main` @ `v0.18.1-alpha`
+- `@matter/nodejs` @ `v0.18.1-alpha`
 
 ## v2.5.0 (2026-11-01)
 
