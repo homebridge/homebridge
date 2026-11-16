@@ -107,6 +107,16 @@ export interface BridgeConfiguration {
   pin: string // format like "000-00-000"
   advertiser?: MDNSAdvertiser
   port?: number
+  /**
+   * The network interfaces the bridge advertises on, as interface names
+   * (`"eth0"`) or IP addresses this machine has (`"192.168.1.50"`), or a
+   * mixture. An address names the interface that owns it when the bridge
+   * starts, so a bridge can follow a network rather than an interface — on a
+   * multi-homed Docker container, which of `eth0`/`eth1` sits on which
+   * network changes between starts, but the address on each network does not.
+   * Subnets are not accepted. `0.0.0.0` / `::` mean every interface.
+   * Unset: every interface.
+   */
   bind?: (InterfaceName | IPAddress) | (InterfaceName | IPAddress)[]
   /** 4-character HomeKit setup ID (0-9 and A-Z, e.g. "ABCD"). One that is not 4 characters long is ignored, with a warning. */
   setupID?: string
