@@ -277,15 +277,16 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): restore cached external accessories safely (#4048) (@inakietxeba)
 - ci: check that the packed tarball installs and the bridge starts on Node 22 and 26 (#4055)
 - refactor(matter): drop the decrypt failure log filter, matter.js 0.18.1 logs these at debug itself
+- chore(deps): dependency updates
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.3.1-beta`
+- `@homebridge/hap-nodejs` @ `v2.3.1`
 
 ### Matter Dependencies
 
-- `@matter/main` @ `v0.18.0`
-- `@matter/nodejs` @ `v0.18.0`
+- `@matter/main` @ `v0.18.1`
+- `@matter/nodejs` @ `v0.18.1`
 
 ## v2.5.0 (2026-11-01)
 
