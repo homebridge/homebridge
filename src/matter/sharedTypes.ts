@@ -204,7 +204,8 @@ export interface MatterServerConfig {
   deferOnline?: boolean
 
   /**
-   * The `bridge.bind` entries (interface names or addresses). Used for
+   * The `bridge.bind` entries (interface names or addresses). An address is
+   * resolved to the interface that owns it when the server starts. Used for
    * Matter's mDNS only, and only the first one that matches an interface:
    * the Matter port itself listens on every interface.
    */
