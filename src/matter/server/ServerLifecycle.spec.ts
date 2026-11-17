@@ -127,6 +127,7 @@ vi.mock('node:os', async (importOriginal) => {
     networkInterfaces: () => ({
       eno1: [
         { address: '192.168.1.10', family: 'IPv4' },
+        { address: 'fd00:1234::10', family: 'IPv6', scopeid: 0 },
       ],
       wlan0: [
         { address: '10.0.0.5', family: 'IPv4' },
@@ -400,6 +401,34 @@ describe('serverLifecycle — the matter.js environment at start', () => {
       await lifecycle.start(withBind(['eth9', '192.168.99.99']))
 
       expect((sharedVarsState.store.mdns as Record<string, unknown> | undefined)?.networkInterface).toBeUndefined()
+    })
+
+    it('matches an IPv6 address in bridge.bind by value, not by spelling', async () => {
+      await lifecycle.start(withBind(['FD00:1234:0:0:0:0:0:10']))
+
+      expect((sharedVarsState.store.mdns as Record<string, unknown>).networkInterface).toBe('eno1')
+    })
+
+    it('reads an unspecified address as "every interface", as HAP does, and does not call it unknown', async () => {
+      const { Logger } = await import('../../logger.js')
+      const log = Logger.withPrefix('test')
+
+      await lifecycle.start(withBind(['0.0.0.0']))
+
+      expect((sharedVarsState.store.mdns as Record<string, unknown> | undefined)?.networkInterface).toBeUndefined()
+      expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('is not the name or an address'))
+      expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('bridge.bind is not set'))
+      expect(log.info).toHaveBeenCalledWith(expect.stringContaining('0.0.0.0'))
+    })
+
+    it('still limits mDNS to the named interface when an unspecified address sits beside it', async () => {
+      const { Logger } = await import('../../logger.js')
+      const log = Logger.withPrefix('test')
+
+      await lifecycle.start(withBind(['eno1', '0.0.0.0']))
+
+      expect((sharedVarsState.store.mdns as Record<string, unknown>).networkInterface).toBe('eno1')
+      expect(log.warn).not.toHaveBeenCalled()
     })
 
     it('does not set network.interface: matter.js only labels a diagnostics list with it, and logs an error for it when the last controller is removed', async () => {
