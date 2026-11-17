@@ -8,6 +8,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { Logger } from '../logger.js'
 import { User } from '../user.js'
 import { generate } from '../util/mac.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
@@ -33,7 +34,7 @@ class Manager extends BaseMatterManager {
     this.published(accessory)
     this.externalMatterServers.set(accessory.UUID, {
       stop: vi.fn().mockResolvedValue(undefined),
-      registerPlatformAccessories: vi.fn().mockResolvedValue(undefined),
+      registerAccessory: vi.fn().mockResolvedValue(undefined),
     } as unknown as MatterServer)
   }
 }
@@ -74,10 +75,14 @@ describe('external Matter cache restoration', () => {
       platform: '',
     }))
     const configureMatterAccessory = vi.fn()
+    const instance: { configureMatterAccessory: typeof configureMatterAccessory, restoreExternalMatterAccessories?: boolean } = {
+      configureMatterAccessory,
+      restoreExternalMatterAccessories: true,
+    }
     const plugin = {
       getUniqueActiveDynamicPlatform: () => ambiguous
         ? undefined
-        : { configureMatterAccessory },
+        : instance,
     }
     const manager = new Manager({
       getPlugin: () => plugin,
@@ -87,8 +92,18 @@ describe('external Matter cache restoration', () => {
       file,
       dir,
       configureMatterAccessory,
+      instance,
     }
   }
+
+  it.each([false, undefined])('does not deliver, publish or delete external storage without opt-in (%s)', async (enabled) => {
+    const f = fixture()
+    f.instance.restoreExternalMatterAccessories = enabled
+    await f.manager.restoreCachedAccessories(false)
+    expect(f.configureMatterAccessory).not.toHaveBeenCalled()
+    expect(f.manager.published).not.toHaveBeenCalled()
+    expect(fs.readFileSync(path.join(f.dir, 'credentials.json'), 'utf8')).toBe('preserved')
+  })
 
   it('restores without a main server and removes storage on exclusion like a fresh accessory', async () => {
     const f = fixture()
@@ -133,6 +148,7 @@ describe('external Matter cache restoration', () => {
 
   it('retains the live server for registration if the plugin cache callback throws', async () => {
     const f = fixture()
+    const warn = vi.spyOn(Logger.withPrefix('Matter/BaseManager'), 'warn')
     f.configureMatterAccessory.mockImplementationOnce(() => {
       throw new Error('plugin failed')
     })
@@ -140,6 +156,7 @@ describe('external Matter cache restoration', () => {
     const accessory = f.manager.published.mock.calls[0][0] as InternalMatterAccessory
     expect(f.manager.getExternalServer(accessory.UUID)).toBeDefined()
     expect(await f.manager.attach(accessory)).toBe(true)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Test vacuum while configuring the plugin: plugin failed'))
   })
 
   it('rejects an ownership record that refers to another accessory', async () => {
@@ -204,8 +221,8 @@ describe('external Matter cache restoration', () => {
       },
     }
     expect(await f.manager.attach(replacement)).toBe(true)
-    expect(f.manager.getExternalServer(cached.UUID)?.registerPlatformAccessories).toHaveBeenCalledWith(
-      'test-plugin', 'ExternalMatter', [replacement],
+    expect(f.manager.getExternalServer(cached.UUID)?.registerAccessory).toHaveBeenCalledWith(
+      'test-plugin', 'ExternalMatter', replacement,
     )
     expect(await f.manager.attach(replacement)).toBe(false)
     expect(f.manager.published).toHaveBeenCalledTimes(1)
@@ -216,7 +233,7 @@ describe('external Matter cache restoration', () => {
     await f.manager.restoreCachedAccessories(false)
     const accessory = f.configureMatterAccessory.mock.calls[0][0] as InternalMatterAccessory
     const server = f.manager.getExternalServer(accessory.UUID)!
-    vi.mocked(server.registerPlatformAccessories).mockRejectedValueOnce(new Error('registration failed'))
+    vi.mocked(server.registerAccessory).mockRejectedValueOnce(new Error('registration failed'))
     await expect(f.manager.attach(accessory)).rejects.toThrow('registration failed')
     expect(f.manager.getExternalServer(accessory.UUID)).toBe(server)
     expect(await f.manager.attach(accessory)).toBe(true)
@@ -263,7 +280,7 @@ describe('external Matter cache restoration', () => {
   it('does not restore an accessory from a mismatching storage directory', async () => {
     const f = fixture()
     const data = JSON.parse(fs.readFileSync(f.file, 'utf8'))
-    data[0].uuid = 'c786c276-cd40-41f1-95d6-1865fb8e5461'
+    data[0].uuid = '00000000-0000-4000-8000-000000000002'
     fs.writeFileSync(f.file, JSON.stringify(data))
     await f.manager.restoreCachedAccessories(false)
     expect(f.configureMatterAccessory).not.toHaveBeenCalled()

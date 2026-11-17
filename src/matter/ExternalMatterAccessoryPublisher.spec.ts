@@ -120,17 +120,24 @@ describe('externalMatterAccessoryPublisher', () => {
       expect(writeFileSync).not.toHaveBeenCalled()
     })
 
-    it('cleans up the server and releases its port when recording ownership fails', async () => {
+    it.each(['write', 'rename'])('keeps the working server and its port when ownership %s fails', async (operation) => {
       mockContext.bridgeUsername = 'child-bridge'
       mockMatterServer.stop = vi.fn().mockResolvedValue(undefined)
       mockPortService.releaseMatterPort = vi.fn()
-      vi.mocked(writeFileSync).mockImplementationOnce(() => {
-        throw new Error('write denied')
+      const failingOperation = operation === 'write'
+        ? vi.mocked(writeFileSync)
+        : vi.mocked(renameSync)
+      failingOperation.mockImplementationOnce(() => {
+        throw new Error('metadata denied')
       })
-      await expect(publishExternalMatterAccessory(mockAccessory, mockContext)).rejects.toThrow('write denied')
-      expect(mockMatterServer.stop).toHaveBeenCalledOnce()
-      expect(mockPortService.releaseMatterPort).toHaveBeenCalledWith('AABBCCDDEEFF')
-      expect(renameSync).not.toHaveBeenCalled()
+      const result = await publishExternalMatterAccessory(mockAccessory, mockContext)
+      expect(result?.server).toBe(mockMatterServer)
+      expect(mockMatterServer.stop).not.toHaveBeenCalled()
+      expect(mockPortService.releaseMatterPort).not.toHaveBeenCalled()
+      expect(vi.mocked(Logger).internal.warn).toHaveBeenCalledWith(expect.stringContaining('metadata denied'))
+      expect(renameSync).toHaveBeenCalledTimes(operation === 'write'
+        ? 0
+        : 1)
     })
 
     describe('validation', () => {
@@ -313,8 +320,8 @@ describe('externalMatterAccessoryPublisher', () => {
       it('preserves the owning platform in the external cache registration', async () => {
         const accessory = { ...mockAccessory, _associatedPlatform: 'VacuumPlatform' }
         await publishExternalMatterAccessory(accessory, mockContext)
-        expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledWith(
-          'homebridge-test-plugin', 'VacuumPlatform', [accessory],
+        expect(mockMatterServer.registerAccessory).toHaveBeenCalledWith(
+          'homebridge-test-plugin', 'VacuumPlatform', accessory,
         )
       })
 

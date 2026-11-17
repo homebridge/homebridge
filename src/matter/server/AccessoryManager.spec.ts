@@ -554,7 +554,7 @@ describe('accessoryManager', () => {
         await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory({
           parts: [replacement],
         }), deps)
-        expect(unregister).toHaveBeenCalledWith(restored.UUID, deps)
+        expect(unregister).toHaveBeenCalledWith(restored.UUID, deps, { keepStorage: true })
         expect(deps.accessories.get(restored.UUID)?.endpoint).not.toBe(restored.endpoint)
       })
 

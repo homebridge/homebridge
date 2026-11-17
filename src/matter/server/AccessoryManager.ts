@@ -649,7 +649,7 @@ export class AccessoryManager {
     }
 
     try {
-      if (accessory.endpoint && deps.getAggregator()) {
+      if (accessory.endpoint && (deps.getAggregator() || deps.config.externalAccessory)) {
         if (options.keepStorage) {
           await accessory.endpoint.close()
         } else {

@@ -12,6 +12,7 @@ import path from 'node:path'
 
 import { Logger } from '../logger.js'
 import { User } from '../user.js'
+import { errorMessage } from '../util/errorMessage.js'
 import { generate } from '../util/mac.js'
 import { MatterServer } from './server.js'
 
@@ -139,14 +140,18 @@ export async function publishExternalMatterAccessory(
     // Now run the server with the device already attached (required for external accessories)
     await matterServer.runServer()
     if (context.bridgeUsername) {
-      const ownerFile = path.join(User.matterPath(), uniqueId, 'homebridge-owner.json')
-      writeFileSync(`${ownerFile}.tmp`, JSON.stringify({
-        bridge: context.bridgeUsername,
-        uuid: accessory.UUID,
-        plugin: pluginIdentifier,
-        platform: accessory._associatedPlatform || 'ExternalMatter',
-      }))
-      renameSync(`${ownerFile}.tmp`, ownerFile)
+      try {
+        const ownerFile = path.join(User.matterPath(), uniqueId, 'homebridge-owner.json')
+        writeFileSync(`${ownerFile}.tmp`, JSON.stringify({
+          bridge: context.bridgeUsername,
+          uuid: accessory.UUID,
+          plugin: pluginIdentifier,
+          platform: accessory._associatedPlatform || 'ExternalMatter',
+        }))
+        renameSync(`${ownerFile}.tmp`, ownerFile)
+      } catch (error) {
+        log.warn(`Could not record external Matter ownership for ${accessory.displayName}; automatic restoration may be unavailable: ${errorMessage(error)}`)
+      }
     }
   } catch (error) {
     // Tear down the half-started server so we don't leak an open mDNS

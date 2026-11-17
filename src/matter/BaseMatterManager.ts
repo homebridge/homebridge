@@ -12,6 +12,7 @@ import path from 'node:path'
 
 import { Logger } from '../logger.js'
 import { User } from '../user.js'
+import { errorMessage } from '../util/errorMessage.js'
 import { generate } from '../util/mac.js'
 import { mapAttributesToCommand } from './ClusterCommandMapper.js'
 import { applyDeclaredClusterFeatures } from './clusterFeatures.js'
@@ -346,10 +347,10 @@ export abstract class BaseMatterManager {
       return false
     }
     // Reuse the existing shape reconciliation and handler registration path.
-    await server.registerPlatformAccessories(accessory._associatedPlugin || 'unknown',
-      accessory._associatedPlatform || 'ExternalMatter', [accessory])
+    await server.registerAccessory(accessory._associatedPlugin || 'unknown',
+      accessory._associatedPlatform || 'ExternalMatter', accessory)
     this.pendingExternalRegistrations.delete(accessory.UUID)
-    accessory._eventEmitter?.emit('ready', server.getServerInfo().port)
+    accessory._eventEmitter?.emit('ready', server.port)
     return true
   }
 
@@ -373,6 +374,8 @@ export abstract class BaseMatterManager {
       if (!existsSync(file)) {
         continue
       }
+      let displayName = dir
+      let phase = 'reading metadata'
       try {
         // Old caches have no reliable bridge ownership. Let an explicit plugin
         // registration claim them rather than guessing across main/child processes.
@@ -390,6 +393,9 @@ export abstract class BaseMatterManager {
           continue
         }
         const cached = entries[0]
+        if (typeof cached?.displayName === 'string') {
+          displayName = cached.displayName.replace(/[\r\n]/g, ' ')
+        }
         if (owner.uuid !== cached?.uuid || owner.plugin !== cached?.plugin || owner.platform !== cached?.platform) {
           continue
         }
@@ -403,7 +409,7 @@ export abstract class BaseMatterManager {
         const platform = cached.platform && cached.platform !== 'ExternalMatter'
           ? plugin?.getActiveDynamicPlatform(cached.platform)
           : plugin?.getUniqueActiveDynamicPlatform()
-        if (!platform?.configureMatterAccessory) {
+        if (platform?.restoreExternalMatterAccessories !== true || !platform.configureMatterAccessory) {
           continue
         }
         const type = deviceTypes[cached.deviceType?.name as keyof typeof deviceTypes]
@@ -413,9 +419,15 @@ export abstract class BaseMatterManager {
         const accessory = this.deserializeMatterAccessory(cached) as InternalMatterAccessory
         accessory.deviceType = applyDeclaredClusterFeatures(type, cached.deviceType?.clusterFeatures)
         accessory.features = cached.features
+        accessory._declared = cached.declared
         accessory._restoredFromCache = true
         // Compose cluster behaviors before the plugin supplies its live handlers.
-        accessory.handlers = Object.fromEntries(Object.keys(cached.clusters ?? {}).map(name => [name, {}]))
+        accessory.handlers = Object.fromEntries([
+          ...new Set([
+            ...Object.keys(cached.clusters ?? {}),
+            ...cached.handlerClusters ?? [],
+          ]),
+        ].map(name => [name, {}]))
         accessory._associatedPlugin = cached.plugin
         accessory._associatedPlatform = cached.platform
         accessory.parts = cached.parts?.map((part) => {
@@ -426,15 +438,22 @@ export abstract class BaseMatterManager {
           return {
             ...part,
             deviceType: applyDeclaredClusterFeatures(partType, part.deviceType.clusterFeatures),
-            handlers: Object.fromEntries(Object.keys(part.clusters ?? {}).map(name => [name, {}])),
+            handlers: Object.fromEntries([
+              ...new Set([
+                ...Object.keys(part.clusters ?? {}),
+                ...part.handlerClusters ?? [],
+              ]),
+            ].map(name => [name, {}])),
           }
         })
+        phase = 'publishing the node'
         await this.publishRestoredExternalAccessory(accessory)
         this.pendingExternalRegistrations.add(cached.uuid)
         // Never deliver a phantom accessory after a failed bind/start.
+        phase = 'configuring the plugin'
         platform.configureMatterAccessory(accessory)
-      } catch {
-        log.warn('Could not restore external Matter cache; leaving storage unchanged')
+      } catch (error) {
+        log.warn(`Could not restore external Matter accessory ${displayName} while ${phase}: ${errorMessage(error)}`)
       }
     }
   }
