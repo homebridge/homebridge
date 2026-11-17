@@ -449,8 +449,10 @@ export class ServerLifecycle {
       // bridge.bind may hold IP addresses as well as interface names (HAP takes
       // both), but matter.js wants a name: given an address, or a name this
       // machine does not have, its mDNS service fails and the node never
-      // starts. So work out the names, and say so when an entry matches nothing.
-      const { names: interfaceNames, unknown: unknownBindEntries } = resolveInterfaceNames(deps.config.networkInterfaces ?? [])
+      // starts. So work out the names, here at start so that an address is
+      // resolved against the interfaces this run actually has, and say so when
+      // an entry matches nothing.
+      const { names: interfaceNames, unknown: unknownBindEntries, unspecified: unspecifiedBindEntries } = resolveInterfaceNames(deps.config.networkInterfaces ?? [])
       for (const entry of unknownBindEntries) {
         log.warn(`bridge.bind entry "${entry}" is not the name or an address of a network interface on this machine. It is ignored for Matter.`)
       }
@@ -464,12 +466,15 @@ export class ServerLifecycle {
         } else {
           log.info(`Configured Matter mDNS to bind to interface: ${primary} (matter.js only supports a single mDNS interface; the other interfaces in bridge.bind — ${rest.join(', ')} — are unused for mDNS).`)
         }
+      } else if (unspecifiedBindEntries.length > 0) {
+        // HAP reads 0.0.0.0 / :: in bridge.bind as "every interface", so Matter does the same.
+        log.info(`bridge.bind holds the unspecified address ${unspecifiedBindEntries.join(', ')}. Matter mDNS will listen on all network interfaces.`)
       } else if (unknownBindEntries.length > 0) {
         log.warn('No bridge.bind entry matches a network interface on this machine. Matter mDNS will listen on all network interfaces.')
       } else {
         // No bridge.bind configured — Matter mDNS will listen on all interfaces, consistent
         // with Homebridge's own HAP/ciao mDNS behaviour when bind is unset.
-        log.warn('bridge.bind is not set. Matter mDNS will listen on all network interfaces, which increases CPU usage. Set bridge.bind in your Homebridge config to restrict it to a single interface.')
+        log.warn('bridge.bind is not set. Matter mDNS will listen on all network interfaces, which increases CPU usage. Set bridge.bind in your Homebridge config to an interface name or one of its IP addresses to restrict it to a single interface.')
       }
 
       const serverNode = await this.createServerNodeWithRecovery(nodeOptions, sanitizedId)

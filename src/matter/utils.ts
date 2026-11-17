@@ -7,11 +7,13 @@
 import type { MacAddress } from '@homebridge/hap-nodejs'
 import type { NetworkInterfaceInfo } from 'node:os'
 
+import { isIP, isIPv6, SocketAddress } from 'node:net'
 import { networkInterfaces } from 'node:os'
 
 import { version as matterJsVersion } from '@matter/main'
 
 const NON_HEX_RE = /[^A-F0-9]/gi
+const DECIMAL_RE = /^\d+$/
 const HEX_PAIR_RE = /.{1,2}/g
 const REGEXP_SPECIAL_RE = /[.*+?^${}()|[\]\\]/g
 
@@ -70,43 +72,127 @@ export function normalizeBindConfig(bind: string | string[] | undefined): string
 }
 
 /**
+ * The canonical text of an IPv6 address (lower case, longest zero run compressed),
+ * without any zone. Node reports addresses in this form; a user may spell the
+ * same address any number of other ways in `bridge.bind`.
+ */
+function canonicalIPv6(address: string): string {
+  const zoneStart = address.indexOf('%')
+  const bare = zoneStart === -1
+    ? address
+    : address.slice(0, zoneStart)
+  try {
+    return new SocketAddress({ address: bare, family: 'ipv6' }).address
+  } catch {
+    return bare.toLowerCase()
+  }
+}
+
+/**
+ * The name of the interface that owns `address`, in the table `interfaces`.
+ *
+ * An IPv6 address is compared by value, not spelling. Its zone (RFC 4007,
+ * `fe80::1%eth0` or `fe80::1%2`) names the interface the address must be on:
+ * the interface of that name, or for a number, the interface whose link-local
+ * address reports that scope id. Without a zone, the first interface that has
+ * the address wins. This is the resolution ciao performs for HAP.
+ */
+function interfaceOwningAddress(address: string, interfaces: Record<string, NetworkInterfaceInfo[] | undefined>): string | undefined {
+  const ipv6 = isIPv6(address)
+  const wanted = ipv6
+    ? canonicalIPv6(address)
+    : address
+
+  let candidates = Object.keys(interfaces)
+  let scopeId: number | undefined
+  const zoneStart = ipv6
+    ? address.indexOf('%')
+    : -1
+  if (zoneStart !== -1) {
+    const zone = address.slice(zoneStart + 1)
+    if (interfaces[zone]) {
+      candidates = [zone]
+    } else if (DECIMAL_RE.test(zone)) {
+      scopeId = Number(zone)
+    } else {
+      return undefined
+    }
+  }
+
+  for (const name of candidates) {
+    for (const info of interfaces[name] ?? []) {
+      if (ipv6) {
+        if (!isIPv6(info.address)) {
+          continue
+        }
+        if (scopeId !== undefined && scopeId !== 0 && info.scopeid !== scopeId) {
+          continue
+        }
+        if (canonicalIPv6(info.address) === wanted) {
+          return name
+        }
+      } else if (info.address === wanted) {
+        return name
+      }
+    }
+  }
+  return undefined
+}
+
+/**
  * Turn `bridge.bind` entries into network interface names.
  *
  * `bridge.bind` may hold interface names or IP addresses, and HAP accepts
  * both. matter.js only takes an interface NAME, and fails to start its mDNS
  * service when it is given anything else. So an address is replaced by the
- * name of the interface that owns it, and an entry that is neither a name nor
- * an address of an interface on this machine is reported back as unknown.
+ * name of the interface that owns it *at the time of the call*, which lets a
+ * bridge follow a network rather than an interface — in a multi-homed Docker
+ * container, which of `eth0`/`eth1` sits on which network changes from one
+ * start to the next, but the container's address on each network does not.
+ *
+ * An IPv6 address is matched by value, however it is spelled, and its zone
+ * picks the interface when the same link-local address is on several. The
+ * unspecified addresses `0.0.0.0` and `::`, which HAP reads as "listen on
+ * everything", are set aside rather than reported as unknown. An entry that
+ * is neither a name nor an address of an interface on this machine, or a
+ * subnet, is reported back as unknown.
  *
  * @param bind - the normalised `bridge.bind` entries
  * @param interfaces - the machine's interfaces (injectable for tests)
- * @returns the interface names, in order and without repeats, and the entries that matched nothing
+ * @returns the interface names, in order and without repeats; the entries that matched nothing;
+ * and the unspecified addresses
  *
  * @example
  * ```typescript
- * resolveInterfaceNames(['192.168.1.10', 'wlan0', 'eth9'])
- * // { names: ['eth0', 'wlan0'], unknown: ['eth9'] } on a machine where eth0 has 192.168.1.10
+ * resolveInterfaceNames(['192.168.1.10', 'wlan0', 'eth9', '0.0.0.0'])
+ * // { names: ['eth0', 'wlan0'], unknown: ['eth9'], unspecified: ['0.0.0.0'] } on a machine where eth0 has 192.168.1.10
  * ```
  */
 export function resolveInterfaceNames(
   bind: string[],
   interfaces: Record<string, NetworkInterfaceInfo[] | undefined> = networkInterfaces(),
-): { names: string[], unknown: string[] } {
+): { names: string[], unknown: string[], unspecified: string[] } {
   const names: string[] = []
   const unknown: string[] = []
+  const unspecified: string[] = []
   for (const entry of bind) {
-    const name = interfaces[entry]
-      ? entry
-      : Object.keys(interfaces).find(interfaceName =>
-          // an IPv6 address may carry a zone: fe80::1%eth0
-          interfaces[interfaceName]?.some(info => info.address === entry || info.address === entry.split('%')[0]))
+    let name: string | undefined
+    if (interfaces[entry]) {
+      name = entry
+    } else if (isIP(entry)) {
+      if (entry === '0.0.0.0' || (isIPv6(entry) && canonicalIPv6(entry) === '::')) {
+        unspecified.push(entry)
+        continue
+      }
+      name = interfaceOwningAddress(entry, interfaces)
+    }
     if (!name) {
       unknown.push(entry)
     } else if (!names.includes(name)) {
       names.push(name)
     }
   }
-  return { names, unknown }
+  return { names, unknown, unspecified }
 }
 
 /**
