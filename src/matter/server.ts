@@ -26,6 +26,7 @@ import {
   AccessoryManager,
   AccessoryQuery,
   CommissioningManager,
+  DEFAULT_MATTER_PORT,
   FabricManager,
   ServerLifecycle,
   StateManager,
@@ -392,6 +393,10 @@ export class MatterServer extends EventEmitter {
 
   isServerRunning(): boolean {
     return this.isRunning
+  }
+
+  get port(): number {
+    return this.config.port ?? DEFAULT_MATTER_PORT
   }
 
   /**

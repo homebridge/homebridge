@@ -45,7 +45,7 @@ describe('behaviorRegistry', () => {
       registry.registerHandlerSource('restored', () => accessory.handlers)
       await expect(registry.executeHandler('restored', 'serviceArea', 'selectAreas', {
         newAreas: [1],
-      })).rejects.toThrow('No handler registered')
+      })).resolves.toBe(false)
       const selectAreas = vi.fn()
       const changeToMode = vi.fn()
       accessory.handlers = {
@@ -58,8 +58,8 @@ describe('behaviorRegistry', () => {
       await registry.executeHandler('restored', 'rvcCleanMode', 'changeToMode', { newMode: 0 })
       expect(selectAreas).toHaveBeenCalledWith({
         newAreas: [1],
-      }, undefined)
-      expect(changeToMode).toHaveBeenCalledWith({ newMode: 0 }, undefined)
+      }, { uuid: 'restored' })
+      expect(changeToMode).toHaveBeenCalledWith({ newMode: 0 }, { uuid: 'restored' })
       accessory.handlers = {}
       expect(registry.getHandler('restored', 'serviceArea', 'selectAreas')).toBeUndefined()
       registry.removeEndpoint('restored')

@@ -111,7 +111,8 @@ export class BehaviorRegistry {
   ): MatterCommandHandler | undefined {
     const source = this.handlerSources.get(endpointId)
     if (source) {
-      return source()?.[clusterName]?.[commandName]
+      // The registry erases each command's typed request/context signature.
+      return source()?.[clusterName]?.[commandName] as MatterCommandHandler | undefined
     }
     return this.handlers.get(endpointId)?.get(clusterName)?.get(commandName)
   }
