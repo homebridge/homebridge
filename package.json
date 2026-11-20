@@ -63,7 +63,7 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.3.1-beta.3",
+    "@homebridge/hap-nodejs": "2.3.1-beta.6",
     "@matter/main": "0.18.1-alpha.0-20261115-f2ccf3e12",
     "@matter/nodejs": "0.18.1-alpha.0-20261115-f2ccf3e12",
     "chalk": "6.0.1",
