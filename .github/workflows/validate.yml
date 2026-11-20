@@ -1,0 +1,83 @@
+# Validate Start
+# Packs homebridge, installs the tarball the way npm users get it, and checks that the bridge
+# starts. Unit tests can't catch a broken dependency at startup (native module, missing file,
+# ESM/CJS mismatch), which matters now that the dependency bot auto-merges upstream betas.
+# Kept small on purpose: Linux only, the oldest and newest supported Node, PRs only.
+name: Validate Start
+
+on:
+  pull_request:
+    branches: [latest, beta-*.*.*, alpha-*.*.*]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  start:
+    name: Start (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.x, 26.x]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Build and pack
+        run: |
+          npm ci
+          npm run build
+          npm pack --ignore-scripts
+
+      - name: Install the packed tarball
+        run: npm install -g --omit=dev --prefix "$RUNNER_TEMP/hb" ./homebridge-*.tgz
+
+      - name: Start homebridge and wait for the bridge
+        run: |
+          storage="$RUNNER_TEMP/storage"
+          mkdir -p "$storage"
+          cat > "$storage/config.json" <<'JSON'
+          {
+            "bridge": {
+              "name": "Homebridge CI",
+              "username": "0E:CA:11:00:00:01",
+              "port": 51826,
+              "pin": "031-45-154"
+            },
+            "accessories": [],
+            "platforms": []
+          }
+          JSON
+
+          "$RUNNER_TEMP/hb/bin/homebridge" -U "$storage" > homebridge.log 2>&1 &
+          pid=$!
+
+          for _ in $(seq 1 60); do
+            if grep -q 'is running on port' homebridge.log; then
+              grep 'is running on port' homebridge.log
+              kill "$pid"
+              exit 0
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              echo "::error::homebridge exited before the bridge started"
+              cat homebridge.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "::error::the bridge did not start within 60 seconds"
+          cat homebridge.log
+          kill "$pid" || true
+          exit 1
