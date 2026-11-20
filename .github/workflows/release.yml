@@ -18,10 +18,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   determine-npm-tag:
     name: Determine NPM Tag
@@ -67,6 +63,10 @@ jobs:
   build_and_test_beta:
     needs: [determine-npm-tag, lint]
     name: Build & Test (Beta)
+    # A newer push to the same branch cancels an older build, so only the newest commit is published.
+    concurrency:
+      group: ${{ github.workflow }}-build-${{ github.ref }}
+      cancel-in-progress: true
     if: needs.determine-npm-tag.outputs.npm_tag == 'beta'
     uses: homebridge/.github/.github/workflows/nodejs-build-and-test.yml@latest
     with:
@@ -87,6 +87,10 @@ jobs:
       (needs.build_and_test_beta.result == 'success' ||
        needs.build_and_test_beta.result == 'skipped')
     name: Publish To NPM (${{ needs.determine-npm-tag.outputs.npm_tag }})
+    # Never cancel a publish that has started; a newer run waits for it.
+    concurrency:
+      group: ${{ github.workflow }}-publish-${{ github.ref }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       id-token: write
