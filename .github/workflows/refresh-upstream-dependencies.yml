@@ -1,0 +1,48 @@
+# Refresh Homebridge Upstream Dependencies
+# Bumps upstream Homebridge packages (@homebridge/hap-nodejs) on the highest alpha-* / beta-* branch via a PR that
+# auto-merges when the branch's required checks pass; merging publishes a prerelease.
+# Runs daily at 06:47 UTC for all streams; each branch holds its own bot config.
+name: Refresh Homebridge Upstream Dependencies
+run-name: Refresh Homebridge Upstream Dependencies (${{ inputs.stream || 'all' }})
+
+on:
+  schedule:
+    - cron: '47 6 * * *'
+  workflow_dispatch:
+    inputs:
+      stream:
+        description: Release stream to refresh
+        type: choice
+        options: [all, alpha, beta]
+        default: alpha
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: Refresh ${{ matrix.stream }} upstream dependencies
+    if: github.repository == 'homebridge/homebridge'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        stream: ${{ fromJSON((inputs.stream || 'all') == 'all' && '["alpha","beta"]' || format('["{0}"]', inputs.stream)) }}
+    steps:
+      - name: Get Homebridge App token for ${{ matrix.stream }} refresh
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.DEPENDENCY_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPENDENCY_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Refresh ${{ matrix.stream }} upstream dependencies
+        uses: homebridge/dependency-bot@latest
+        with:
+          config_file: .github/homebridge-dependency-bot-${{ matrix.stream }}.json
+          release_stream: ${{ matrix.stream }}
+          branch_pattern: ${{ matrix.stream }}-*.*.*
+          PUBLISH_TOKEN: ${{ steps.app-token.outputs.token }}
