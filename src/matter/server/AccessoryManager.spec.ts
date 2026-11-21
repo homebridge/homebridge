@@ -73,6 +73,7 @@ vi.mock('@matter/main/behaviors', () => ({
   },
 }))
 vi.mock('../behaviors/EndpointContext.js', () => ({
+  setDeclaredClusters: vi.fn(),
   setRegistryManager: vi.fn(),
 }))
 vi.mock('../behaviors/RvcCleanModeBehavior.js', () => ({

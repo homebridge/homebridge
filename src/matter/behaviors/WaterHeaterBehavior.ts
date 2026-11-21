@@ -14,6 +14,7 @@ import { WaterHeaterManagement } from '@matter/main/clusters/water-heater-manage
 
 import { registryOf } from './EndpointContext.js'
 import { changeToModeWithHandler } from './handlerResponse.js'
+import { repairCurrentMode } from './modeRepair.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -25,6 +26,12 @@ import { lockStateForWrite } from './stateLock.js'
  * is checked here first and the plugin only hears about a mode the device lists.
  */
 export class HomebridgeWaterHeaterModeServer extends WaterHeaterModeServer {
+  /** A saved mode the device no longer lists is replaced first, or matter.js refuses to start (#4057). */
+  override initialize() {
+    repairCurrentMode(this, 'waterHeaterMode')
+    return super.initialize()
+  }
+
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     return changeToModeWithHandler(this, 'waterHeaterMode', request, () => super.changeToMode(request))
   }

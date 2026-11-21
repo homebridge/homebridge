@@ -30,8 +30,9 @@ import { BasicInformationServer, BridgedDeviceBasicInformationServer, Descriptor
 import { IpcOutgoingEvent } from '../../ipcService.js'
 import { Logger } from '../../logger.js'
 import { sendToParent } from '../../util/ipc.js'
-import { setRegistryManager } from '../behaviors/EndpointContext.js'
+import { setDeclaredClusters, setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
+import { isSupportedMode } from '../behaviors/modeRepair.js'
 import { notePluginUpdate } from '../behaviors/pluginUpdates.js'
 import { lockStateForWrite } from '../behaviors/stateLock.js'
 import { declaredClusterFeatures } from '../clusterFeatures.js'
@@ -495,6 +496,7 @@ export class AccessoryManager {
       })
 
       setRegistryManager(endpoint, deps.registryManager)
+      setDeclaredClusters(endpoint, accessory.clusters)
 
       if (deps.config.debugModeEnabled) {
         log.debug(`Created endpoint for ${accessory.displayName} with initial cluster states`)
@@ -727,6 +729,7 @@ export class AccessoryManager {
         continue
       }
       const lastAttributes = lastDeclared?.[clusterName] as Record<string, unknown> | undefined
+      const declaredMode = (declaredAttributes as Record<string, unknown>).currentMode
       for (const [attributeName, value] of Object.entries(declaredAttributes)) {
         if (!(attributeName in knownAttributes)) {
           continue
@@ -738,6 +741,15 @@ export class AccessoryManager {
           (changed[clusterName] ??= {})[attributeName] = value
         } else {
           (declaredAttributes as Record<string, unknown>)[attributeName] = knownAttributes[attributeName]
+        }
+      }
+      // A known current mode is only kept while the list of modes still has it. After a plugin
+      // update with fewer modes it may not, and matter.js then refuses the whole accessory (#4057)
+      const modes = declaredAttributes as { supportedModes?: unknown, currentMode?: unknown }
+      if (Array.isArray(modes.supportedModes) && declaredMode !== undefined && !isSupportedMode(modes.supportedModes, modes.currentMode)) {
+        modes.currentMode = declaredMode
+        if (!isDeepStrictEqual(knownAttributes.currentMode, declaredMode)) {
+          (changed[clusterName] ??= {}).currentMode = declaredMode
         }
       }
     }
@@ -1372,6 +1384,7 @@ export class AccessoryManager {
 
       const partEndpoint = new Endpoint(partDeviceType, partEndpointOptions)
       setRegistryManager(partEndpoint, deps.registryManager)
+      setDeclaredClusters(partEndpoint, part.clusters)
 
       builtParts.push({ part, endpoint: partEndpoint, hasElectrical: partPrepared.hasElectrical })
     }

@@ -14,6 +14,7 @@ import { DeviceEnergyManagement } from '@matter/main/clusters/device-energy-mana
 
 import { registryOf } from './EndpointContext.js'
 import { changeToModeWithHandler } from './handlerResponse.js'
+import { repairCurrentMode } from './modeRepair.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -165,6 +166,12 @@ export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyM
  * only hears about a mode the device lists.
  */
 export class HomebridgeDeviceEnergyManagementModeServer extends DeviceEnergyManagementModeServer {
+  /** A saved mode the device no longer lists is replaced first, or matter.js refuses to start (#4057). */
+  override initialize() {
+    repairCurrentMode(this, 'deviceEnergyManagementMode')
+    return super.initialize()
+  }
+
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     return changeToModeWithHandler(this, 'deviceEnergyManagementMode', request, () => super.changeToMode(request))
   }
