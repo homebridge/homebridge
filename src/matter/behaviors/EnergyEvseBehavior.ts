@@ -15,6 +15,7 @@ import { Status, StatusResponseError } from '@matter/main/types'
 
 import { registryOf } from './EndpointContext.js'
 import { changeToModeWithHandler } from './handlerResponse.js'
+import { repairCurrentMode } from './modeRepair.js'
 import { lockStateForWrite } from './stateLock.js'
 
 /**
@@ -183,6 +184,12 @@ export class HomebridgeEnergyEvseServer extends DefaultEnergyEvseServer {
  * only hears about a mode the device lists.
  */
 export class HomebridgeEnergyEvseModeServer extends EnergyEvseModeServer {
+  /** A saved mode the device no longer lists is replaced first, or matter.js refuses to start (#4057). */
+  override initialize() {
+    repairCurrentMode(this, 'energyEvseMode')
+    return super.initialize()
+  }
+
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
     return changeToModeWithHandler(this, 'energyEvseMode', request, () => super.changeToMode(request))
   }
