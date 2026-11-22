@@ -44,6 +44,17 @@ export type { ChildBridgeMatterStatusInfo } from './ipc-types.js'
  * Manages Matter server and accessories for a child bridge
  */
 export class ChildBridgeMatterManager extends BaseMatterManager {
+  protected override getExternalCacheOwner(): string {
+    return this.bridgeConfig.username
+  }
+
+  protected override async publishRestoredExternalAccessory(accessory: InternalMatterAccessory): Promise<void> {
+    await this.handlePublishExternalAccessories([accessory], `restore-${accessory.UUID}`)
+    if (!this.externalMatterServers.has(accessory.UUID)) {
+      throw new Error('Failed to restore external Matter server')
+    }
+  }
+
   // Matter configuration from bridge config
   private readonly matterConfig?: MatterConfig
 
@@ -474,12 +485,16 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
         try {
           // Check if already published
           if (this.externalMatterServers.has(accessory.UUID)) {
+            if (await this.attachRestoredExternalAccessory(accessory)) {
+              continue
+            }
             log.warn(`External Matter accessory ${accessory.displayName} (${accessory.UUID}) is already published`)
             continue
           }
 
           // Publish the accessory using shared helper
           const result = await publishExternalMatterAccessory(accessory, {
+            bridgeUsername: this.bridgeConfig.username,
             portService: this.externalPortService,
             networkInterfaces,
             debugModeEnabled: this.bridgeOptions.debugModeEnabled,

@@ -139,8 +139,8 @@ export interface DynamicPlatformPlugin extends PlatformPlugin {
    *   build a new accessory to register. Do not pass this object to `registerPlatformAccessories()`.
    *   It is fine to pass it to `updatePlatformAccessories()` and `unregisterPlatformAccessories()`.
    * - Every accessory must be registered again at every start (see `registerPlatformAccessories()`).
-   * - It is not called for an external accessory (a robot vacuum cleaner): only the accessories
-   *   of the bridge are cached. Nothing is kept for an external accessory but its pairing.
+   * - External accessories are not delivered unless the platform explicitly enables
+   *   `restoreExternalMatterAccessories`. See that option for the external restore contract.
    * - `context`: the `context` of the registered object is used. The cached context is kept
    *   only when the registered object has none (no `context`, or an empty one). To be sure a
    *   value is kept, copy the cached `context` into the accessory you register.
@@ -148,6 +148,25 @@ export interface DynamicPlatformPlugin extends PlatformPlugin {
    * @param {MatterAccessory} accessory - cached Matter accessory
    */
   configureMatterAccessory?: (accessory: MatterAccessory) => void
+
+  /**
+   * Opt in to restoring external Matter accessories owned by this bridge.
+   * Defaults to false so existing plugins keep their current cache behaviour.
+   *
+   * When true, `configureMatterAccessory` also receives external accessories
+   * before `didFinishLaunching`. Their device types are reconstructed, but
+   * handlers cannot be persisted: the plugin must provide its live handlers,
+   * either on the cached object or by registering a freshly built accessory.
+   * Unregister any restored external accessory the plugin no longer manages.
+   * Otherwise it stays online without live handlers, regardless of
+   * `keepOrphanedCachedAccessories`, which does not cover external accessories.
+   * Do not unregister accessories the plugin still manages as bridged leftovers:
+   * external unregistration removes the node's storage, including its pairing information.
+   *
+   * Legacy storage without bridge ownership is not restored automatically;
+   * an explicit plugin registration records its owner for the next startup.
+   */
+  restoreExternalMatterAccessories?: boolean
 }
 
 /**
