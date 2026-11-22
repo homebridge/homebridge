@@ -275,7 +275,7 @@ describe('external restoration on real Matter nodes', () => {
     const credentialsFile = join(f.folder, 'credentials.json')
     const credentials = readFileSync(credentialsFile, 'utf8')
     const invalid = f.accessory(true)
-    invalid.clusters!.rvcRunMode!.currentMode = -1
+    invalid.clusters!.rvcOperationalState!.operationalError = { errorStateId: 999 }
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     await expect(manager.attach(invalid)).rejects.toThrow()

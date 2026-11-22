@@ -157,8 +157,11 @@ export interface DynamicPlatformPlugin extends PlatformPlugin {
    * before `didFinishLaunching`. Their device types are reconstructed, but
    * handlers cannot be persisted: the plugin must provide its live handlers,
    * either on the cached object or by registering a freshly built accessory.
-   * Do not unregister them as bridged leftovers: external unregistration
-   * explicitly removes the node's storage, including its pairing information.
+   * Unregister any restored external accessory the plugin no longer manages.
+   * Otherwise it stays online without live handlers, regardless of
+   * `keepOrphanedCachedAccessories`, which does not cover external accessories.
+   * Do not unregister accessories the plugin still manages as bridged leftovers:
+   * external unregistration removes the node's storage, including its pairing information.
    *
    * Legacy storage without bridge ownership is not restored automatically;
    * an explicit plugin registration records its owner for the next startup.
