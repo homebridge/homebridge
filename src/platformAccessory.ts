@@ -2,7 +2,6 @@ import type {
   Controller,
   ControllerConstructor,
   SerializedAccessory,
-  Service,
   VoidCallback,
   WithUUID,
 } from '@homebridge/hap-nodejs'
@@ -11,7 +10,7 @@ import type { PlatformName, PluginIdentifier } from './api.js'
 
 import { EventEmitter } from 'node:events'
 
-import { Accessory, AccessoryEventTypes, Categories } from '@homebridge/hap-nodejs'
+import { Accessory, AccessoryEventTypes, Categories, Service } from '@homebridge/hap-nodejs'
 
 /**
  * The arguments of a constructor. The same as `ConstructorArgs` of HAP-NodeJS,
@@ -132,6 +131,29 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
 
   public removeService(service: Service): void {
     this._associatedHAPAccessory.removeService(service)
+  }
+
+  /**
+   * Remove every service from the accessory except the ones given and the
+   * `AccessoryInformation` service, which HomeKit requires and which is never removed.
+   *
+   * Meant for reconciling an accessory restored from the cache: after the plugin has
+   * re-attached the services it still wants (with {@link getService}, {@link getServiceById}
+   * or {@link addService}), this drops the stale ones. Call it from your
+   * `configureAccessory` handler or later, then {@link API.updatePlatformAccessories}
+   * to save the result. Keeping the accessory this way preserves its room, name and automations in HomeKit.
+   *
+   * @param keep - The services to keep. Services that are not on this accessory are ignored.
+   * @returns The services that were removed.
+   */
+  public keepOnlyServices(keep: Service[]): Service[] {
+    const removed = this._associatedHAPAccessory.services.filter(service =>
+      service.UUID !== Service.AccessoryInformation.UUID && !keep.includes(service),
+    )
+    for (const service of removed) {
+      this._associatedHAPAccessory.removeService(service)
+    }
+    return removed
   }
 
   public getService<S extends WithUUID<typeof Service>>(name: string | S): Service | undefined {
