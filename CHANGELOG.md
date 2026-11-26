@@ -274,6 +274,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): match a bridge.bind address as HAP does (#4049) (@stalinCCCP415)
 - fix(matter): register an accessory whose saved mode is no longer in its list of modes (#4057)
 - fix(matter): restore cached external accessories safely (#4048) (@inakietxeba)
+- ci: check that the packed tarball installs and the bridge starts on Node 22 and 26 (#4055)
 - chore(deps): dependency updates
 
 ### Homebridge Dependencies
