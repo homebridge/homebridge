@@ -150,6 +150,55 @@ describe('platformAccessory', () => {
     })
   })
 
+  describe('platformAccessory.prototype.keepOnlyServices', () => {
+    it('should remove the services that are not kept and return them', () => {
+      const accessory = createAccessory()
+      const keep = accessory.addService(Service.Switch, 'keep', 'a')
+      const stale = accessory.addService(Service.Lightbulb, 'stale', 'b')
+      const staleSameType = accessory.addService(Service.Switch, 'stale2', 'c')
+
+      const removed = accessory.keepOnlyServices([keep])
+
+      expect(removed).toHaveLength(2)
+      expect(removed).toContain(stale)
+      expect(removed).toContain(staleSameType)
+      expect(accessory.getServiceById(Service.Switch, 'a')).toBe(keep)
+      expect(accessory.getServiceById(Service.Switch, 'c')).toBeUndefined()
+      expect(accessory.getService(Service.Lightbulb)).toBeUndefined()
+    })
+
+    it('should never remove the AccessoryInformation service', () => {
+      const accessory = createAccessory()
+      accessory.addService(Service.Switch, 'stale', 'a')
+
+      accessory.keepOnlyServices([])
+
+      expect(accessory.getService(Service.AccessoryInformation)).toBeDefined()
+      expect(accessory.services.map(service => service.UUID)).toEqual([Service.AccessoryInformation.UUID])
+    })
+
+    it('should remove nothing and return an empty list when every service is kept', () => {
+      const accessory = createAccessory()
+      const keep = accessory.addService(Service.Switch, 'keep', 'a')
+      const count = accessory.services.length
+
+      expect(accessory.keepOnlyServices([keep])).toEqual([])
+      expect(accessory.services).toHaveLength(count)
+    })
+
+    it('should ignore kept services that are not on the accessory', () => {
+      const accessory = createAccessory()
+      accessory.addService(Service.Switch, 'stale', 'a')
+
+      const removed = accessory.keepOnlyServices([
+        new Service.Lightbulb('other', 'z'),
+      ])
+
+      expect(removed).toHaveLength(1)
+      expect(accessory.services.map(service => service.UUID)).toEqual([Service.AccessoryInformation.UUID])
+    })
+  })
+
   describe('platformAccessory.prototype.getService', () => {
     it('should retrieve AccessoryInformation service', () => {
       const accessory = createAccessory()
