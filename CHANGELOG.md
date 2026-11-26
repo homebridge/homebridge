@@ -276,6 +276,7 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - fix(matter): register an accessory whose saved mode is no longer in its list of modes (#4057)
 - fix(matter): restore cached external accessories safely (#4048) (@inakietxeba)
 - ci: check that the packed tarball installs and the bridge starts on Node 22 and 26 (#4055)
+- refactor(matter): drop the decrypt failure log filter, matter.js 0.18.1 logs these at debug itself
 
 ### Homebridge Dependencies
 
