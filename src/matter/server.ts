@@ -126,7 +126,7 @@ export class MatterServer extends EventEmitter {
     }
 
     MatterLogger.facilityLevels = { ...QUIET_FACILITY_LEVELS }
-    MatterLogger.format = createHomebridgeLogFormatter({ debug: this.config.debugModeEnabled })
+    MatterLogger.format = createHomebridgeLogFormatter()
 
     // Warnings and errors go to stderr and the rest to stdout, the same split
     // Homebridge's own logger makes. All on stdout, a tool that reads the two
