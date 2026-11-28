@@ -277,10 +277,11 @@ All notable changes to `homebridge` will be documented in this file. This projec
 - ci: check that the packed tarball installs and the bridge starts on Node 22 and 26 (#4055)
 - refactor(matter): drop the decrypt failure log filter, matter.js 0.18.1 logs these at debug itself
 - chore(deps): dependency updates
+- chore(deps): update `@homebridge/hap-nodejs` to v2.3.1
 
 ### Homebridge Dependencies
 
-- `@homebridge/hap-nodejs` @ `v2.3.1-beta`
+- `@homebridge/hap-nodejs` @ `v2.3.1`
 
 ### Matter Dependencies
 
