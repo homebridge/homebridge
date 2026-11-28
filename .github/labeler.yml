@@ -1,11 +1,11 @@
-# Add 'beta' label to any PR where the head branch name starts with `beta` or has a `beta` section in the name
+# Add 'beta' label to any PR where the base branch (the branch the PR is to be merged into) name starts with `beta` or has a `beta` section in the name
 beta:
   - base-branch: [^beta, beta, 'beta*']
 
-# Add 'alpha' label to any PR where the head branch name starts with `alpha` or has an `alpha` section in the name
+# Add 'alpha' label to any PR where the base branch (the branch the PR is to be merged into) name starts with `alpha` or has an `alpha` section in the name
 alpha:
   - base-branch: [^alpha, alpha, 'alpha*']
 
-# Add 'latest' label to any PR where the head branch name starts with `latest` or has a `latest` section in the name
+# Add 'latest' label to any PR where the base branch (the branch the PR is to be merged into) name starts with `latest` or has a `latest` section in the name
 latest:
   - base-branch: [^latest, latest, 'latest*']

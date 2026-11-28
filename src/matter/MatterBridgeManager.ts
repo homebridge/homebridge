@@ -26,10 +26,11 @@ import { PluginManager } from '../pluginManager.js'
 import { User } from '../user.js'
 import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
+import { isPortInUseError } from './errorHandler.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 import { MatterServer } from './server.js'
-import { getErrorCode, getMatterJsVersion, normalizeBindConfig } from './utils.js'
+import { getMatterJsVersion, normalizeBindConfig } from './utils.js'
 
 const log = Logger.withPrefix('Matter/MainManager')
 const COLON_RE = /:/g
@@ -46,6 +47,7 @@ export class MatterBridgeManager extends BaseMatterManager {
     private readonly options: HomebridgeOptions,
     private readonly server: {
       registerExternalMatterBridge: (username: string, owner: string) => void
+      unregisterExternalMatterBridge: (username: string) => void
       ipcService: IpcService
     },
   ) {
@@ -56,8 +58,23 @@ export class MatterBridgeManager extends BaseMatterManager {
     // attachment.
   }
 
+  protected override async publishRestoredExternalAccessory(accessory: InternalMatterAccessory): Promise<void> {
+    await this.handlePublishExternalAccessories([accessory], `restore-${accessory.UUID}`)
+    if (!this.externalMatterServers.has(accessory.UUID)) {
+      throw new Error('Failed to restore external Matter server')
+    }
+  }
+
+  protected override getExternalCacheOwner(): string {
+    return this.config.bridge.username
+  }
+
   protected override releaseExternalMatterPort(uniqueId: string): void {
     this.externalPortService.releaseMatterPort(uniqueId)
+  }
+
+  protected override forgetExternalMatterBridge(username: string): void {
+    this.server.unregisterExternalMatterBridge(username)
   }
 
   // Stored listener references so they can be removed in teardown()
@@ -74,10 +91,11 @@ export class MatterBridgeManager extends BaseMatterManager {
     }))
   }
 
-  private readonly _onUpdateMatterPlatformAccessories = (accessories: MatterAccessory[]): void => {
-    this.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
+  private readonly _onUpdateMatterPlatformAccessories = (accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
+    const work = this.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
       log.error('Failed to update Matter platform accessories:', error)
     })
+    track?.(work)
   }
 
   private readonly _onUnregisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
@@ -92,18 +110,25 @@ export class MatterBridgeManager extends BaseMatterManager {
     }))
   }
 
-  private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): void => {
-    this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
+  private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, track?: MatterWorkTracker): void => {
+    const work = this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
       // In externalsOnly mode the real handler is attached but the bridge node
       // never started, so a state update for a non-external accessory is an
       // expected "wrong target", not a failure. Mirror the message-handler path
       // and log it at debug instead of surfacing a red error line.
       if (error instanceof MatterAccessoryNotOnBridgeError) {
-        log.debug(`Ignoring Matter state update for ${uuid}: accessory is not on this bridge`)
+        // Without a bridge node that is the normal case. With one, the plugin
+        // has updated an accessory it never registered (or has unregistered).
+        if (this.externalsOnlyMode) {
+          log.debug(`Ignoring Matter state update for ${uuid}: accessory is not on this bridge`)
+        } else {
+          log.warn(`Ignoring Matter state update for ${uuid} (${cluster}): no accessory with this UUID is registered on this bridge`)
+        }
         return
       }
       log.error('Failed to update Matter accessory state:', error)
     })
+    track?.(work)
   }
 
   // Drop-stub handlers for bridged Matter events when in externalsOnly mode.
@@ -134,7 +159,10 @@ export class MatterBridgeManager extends BaseMatterManager {
    * made against the main bridge must be rejected rather than silently dropped.
    */
   override hasActiveMatter(): boolean {
-    return this.matterServer !== undefined || this.externalsOnlyMode
+    // A bridge server that failed to start still counts: its listeners are
+    // attached, external accessories (which have a server of their own) can
+    // still publish, and a bridged registration gets the true reason.
+    return this.matterServer !== undefined || this.externalsOnlyMode || this.bridgeStartFailure !== undefined
   }
 
   // Stored reference so the stateChange listener can be removed in teardown()
@@ -245,6 +273,9 @@ export class MatterBridgeManager extends BaseMatterManager {
           log.info(`Allocated port ${matterPort} from pool for main Matter bridge`)
         }
       }
+      // Whichever way the port was chosen, no child bridge or external Matter
+      // accessory may be given it as well.
+      this.externalPortService.reserveMatterPort(matterPort)
 
       // Create Matter server instance with config inheritance from main bridge
       const serialNumber = this.config.bridge.username.replace(COLON_RE, '')
@@ -262,6 +293,7 @@ export class MatterBridgeManager extends BaseMatterManager {
         firmwareRevision: this.config.bridge.firmwareRevision || getVersion(),
         serialNumber,
         debugModeEnabled: this.options.debugModeEnabled,
+        hideQRCode: this.options.hideQRCode,
         networkInterfaces,
         disableIpv4: this.config.bridge.matter?.disableIpv4,
       })
@@ -289,25 +321,20 @@ export class MatterBridgeManager extends BaseMatterManager {
       const errorMessage = error instanceof Error
         ? error.message
         : String(error)
-      const errorCode = getErrorCode(error)
+      // The server object was kept before, never running. The bridge then
+      // reported Matter as enabled with no pairing codes, and told every
+      // plugin "still starting" for the rest of the run. Its port stays
+      // reserved: it may be the very port another program holds.
+      const failedServer = this.matterServer
+      this.matterServer = undefined
+      this.bridgeStartFailure = errorMessage
+      failedServer?.stop().catch((stopError: unknown) => {
+        log.debug('Could not stop the Matter server that failed to start:', stopError)
+      })
 
-      if (errorMessage.includes('corrupted')) {
-        log.error('')
-        log.error('╔════════════════════════════════════════════════════════════════════════════╗')
-        log.error('║  MATTER STORAGE CORRUPTED                                                  ║')
-        log.error('╠════════════════════════════════════════════════════════════════════════════╣')
-        log.error('║  Your Matter storage has become corrupted. This can happen when:          ║')
-        log.error('║  • Matter.js library version changes                                       ║')
-        log.error('║  • Storage format upgrades occur                                           ║')
-        log.error('║  • Incomplete writes during shutdown                                       ║')
-        log.error('║                                                                            ║')
-        log.error('║  To fix this, delete the corrupted storage directory:                     ║')
-        log.error(`║  rm -rf ~/.homebridge/matter/${this.config.bridge.username}                                   ║`)
-        log.error('║                                                                            ║')
-        log.error('║  Note: You will need to re-pair your Matter devices after deletion.       ║')
-        log.error('╚════════════════════════════════════════════════════════════════════════════╝')
-        log.error('')
-      } else if (errorCode === 'EADDRINUSE' || errorMessage.includes('address already in use')) {
+      // Unreadable stored data is reported, and set aside, by the server
+      // itself: its error says where the data went and what to do next.
+      if (isPortInUseError(error)) {
         log.error('')
         log.error('╔════════════════════════════════════════════════════════════════════════════╗')
         log.error('║  MATTER PORT ALREADY IN USE                                                ║')
@@ -346,15 +373,20 @@ export class MatterBridgeManager extends BaseMatterManager {
         try {
           // Check if already published
           if (this.externalMatterServers.has(accessory.UUID)) {
+            if (await this.attachRestoredExternalAccessory(accessory)) {
+              continue
+            }
             log.warn(`External Matter accessory ${accessory.displayName} (${accessory.UUID}) is already published`)
             continue
           }
 
           // Publish the accessory using shared helper
           const result = await publishExternalMatterAccessory(accessory, {
+            bridgeUsername: this.config.bridge.username,
             portService: this.externalPortService,
             networkInterfaces,
             debugModeEnabled: this.options.debugModeEnabled,
+            hideQRCode: this.options.hideQRCode,
             disableIpv4: this.config.bridge.matter?.disableIpv4,
           })
 
@@ -363,8 +395,8 @@ export class MatterBridgeManager extends BaseMatterManager {
             continue
           }
 
-          // Store the server instance
-          this.externalMatterServers.set(accessory.UUID, result.server)
+          // Store the server instance (with the UI's monitoring setting)
+          this.addExternalMatterServer(accessory.UUID, result.server)
 
           // Listen for state changes and forward to UI via IPC
           // (same pattern as the main bridge server listener in initialize())
@@ -423,6 +455,7 @@ export class MatterBridgeManager extends BaseMatterManager {
         enabled: false,
         port: this.config.bridge.matter?.port,
         externalsOnly: this.externalsOnlyMode,
+        ...(this.bridgeStartFailure !== undefined && { startFailed: true }),
       }
     }
 
@@ -450,17 +483,19 @@ export class MatterBridgeManager extends BaseMatterManager {
           this.config.bridge.name || 'Homebridge',
         )
         accessories.push(...mainAccessories)
+      }
 
-        // External accessories (belong to main bridge context)
-        for (const server of this.externalMatterServers.values()) {
-          const externalAccessories = this.collectAccessoriesFromServer(
-            server,
-            server.username,
-            'external',
-            server.bridgeName,
-          )
-          accessories.push(...externalAccessories)
-        }
+      // External accessories (belong to main bridge context). Listed whether
+      // the bridge itself runs or not: in externalsOnly mode there is no
+      // bridge server, and the externals are all there is.
+      for (const server of this.externalMatterServers.values()) {
+        const externalAccessories = this.collectAccessoriesFromServer(
+          server,
+          server.username,
+          'external',
+          server.bridgeName,
+        )
+        accessories.push(...externalAccessories)
       }
     }
 
@@ -563,7 +598,10 @@ export class MatterBridgeManager extends BaseMatterManager {
     const currentState = this.getCurrentStateFromServer(server, acc.uuid)
 
     // Convert device type object to string representation
-    const deviceTypeStr = acc.deviceType.name || `Device Code ${acc.deviceType.code || 'unknown'}`
+    // A cache entry is only checked for its uuid when loaded, so the device
+    // type may be missing. Reading its name without a check threw, and one
+    // such entry left the UI with no Matter accessories at all.
+    const deviceTypeStr = acc.deviceType?.name || `Device Code ${acc.deviceType?.code || 'unknown'}`
 
     return {
       // Identity
@@ -573,6 +611,8 @@ export class MatterBridgeManager extends BaseMatterManager {
       manufacturer: acc.manufacturer,
       model: acc.model,
       firmwareRevision: acc.firmwareRevision,
+      hardwareRevision: acc.hardwareRevision,
+      softwareVersion: acc.softwareVersion,
 
       // Device type
       deviceType: deviceTypeStr,
@@ -584,7 +624,7 @@ export class MatterBridgeManager extends BaseMatterManager {
       parts: acc.parts?.map(part => ({
         id: part.id,
         displayName: part.displayName,
-        deviceType: part.deviceType.name || `Device Code ${part.deviceType.code || 'unknown'}`,
+        deviceType: part.deviceType?.name || `Device Code ${part.deviceType?.code || 'unknown'}`,
         clusters: this.getCurrentStateFromServer(server, acc.uuid, part.id),
       })),
 
@@ -663,31 +703,9 @@ export class MatterBridgeManager extends BaseMatterManager {
     uuid: string,
     partId?: string,
   ): Record<string, Record<string, unknown>> {
-    const accessory = server.getAccessory(uuid)
-    if (!accessory) {
-      return {}
-    }
-
-    const endpoint = partId
-      ? (accessory as any)._parts?.find((p: any) => p.id === partId)?.endpoint
-      : (accessory as any).endpoint
-
-    if (!endpoint) {
-      return {}
-    }
-
-    const state: Record<string, Record<string, unknown>> = {}
-
-    for (const [clusterName, clusterState] of Object.entries(endpoint.state)) {
-      state[clusterName] = {}
-      for (const [key, value] of Object.entries(clusterState as any)) {
-        if (!key.startsWith('_') && !key.startsWith('$')) {
-          state[clusterName][key] = value
-        }
-      }
-    }
-
-    return state
+    // Read through the server's internal record: server.getAccessory() strips
+    // the endpoint, which left the UI with no state to control (#4014)
+    return server.getLiveState(uuid, partId)
   }
 
   /**

@@ -2,7 +2,9 @@ import type { SerializedPlatformAccessory } from './platformAccessory.js'
 
 import {
   Accessory,
+  AccessoryEventTypes,
   Categories,
+  Characteristic,
   RemoteController,
   Service,
   uuid,
@@ -45,8 +47,55 @@ describe('platformAccessory', () => {
 
     it('should mirror services correctly', () => {
       const accessory = createAccessory('TestName')
-      expect(accessory._associatedHAPAccessory.services).toStrictEqual(accessory.services)
+      // the very same list, so a service added later shows on both
+      expect(accessory.services).toBe(accessory._associatedHAPAccessory.services)
       expect(accessory.services.length).toBe(1)
+    })
+
+    it('should use the category OTHER when none is given', () => {
+      const accessory = createAccessory('TestName')
+      expect(accessory.category).toBe(Categories.OTHER)
+      expect(accessory._associatedHAPAccessory.category).toBe(Categories.OTHER)
+    })
+
+    it('should start with an empty context of its own', () => {
+      const first = new PlatformAccessory('First', uuid.generate('first'))
+      const second = new PlatformAccessory('Second', uuid.generate('second'))
+      expect(first.context).toEqual({})
+      expect(first.context).not.toBe(second.context)
+    })
+  })
+
+  describe('the identify event', () => {
+    it('is forwarded with the paired flag and a callback, and answers the controller itself', () => {
+      const accessory = createAccessory('TestName')
+      const received: [boolean, () => void][] = []
+      // the listener type takes the arguments it is really called with
+      accessory.on('identify', (paired, callback) => {
+        received.push([paired, callback])
+        callback()
+      })
+      // a listener that takes nothing, as most plugins write it, is fine too
+      const plain = vi.fn(() => {})
+      accessory.on('identify', plain)
+      const answered = vi.fn()
+
+      accessory._associatedHAPAccessory.emit(AccessoryEventTypes.IDENTIFY, true, answered)
+
+      expect(received).toHaveLength(1)
+      expect(received[0][0]).toBe(true)
+      expect(received[0][1]).toBeTypeOf('function')
+      expect(plain).toHaveBeenCalledTimes(1)
+      expect(answered).toHaveBeenCalledTimes(1)
+    })
+
+    it('can still be sent by a plugin with no arguments', () => {
+      const accessory = createAccessory('TestName')
+      const listener = vi.fn()
+      accessory.on('identify', listener)
+
+      expect(accessory.emit('identify')).toBe(true)
+      expect(listener).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -56,6 +105,20 @@ describe('platformAccessory', () => {
       accessory.updateDisplayName('NewTestName')
       expect(accessory._associatedHAPAccessory.displayName).toBe(accessory.displayName)
       expect(accessory.displayName).toBe('NewTestName')
+    })
+
+    it('should ignore an empty name', () => {
+      const accessory = createAccessory('TestName')
+      accessory.updateDisplayName('')
+      expect(accessory.displayName).toBe('TestName')
+      expect(accessory._associatedHAPAccessory.displayName).toBe('TestName')
+    })
+
+    it('should leave the Name characteristic of AccessoryInformation as it is', () => {
+      // documented: a plugin that wants the characteristic to follow sets it itself
+      const accessory = createAccessory('TestName')
+      accessory.updateDisplayName('NewTestName')
+      expect(accessory.getService(Service.AccessoryInformation)!.getCharacteristic(Characteristic.Name).value).toBe('TestName')
     })
   })
 
@@ -124,6 +187,19 @@ describe('platformAccessory', () => {
     })
   })
 
+  describe('platformAccessory.prototype.removeController', () => {
+    it('should forward removeController correctly', () => {
+      const accessory = createAccessory()
+      const spy = vi.spyOn(accessory._associatedHAPAccessory, 'removeController').mockImplementationOnce(() => {
+        // do nothing
+      })
+
+      const controller = new RemoteController()
+      accessory.removeController(controller)
+      expect(spy).toHaveBeenCalledExactlyOnceWith(controller)
+    })
+  })
+
   describe('platformAccessory.serialize', () => {
     it('should serialize accessory correctly', () => {
       const accessory = createAccessory()
@@ -169,6 +245,59 @@ describe('platformAccessory', () => {
       expect(reconstructed.UUID).toBe(accessory.UUID)
       expect(reconstructed.category).toBe(accessory.category)
       expect(reconstructed.context).toBe(accessory.context)
+    })
+
+    it('should bring an accessory back from the JSON text of the cache file', () => {
+      const accessory = createAccessory('Television', Categories.TELEVISION)
+      accessory.addService(Service.Lightbulb, 'Light', 'light-1')
+        .setCharacteristic(Characteristic.Brightness, 40)
+      accessory.addService(Service.Switch, 'Switch', 'switch-1')
+
+      // what really happens between two runs: written as JSON text, and parsed again
+      const json = JSON.parse(JSON.stringify(PlatformAccessory.serialize(accessory))) as SerializedPlatformAccessory
+      const reconstructed = PlatformAccessory.deserialize(json)
+
+      expect(reconstructed.displayName).toBe('Television')
+      expect(reconstructed.UUID).toBe(accessory.UUID)
+      expect(reconstructed.category).toBe(Categories.TELEVISION)
+      expect(reconstructed._associatedPlugin).toBe('TestPlugin')
+      expect(reconstructed._associatedPlatform).toBe('TestPlatform')
+      // an equal copy of the context, not the same object
+      expect(reconstructed.context).toEqual({ test: 'context', doing: 234 })
+      expect(reconstructed.context).not.toBe(accessory.context)
+      // the services come back, with their sub types and values
+      expect(reconstructed.services.map(service => [service.UUID, service.subtype])).toEqual(accessory.services.map(service => [service.UUID, service.subtype]))
+      expect(reconstructed.getServiceById(Service.Lightbulb, 'light-1')!.getCharacteristic(Characteristic.Brightness).value).toBe(40)
+      expect(reconstructed.services).toBe(reconstructed._associatedHAPAccessory.services)
+    })
+
+    it('should forward identify for a deserialized accessory too', () => {
+      const reconstructed = PlatformAccessory.deserialize(PlatformAccessory.serialize(createAccessory()))
+      const listener = vi.fn()
+      reconstructed.on('identify', listener)
+
+      reconstructed._associatedHAPAccessory.emit(AccessoryEventTypes.IDENTIFY, false, () => {})
+
+      expect(listener).toHaveBeenCalledTimes(1)
+    })
+
+    it('should not hand the deserialized HAP accessory to the next accessory that is made', () => {
+      const reconstructed = PlatformAccessory.deserialize(PlatformAccessory.serialize(createAccessory('Cached')))
+
+      const fresh = new PlatformAccessory('Fresh', uuid.generate('fresh'))
+
+      expect(fresh._associatedHAPAccessory).not.toBe(reconstructed._associatedHAPAccessory)
+      expect(fresh.displayName).toBe('Fresh')
+    })
+
+    it('should not keep the HAP accessory of an entry that could not be deserialized', () => {
+      const json = PlatformAccessory.serialize(createAccessory('Cached'))
+
+      expect(() => PlatformAccessory.deserialize({ ...json, displayName: '' })).toThrow()
+
+      const fresh = new PlatformAccessory('Fresh', uuid.generate('fresh'))
+      expect(fresh.displayName).toBe('Fresh')
+      expect(fresh.UUID).toBe(uuid.generate('fresh'))
     })
   })
 })

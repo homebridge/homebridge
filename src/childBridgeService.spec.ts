@@ -370,6 +370,103 @@ describe('childBridgeService', () => {
       ])
     })
 
+    it('on STATUS_UPDATE with a failed Matter start, says so in the metadata', () => {
+      const { service } = buildService({
+        bridgeConfig: makeBridgeConfig({
+          matter: { port: 5540 },
+        }),
+      })
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      expect(service.getMetadata().matterStartFailed).toBeUndefined()
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.STATUS_UPDATE,
+        data: {
+          paired: false,
+          setupUri: 'X-HM://abc',
+          matter: {
+            commissioned: false,
+            deviceCount: 0,
+            fabricCount: 0,
+            fabrics: [],
+            startFailed: true,
+          },
+        },
+      })
+
+      const metadata = service.getMetadata()
+      expect(metadata.matterStartFailed).toBe(true)
+      expect(metadata.matterCommissioned).toBe(false)
+      expect(metadata.matterSetupUri).toBeUndefined()
+    })
+
+    describe('matter pairing details of an earlier process', () => {
+      const matter = {
+        qrCode: 'MT:OLD',
+        manualPairingCode: '1234',
+        serialNumber: 'SN',
+        commissioned: true,
+        deviceCount: 2,
+        fabricCount: 1,
+        fabrics: [],
+      }
+
+      function startedWithMatterStatus() {
+        const built = buildService({
+          bridgeConfig: makeBridgeConfig({
+            matter: { port: 5540 },
+          }),
+        })
+        built.service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+        built.service.start()
+        childProcesses.list[0].emit('message', {
+          id: ChildProcessMessageEventType.STATUS_UPDATE,
+          data: { paired: true, setupUri: 'X-HM://old', matter },
+        })
+        expect(built.service.getMetadata()).toMatchObject({
+          matterSetupUri: 'MT:OLD',
+          matterPin: '1234',
+          matterCommissioned: true,
+          paired: true,
+          setupUri: 'X-HM://old',
+        })
+        return built
+      }
+
+      it('are gone once a new process is started', () => {
+        const { service } = startedWithMatterStatus()
+
+        // the user takes the matter block out and restarts the child bridge
+        service.restartChildBridge()
+        childProcesses.list[0].emit('close', 143, null)
+        expect(childProcesses.list).toHaveLength(2)
+
+        const metadata = service.getMetadata()
+        expect(metadata.matterSetupUri).toBeUndefined()
+        expect(metadata.matterPin).toBeUndefined()
+        expect(metadata.matterCommissioned).toBeUndefined()
+        expect(metadata.paired).toBeNull()
+        expect(metadata.setupUri).toBeNull()
+      })
+
+      it('are gone when the child reports a status with no Matter part', () => {
+        const { service } = startedWithMatterStatus()
+
+        childProcesses.list[0].emit('message', {
+          id: ChildProcessMessageEventType.STATUS_UPDATE,
+          data: { paired: true, setupUri: 'X-HM://old' },
+        })
+
+        const metadata = service.getMetadata()
+        expect(metadata.matterSetupUri).toBeUndefined()
+        expect(metadata.matterCommissioned).toBeUndefined()
+        expect(metadata.setupUri).toBe('X-HM://old')
+      })
+    })
+
     it('on PORT_REQUEST, forwards to externalPortService and replies with PORT_ALLOCATED', async () => {
       const { service, externalPortService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
@@ -428,6 +525,26 @@ describe('childBridgeService', () => {
       )
     })
 
+    it('on MATTER_EVENT externalBridgeUnregistration, calls onExternalBridgeUnregistered and does not pass it to the UI', () => {
+      const { service, ipcService } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.onExternalBridgeUnregistered = vi.fn()
+      service.start()
+      const child = childProcesses.list[0]
+      ipcService.sendMessage.mockClear()
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'externalBridgeUnregistration',
+          data: { externalBridgeUsername: 'EE:EE:EE:EE:EE:EE' },
+        },
+      })
+
+      expect(service.onExternalBridgeUnregistered).toHaveBeenCalledWith('EE:EE:EE:EE:EE:EE')
+      expect(ipcService.sendMessage).not.toHaveBeenCalled()
+    })
+
     // The outbound half of the same round trip. The Server spec asserts this
     // was called, but against a MOCK child bridge - so nothing exercised the
     // real method, and the correlationId could have been dropped on its way to
@@ -463,6 +580,47 @@ describe('childBridgeService', () => {
     // correlationId - a worse failure than the silence it was added to fix.
     // The Server spec calls cancelPendingMatterControlRequest directly, so it
     // cannot catch a break here; only driving a real child message can.
+    it('controlMatterAccessory says whether the request reached the child', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      const request = {
+        uuid: 'u',
+        cluster: 'onOff',
+        attributes: { onOff: true },
+      }
+
+      expect(service.controlMatterAccessory(request)).toBe(true)
+
+      // Stopped, restarting, or waiting to be restarted after a crash.
+      child.connected = false
+      expect(service.controlMatterAccessory(request)).toBe(false)
+    })
+
+    it('getMatterAccessoryInfo sends the correlationId to the child, and hands the one on its reply back', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      service.onAccessoryInfoResponse = vi.fn()
+
+      service.getMatterAccessoryInfo('info-uuid', 'corr-info')
+
+      const sent = child.sentMessages.find(m => m.id === ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO)
+      expect(sent.data).toEqual({ uuid: 'info-uuid', correlationId: 'corr-info' })
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoryInfoData',
+          correlationId: 'corr-info',
+          data: { uuid: 'info-uuid' },
+        },
+      })
+      expect(service.onAccessoryInfoResponse).toHaveBeenCalledWith('info-uuid', 'corr-info')
+    })
+
     it('on MATTER_EVENT accessoryControlResponse, calls onAccessoryControlResponse if set', () => {
       const { service, ipcService } = buildService()
       service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
@@ -483,6 +641,27 @@ describe('childBridgeService', () => {
       expect(service.onAccessoryControlResponse).toHaveBeenCalledWith('corr-child')
       // and it is still forwarded to the UI
       expect(ipcService.sendMessage).toHaveBeenCalled()
+    })
+
+    it('on MATTER_EVENT accessoryControlClaimed, cancels the fallback and does not tell the UI', () => {
+      const { service, ipcService } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.onAccessoryControlResponse = vi.fn()
+      service.start()
+      const child = childProcesses.list[0]
+      ipcService.sendMessage.mockClear()
+
+      child.emit('message', {
+        id: ChildProcessMessageEventType.MATTER_EVENT,
+        data: {
+          type: 'accessoryControlClaimed',
+          correlationId: 'corr-slow',
+          data: { uuid: 'abc' },
+        },
+      })
+
+      expect(service.onAccessoryControlResponse).toHaveBeenCalledWith('corr-slow')
+      expect(ipcService.sendMessage).not.toHaveBeenCalled()
     })
 
     it('on MATTER_EVENT accessoryControlResponse without a correlationId, forwards but cancels nothing', () => {
@@ -527,6 +706,18 @@ describe('childBridgeService', () => {
       })
 
       expect(ipcService.sendMessage).toHaveBeenCalled()
+    })
+
+    // typeof null is 'object', so a null message used to throw in the listener
+    it.each([null, undefined, 'text', 42])('ignores a message that is not an object (%s)', (message) => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+
+      expect(() => child.emit('message', message)).not.toThrow()
+
+      expect(child.sentMessages).toEqual([])
     })
 
     it('ignores messages without an id field', () => {
@@ -687,6 +878,112 @@ describe('childBridgeService', () => {
     })
   })
 
+  describe('restartChildBridge — a requested restart is not a crash', () => {
+    it('keeps restarting however often the user asks, and leaves the crash count at zero', () => {
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      service.start()
+
+      for (let restart = 1; restart <= 6; restart++) {
+        const child = childProcesses.list[childProcesses.list.length - 1]
+        service.restartChildBridge()
+        expect(child.killCalls).toEqual(['SIGTERM'])
+        // The child exits with 128 + 15 after it handled the SIGTERM.
+        child.emit('close', 143, null)
+        expect(forkMock).toHaveBeenCalledTimes(restart + 1)
+      }
+
+      expect((service as any).restartCount).toBe(0)
+      expect((service as any).manuallyStopped).toBe(false)
+    })
+
+    it('still counts a crash that follows a requested restart', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+
+      service.restartChildBridge()
+      childProcesses.list[0].emit('close', 143, null)
+      childProcesses.list[1].emit('close', 1, null)
+
+      expect((service as any).restartCount).toBe(1)
+    })
+  })
+
+  describe('restartChildBridge — then stopped before the old process ended', () => {
+    it('counts a later crash as a crash', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.mocked(fs.readJson).mockResolvedValue({ platforms: [] } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+
+      // restart, and stop before the old process has ended
+      service.restartChildBridge()
+      service.stopChildBridge()
+      childProcesses.list[0].connected = false
+      childProcesses.list[0].emit('close', 143, null)
+
+      service.startChildBridge()
+      expect(childProcesses.list).toHaveLength(2)
+
+      // a plugin crash: waits out the back-off, and counts
+      childProcesses.list[1].connected = false
+      childProcesses.list[1].emit('close', 1, null)
+
+      expect(childProcesses.list).toHaveLength(2)
+      expect((service as any).restartCount).toBe(1)
+    })
+  })
+
+  describe('homebridge shutdown while waiting to restart after a crash', () => {
+    it('drops the pending restart', () => {
+      vi.useFakeTimers()
+      const { service, api } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      childProcesses.list[0].connected = false
+      childProcesses.list[0].emit('close', 1, null)
+      expect(vi.getTimerCount()).toBe(1)
+
+      api.emit('shutdown')
+
+      expect(vi.getTimerCount()).toBe(0)
+      vi.advanceTimersByTime(60_000)
+      expect(childProcesses.list).toHaveLength(1)
+    })
+  })
+
+  describe('restartChildBridge — while waiting to restart after a crash', () => {
+    it('starts the child now instead of waiting out the back-off, and only once', () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.mocked(fs.readJson).mockResolvedValue({ platforms: [] } as any)
+      service.start()
+
+      // a plugin crash: the next start is 10 seconds away
+      childProcesses.list[0].connected = false
+      childProcesses.list[0].emit('close', 1, null)
+      expect(childProcesses.list).toHaveLength(1)
+
+      service.restartChildBridge()
+      expect(childProcesses.list).toHaveLength(2)
+      expect(service.getMetadata().status).toBe(ChildBridgeStatus.PENDING)
+      // a restart the user asked for does not count as a failed attempt
+      expect((service as any).restartCount).toBe(0)
+
+      // the back-off timer is gone: no second process when it would have fired
+      vi.advanceTimersByTime(60_000)
+      expect(childProcesses.list).toHaveLength(2)
+    })
+  })
+
   describe('teardown — listener cleanup (M3) and SIGKILL fallback (M4)', () => {
     it('removes the shutdown listener on teardown', async () => {
       const { service, api } = buildService()
@@ -827,7 +1124,241 @@ describe('childBridgeService', () => {
     })
   })
 
+  describe('startChildBridge after a manual stop', () => {
+    it('tells the new child to stop when homebridge shuts down', () => {
+      const { service, api } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+
+      service.stopChildBridge()
+      service.startChildBridge()
+      const child = childProcesses.list[childProcesses.list.length - 1]
+
+      expect(api.listenerCount('shutdown')).toBe(1)
+      api.emit('shutdown')
+      expect(child.killCalls).toEqual(['SIGTERM'])
+    })
+
+    it('leaves the api listener limit where it was after several stop and start cycles', () => {
+      const { service, api } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      service.start()
+      const limit = api.getMaxListeners()
+
+      for (let cycle = 0; cycle < 3; cycle++) {
+        service.stopChildBridge()
+        service.startChildBridge()
+      }
+
+      expect(api.getMaxListeners()).toBe(limit)
+      expect(api.listenerCount('shutdown')).toBe(1)
+    })
+  })
+
   describe('refreshConfig', () => {
+    // Homebridge upper-cases the username in memory; the file keeps the user's spelling.
+    it.each([
+      {
+        type: PluginType.PLATFORM,
+        key: 'platforms',
+        entry: { platform: 'TestPlatform' },
+      },
+      {
+        type: PluginType.ACCESSORY,
+        key: 'accessories',
+        entry: { accessory: 'TestPlatform' },
+      },
+    ])('finds its $key entry when the username in config.json is lower case', async ({ type, key, entry }) => {
+      const { service } = buildService({
+        type,
+        identifier: 'TestPlatform',
+        bridgeConfig: makeBridgeConfig({ username: '0E:DC:5D:BE:D6:75' }),
+      })
+      const updated = {
+        ...entry,
+        name: 'Renamed',
+        _bridge: { username: '0e:dc:5d:be:d6:75' },
+      }
+      vi.mocked(fs.readJson).mockResolvedValue({
+        [key]: [updated],
+      } as any)
+
+      await service.refreshConfig()
+
+      expect((service as any).pluginConfig[0].name).toBe('Renamed')
+      // the bridge keeps its identity: the username it started with
+      expect((service as any).bridgeConfig.username).toBe('0E:DC:5D:BE:D6:75')
+    })
+
+    // A restart reads config.json again. The `_bridge` block it finds used to be
+    // taken as it was, without the checks a full start gives it.
+    describe('checks the _bridge block it reads', () => {
+      const username = '0E:DC:5D:BE:D6:75'
+
+      function refreshWith(bridge: Record<string, unknown>, rest: Record<string, unknown> = {}) {
+        const built = buildService({
+          identifier: 'TestPlatform',
+          bridgeConfig: makeBridgeConfig({
+            username,
+            hap: { enabled: true },
+          }),
+        })
+        built.externalPortService.reserveMatterPort = vi.fn()
+        vi.mocked(fs.readJson).mockResolvedValue({
+          bridge: { username: 'CC:22:3D:E3:CE:30', pin: '031-45-154' },
+          platforms: [
+            {
+              platform: 'TestPlatform',
+              name: 'Renamed',
+              _bridge: { username, ...bridge },
+            },
+          ],
+          ...rest,
+        } as any)
+        return built
+      }
+
+      it('keeps the bridge settings in use when the new hap block is not valid', async () => {
+        const { service } = refreshWith({ hap: 'yes' })
+
+        await service.refreshConfig()
+
+        // the plugin config is still refreshed; only the bridge block is refused
+        expect((service as any).pluginConfig[0].name).toBe('Renamed')
+        expect((service as any).bridgeConfig.hap).toEqual({ enabled: true })
+      })
+
+      it('keeps the bridge settings in use when the new pin is not a text', async () => {
+        const { service } = refreshWith({ pin: 3145154, name: 'New Name' })
+        const error = vi.spyOn((service as any).log, 'error').mockImplementation(() => {})
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.pin).not.toBe(3145154)
+        expect(String(error.mock.calls[0][0])).toContain('Not a valid pin in _bridge.pin: 3145154')
+      })
+
+      it('turns a legacy boolean hap into the object form', async () => {
+        const { service } = refreshWith({ hap: false })
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.hap).toEqual({ enabled: false })
+      })
+
+      it('drops a matter block whose port is not valid', async () => {
+        const { service, externalPortService } = refreshWith({
+          matter: { port: 80 },
+        })
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.matter).toBeUndefined()
+        expect(externalPortService.reserveMatterPort).not.toHaveBeenCalled()
+      })
+
+      it('says what is wrong with the matter block it drops', async () => {
+        const { service } = refreshWith({
+          matter: { port: 80 },
+        })
+        const error = vi.spyOn((service as any).log, 'error').mockImplementation(() => {})
+
+        await service.refreshConfig()
+
+        expect(error.mock.calls.map(call => String(call[0]))).toEqual([
+          expect.stringContaining('Port must be between 1025 and 65534 (got: 80)'),
+          'The Matter configuration of this child bridge is invalid. Matter will not be enabled for it.',
+        ])
+      })
+
+      it('warns about a matter port next to the hap port of the bridge', async () => {
+        const { service } = refreshWith({
+          port: 51830,
+          matter: { port: 51831 },
+        })
+        const warn = vi.spyOn((service as any).log, 'warn').mockImplementation(() => {})
+
+        await service.refreshConfig()
+
+        expect(warn.mock.calls.map(call => String(call[0]))).toEqual([
+          expect.stringContaining('HAP port 51830 and Matter port 51831 are very close'),
+        ])
+        expect((service as any).bridgeConfig.matter).toEqual({ port: 51831 })
+      })
+
+      it.each([
+        [
+          'the main bridge',
+          {
+            bridge: {
+              username: 'CC:22:3D:E3:CE:30',
+              pin: '031-45-154',
+              matter: { port: 5560 },
+            },
+          },
+        ],
+        [
+          'another child bridge',
+          {
+            accessories: [
+              {
+                accessory: 'Other',
+                name: 'O',
+                _bridge: {
+                  username: '0E:00:00:00:00:01',
+                  matter: { port: 5560 },
+                },
+              },
+            ],
+          },
+        ],
+      ])('drops a matter block whose port belongs to %s', async (_owner, rest) => {
+        const { service, externalPortService } = refreshWith({
+          matter: { port: 5560 },
+        }, rest)
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.matter).toBeUndefined()
+        expect(externalPortService.reserveMatterPort).not.toHaveBeenCalled()
+      })
+
+      it('takes a valid matter block, and keeps its port away from every other bridge', async () => {
+        const { service, externalPortService } = refreshWith({
+          matter: { port: 5560 },
+        }, {
+          // a bridge that starts no Matter server does not hold its port
+          accessories: [
+            {
+              accessory: 'Other',
+              name: 'O',
+              _bridge: {
+                username: '0E:00:00:00:00:01',
+                matter: { port: 5560, enabled: false },
+              },
+            },
+          ],
+        })
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.matter).toEqual({ port: 5560 })
+        expect(externalPortService.reserveMatterPort).toHaveBeenCalledWith(5560)
+      })
+
+      it('reads externalsOnly without enabled: false as externalsOnly mode, as a full start does', async () => {
+        const { service } = refreshWith({
+          matter: { externalsOnly: true },
+        })
+
+        await service.refreshConfig()
+
+        expect((service as any).bridgeConfig.matter).toEqual({ externalsOnly: true, enabled: false })
+      })
+    })
+
     it('updates pluginConfig from the on-disk config when entries match', async () => {
       const { service } = buildService({
         identifier: 'TestPlatform',
@@ -968,6 +1499,21 @@ describe('childBridgeService', () => {
           { uuid: 'abc' },
         ],
       })
+    })
+
+    it('resolves with undefined at once when the child process is not running', async () => {
+      vi.useFakeTimers()
+      const { service } = buildService()
+      service.addConfig({ platform: 'TestPlatform', name: 'X' } as any)
+      service.start()
+      const child = childProcesses.list[0]
+      // stopped, restarting, or waiting to be restarted after a crash
+      child.connected = false
+
+      // No timer is advanced: before, this waited out the full timeout.
+      await expect(service.requestMatterAccessories(500)).resolves.toBeUndefined()
+      expect(vi.getTimerCount()).toBe(0)
+      expect(child.sentMessages.some(m => m.id === ChildProcessMessageEventType.GET_MATTER_ACCESSORIES)).toBe(false)
     })
 
     it('resolves with undefined on timeout', async () => {

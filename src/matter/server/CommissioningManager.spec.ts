@@ -6,14 +6,11 @@ import { CommissioningManager } from './CommissioningManager.js'
 vi.mock('node:fs/promises', () => ({
   readFile: vi.fn(),
   writeFile: vi.fn(),
+  rename: vi.fn(),
 }))
-vi.mock('@matter/types/schema', () => ({
-  ManualPairingCodeCodec: {
-    encode: vi.fn(() => '12345678901'),
-  },
-  QrPairingCodeCodec: {
-    encode: vi.fn(() => 'MT:Y.K9042C00KA0648G00'),
-  },
+// only the QR code drawing is replaced; the rest of the module stays real
+vi.mock('@matter/main/types', async importOriginal => ({
+  ...await importOriginal<object>(),
   QrCode: {
     get: vi.fn(() => '(QR code)'),
   },
@@ -33,9 +30,25 @@ vi.mock('../../logger.js', () => {
   }
 })
 
-const { readFile, writeFile } = await import('node:fs/promises')
+const { readFile, rename, writeFile } = await import('node:fs/promises')
 const mockedReadFile = vi.mocked(readFile)
 const mockedWriteFile = vi.mocked(writeFile)
+const mockedRename = vi.mocked(rename)
+const { Logger } = await import('../../logger.js')
+const mockedLog = vi.mocked(Logger.withPrefix('test'))
+
+/** Everything written to the log at any level, as one text. */
+function loggedText(): string {
+  return [
+    mockedLog.info,
+    mockedLog.warn,
+    mockedLog.error,
+    mockedLog.debug,
+  ]
+    .flatMap(level => level.mock.calls)
+    .flat()
+    .join('\n')
+}
 
 describe('commissioningManager', () => {
   let manager: CommissioningManager
@@ -182,7 +195,7 @@ describe('commissioningManager', () => {
     })
 
     it('should generate and save new credentials when file does not exist', async () => {
-      mockedReadFile.mockRejectedValue(new Error('ENOENT'))
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }))
       mockedWriteFile.mockResolvedValue(undefined)
 
       await manager.loadOrGenerateCredentials('/mock/storage')
@@ -192,10 +205,31 @@ describe('commissioningManager', () => {
       expect(manager.discriminator).toBeGreaterThanOrEqual(0)
       expect(manager.discriminator).toBeLessThanOrEqual(4095)
       expect(mockedWriteFile).toHaveBeenCalledWith(
-        '/mock/storage/credentials.json',
+        '/mock/storage/credentials.json.tmp',
         expect.stringContaining('"passcode"'),
-        'utf-8',
+        { encoding: 'utf-8', mode: 0o600 },
       )
+    })
+
+    it('keeps the stored credentials when the file is there but can not be read', async () => {
+      // no permission, or a disk that is not ready: nothing says the file is bad
+      mockedReadFile.mockRejectedValue(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }))
+
+      await expect(manager.loadOrGenerateCredentials('/mock/storage')).rejects.toThrow('could not be read')
+
+      expect(mockedWriteFile).not.toHaveBeenCalled()
+      expect(mockedRename).not.toHaveBeenCalled()
+    })
+
+    it('says so when stored credentials are replaced because they are not valid', async () => {
+      // 20202021 is allowed by Matter, but not by the stricter check here
+      mockedReadFile.mockResolvedValue(JSON.stringify({ passcode: 20202021, discriminator: 3840 }) as any)
+      mockedWriteFile.mockResolvedValue(undefined)
+
+      await manager.loadOrGenerateCredentials('/mock/storage')
+
+      expect(mockedWriteFile).toHaveBeenCalled()
+      expect(mockedLog.warn).toHaveBeenCalledWith(expect.stringContaining('the pairing code of this bridge changes'))
     })
 
     it('should generate new credentials when file contains invalid data', async () => {
@@ -261,6 +295,70 @@ describe('commissioningManager', () => {
     })
   })
 
+  describe('generateCommissioningInfo', () => {
+    function depsFor(overrides: { commissioned?: boolean, hideQRCode?: boolean } = {}) {
+      return {
+        config: { hideQRCode: overrides.hideQRCode },
+        // matter.js builds the two codes; these are what it would hand back
+        serverNode: {
+          state: {
+            commissioning: {
+              pairingCodes: { manualPairingCode: '12345678901', qrPairingCode: 'MT:Y.K9042C00KA0648G00' },
+            },
+          },
+        },
+        matterStoragePath: '/mock/storage',
+        serialNumber: 'SN-001',
+        fabricManager: {
+          isCommissioned: vi.fn(() => overrides.commissioned ?? false),
+        },
+      } as any
+    }
+
+    beforeEach(() => {
+      manager.passcode = 34567890
+      manager.discriminator = 1234
+      mockedWriteFile.mockResolvedValue(undefined)
+      mockedRename.mockResolvedValue(undefined)
+    })
+
+    it('shows the manual code and the qr code once, and never the bare passcode', async () => {
+      await manager.generateCommissioningInfo(depsFor())
+
+      const text = loggedText()
+      expect(text.match(/1234-567-8901/g)).toHaveLength(1)
+      expect(text).toContain('(QR code)')
+      expect(text).not.toContain('34567890')
+    })
+
+    it('draws no qr code with the -Q flag, but still shows the manual code', async () => {
+      await manager.generateCommissioningInfo(depsFor({ hideQRCode: true }))
+
+      const text = loggedText()
+      expect(text).toContain('1234-567-8901')
+      expect(text).not.toContain('(QR code)')
+    })
+
+    it('shows no pairing codes for a bridge that is already paired', async () => {
+      await manager.generateCommissioningInfo(depsFor({ commissioned: true }))
+
+      const text = loggedText()
+      expect(text).not.toContain('1234-567-8901')
+      expect(text).not.toContain('(QR code)')
+      expect(text).not.toContain('MT:')
+      expect(text).not.toContain('34567890')
+      // the codes are still kept for the ui
+      expect(manager.commissioningInfo.manualPairingCode).toBe('1234-567-8901')
+    })
+
+    it('writes the file with the passcode for the homebridge user only, and swaps it into place', async () => {
+      await manager.generateCommissioningInfo(depsFor())
+
+      expect(mockedWriteFile).toHaveBeenCalledExactlyOnceWith('/mock/storage/commissioning.json.tmp', expect.stringContaining('"passcode": 34567890'), { encoding: 'utf-8', mode: 0o600 })
+      expect(mockedRename).toHaveBeenCalledExactlyOnceWith('/mock/storage/commissioning.json.tmp', '/mock/storage/commissioning.json')
+    })
+  })
+
   describe('updateCommissioningFile', () => {
     it('should skip when matterStoragePath is not set', async () => {
       const deps = {
@@ -300,10 +398,36 @@ describe('commissioningManager', () => {
       await manager.updateCommissioningFile(deps)
 
       expect(mockedWriteFile).toHaveBeenCalledWith(
-        '/mock/storage/commissioning.json',
+        '/mock/storage/commissioning.json.tmp',
         expect.stringContaining('"commissioned": true'),
-        'utf-8',
+        { encoding: 'utf-8', mode: 0o600 },
       )
+    })
+
+    it('writes the file once at a time when two updates come together', async () => {
+      const steps: string[] = []
+      mockedWriteFile.mockImplementation(async () => {
+        steps.push('write')
+        await new Promise(resolve => setTimeout(resolve, 5))
+      })
+      mockedRename.mockImplementation(async () => {
+        steps.push('rename')
+      })
+      const deps = {
+        matterStoragePath: '/mock/storage',
+        serialNumber: 'SN-001',
+        fabricManager: {
+          getCommissioningSnapshot: vi.fn(() => ({ commissioned: false, fabricCount: 0, fabrics: [] })),
+        },
+      } as any
+
+      await Promise.all([
+        manager.updateCommissioningFile(deps),
+        manager.updateCommissioningFile(deps),
+      ])
+
+      // both use the same temporary file: the second write must wait for the first rename
+      expect(steps).toEqual(['write', 'rename', 'write', 'rename'])
     })
 
     it('should reuse a precomputed snapshot when provided', async () => {
@@ -332,9 +456,9 @@ describe('commissioningManager', () => {
 
       expect(getCommissioningSnapshot).not.toHaveBeenCalled()
       expect(mockedWriteFile).toHaveBeenCalledWith(
-        '/mock/storage/commissioning.json',
+        '/mock/storage/commissioning.json.tmp',
         expect.stringContaining('"fabricCount": 2'),
-        'utf-8',
+        { encoding: 'utf-8', mode: 0o600 },
       )
     })
 
@@ -351,60 +475,6 @@ describe('commissioningManager', () => {
 
       // Should not throw
       await expect(manager.updateCommissioningFile(deps)).resolves.not.toThrow()
-    })
-  })
-
-  describe('purgeSubscriptionsForFabric', () => {
-    function serverNodeWith(subs: any[]) {
-      const subscriptions = {
-        state: { subscriptions: subs },
-      }
-      return {
-        node: {
-          act: async (cb: any) => cb({
-            get: () => subscriptions,
-          }),
-        },
-        subscriptions,
-      }
-    }
-
-    it('removes only the persisted subscriptions of the deleted fabric', async () => {
-      const { node, subscriptions } = serverNodeWith([
-        {
-          peerAddress: { fabricIndex: 1 },
-        },
-        {
-          peerAddress: { fabricIndex: 2 },
-        },
-        {
-          peerAddress: { fabricIndex: 1 },
-        },
-      ])
-      await (manager as any).purgeSubscriptionsForFabric(node, 1)
-      expect(subscriptions.state.subscriptions).toEqual([
-        {
-          peerAddress: { fabricIndex: 2 },
-        },
-      ])
-    })
-
-    it('leaves subscriptions untouched when none belong to the fabric', async () => {
-      const { node, subscriptions } = serverNodeWith([
-        {
-          peerAddress: { fabricIndex: 2 },
-        },
-      ])
-      await (manager as any).purgeSubscriptionsForFabric(node, 1)
-      expect(subscriptions.state.subscriptions).toEqual([
-        {
-          peerAddress: { fabricIndex: 2 },
-        },
-      ])
-    })
-
-    it('is a no-op when there is no server node', async () => {
-      await expect((manager as any).purgeSubscriptionsForFabric(null, 1)).resolves.toBeUndefined()
     })
   })
 })

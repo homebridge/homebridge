@@ -6,13 +6,9 @@ export default antfu(
     rules: {
       'antfu/consistent-list-newline': 'off',
       'curly': ['error'],
-      'format/prettier': 'off',
-      'import/extensions': 'off',
-      'import/order': 'off',
       'jsdoc/check-alignment': 'error',
       'jsdoc/check-line-alignment': 'error',
       'new-cap': 'off',
-      'no-undef': 'error',
       'perfectionist/sort-exports': 'error',
       'perfectionist/sort-imports': [
         'error',
@@ -27,7 +23,6 @@ export default antfu(
             'side-effect',
             'unknown',
           ],
-          internalPattern: ['^@/.*'],
           order: 'asc',
           type: 'natural',
           newlinesBetween: 1,
@@ -35,8 +30,6 @@ export default antfu(
       ],
       'perfectionist/sort-named-exports': 'error',
       'perfectionist/sort-named-imports': 'error',
-      'quotes': ['error', 'single'],
-      'sort-imports': 'off',
       'style/brace-style': ['error', '1tbs'],
       'style/quote-props': ['error', 'consistent-as-needed'],
       'test/no-only-tests': 'error',
@@ -48,10 +41,7 @@ export default antfu(
     },
     typescript: true,
     formatters: {
-      css: true,
-      html: true,
       markdown: true,
-      svg: true,
     },
   })
   .append({

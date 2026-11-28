@@ -1,9 +1,10 @@
 import type { ClusterStateMap } from './clusterStateMap.js'
 import type { MatterClusterName } from './types.js'
 
+import * as matterDevices from '@matter/main/devices'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { clusterNames } from './types.js'
+import { clusterNames, clusters } from './types.js'
 
 describe('clusterNames', () => {
   it('includes the electrical measurement clusters so updateAccessoryState does not warn', () => {
@@ -26,6 +27,22 @@ describe('clusterNames', () => {
     expect(values).toContain('onOff')
   })
 
+  it('includes every optional measurement cluster homebridge composes from declared state', () => {
+    // applyOptionalMeasurementClusters adds these to any device type that
+    // lists them, so a plugin can update them - and each one missing here
+    // warned on every reading
+    const values = Object.values(clusterNames)
+    const optionalMeasurements = Object.entries(matterDevices)
+      .filter(([name]) => name.endsWith('Requirements'))
+      .flatMap(([, requirements]) => Object.values((requirements as any).server?.optional ?? {}))
+      .map(server => (server as { id: string }).id)
+      .filter(id => id.endsWith('Measurement'))
+    expect(optionalMeasurements).toContain('pm25ConcentrationMeasurement')
+    for (const id of new Set(optionalMeasurements)) {
+      expect(values).toContain(id)
+    }
+  })
+
   it('lists every cluster routable via ClusterStateMap (compile-time drift guard)', () => {
     // MatterAPIImpl.validateClusterName warns for any cluster missing from
     // clusterNames - if this assertion fails, a cluster was added to
@@ -35,5 +52,29 @@ describe('clusterNames', () => {
     // unique (a duplicate value would make two API constants collide).
     const values = Object.values(clusterNames)
     expect(new Set(values).size).toBe(values.length)
+  })
+})
+
+describe('the cluster definitions on api.matter.types and api.matter.clusters', () => {
+  // A plugin needs these values for the state it sends. Without the cluster
+  // here it had to write the bare number.
+  it.each([
+    ['SmokeCoAlarm', 'AlarmState', 'Critical'],
+    ['SmokeCoAlarm', 'ExpressedState', 'SmokeAlarm'],
+    ['RvcRunMode', 'ModeTag', 'Cleaning'],
+    ['RvcCleanMode', 'ModeTag', 'Vacuum'],
+    ['ServiceArea', 'OperationalStatus', 'Completed'],
+    ['PowerSource', 'BatChargeLevel', 'Critical'],
+    ['OccupancySensing', 'OccupancySensorType', 'Pir'],
+    ['PumpConfigurationAndControl', 'OperationMode', 'Normal'],
+    ['WaterHeaterMode', 'ModeTag', 'Manual'],
+    ['WaterHeaterManagement', 'BoostState', 'Active'],
+    ['Switch', 'Feature', 'MomentarySwitch'],
+    // one that was always there
+    ['FanControl', 'FanMode', 'High'],
+  ])('has %s.%s.%s', (cluster, enumName, member) => {
+    const definitions = clusters as unknown as Record<string, Record<string, Record<string, unknown>>>
+
+    expect(definitions[cluster]?.[enumName]?.[member]).toBeDefined()
   })
 })

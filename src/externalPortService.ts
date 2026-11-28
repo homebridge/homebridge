@@ -56,10 +56,11 @@ export class ExternalPortService {
    * If the port range has been exhausted it will return undefined.
    */
   public async requestPort(username: MacAddress): Promise<number | undefined> {
-    // check to see if this device has already requested an external port
-    const existingPortAllocation = this.allocatedPorts.get(username)
-    if (existingPortAllocation) {
-      return existingPortAllocation
+    // check to see if this device has already requested an external port.
+    // An answer of "no port" (the pool was used up) is kept too: asking again
+    // must not run through the pool, and warn, once more.
+    if (this.allocatedPorts.has(username)) {
+      return this.allocatedPorts.get(username)
     }
 
     // get the next unused port
@@ -79,6 +80,13 @@ export class ExternalPortService {
   }
 
   /**
+   * Mark a Matter port as in use, so {@link requestMatterPort} never hands it out.
+   */
+  public reserveMatterPort(port: number): void {
+    this.matterPortAllocator.reservePort(port)
+  }
+
+  /**
    * Release a Matter port previously obtained via {@link requestMatterPort}.
    * Call when an external Matter accessory is unregistered or fails to
    * publish — otherwise the pool accumulates dead allocations and
@@ -90,6 +98,12 @@ export class ExternalPortService {
 
   private getNextFreePort(): number | undefined {
     if (!this.externalPorts) {
+      return undefined
+    }
+
+    // Nothing is left once the pool has been walked to its end
+    if (this.nextExternalPort !== undefined && this.nextExternalPort > this.externalPorts.end) {
+      Logger.internal.warn('External HAP port pool ran out of ports. Falling back to random port assignment.')
       return undefined
     }
 
@@ -121,11 +135,11 @@ export class ChildBridgeExternalPortService extends ExternalPortService {
     super()
   }
 
-  public async requestPort(username: MacAddress): Promise<number | undefined> {
+  public override async requestPort(username: MacAddress): Promise<number | undefined> {
     return await this.childBridge.requestExternalPort(username)
   }
 
-  public async requestMatterPort(uniqueId: string): Promise<number | undefined> {
+  public override async requestMatterPort(uniqueId: string): Promise<number | undefined> {
     // For child bridges, request Matter port from parent via IPC
     return await this.childBridge.requestMatterPort(uniqueId)
   }

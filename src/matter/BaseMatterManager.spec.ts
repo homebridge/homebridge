@@ -1,8 +1,15 @@
 import type { PluginManager } from '../pluginManager.js'
 import type { InternalMatterAccessory } from './types.js'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { Logger } from '../logger.js'
+import { User } from '../user.js'
+import { generate } from '../util/mac.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
 import { MatterServer } from './server.js'
 
@@ -144,6 +151,31 @@ describe('baseMatterManager', () => {
     })
   })
 
+  describe('hasBridgeServerStopped', () => {
+    it('is false when there is no bridge server, and for a server that never stopped', () => {
+      expect(manager.hasBridgeServerStopped()).toBe(false)
+
+      manager.setMatterServer(new MatterServer({ uniqueId: 'test-bridge' }) as any)
+      expect(manager.hasBridgeServerStopped()).toBe(false)
+    })
+
+    it('is true after matter.js shut the server down, also for a child bridge that starts its server late', () => {
+      const server = new MatterServer({ uniqueId: 'test-bridge', deferOnline: true })
+      manager.setMatterServer(server as any)
+      ;(server as any).aggregator = {}
+      ;(server as any).isRunning = true
+
+      // what the lifecycle does when the node goes offline unasked
+      const deps = (server as any).getLifecycleDeps()
+      deps.setIsRunning(false)
+      deps.noteStoppedByItself()
+
+      expect(manager.hasBridgeServerStopped()).toBe(true)
+      // not the "waiting for registrations" window, where registrations are accepted
+      expect(server.isDeferredPreOnline()).toBe(false)
+    })
+  })
+
   describe('handleTriggerCommand', () => {
     it('should route commands to external server if accessory is external', async () => {
       const uuid = 'test-uuid'
@@ -206,6 +238,27 @@ describe('baseMatterManager', () => {
       expect(mockMatterServer.triggerCommand).not.toHaveBeenCalled()
     })
 
+    it('says "not mine" for a cluster with no command mapping when it does not have the accessory', async () => {
+      // closureControl has no mapping, and asking for one throws. A bridge
+      // that does not have the accessory must not report that error: the
+      // bridge that has it will.
+      const { MatterAccessoryNotOnBridgeError } = await import('./types.js')
+      manager.setMatterServer(mockMatterServer)
+      ;(mockMatterServer.getAccessoryInfo as any).mockReturnValue(undefined)
+
+      await expect(manager.handleTriggerCommand('foreign-uuid', 'closureControl', { mainState: 0 }))
+        .rejects
+        .toBeInstanceOf(MatterAccessoryNotOnBridgeError)
+    })
+
+    it('reports a cluster with no command mapping on the bridge that has the accessory', async () => {
+      manager.setMatterServer(mockMatterServer)
+
+      await expect(manager.handleTriggerCommand('test-uuid', 'closureControl', { mainState: 0 }))
+        .rejects
+        .toThrow('Command mapping not implemented for cluster: closureControl')
+    })
+
     it('handleUpdateAccessoryState throws sentinel when matterServer does not own the UUID', async () => {
       const { MatterAccessoryNotOnBridgeError } = await import('./types.js')
       manager.setMatterServer(mockMatterServer)
@@ -215,6 +268,21 @@ describe('baseMatterManager', () => {
         .rejects
         .toBeInstanceOf(MatterAccessoryNotOnBridgeError)
       expect(mockMatterServer.updateAccessoryState).not.toHaveBeenCalled()
+    })
+
+    // Fan mode has no command: the UI's request is an attribute write. It is
+    // marked as asked for, so the plugin's change handler is called (a plugin's
+    // own state report through the same method does not call it).
+    it('asks for the plugin handlers when a ui request is an attribute write', async () => {
+      const uuid = 'test-uuid'
+      manager.setMatterServer(mockMatterServer)
+      manager.addExternalServer('external-uuid', mockExternalServer)
+
+      await manager.handleTriggerCommand(uuid, 'fanControl', { fanMode: 3 })
+      await manager.handleTriggerCommand('external-uuid', 'fanControl', { fanMode: 3 })
+
+      expect(mockMatterServer.updateAccessoryState).toHaveBeenCalledWith(uuid, 'fanControl', { fanMode: 3 }, undefined, { callHandlers: true })
+      expect(mockExternalServer.updateAccessoryState).toHaveBeenCalledWith('external-uuid', 'fanControl', { fanMode: 3 }, undefined, { callHandlers: true })
     })
 
     it('should support partId parameter', async () => {
@@ -305,6 +373,25 @@ describe('baseMatterManager', () => {
       expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledWith('test-plugin', 'TestPlatform', accessories)
     })
 
+    it('warns, as a HAP registration does, when the platform name is not one the plugin has', async () => {
+      manager.setMatterServer(mockMatterServer)
+      const warn = vi.spyOn(Logger.withPrefix('Matter/BaseManager'), 'warn').mockImplementation(() => {})
+      ;(mockPluginManager.getPlugin as ReturnType<typeof vi.fn>).mockReturnValue({
+        getActiveDynamicPlatform: (name: string) => (name === 'TestPlatform'
+          ? {}
+          : undefined),
+      })
+
+      await manager.handleRegisterPlatformAccessories('test-plugin', 'TestPlatform', [])
+      expect(warn).not.toHaveBeenCalled()
+
+      await manager.handleRegisterPlatformAccessories('test-plugin', 'WrongName', [])
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('\'WrongName\'. The platform couldn\'t be found'))
+      // the accessories are still registered, as on the HAP side
+      expect(mockMatterServer.registerPlatformAccessories).toHaveBeenCalledTimes(2)
+      warn.mockRestore()
+    })
+
     it('should log warning if server not running', async () => {
       const accessories: InternalMatterAccessory[] = [
         { UUID: 'test-1', displayName: 'Test 1' } as any,
@@ -372,6 +459,15 @@ describe('baseMatterManager', () => {
   })
 
   describe('handleUnregisterExternalAccessories', () => {
+    // No test in this block may reach the real Homebridge storage folder
+    beforeEach(() => {
+      vi.spyOn(User, 'matterPath').mockReturnValue(join(tmpdir(), 'hb-base-manager-not-there'))
+    })
+
+    afterEach(() => {
+      vi.mocked(User.matterPath).mockRestore()
+    })
+
     it('should stop external servers and clean up storage', async () => {
       const uuid = 'external-1'
       manager.addExternalServer(uuid, mockExternalServer)
@@ -380,10 +476,28 @@ describe('baseMatterManager', () => {
         { UUID: uuid, displayName: 'External 1' } as any,
       ]
 
-      await manager.handleUnregisterExternalAccessories(accessories)
+      // The storage folder is looked up through User.matterPath(). Point it at
+      // a temporary folder: without this the test ran a real recursive delete
+      // inside the Homebridge folder of whoever ran the tests.
+      const matterPath = mkdtempSync(join(tmpdir(), 'hb-base-manager-'))
+      vi.spyOn(User, 'matterPath').mockReturnValue(matterPath)
+      const storageFolder = join(matterPath, generate(uuid).replace(/:/g, ''))
+      mkdirSync(storageFolder)
+      writeFileSync(join(storageFolder, 'credentials.json'), '{}')
+      const otherFolder = join(matterPath, 'SOMEOTHERBRIDGE')
+      mkdirSync(otherFolder)
 
-      expect(mockExternalServer.stop).toHaveBeenCalled()
-      expect(manager.getExternalMatterServers().has(uuid)).toBe(false)
+      try {
+        await manager.handleUnregisterExternalAccessories(accessories)
+
+        expect(mockExternalServer.stop).toHaveBeenCalled()
+        expect(manager.getExternalMatterServers().has(uuid)).toBe(false)
+        // the accessory's own folder is removed, and nothing else
+        expect(existsSync(storageFolder)).toBe(false)
+        expect(existsSync(otherFolder)).toBe(true)
+      } finally {
+        rmSync(matterPath, { recursive: true, force: true })
+      }
     })
 
     it('should handle non-existent accessories gracefully', async () => {
@@ -468,6 +582,16 @@ describe('baseMatterManager', () => {
 
       expect(mockMatterServer.getAllCachedAccessories).toHaveBeenCalled()
       expect(mockPluginManager.getPlugin).toHaveBeenCalledWith('test-plugin')
+      // the platform is handed the accessory, in the plugin-facing shape
+      expect(mockPlugin.getActiveDynamicPlatform).toHaveBeenCalledWith('TestPlatform')
+      const { configureMatterAccessory } = mockPlugin.getActiveDynamicPlatform.mock.results[0].value
+      expect(configureMatterAccessory).toHaveBeenCalledTimes(1)
+      expect(configureMatterAccessory).toHaveBeenCalledWith(expect.objectContaining({
+        UUID: 'cached-1',
+        displayName: 'Cached Light',
+        context: {},
+      }))
+      expect(mockMatterServer.unregisterAccessory).not.toHaveBeenCalled()
     })
 
     it('should remove orphaned accessories when keepOrphaned is false', () => {

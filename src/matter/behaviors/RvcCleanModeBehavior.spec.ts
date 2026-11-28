@@ -1,5 +1,7 @@
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
+import { RvcRunModeBehavior } from '@matter/main/behaviors/rvc-run-mode'
+import { ModeBase, RvcRunMode } from '@matter/main/clusters'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setRegistryManager } from './EndpointContext.js'
@@ -10,12 +12,15 @@ describe('homebridgeRvcCleanModeServer', () => {
   let mockRegistry: BehaviorRegistry
   let behavior: HomebridgeRvcCleanModeServer
   let mockEndpoint: any
+  let mockAgent: any
+  let runModeState: any
+  let features: { directModeChange?: boolean }
   const testEndpointId = 'test-endpoint-123'
 
   beforeEach(() => {
     // Create mock registry
     mockRegistry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -36,6 +41,51 @@ describe('homebridgeRvcCleanModeServer', () => {
       configurable: true,
     })
 
+    // Run mode: 0 = Idle (tagged Idle), 1 = Cleaning (tagged Cleaning) - starts idle
+    runModeState = {
+      currentMode: 0,
+      supportedModes: [
+        {
+          label: 'Idle',
+          mode: 0,
+          modeTags: [
+            { value: RvcRunMode.ModeTag.Idle },
+          ],
+        },
+        {
+          label: 'Cleaning',
+          mode: 1,
+          modeTags: [
+            { value: RvcRunMode.ModeTag.Cleaning },
+          ],
+        },
+      ],
+    }
+    mockAgent = {
+      maybeGet: vi.fn((type: unknown) => type === RvcRunModeBehavior
+        ? { state: runModeState }
+        : undefined),
+    }
+    Object.defineProperty(behavior, 'agent', {
+      get: () => mockAgent,
+      configurable: true,
+    })
+    features = {}
+    Object.defineProperty(behavior, 'features', {
+      get: () => features,
+      configurable: true,
+    })
+
+    // Modes 0-3 are supported, the device starts in mode 0
+    const state = {
+      currentMode: 0,
+      supportedModes: [0, 1, 2, 3].map(mode => ({ label: `Mode ${mode}`, mode, modeTags: [] })),
+    }
+    Object.defineProperty(behavior, 'state', {
+      get: () => state,
+      configurable: true,
+    })
+
     // Mock super method
     vi.spyOn(Object.getPrototypeOf(HomebridgeRvcCleanModeServer.prototype), 'changeToMode').mockReturnValue(undefined)
   })
@@ -46,7 +96,7 @@ describe('homebridgeRvcCleanModeServer', () => {
 
       await behavior.changeToMode(request)
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'rvcCleanMode',
         'changeToMode',
@@ -61,7 +111,7 @@ describe('homebridgeRvcCleanModeServer', () => {
         const request = { newMode: mode }
         await behavior.changeToMode(request)
 
-        expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+        expect(mockRegistry.runHandler).toHaveBeenCalledWith(
           testEndpointId,
           'rvcCleanMode',
           'changeToMode',
@@ -72,12 +122,60 @@ describe('homebridgeRvcCleanModeServer', () => {
       }
     })
 
-    it('should handle handler execution errors gracefully', async () => {
-      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+    it('should pass a handler error on to matter.js', async () => {
+      mockRegistry.runHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = { newMode: 0 }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.changeToMode(request)).rejects.toThrow('Failed to change clean mode: Handler failed')
+      await expect(behavior.changeToMode(request)).rejects.toThrow('Handler failed')
+    })
+
+    it('should refuse a mode the device does not list, without calling the handler', async () => {
+      const result = await behavior.changeToMode({ newMode: 7 })
+
+      expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
+      expect(mockRegistry.runHandler).not.toHaveBeenCalled()
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+    })
+
+    describe('without DirectModeChange', () => {
+      it('should reject a change with InvalidInMode while the run mode is not idle', async () => {
+        runModeState.currentMode = 1 // Cleaning
+
+        const result = await behavior.changeToMode({ newMode: 1 })
+
+        expect(result.status).toBe(ModeBase.ModeChangeStatus.InvalidInMode)
+        expect(mockRegistry.runHandler).not.toHaveBeenCalled()
+        expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+      })
+
+      it('should allow a change while the run mode is idle', async () => {
+        const request = { newMode: 1 }
+
+        await behavior.changeToMode(request)
+
+        expect(mockRegistry.runHandler).toHaveBeenCalledWith(testEndpointId, 'rvcCleanMode', 'changeToMode', request)
+      })
+
+      it('should allow a change when the endpoint has no run mode cluster', async () => {
+        mockAgent.maybeGet.mockReturnValue(undefined)
+
+        await behavior.changeToMode({ newMode: 1 })
+
+        expect(mockRegistry.runHandler).toHaveBeenCalled()
+      })
+    })
+
+    describe('with DirectModeChange', () => {
+      it('should allow a change while the run mode is not idle', async () => {
+        features.directModeChange = true
+        runModeState.currentMode = 1 // Cleaning
+        const request = { newMode: 1 }
+
+        await behavior.changeToMode(request)
+
+        expect(mockRegistry.runHandler).toHaveBeenCalledWith(testEndpointId, 'rvcCleanMode', 'changeToMode', request)
+      })
     })
   })
 })

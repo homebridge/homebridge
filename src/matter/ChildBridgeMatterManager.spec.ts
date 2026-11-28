@@ -3,6 +3,7 @@ import type { BridgeConfiguration, BridgeOptions } from '../bridgeService.js'
 import type { ChildBridgeExternalPortService } from '../externalPortService.js'
 import type { MatterConfig } from './types.js'
 
+import { AddressInUseError } from '@matter/main'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InternalAPIEvent } from '../api.js'
@@ -55,6 +56,16 @@ describe('childBridgeMatterManager', () => {
   })
 
   describe('isMatterEnabled', () => {
+    it('routes a replacement object to the restored external server', async () => {
+      const m = new ChildBridgeMatterManager(mockBridgeConfig, mockBridgeOptions, mockApi, mockExternalPortService, mockPluginManager)
+      const accessory = { UUID: 'restored', displayName: 'Restored' } as any
+      ;(m as any).externalMatterServers.set(accessory.UUID, {})
+      const attach = vi.spyOn(m as any, 'attachRestoredExternalAccessory').mockResolvedValue(true)
+      await m.handlePublishExternalAccessories([accessory], 'replacement')
+      expect(attach).toHaveBeenCalledWith(accessory)
+      expect(mockApi._resolveExternalRegistration).toHaveBeenCalledWith('replacement')
+    })
+
     it('should return false when Matter is not configured', () => {
       manager = new ChildBridgeMatterManager(
         mockBridgeConfig,
@@ -301,6 +312,72 @@ describe('childBridgeMatterManager', () => {
     })
   })
 
+  // A server as the manager sees it: its own accessory object has the identity
+  // and state only; plugin, platform and context are in the accessory cache,
+  // and the commissioning state in the fabric snapshot.
+  function makeAccessoryServer(uuid: string, overrides: Record<string, unknown> = {}): any {
+    const data = {
+      uuid,
+      displayName: `Light ${uuid}`,
+      deviceType: 'OnOffLight',
+      manufacturer: 'M',
+      model: 'X',
+      serialNumber: 'S',
+      clusters: {},
+      parts: [],
+    }
+    return {
+      username: 'EE:00:00:00:00:01',
+      bridgeName: 'Vacuum',
+      collectAccessories: vi.fn((username: string, type: string, name: string) => [
+        {
+          ...data,
+          bridge: { username, type, name },
+        },
+      ]),
+      getAccessoryInfo: vi.fn((id: string) => (id === uuid
+        ? data
+        : undefined)),
+      getCachedAccessory: vi.fn(() => ({
+        plugin: 'homebridge-test',
+        platform: 'TestPlatform',
+        context: { room: 'hall' },
+      })),
+      getCommissioningSnapshot: vi.fn(() => ({
+        commissioned: true,
+        fabricCount: 1,
+        fabrics: [
+          {
+            fabricIndex: 1,
+            fabricId: '1',
+            nodeId: '10',
+            rootVendorId: 0x1349,
+            label: 'My Home',
+          },
+        ],
+      })),
+      ...overrides,
+    }
+  }
+
+  // What the main bridge sends for every accessory, and a child bridge left out.
+  const mainBridgeFields = {
+    plugin: 'homebridge-test',
+    platform: 'TestPlatform',
+    context: { room: 'hall' },
+    commissioned: true,
+    fabricCount: 1,
+    fabrics: [
+      {
+        fabricIndex: 1,
+        fabricId: '1',
+        nodeId: '10',
+        vendorId: 0x1349,
+        label: 'My Home',
+      },
+    ],
+  }
+
   describe('collectAllAccessories', () => {
     it('should return empty array when Matter is not enabled', () => {
       manager = new ChildBridgeMatterManager(
@@ -315,38 +392,57 @@ describe('childBridgeMatterManager', () => {
       expect(accessories).toEqual([])
     })
 
-    it('should collect accessories from Matter server when enabled', () => {
-      const configWithMatter = {
-        ...mockBridgeConfig,
-        matter: { port: 5540 } as MatterConfig,
-      }
-
+    it('sends the same fields as the main bridge for each accessory', () => {
       manager = new ChildBridgeMatterManager(
-        configWithMatter,
+        {
+          ...mockBridgeConfig,
+          matter: { port: 5540 } as MatterConfig,
+        },
         mockBridgeOptions,
         mockApi,
         mockExternalPortService,
         mockPluginManager,
       )
-
-      const mockAccessories = [
-        { UUID: 'acc-1', displayName: 'Light 1' },
-        { UUID: 'acc-2', displayName: 'Light 2' },
-      ]
-
-      const mockMatterServer = {
-        collectAccessories: vi.fn().mockReturnValue(mockAccessories),
-      } as any
-
-      ;(manager as any).matterServer = mockMatterServer
+      const bridgeServer = makeAccessoryServer('acc-1')
+      const externalServer = makeAccessoryServer('ext-1')
+      ;(manager as any).matterServer = bridgeServer
+      ;(manager as any).externalMatterServers.set('ext-1', externalServer)
 
       const accessories = manager.collectAllAccessories()
-      expect(accessories).toEqual(mockAccessories)
-      expect(mockMatterServer.collectAccessories).toHaveBeenCalledWith(
-        mockBridgeConfig.username,
-        'child',
-        mockBridgeConfig.name,
+
+      expect(bridgeServer.collectAccessories).toHaveBeenCalledWith(mockBridgeConfig.username, 'child', mockBridgeConfig.name)
+      expect(accessories).toHaveLength(2)
+      expect(accessories[0]).toMatchObject({
+        uuid: 'acc-1',
+        displayName: 'Light acc-1',
+        bridge: { username: mockBridgeConfig.username, type: 'child', name: mockBridgeConfig.name },
+        ...mainBridgeFields,
+      })
+      expect(accessories[1]).toMatchObject({
+        uuid: 'ext-1',
+        bridge: { username: 'EE:00:00:00:00:01', type: 'external', name: 'Vacuum' },
+        ...mainBridgeFields,
+      })
+      // the commissioning state is read once per server, not once per accessory
+      expect(bridgeServer.getCommissioningSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    it('still lists an accessory that is not in the cache', () => {
+      manager = new ChildBridgeMatterManager(
+        {
+          ...mockBridgeConfig,
+          matter: { port: 5540 } as MatterConfig,
+        },
+        mockBridgeOptions,
+        mockApi,
+        mockExternalPortService,
+        mockPluginManager,
       )
+      ;(manager as any).matterServer = makeAccessoryServer('acc-1', {
+        getCachedAccessory: vi.fn(() => undefined),
+      })
+
+      expect(manager.collectAllAccessories()[0]).toMatchObject({ uuid: 'acc-1', plugin: '', platform: '' })
     })
   })
 
@@ -364,35 +460,34 @@ describe('childBridgeMatterManager', () => {
       expect(info).toBeUndefined()
     })
 
-    it('should get accessory info from server when enabled', () => {
-      const configWithMatter = {
-        ...mockBridgeConfig,
-        matter: { port: 5540 } as MatterConfig,
-      }
-
+    it('sends the same fields as the main bridge, the bridge included', () => {
       manager = new ChildBridgeMatterManager(
-        configWithMatter,
+        {
+          ...mockBridgeConfig,
+          matter: { port: 5540 } as MatterConfig,
+        },
         mockBridgeOptions,
         mockApi,
         mockExternalPortService,
         mockPluginManager,
       )
+      const bridgeServer = makeAccessoryServer('acc-1')
+      ;(manager as any).matterServer = bridgeServer
+      ;(manager as any).externalMatterServers.set('ext-1', makeAccessoryServer('ext-1'))
 
-      const mockAccessoryInfo = {
-        uuid: 'test-uuid',
-        displayName: 'Test Light',
-        parts: [],
-      }
-
-      const mockMatterServer = {
-        getAccessoryInfo: vi.fn().mockReturnValue(mockAccessoryInfo),
-      } as any
-
-      ;(manager as any).matterServer = mockMatterServer
-
-      const info = manager.getAccessoryInfo('test-uuid')
-      expect(info).toEqual(mockAccessoryInfo)
-      expect(mockMatterServer.getAccessoryInfo).toHaveBeenCalledWith('test-uuid')
+      expect(manager.getAccessoryInfo('acc-1')).toMatchObject({
+        uuid: 'acc-1',
+        displayName: 'Light acc-1',
+        bridge: { username: mockBridgeConfig.username, type: 'child', name: mockBridgeConfig.name },
+        ...mainBridgeFields,
+      })
+      expect(bridgeServer.getAccessoryInfo).toHaveBeenCalledWith('acc-1')
+      expect(manager.getAccessoryInfo('ext-1')).toMatchObject({
+        uuid: 'ext-1',
+        bridge: { username: 'EE:00:00:00:00:01', type: 'external', name: 'Vacuum' },
+        ...mainBridgeFields,
+      })
+      expect(manager.getAccessoryInfo('nobody')).toBeUndefined()
     })
   })
 
@@ -436,12 +531,55 @@ describe('childBridgeMatterManager', () => {
       expect((m as any).matterConfig.port).toBe(5530)
     })
 
-    it('throws a descriptive error when Matter port allocation returns nothing', async () => {
+    it('keeps the child bridge running when no Matter port can be allocated, and records why', async () => {
       vi.mocked(mockExternalPortService.requestMatterPort).mockResolvedValue(undefined)
       const m = createManager({} as MatterConfig)
       vi.spyOn(m as any, 'startMatterServer').mockResolvedValue(undefined)
 
-      await expect(m.initialize()).rejects.toThrow('Failed to allocate Matter port')
+      // Before this the error ended the child process, HAP included.
+      await expect(m.initialize()).resolves.toBeUndefined()
+
+      expect(m.getBridgeStartFailure()).toContain('Failed to allocate Matter port')
+      expect(m.getMatterStatusInfo()).toEqual({
+        commissioned: false,
+        deviceCount: 0,
+        fabricCount: 0,
+        fabrics: [],
+        startFailed: true,
+      })
+    })
+
+    it('keeps the child bridge running when the Matter server fails to start', async () => {
+      const m = createManager({ port: 5540 } as MatterConfig)
+      const failedServer = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      }
+      vi.spyOn(m as any, 'startMatterServer').mockImplementation(async () => {
+        ;(m as any).matterServer = failedServer
+        throw Object.assign(new Error('listen EADDRINUSE: address already in use :::5540'), { code: 'EADDRINUSE' })
+      })
+      const errorSpy = vi.spyOn(Logger.withPrefix('Matter/ChildManager'), 'error')
+
+      await expect(m.initialize()).resolves.toBeUndefined()
+
+      // The server that never ran is stopped and dropped, and the reason kept:
+      // a plugin registering a Matter accessory is told why it can not.
+      expect(failedServer.stop).toHaveBeenCalledTimes(1)
+      expect((m as any).matterServer).toBeUndefined()
+      expect(m.isMatterEnabled()).toBe(false)
+      expect(m.getBridgeStartFailure()).toContain('EADDRINUSE')
+      expect(m.isBridgeServerStarting()).toBe(false)
+      // Still "active": external accessories have a server of their own.
+      expect(m.hasActiveMatter()).toBe(true)
+      const attached = vi.mocked(mockApi.on).mock.calls.map(c => c[0])
+      expect(attached).toContain(InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES)
+      expect(attached).toContain(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE)
+      // The status sent to the parent says the start failed.
+      expect(m.getMatterStatusInfo()?.startFailed).toBe(true)
+      expect(errorSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('Matter port 5540 is already in use'))).toBe(true)
+      expect(mockApi._setMatterEnabled).not.toHaveBeenCalled()
+
+      errorSpy.mockRestore()
     })
 
     it('externalsOnly mode: attaches external listeners + bridged drop stubs, does NOT start the bridge server', async () => {
@@ -729,6 +867,32 @@ describe('childBridgeMatterManager', () => {
       expect(server.runServer).toHaveBeenCalledTimes(1)
     })
 
+    it('reports a failed start when the port is in use as the node goes online', async () => {
+      const manager = makeManager()
+      const server = {
+        ...makeServer(),
+        // what matter.js throws for a port another program holds
+        runServer: vi.fn().mockRejectedValue(new AddressInUseError('Cannot bind {::}:5677 because port is already in use')),
+        stop: vi.fn().mockResolvedValue(undefined),
+      }
+      const statusChanged = vi.fn()
+      ;(manager as any).onStatusChanged = statusChanged
+      ;(manager as any).matterConfig = { port: 5677 }
+      ;(manager as any).matterServer = server
+      const errorSpy = vi.spyOn(Logger.withPrefix('Matter/ChildManager'), 'error').mockImplementation(() => {})
+      ;(manager as any).runServerWhenSettled(server)
+
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + 600)
+
+      expect(manager.getBridgeStartFailure()).toContain('port is already in use')
+      expect(manager.getMatterStatusInfo()?.startFailed).toBe(true)
+      expect((manager as any).matterServer).toBeUndefined()
+      expect(server.stop).toHaveBeenCalledTimes(1)
+      expect(statusChanged).toHaveBeenCalledTimes(1)
+      expect(mockApi._setMatterServer).toHaveBeenCalledWith(null)
+      expect(errorSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('Matter port 5677 is already in use'))).toBe(true)
+    })
+
     it('goes online promptly when no registrations ever arrive', async () => {
       const manager = makeManager()
       const server = makeServer({ lastRegistrationAt: 0, inFlight: 0 })
@@ -760,13 +924,31 @@ describe('childBridgeMatterManager', () => {
       expect(server.runServer).toHaveBeenCalledTimes(1)
     })
 
-    it('stops polling if the server is torn down mid-wait', async () => {
+    it('stops polling when the manager is torn down mid-wait', async () => {
+      mockApi.removeListener = vi.fn() as any
+      const manager = makeManager()
+      const server = makeServer({ inFlight: 1 })
+      server.removeListener = vi.fn()
+      server.stop = vi.fn().mockResolvedValue(undefined)
+      ;(manager as any).matterServer = server
+      ;(manager as any).runServerWhenSettled(server)
+
+      // A quick restart: the signal arrives while the node is still offline.
+      await manager.teardown()
+      expect(server.stop).toHaveBeenCalledTimes(1)
+      expect(vi.getTimerCount()).toBe(0)
+
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + CAP_MS)
+      expect(server.runServer).not.toHaveBeenCalled()
+      expect(manager.isMatterEnabled()).toBe(false)
+    })
+
+    it('stops polling if the server is replaced mid-wait', async () => {
       const manager = makeManager()
       const server = makeServer()
       ;(manager as any).matterServer = server
       ;(manager as any).runServerWhenSettled(server)
 
-      // A restart mid-wait replaces the server reference.
       ;(manager as any).matterServer = makeServer()
       await vi.advanceTimersByTimeAsync(SETTLE_MS + CAP_MS)
       expect(server.runServer).not.toHaveBeenCalled()

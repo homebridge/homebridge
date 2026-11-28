@@ -27,10 +27,13 @@ import { ChildBridgeService } from './childBridgeService.js'
 import { collectConfiguredHapPorts, ExternalPortService } from './externalPortService.js'
 import { IpcIncomingEvent, IpcOutgoingEvent, IpcService, ServerStatusUpdate } from './ipcService.js'
 import { Logger } from './logger.js'
-import { isMatterActive, isMatterConfigEnabled, isMatterExternalsOnly, MatterConfigCollector } from './matter/config.js'
+import { isMatterActive, isMatterExternalsOnly, MatterConfigCollector } from './matter/config.js'
+import { MatterAccessoryNotOnBridgeError } from './matter/MatterError.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
+import { errorMessage } from './util/errorMessage.js'
 import { validMacAddress } from './util/mac.js'
+import { DEFAULT_PIN, validatePin } from './util/pin.js'
 
 // HAP specifies QR error-correction level M or higher for ECC. Set once at
 // module load — qrcode-terminal stores this on the (process-global) module,
@@ -39,6 +42,20 @@ qrcode.setErrorLevel('M')
 
 const log = Logger.internal
 const matterLogger = Logger.withPrefix('Matter/MainManager')
+
+/**
+ * Read a TCP port from the config: a whole number from 1 to 65535. A number
+ * written as a text ("51826") is taken as that number, as it was by Node.js
+ * for a bridge port; anything else gives `undefined`.
+ */
+function parsePort(value: unknown): number | undefined {
+  const port = typeof value === 'string' && /^\d+$/.test(value.trim())
+    ? Number(value)
+    : value
+  return typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535
+    ? port
+    : undefined
+}
 
 export interface HomebridgeOptions {
   keepOrphanedCachedAccessories?: boolean
@@ -96,9 +113,10 @@ export class Server {
   private matterMonitoringActive = false
   private matterMonitoringClients = 0
 
-  // Fallback timers for child-bridge Matter accessory lookups. Keyed by uuid
-  // so that a child's accessoryInfoData (success or error) can cancel the
-  // timer before it fires a spurious "Timed out" event at the UI.
+  // Fallback timers for child-bridge Matter accessory lookups. Keyed by the
+  // request's correlationId (by uuid for a request without one) so that a
+  // child's accessoryInfoData (success or error) can cancel the timer before
+  // it fires a spurious "Timed out" event at the UI.
   private readonly pendingMatterAccessoryInfoLookups: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
   // The same fallback, for control requests broadcast to the child bridges.
@@ -179,7 +197,7 @@ export class Server {
    * Set the current server status and update parent via IPC
    * @param status
    */
-  private setServerStatus(status: ServerStatus) {
+  private setServerStatus(status: ServerStatus): void {
     this.serverStatus = status
 
     // setupURI() asserts the accessory is published. _accessoryInfo is only
@@ -224,14 +242,15 @@ export class Server {
     // Matter runs in that child's process, so it must not make api.matter or
     // isMatterEnabled() true for plugins on the main bridge - the same rule
     // isHapEnabled() follows.
-    const matterIsActive = isMatterActive(this.config.bridge.matter)
+    let matterIsActive = isMatterActive(this.config.bridge.matter)
 
     // Eagerly load the MatterAPI facade before plugins initialize, so api.matter
     // is defined when plugin code runs on a Matter-enabled main bridge. The heavy
     // MatterBridgeManager init still happens after plugins load (below) — only
     // the API surface needs to be ready early.
+    // If matter.js can not be loaded, the bridge starts without Matter.
     if (matterIsActive) {
-      await this.api.loadMatterAPI()
+      matterIsActive = await this.api.tryLoadMatterAPI()
     }
 
     // initialize plugins
@@ -276,7 +295,7 @@ export class Server {
 
     // restore cached accessories
     this.bridgeService.restoreCachedPlatformAccessories()
-    this.matterManager?.restoreCachedAccessories(this.options.keepOrphanedCachedAccessories ?? false)
+    await this.matterManager?.restoreCachedAccessories(this.options.keepOrphanedCachedAccessories ?? false)
 
     this.api.signalFinished()
 
@@ -284,6 +303,7 @@ export class Server {
     await Promise.all(promises)
 
     if (Server.isHapEnabled(this.config.bridge)) {
+      await this.bridgeService.checkBridgePort()
       this.publishBridge()
     } else {
       // HAP is opted out (or externalsOnly mode is set). The bridge ADVERTISED
@@ -300,7 +320,9 @@ export class Server {
   }
 
   public async teardown(): Promise<void> {
-    this.bridgeService.teardown()
+    // Saves the cache and signals the plugins now; the promise is for the
+    // goodbye of the HAP accessories, which is awaited below.
+    const hapUnpublished = this.bridgeService.teardown()
 
     // Teardown Matter servers (main bridge and external accessories)
     await this.matterManager?.teardown()
@@ -319,12 +341,25 @@ export class Server {
     }
     this.pendingMatterControlRequests.clear()
 
+    // "down" is only true once the accessories are off the network
+    await hapUnpublished
+
     this.ipcService.stop()
     this.setServerStatus(ServerStatus.DOWN)
   }
 
   private publishBridge(): void {
     this.bridgeService.publishBridge()
+
+    // The setup payload comes from what publish() stores on the bridge. When
+    // the publish failed before that (it is logged by the bridge service),
+    // asking for the payload threw "Cannot generate setupURI on an accessory
+    // that isn't published yet!" and stopped Homebridge with that as the reason.
+    if (!this.bridgeService.bridge._accessoryInfo) {
+      log.error('The bridge was not published, so there is no setup code to show.')
+      return
+    }
+
     this.printSetupInfo(this.config.bridge.pin)
   }
 
@@ -332,7 +367,7 @@ export class Server {
    * Handle Matter command trigger from IPC (for UI control)
    * This is called by IPC handlers, not API events
    */
-  private async handleTriggerMatterCommand(uuid: string, cluster: string, attributes: Record<string, any>, partId?: string): Promise<void> {
+  private async handleTriggerMatterCommand(uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): Promise<void> {
     if (!this.matterManager) {
       throw new Error('Matter manager not initialized')
     }
@@ -350,15 +385,6 @@ export class Server {
     return isHapConfigEnabled(bridgeConfig.hap) && !isHapExternalsOnly(bridgeConfig.hap)
   }
 
-  /**
-   * Whether Matter is enabled for the given bridge.
-   * Matter is opt-in: a `bridge.matter` block must be present and not
-   * explicitly disabled via `bridge.matter.enabled: false`.
-   */
-  public static isMatterEnabledForBridge(bridgeConfig: BridgeConfiguration): boolean {
-    return isMatterConfigEnabled(bridgeConfig.matter)
-  }
-
   private static loadConfig(): HomebridgeConfig {
     // Look for the configuration file
     const configPath = User.configPath()
@@ -366,11 +392,12 @@ export class Server {
     const defaultBridge: BridgeConfiguration = {
       name: 'Homebridge',
       username: 'CC:22:3D:E3:CE:30',
-      pin: '031-45-154',
+      pin: DEFAULT_PIN,
     }
 
     if (!existsSync(configPath)) {
       log.warn('config.json (%s) not found.', configPath)
+      validatePin(defaultBridge.pin, 'bridge.pin')
       return { // return a default configuration
         bridge: defaultBridge,
         accessories: [],
@@ -382,18 +409,42 @@ export class Server {
     try {
       // strip a UTF-8 byte order mark, which some Windows editors add and JSON.parse rejects
       config = JSON.parse(readFileSync(configPath, { encoding: 'utf8' }).replace(/^\uFEFF/, ''))
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.error('There was a problem reading your config.json file.')
       log.error('Please try pasting your config.json file here to validate it: https://jsonlint.com')
       log.error('')
       throw error
     }
 
+    // Valid JSON that is not an object ("null", a list, a text) has none of the settings read below
+    if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+      throw new TypeError('Your config.json does not hold a configuration: it must be an object ({ ... }) with a "bridge" section.')
+    }
+    // "bridge": null got the default bridge before, as a missing section does: it still does
+    if (config.bridge === null) {
+      log.warn('The "bridge" section of your config.json is null, so the default bridge settings are used.')
+      config.bridge = undefined as unknown as BridgeConfiguration
+    }
+    if (config.bridge !== undefined && (typeof config.bridge !== 'object' || Array.isArray(config.bridge))) {
+      throw new TypeError('The "bridge" section of your config.json must be an object ({ ... }) with "name", "username" and "pin".')
+    }
+
+    config.accessories = Server.configBlocks(config.accessories, 'accessories')
+    config.platforms = Server.configBlocks(config.platforms, 'platforms')
+
     if (config.ports !== undefined) {
-      if (config.ports.start && config.ports.end) {
-        if (config.ports.start > config.ports.end) {
+      if (config.ports?.start && config.ports.end) {
+        // Texts were used as they were: the port after "52100" was "521001".
+        const start = parsePort(config.ports.start)
+        const end = parsePort(config.ports.end)
+        if (start === undefined || end === undefined) {
+          log.error('Invalid configuration for \'ports\'. \'start\' and \'end\' must be whole numbers from 1 to 65535! Ignoring it!')
+          config.ports = undefined
+        } else if (start > end) {
           log.error('Invalid port pool configuration. End should be greater than or equal to start.')
           config.ports = undefined
+        } else {
+          config.ports = { start, end }
         }
       } else {
         log.error('Invalid configuration for \'ports\'. Missing \'start\' and \'end\' properties! Ignoring it!')
@@ -403,6 +454,14 @@ export class Server {
 
     const bridge: BridgeConfiguration = config.bridge || defaultBridge
     bridge.name = bridge.name || defaultBridge.name
+    if (typeof bridge.name !== 'string') {
+      // a name written as a number or true/false; anything else has no usable text
+      const name: unknown = bridge.name
+      bridge.name = typeof name === 'number' || typeof name === 'boolean'
+        ? String(name)
+        : defaultBridge.name
+      log.warn(`Value provided in bridge.name is not a text. Using "${bridge.name}" as the name of the bridge.`)
+    }
     bridge.username = bridge.username || defaultBridge.username
     bridge.pin = bridge.pin || defaultBridge.pin
     config.bridge = bridge
@@ -425,21 +484,19 @@ export class Server {
       throw new Error(`Not a valid username: ${username}. Must be 6 pairs of colon-separated hexadecimal chars (A-F 0-9), like a MAC address.`)
     }
 
+    validatePin(config.bridge.pin, 'bridge.pin')
+
+    // No port, or 0, lets the system pick a free one
+    if (config.bridge.port !== undefined && config.bridge.port !== null && config.bridge.port !== 0) {
+      const port = parsePort(config.bridge.port)
+      if (port === undefined) {
+        log.error('Value provided in bridge.port is not valid: it must be a whole number from 1 to 65535. Using a random port instead.')
+      }
+      config.bridge.port = port
+    }
+
     // Validate the main bridge HAP config (shape + externalsOnly/enabled coherence).
     validateHapConfig(config.bridge, { bridgeLabel: 'main bridge' })
-
-    config.accessories = config.accessories || []
-    config.platforms = config.platforms || []
-
-    if (!Array.isArray(config.accessories)) {
-      log.error('Value provided for accessories must be an array[]')
-      config.accessories = []
-    }
-
-    if (!Array.isArray(config.platforms)) {
-      log.error('Value provided for platforms must be an array[]')
-      config.platforms = []
-    }
 
     log.info('Loaded config.json with %s accessories and %s platforms.', config.accessories.length, config.platforms.length)
 
@@ -458,6 +515,29 @@ export class Server {
     }
 
     return config as HomebridgeConfig
+  }
+
+  /**
+   * The `accessories` or `platforms` list from the config, without the
+   * entries that are not objects. Everything that walks these lists (the
+   * loaders, the port collectors, the Matter validation) reads properties of
+   * each entry, and a `null` entry made start-up fail with a TypeError.
+   */
+  private static configBlocks<T extends object>(value: unknown, section: 'accessories' | 'platforms'): T[] {
+    if (value === undefined || value === null) {
+      return []
+    }
+    if (!Array.isArray(value)) {
+      log.error(`Value provided for ${section} must be an array[]`)
+      return []
+    }
+    return value.filter((entry, index): entry is T => {
+      const isBlock = typeof entry === 'object' && entry !== null && !Array.isArray(entry)
+      if (!isBlock) {
+        log.warn(`Your config.json contains an entry in ${section} at position ${index + 1} that is not an object. Skipping entry...`)
+      }
+      return isBlock
+    })
   }
 
   private loadAccessories(): void {
@@ -482,8 +562,8 @@ export class Server {
 
       try {
         plugin = this.pluginManager.getPluginForAccessory(accessoryIdentifier)
-      } catch (error: any) {
-        log.error(error.message)
+      } catch (error: unknown) {
+        log.error(errorMessage(error))
         return
       }
 
@@ -495,9 +575,11 @@ export class Server {
 
       try {
         constructor = plugin.getAccessoryConstructor(accessoryIdentifier)
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error(`Error loading the accessory "${accessoryIdentifier}" requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`)
-        log.error(error) // error message contains more information and full stack trace
+        log.error(error instanceof Error
+          ? (error.stack ?? error.message)
+          : String(error)) // the stack holds the message and where it came from
         return
       }
 
@@ -505,13 +587,10 @@ export class Server {
       logger('Initializing %s accessory...', accessoryIdentifier)
 
       if (accessoryConfig._bridge) {
-        // ensure the username is always uppercase
-        accessoryConfig._bridge.username = accessoryConfig._bridge.username.toUpperCase()
-
         try {
           this.validateChildBridgeConfig(PluginType.ACCESSORY, accessoryIdentifier, accessoryConfig._bridge)
-        } catch (error: any) {
-          log.error(error.message)
+        } catch (error: unknown) {
+          log.error(errorMessage(error))
           return
         }
 
@@ -536,6 +615,7 @@ export class Server {
 
           // Set callback for external Matter bridge registration
           childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+          childBridge.onExternalBridgeUnregistered = this.unregisterExternalMatterBridge.bind(this)
           // Cancel the parent-side fallback timer when this child answers a lookup
           childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
           childBridge.onAccessoryControlResponse = this.cancelPendingMatterControlRequest.bind(this)
@@ -559,8 +639,8 @@ export class Server {
       if (accessory) {
         try {
           this.bridgeService.bridge.addBridgedAccessory(accessory)
-        } catch (error: any) {
-          logger.error(`Error loading the accessory "${accessoryIdentifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, error.message)
+        } catch (error: unknown) {
+          logger.error(`Error loading the accessory "${accessoryIdentifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, errorMessage(error))
         }
       } else {
         logger.info('Accessory %s returned empty set of services; not adding it to the bridge.', accessoryIdentifier)
@@ -592,8 +672,8 @@ export class Server {
 
       try {
         plugin = this.pluginManager.getPluginForPlatform(platformIdentifier)
-      } catch (error: any) {
-        log.error(error.message)
+      } catch (error: unknown) {
+        log.error(errorMessage(error))
         return
       }
 
@@ -605,9 +685,11 @@ export class Server {
 
       try {
         constructor = plugin.getPlatformConstructor(platformIdentifier)
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error(`Error loading the platform "${platformIdentifier}" requested in your config.json at position ${index + 1} - this is likely an issue with the "${plugin.getPluginIdentifier()}" plugin.`)
-        log.error(error) // error message contains more information and full stack trace
+        log.error(error instanceof Error
+          ? (error.stack ?? error.message)
+          : String(error)) // the stack holds the message and where it came from
         return
       }
 
@@ -615,13 +697,10 @@ export class Server {
       logger('Initializing %s platform...', platformIdentifier)
 
       if (platformConfig._bridge) {
-        // ensure the username is always uppercase
-        platformConfig._bridge.username = platformConfig._bridge.username.toUpperCase()
-
         try {
           this.validateChildBridgeConfig(PluginType.PLATFORM, platformIdentifier, platformConfig._bridge)
-        } catch (error: any) {
-          log.error(error.message)
+        } catch (error: unknown) {
+          log.error(errorMessage(error))
           return
         }
 
@@ -640,6 +719,7 @@ export class Server {
 
         // Set callback for external Matter bridge registration
         childBridge.onExternalBridgeRegistered = this.registerExternalMatterBridge.bind(this)
+        childBridge.onExternalBridgeUnregistered = this.unregisterExternalMatterBridge.bind(this)
         // Cancel the parent-side fallback timer when this child answers a lookup
         childBridge.onAccessoryInfoResponse = this.cancelPendingMatterAccessoryInfoLookup.bind(this)
         childBridge.onAccessoryControlResponse = this.cancelPendingMatterControlRequest.bind(this)
@@ -669,7 +749,7 @@ export class Server {
   }
 
   /**
-   * Validate an external bridge config
+   * Validate a child bridge config (the `_bridge` block of a platform or accessory)
    */
   private validateChildBridgeConfig(type: PluginType, identifier: string, bridgeConfig: BridgeConfiguration): void {
     // All child bridges require username
@@ -702,7 +782,7 @@ export class Server {
         // only a single platform can exist on one child bridge
         throw new Error(
           `Error loading the ${type} "${identifier}" requested in your config.json - `
-          + `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each platform child bridge must have it's own unique username.`,
+          + `Duplicate username found in _bridge.username: "${bridgeConfig.username}". Each platform child bridge must have its own unique username.`,
         )
       } else if (childBridge?.identifier !== identifier) {
         // only accessories of the same type can be added to the same child bridge
@@ -718,8 +798,19 @@ export class Server {
     if (bridgeConfig.username === this.config.bridge.username) {
       throw new Error(
         `Error loading the ${type} "${identifier}" requested in your config.json - `
-        + `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have it's own unique username.`,
+        + `Username found in _bridge.username: "${bridgeConfig.username}" is the same as the main bridge. Each child bridge platform/accessory must have its own unique username.`,
       )
+    }
+
+    // A child bridge with no pin of its own uses the one of the main bridge
+    if (bridgeConfig.pin !== undefined && bridgeConfig.pin !== null && (bridgeConfig.pin as unknown) !== '') {
+      try {
+        validatePin(bridgeConfig.pin, '_bridge.pin')
+      } catch (error: unknown) {
+        throw new Error(
+          `Error loading the ${type} "${identifier}" requested in your config.json - ${errorMessage(error)}`,
+        )
+      }
     }
 
     // Validate the child bridge HAP config (shape + externalsOnly/enabled coherence).
@@ -734,7 +825,7 @@ export class Server {
   /**
    * Takes care of the IPC Events sent to Homebridge
    */
-  private initializeIpcEventHandlers() {
+  private initializeIpcEventHandlers(): void {
     // start ipc service
     this.ipcService.start()
 
@@ -786,7 +877,7 @@ export class Server {
     })
 
     this.ipcService.on(IpcIncomingEvent.GET_MATTER_ACCESSORY_INFO, (data) => {
-      this.handleGetMatterAccessoryInfo(data?.uuid)
+      this.handleGetMatterAccessoryInfo(data?.uuid, data?.correlationId)
     })
 
     this.ipcService.on(IpcIncomingEvent.MATTER_ACCESSORY_CONTROL, (data) => {
@@ -903,15 +994,30 @@ export class Server {
   }
 
   /**
+   * Forget an external Matter bridge whose accessory was unregistered, so the
+   * routing list does not keep an entry for every accessory there ever was.
+   * @param externalBridgeUsername - Username of the external Matter bridge
+   */
+  public unregisterExternalMatterBridge(externalBridgeUsername: string): void {
+    const normalizedExternal = externalBridgeUsername.toUpperCase()
+    if (this.externalMatterBridgeRegistry.delete(normalizedExternal)) {
+      matterLogger.debug(`Removed external Matter bridge ${normalizedExternal} from the routing list`)
+    }
+  }
+
+  /**
    * Cancel the pending fallback timer for a forwarded Matter accessory lookup.
    * Called by ChildBridgeService when a child responds with accessoryInfoData
    * so the 2s "Timed out" event isn't sent after a successful response.
    */
-  private cancelPendingMatterAccessoryInfoLookup(uuid: string): void {
-    const timer = this.pendingMatterAccessoryInfoLookups.get(uuid)
+  private cancelPendingMatterAccessoryInfoLookup(uuid: string, correlationId?: string): void {
+    // Same key as handleGetMatterAccessoryInfo: the id of the request when it
+    // has one, so two lookups of one accessory do not cancel each other.
+    const key = correlationId ?? uuid
+    const timer = this.pendingMatterAccessoryInfoLookups.get(key)
     if (timer) {
       clearTimeout(timer)
-      this.pendingMatterAccessoryInfoLookups.delete(uuid)
+      this.pendingMatterAccessoryInfoLookups.delete(key)
     }
   }
 
@@ -971,10 +1077,19 @@ export class Server {
       // Get accessories from main bridge
       const allAccessories = this.matterManager?.collectAllAccessories(bridgeUsername) || []
 
-      // Request from child bridges and wait for responses (with timeout)
-      if (this.childBridges.size > 0) {
+      // Request from child bridges and wait for responses (with timeout).
+      // A request that names a bridge is for that bridge only, as it is for
+      // the main bridge above: before, every child bridge was asked and every
+      // answer added, whatever the request said.
+      const wantedUsername = bridgeUsername?.toUpperCase()
+      const childBridges = [
+        ...this.childBridges.values(),
+      ].filter(
+        childBridge => !wantedUsername || childBridge.getMetadata().username.toUpperCase() === wantedUsername,
+      )
+      if (childBridges.length > 0) {
         const results = await Promise.allSettled(
-          Array.from(this.childBridges.values(), childBridge => childBridge.requestMatterAccessories()),
+          childBridges.map(childBridge => childBridge.requestMatterAccessories()),
         )
 
         for (const result of results) {
@@ -1010,12 +1125,16 @@ export class Server {
   }
 
   /**
-   * Get detailed info for a specific Matter accessory
+   * Get detailed info for a specific Matter accessory.
+   *
+   * Every reply echoes the request's `correlationId`, as the other three
+   * request types do: the UI drops an event that does not carry it.
    */
-  private handleGetMatterAccessoryInfo(uuid?: string): void {
+  private handleGetMatterAccessoryInfo(uuid?: string, correlationId?: string): void {
     if (!uuid) {
       const event: MatterEvent = {
         type: 'accessoryInfoData',
+        correlationId,
         data: {
           error: 'UUID is required',
         },
@@ -1031,6 +1150,7 @@ export class Server {
       if (accessoryInfo) {
         const event: MatterEvent = {
           type: 'accessoryInfoData',
+          correlationId,
           data: accessoryInfo,
         }
         this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, event)
@@ -1050,7 +1170,7 @@ export class Server {
       let forwardedToChildren = false
       for (const childBridge of this.childBridges.values()) {
         if (isMatterActive(childBridge.getMetadata().matterConfig)) {
-          childBridge.getMatterAccessoryInfo(uuid)
+          childBridge.getMatterAccessoryInfo(uuid, correlationId)
           forwardedToChildren = true
         }
       }
@@ -1058,6 +1178,7 @@ export class Server {
       if (!forwardedToChildren) {
         this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
           type: 'accessoryInfoData',
+          correlationId,
           data: { error: `Accessory ${uuid} not found`, uuid },
         })
         return
@@ -1068,16 +1189,20 @@ export class Server {
       // shutdown doesn't wait on this timer. The timer is registered in
       // pendingMatterAccessoryInfoLookups so a child's accessoryInfoData
       // response (routed via ChildBridgeService.onAccessoryInfoResponse) can
-      // cancel it before it fires a spurious timed-out event. A second
-      // concurrent request for the same uuid replaces the existing timer.
-      const existing = this.pendingMatterAccessoryInfoLookups.get(uuid)
+      // cancel it before it fires a spurious timed-out event. The timer is
+      // kept under the request's correlationId; a request without one falls
+      // back to the uuid, where a second concurrent request for the same uuid
+      // replaces the existing timer.
+      const lookupKey = correlationId ?? uuid
+      const existing = this.pendingMatterAccessoryInfoLookups.get(lookupKey)
       if (existing) {
         clearTimeout(existing)
       }
       const fallback = setTimeout(() => {
-        this.pendingMatterAccessoryInfoLookups.delete(uuid)
+        this.pendingMatterAccessoryInfoLookups.delete(lookupKey)
         this.ipcService.sendMessage(IpcOutgoingEvent.MATTER_EVENT, {
           type: 'accessoryInfoData',
+          correlationId,
           data: {
             error: `Timed out looking up Matter accessory ${uuid}; it may not be registered.`,
             uuid,
@@ -1086,11 +1211,12 @@ export class Server {
         })
       }, 2000)
       fallback.unref()
-      this.pendingMatterAccessoryInfoLookups.set(uuid, fallback)
+      this.pendingMatterAccessoryInfoLookups.set(lookupKey, fallback)
     } catch (error) {
       matterLogger.error('Failed to get Matter accessory info:', error)
       const event: MatterEvent = {
         type: 'accessoryInfoData',
+        correlationId,
         data: {
           error: error instanceof Error
             ? error.message
@@ -1101,9 +1227,6 @@ export class Server {
     }
   }
 
-  /**
-   * Handle Matter accessory control command
-   */
   /**
    * Send an `accessoryControlResponse` back over IPC, echoing the request's
    * `correlationId` when one was given. The UI parks each control request
@@ -1123,6 +1246,54 @@ export class Server {
     })
   }
 
+  /**
+   * Arm the "nobody answered" reply for a control request that was handed to
+   * one or more child bridges. A child that does not have the accessory, or
+   * has no Matter running, stays silent, so without this nothing is sent back
+   * at all. Mirrors the accessoryInfoData fallback: a short timer that the
+   * owner's response cancels (via ChildBridgeService.onAccessoryControlResponse).
+   *
+   * Only meaningful with a correlationId: the UI drops any response without
+   * one, so there would be nothing to rescue.
+   */
+  private armMatterControlFallback(uuid: string, correlationId: string | undefined, reason: string): void {
+    if (!correlationId) {
+      return
+    }
+    const existing = this.pendingMatterControlRequests.get(correlationId)
+    if (existing) {
+      clearTimeout(existing)
+    }
+    const fallback = setTimeout(() => {
+      this.pendingMatterControlRequests.delete(correlationId)
+      matterLogger.warn(`Accessory ${uuid} not found - ${reason}`)
+      this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid }, correlationId)
+    }, 2000)
+    fallback.unref()
+    this.pendingMatterControlRequests.set(correlationId, fallback)
+  }
+
+  /**
+   * Hand a control request to the one child bridge it names. The request is
+   * always answered: at once when the child process is not running (stopped,
+   * restarting, or waiting to be restarted after a crash), and by the fallback
+   * when the child is running but does not answer.
+   */
+  private forwardMatterControlToChild(
+    childBridge: ChildBridgeService,
+    data: { uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, correlationId?: string },
+  ): void {
+    if (!childBridge.controlMatterAccessory(data)) {
+      matterLogger.warn(`Cannot control ${data.uuid} - child bridge ${childBridge.identifier} is not running`)
+      this.sendMatterControlResponse({ success: false, error: 'Child bridge is not running', uuid: data.uuid }, data.correlationId)
+      return
+    }
+    this.armMatterControlFallback(data.uuid, data.correlationId, `child bridge ${childBridge.identifier} did not claim it`)
+  }
+
+  /**
+   * Handle Matter accessory control command
+   */
   private async handleMatterAccessoryControl(data?: {
     uuid: string
     cluster: string
@@ -1154,9 +1325,13 @@ export class Server {
           await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
           matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
           this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
-        } catch (error: any) {
-          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${error.message}`)
-          this.sendMatterControlResponse({ success: false, error: error.message, uuid: data.uuid }, correlationId)
+        } catch (error: unknown) {
+          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${errorMessage(error)}`)
+          this.sendMatterControlResponse({
+            success: false,
+            error: errorMessage(error),
+            uuid: data.uuid,
+          }, correlationId)
         }
         return
       }
@@ -1165,7 +1340,7 @@ export class Server {
       for (const childBridge of this.childBridges.values()) {
         if (childBridge.getMetadata().username.toUpperCase() === targetUsername) {
           matterLogger.debug(`Routing to child bridge ${childBridge.identifier} (${targetUsername})`)
-          childBridge.controlMatterAccessory(data)
+          this.forwardMatterControlToChild(childBridge, data)
           return
         }
       }
@@ -1183,16 +1358,20 @@ export class Server {
             await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
             matterLogger.debug(`External accessory ${data.uuid} successfully controlled via main bridge`)
             this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
-          } catch (error: any) {
-            matterLogger.error(`Main bridge failed to control external accessory ${data.uuid}: ${error.message}`)
-            this.sendMatterControlResponse({ success: false, error: error.message, uuid: data.uuid }, correlationId)
+          } catch (error: unknown) {
+            matterLogger.error(`Main bridge failed to control external accessory ${data.uuid}: ${errorMessage(error)}`)
+            this.sendMatterControlResponse({
+              success: false,
+              error: errorMessage(error),
+              uuid: data.uuid,
+            }, correlationId)
           }
         } else {
           // External accessory on child bridge - lookup by username
           const childBridge = this.childBridges.get(ownerUsername)
           if (childBridge) {
             matterLogger.debug(`Routing to child bridge ${childBridge.identifier} (${ownerUsername}) for external accessory ${data.uuid}`)
-            childBridge.controlMatterAccessory(data)
+            this.forwardMatterControlToChild(childBridge, data)
           } else {
             matterLogger.error(`Owner bridge ${ownerUsername} not found for external bridge ${targetUsername}`)
             this.sendMatterControlResponse({ success: false, error: `Owner bridge ${ownerUsername} not found`, uuid: data.uuid }, correlationId)
@@ -1209,56 +1388,56 @@ export class Server {
     }
 
     // No bridge username provided - broadcast mode (try main, then all children)
-    matterLogger.debug(`Broadcast mode: trying main bridge for accessory ${data.uuid}`)
-    try {
-      await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
-      matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
-      this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
-    } catch (error) {
-      // Main bridge doesn't have accessory - forward to child bridges whose
-      // Matter is actually active. A child with `matter: { enabled: false }`
-      // still carries a matterConfig block but never starts a Matter handler,
-      // so forwarding a control request to it would just be dropped. Gate on
-      // isMatterActive (enabled or externalsOnly) — the same condition under
-      // which the child creates its Matter handler.
-      const matterChildBridges = [
-        ...this.childBridges.values(),
-      ].filter(
-        bridge => isMatterActive(bridge.getMetadata().matterConfig),
-      )
-
-      if (matterChildBridges.length > 0) {
-        matterLogger.debug(`Main bridge doesn't have accessory ${data.uuid}, forwarding to ${matterChildBridges.length} child bridge(s) with Matter enabled`)
-        for (const childBridge of matterChildBridges) {
-          childBridge.controlMatterAccessory(data)
+    if (this.matterManager) {
+      matterLogger.debug(`Broadcast mode: trying main bridge for accessory ${data.uuid}`)
+      try {
+        await this.handleTriggerMatterCommand(data.uuid, data.cluster, data.attributes, data.partId)
+        matterLogger.debug(`Main bridge successfully controlled accessory ${data.uuid}`)
+        this.sendMatterControlResponse({ success: true, uuid: data.uuid }, correlationId)
+        return
+      } catch (error: unknown) {
+        // Only "this bridge does not have the accessory" sends the request on
+        // to the child bridges. Any other error is a real failure on the main
+        // bridge's own accessory (a plugin handler that threw, say): before,
+        // it was dropped without a log line and the UI was told "Accessory not
+        // found" two seconds later.
+        if (!(error instanceof MatterAccessoryNotOnBridgeError)) {
+          const message = error instanceof Error
+            ? error.message
+            : String(error)
+          matterLogger.error(`Main bridge failed to control ${data.uuid}: ${message}`)
+          this.sendMatterControlResponse({ success: false, error: message, uuid: data.uuid }, correlationId)
+          return
         }
-
-        // Every Matter child is asked and only the owner answers - a child that
-        // does not have the accessory returns silently, by design. So when no
-        // child owns it nothing is sent back at all, and the UI sat through its
-        // own 10s timeout, retried the command, then reported a failure. Mirror
-        // the accessoryInfoData fallback: arm a short timer that the owner's
-        // response cancels (via ChildBridgeService.onAccessoryControlResponse).
-        //
-        // Only meaningful with a correlationId — the UI drops any response
-        // without one, so there would be nothing to rescue.
-        if (correlationId) {
-          const existing = this.pendingMatterControlRequests.get(correlationId)
-          if (existing) {
-            clearTimeout(existing)
-          }
-          const fallback = setTimeout(() => {
-            this.pendingMatterControlRequests.delete(correlationId)
-            matterLogger.warn(`Accessory ${data.uuid} not found - no child bridge with Matter claimed it`)
-            this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid: data.uuid }, correlationId)
-          }, 2000)
-          fallback.unref()
-          this.pendingMatterControlRequests.set(correlationId, fallback)
-        }
-      } else {
-        matterLogger.warn(`Accessory ${data.uuid} not found - not on main bridge and no child bridges with Matter available`)
-        this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid: data.uuid }, correlationId)
       }
+    }
+
+    // Main bridge doesn't have accessory - forward to child bridges whose
+    // Matter is actually active. A child with `matter: { enabled: false }`
+    // still carries a matterConfig block but never starts a Matter handler,
+    // so forwarding a control request to it would just be dropped. Gate on
+    // isMatterActive (enabled or externalsOnly) — the same condition under
+    // which the child creates its Matter handler.
+    const matterChildBridges = [
+      ...this.childBridges.values(),
+    ].filter(
+      bridge => isMatterActive(bridge.getMetadata().matterConfig),
+    )
+
+    if (matterChildBridges.length > 0) {
+      matterLogger.debug(`Main bridge doesn't have accessory ${data.uuid}, forwarding to ${matterChildBridges.length} child bridge(s) with Matter enabled`)
+      for (const childBridge of matterChildBridges) {
+        childBridge.controlMatterAccessory(data)
+      }
+
+      // Every Matter child is asked and only the owner answers - a child that
+      // does not have the accessory returns silently, by design. So when no
+      // child owns it nothing is sent back at all, and the UI sat through its
+      // own 10s timeout, retried the command, then reported a failure.
+      this.armMatterControlFallback(data.uuid, correlationId, 'no child bridge with Matter claimed it')
+    } else {
+      matterLogger.warn(`Accessory ${data.uuid} not found - not on main bridge and no child bridges with Matter available`)
+      this.sendMatterControlResponse({ success: false, error: 'Accessory not found', uuid: data.uuid }, correlationId)
     }
   }
 

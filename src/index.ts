@@ -1,8 +1,8 @@
-/**
- * Export HAP
- */
 import type { API } from './api.js'
 
+/**
+ * The type of `api.hap`: everything HAP-NodeJS exports.
+ */
 // noinspection JSUnusedGlobalSymbols
 export type HAP = API['hap']
 
@@ -62,6 +62,13 @@ export type { Logger, Logging } from './logger.js'
  * ═══════════════════════════════════════════════════════════════════════
  * Matter Protocol - Plugin API Exports
  * ═══════════════════════════════════════════════════════════════════════
+ *
+ * ⚠️ The Matter VALUES exported below (`MatterStatus`, `clusters`, `devices`,
+ * `deviceTypes`, `clusterNames`, the Matter error classes and enums) are
+ * deprecated on this entry. Because of them, importing any value from
+ * `'homebridge'` loads all of matter.js. Take them from `'homebridge/matter'`
+ * (see `src/matterExports.ts`) or, better, from `api.matter`. They will be
+ * removed from this entry in a later release; the types stay.
  */
 
 /**
@@ -73,18 +80,31 @@ export type { SerializedMatterAccessory } from './matter/accessoryCache.js'
  * Matter cluster handler types for type-safe handler definitions
  */
 export type {
+  ClosureControlHandlers,
   ClusterHandlerMap,
   ColorControlHandlers,
+  DeviceEnergyManagementHandlers,
+  DeviceEnergyManagementModeHandlers,
   DoorLockHandlers,
+  EnergyEvseHandlers,
+  EnergyEvseModeHandlers,
   FanControlHandlers,
   IdentifyHandlers,
+  KeypadInputHandlers,
   LevelControlHandlers,
+  MatterModeChangeHandler,
+  MatterPlaybackHandler,
+  MatterResponseHandler,
+  MediaPlaybackHandlers,
   OnOffHandlers,
   RvcCleanModeHandlers,
   RvcOperationalStateHandlers,
   RvcRunModeHandlers,
   ServiceAreaHandlers,
   ThermostatHandlers,
+  ValveConfigurationAndControlHandlers,
+  WaterHeaterManagementHandlers,
+  WaterHeaterModeHandlers,
   WindowCoveringHandlers,
 } from './matter/clusterHandlerMap.js'
 
@@ -97,16 +117,34 @@ export type { ClusterStateMap } from './matter/clusterStateMap.js'
  * Matter cluster state types (per-cluster attribute interfaces)
  */
 export type {
+  ClosureControlState,
   ColorControlState,
+  DeviceEnergyManagementState,
   DoorLockState,
+  ElectricalEnergyMeasurementState,
+  ElectricalPowerMeasurementState,
+  EnergyEvseState,
+  EnergyMeasurementStruct,
+  EnergyModeState,
   FanControlState,
   LevelControlState,
+  MeasurementAccuracyRangeStruct,
+  MeasurementAccuracyStruct,
+  MediaPlaybackState,
+  MeterIdentificationState,
   OnOffState,
+  PowerSourceState,
+  PumpConfigurationAndControlState,
   RvcCleanModeState,
   RvcOperationalState,
+  RvcOperationalStateState,
   RvcRunModeState,
   ServiceAreaState,
+  SmokeCoAlarmState,
   ThermostatState,
+  ValveConfigurationAndControlState,
+  WaterHeaterManagementState,
+  WaterHeaterModeState,
   WindowCoveringState,
 } from './matter/clusterTypes.js'
 
@@ -174,15 +212,19 @@ export type { SwitchAPI } from './matter/SwitchAPI.js'
  */
 export type {
   MatterAccessory,
+  MatterAccessoryEventEmitter,
+  MatterAccessoryFeatures,
+  MatterAccessoryPart,
   MatterClusterHandlers,
   MatterClusterName,
   MatterCommandHandler,
   MatterConfig,
+  MatterHandlerContext,
 } from './matter/types.js'
 
 /**
  * ═══════════════════════════════════════════════════════════════════════
- * Matter Protocol - UI Integration Types
+ * Matter Protocol - device types, clusters and errors (values)
  * ═══════════════════════════════════════════════════════════════════════
  */
 
@@ -227,9 +269,21 @@ export type { HomebridgeOptions } from './server.js'
 export type { User } from './user.js'
 
 /**
- * Export the CONST ENUMS from hap-nodejs
- * These get converted to their string value at compile time
- * and can be safely used directly.
+ * Export the enums from hap-nodejs.
+ *
+ * These are value exports. What a plugin's build does with `import { Categories } from 'homebridge'`
+ * depends on the HAP-NodeJS version Homebridge is built against and on the plugin's compiler set-up:
+ *
+ * - While HAP-NodeJS declares them as `const enum`, plain `tsc` replaces `Categories.LIGHTBULB` with
+ *   its value at compile time and drops the import, so the plugin does not load `homebridge` at run time.
+ * - Once HAP-NodeJS declares them as normal enums (its next release does), and already today with
+ *   `isolatedModules` or `verbatimModuleSyntax` or in plain JavaScript, the import stays in the
+ *   plugin's code. The plugin then loads the `homebridge` package at run time. That needs `homebridge`
+ *   to be found from the plugin's folder (it is not on every install), and it loads everything this
+ *   entry exports, including matter.js.
+ *
+ * To stay clear of both, read the enums from the API object, which needs no import:
+ * `api.hap.Categories.LIGHTBULB`, `api.hap.HAPStatus`, `api.hap.Perms` and so on.
  */
 export {
   Access,
@@ -450,4 +504,48 @@ export type {
   epochMillisFromMillisSince2001_01_01,
   epochMillisFromMillisSince2001_01_01Buffer,
   once,
+} from '@homebridge/hap-nodejs'
+
+/**
+ * More enums from HAP-NodeJS (value exports, like the list above: prefer `api.hap.<name>` at run time)
+ */
+export {
+  CharacteristicWarningType,
+  EventedHTTPServerEvent,
+  HAPConnectionEvent,
+  HAPConnectionState,
+  HAPHTTPCode,
+  HAPPairingHTTPCode,
+  HDSConnectionErrorType,
+  MDNSAdvertiser,
+  MessageType,
+  PermissionTypes,
+  ResourceRequestType,
+  TLVErrorCode,
+  VideoCodecPacketizationMode,
+  VideoCodecType,
+} from '@homebridge/hap-nodejs'
+
+/**
+ * More HAP-NodeJS classes, interfaces and type aliases, as type only
+ */
+export type {
+  Accessory,
+  AdaptiveLightingControllerUpdate,
+  Bridge,
+  CameraControllerServiceMap,
+  CameraControllerState,
+  CameraStreamingOptionsBase,
+  CharacteristicContext,
+  CharacteristicWarning,
+  ControllerIdentifier,
+  DataStreamMessage,
+  HAPConnection,
+  HAPUsername,
+  HDSConnectionError,
+  HDSFrame,
+  PrepareSessionCallback,
+  RemoteControllerServiceMap,
+  SerializedControllerState,
+  UUID,
 } from '@homebridge/hap-nodejs'

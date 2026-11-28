@@ -1,11 +1,10 @@
-/* global NodeJS */
-
 import type { HomebridgeOptions } from './server.js'
 
 import process from 'node:process'
+import { inspect } from 'node:util'
 
 import { HAPStorage } from '@homebridge/hap-nodejs'
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
 import { satisfies } from 'semver'
 
 import { Logger } from './logger.js'
@@ -15,7 +14,7 @@ import getVersion, { getRequiredNodeVersion } from './version.js'
 
 import 'source-map-support/register.js'
 
-import Signals = NodeJS.Signals
+type Signals = NodeJS.Signals
 
 const log = Logger.internal
 
@@ -23,6 +22,19 @@ const requiredNodeVersion = getRequiredNodeVersion()
 if (requiredNodeVersion && !satisfies(process.version, requiredNodeVersion)) {
   log.warn(`Homebridge requires a Node.js version of ${requiredNodeVersion} which does \
 not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://homebridge.io/w/JTKEF`)
+}
+
+/**
+ * Read the value of `-P` or `-U`. commander takes the next word as the value
+ * even when it is the next option: with an empty variable, `-U $HB_DIR -I`
+ * stored everything in a folder called "-I" and dropped `-I`. A path that
+ * really starts with a dash can be written as `./-name`.
+ */
+function pathArgument(path: string): string {
+  if (path.startsWith('-')) {
+    throw new InvalidArgumentError('This looks like the next option, not a path. Give the path, or write a path that starts with a dash as ./-name.')
+  }
+  return path
 }
 
 export default function cli(): void {
@@ -38,6 +50,9 @@ export default function cli(): void {
 
   let shuttingDown = false
 
+  // `-P` and `-U` need a value (`<path>`). With an optional value (`[path]`) a start script that ran
+  // `homebridge -U $HB_DIR` with an empty variable was not stopped: Homebridge started with the default
+  // storage folder, which may be the wrong one.
   const program = new Command()
   program
     .version(getVersion())
@@ -45,11 +60,11 @@ export default function cli(): void {
     .option('-C, --color', 'force color in logging', () => forceColourLogging = true)
     .option('-D, --debug', 'turn on debug level logging', () => debugModeEnabled = true)
     .option('-I, --insecure', 'allow unauthenticated requests (for easier hacking)', () => insecureAccess = true)
-    .option('-P, --plugin-path [path]', 'look for plugins installed at [path] as well as the default locations ([path] can also point to a single plugin)', path => customPluginPath = path)
+    .option('-P, --plugin-path <path>', 'look for plugins installed at <path> as well as the default locations (<path> can also point to a single plugin)', path => customPluginPath = pathArgument(path))
     .option('-Q, --no-qrcode', 'do not issue QRcode in logging', () => hideQRCode = true)
     .option('-K, --keep-orphans', 'keep cached accessories for which the associated plugin is not loaded', () => keepOrphans = true)
     .option('-T, --no-timestamp', 'do not issue timestamps in logging', () => noLogTimestamps = true)
-    .option('-U, --user-storage-path [path]', 'look for homebridge user files at [path] instead of the default location (~/.homebridge)', path => customStoragePath = path)
+    .option('-U, --user-storage-path <path>', 'look for homebridge user files at <path> instead of the default location (~/.homebridge)', path => customStoragePath = pathArgument(path))
     .option('--strict-plugin-resolution', 'only load plugins from the --plugin-path if set, otherwise from the primary global node_modules', () => strictPluginResolution = true)
     .parse(process.argv)
 
@@ -103,10 +118,17 @@ export default function cli(): void {
   process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))
   process.on('SIGTERM', signalHandler.bind(undefined, 'SIGTERM', 15))
 
-  const errorHandler = (error: Error): void => {
-    if (error.stack) {
-      log.error(error.stack)
-    }
+  // Anything can be thrown or rejected with, not only an Error: a text, null,
+  // a plain object. Whatever it is, say what stopped Homebridge.
+  const errorHandler = (error: unknown): void => {
+    log.error(error instanceof Error
+      ? (error.stack ?? error.message)
+      : `Homebridge is stopping on a thrown value that is not an Error: ${inspect(error)}`)
+
+    // A fatal error is not a clean stop. Without this the process ended with
+    // exit code 0 whenever the teardown finished before the force-exit timer,
+    // and a supervisor set to restart on failure (docker, systemd) did not.
+    process.exitCode = 1
 
     if (!shuttingDown) {
       process.kill(process.pid, 'SIGTERM')

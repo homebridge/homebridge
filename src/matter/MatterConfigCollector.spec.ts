@@ -158,6 +158,38 @@ describe('matterConfigCollector', () => {
       )
     })
 
+    it.each([
+      {
+        what: 'ports given as text',
+        pool: { start: '5530', end: '5541' },
+      },
+      {
+        what: 'a port that is not a whole number',
+        pool: { start: 5530.5, end: 5541 },
+      },
+      {
+        what: 'a negative port',
+        pool: { start: -5, end: 5541 },
+      },
+      {
+        what: 'a port below 1025',
+        pool: { start: 80, end: 5541 },
+      },
+      {
+        what: 'a port above 65534',
+        pool: { start: 5530, end: 70000 },
+      },
+    ])('should reject matterPorts with $what', ({ pool }) => {
+      mockConfig.matterPorts = pool as any
+
+      MatterConfigCollector.validateMatterPortsPool(mockConfig)
+
+      expect(mockConfig.matterPorts).toBeUndefined()
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('must be whole numbers from 1025 to 65534'),
+      )
+    })
+
     it('should do nothing if matterPorts is undefined', () => {
       mockConfig.matterPorts = undefined
 
@@ -426,6 +458,26 @@ describe('matterConfigCollector', () => {
 
       expect(mockConfig.bridge.matter).toBeDefined() // preserved, not stripped
       expect(MatterConfigValidator.validate).not.toHaveBeenCalled() // disabled main not validated
+    })
+
+    it('reports no port conflict for a disabled child bridge that has the main bridge\'s Matter port', async () => {
+      mockConfig.bridge.matter = { port: 5540 }
+      mockConfig.platforms = [
+        {
+          platform: 'TestPlatform',
+          // disabled: it never binds the port, so it can not conflict
+          _bridge: {
+            username: 'AA:BB:CC:DD:EE:01',
+            matter: { port: 5540, enabled: false },
+          },
+        } as any,
+      ]
+      vi.mocked(MatterConfigValidator.validate).mockReturnValue({ isValid: true, errors: [], warnings: [] })
+      vi.mocked(MatterConfigValidator.validateAllChildMatterConfigs).mockReturnValue({ isValid: true, errors: [], warnings: [] })
+
+      await MatterConfigCollector.validateMatterConfig(mockConfig)
+
+      expect(logErrorSpy).not.toHaveBeenCalled()
     })
 
     describe('externalsOnly validation', () => {

@@ -4,23 +4,35 @@
  * Handles robotic vacuum cleaner cleaning mode changes
  */
 
-import type { ModeBase } from '@matter/main/clusters'
-
 import { RvcCleanModeServer } from '@matter/main/behaviors/rvc-clean-mode'
-import { Status, StatusResponseError } from '@matter/main/types'
+import { RvcRunModeBehavior } from '@matter/main/behaviors/rvc-run-mode'
+import { ModeBase, RvcRunMode } from '@matter/main/clusters'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { changeToModeWithHandler } from './handlerResponse.js'
+import { repairCurrentMode } from './modeRepair.js'
 
 /**
  * Custom RvcCleanMode Server that calls plugin handlers
  */
 export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
+  /** A saved mode the device no longer lists is replaced first, or matter.js refuses to start (#4057). */
+  override initialize() {
+    repairCurrentMode(this, 'rvcCleanMode')
+    return super.initialize()
+  }
+
   /**
-   * Get the registry for this behavior's endpoint
+   * Whether the RvcRunMode cluster's current mode carries the Idle tag.
+   * An endpoint without a run mode cluster counts as idle - there is nothing to check against.
    */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
+  private isRunModeIdle(): boolean {
+    const runMode = this.agent.maybeGet(RvcRunModeBehavior)
+    if (!runMode) {
+      return true
+    }
+    const { currentMode, supportedModes } = runMode.state
+    const current = supportedModes.find(({ mode }) => mode === currentMode)
+    return current?.modeTags.some(({ value }) => value === RvcRunMode.ModeTag.Idle) ?? false
   }
 
   /**
@@ -31,35 +43,14 @@ export class HomebridgeRvcCleanModeServer extends RvcCleanModeServer {
    * @returns Response indicating success or failure
    */
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'rvcCleanMode', 'changeToMode', request)
-
-      // Only reached if handler succeeded - call base implementation
-      const result = await super.changeToMode(request)
-
-      // Sync state to cache (the current mode is in request.newMode)
-      if (request?.newMode !== undefined) {
-        registry.syncStateToCache(endpointId, 'rvcCleanMode', { currentMode: request.newMode })
+    return changeToModeWithHandler(this, 'rvcCleanMode', request, () => super.changeToMode(request), () => {
+      // Without DirectModeChange the spec only allows clean-mode changes while the run mode is idle
+      if (!(this.features as { directModeChange?: boolean }).directModeChange && !this.isRunModeIdle()) {
+        return {
+          status: ModeBase.ModeChangeStatus.InvalidInMode,
+          statusText: 'Cannot change clean mode while the device is not idle',
+        }
       }
-
-      return result
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change clean mode: ${message}`, Status.Failure)
-    }
+    })
   }
 }

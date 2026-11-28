@@ -8,42 +8,14 @@
 
 import type { ModeBase } from '@matter/main/clusters'
 
-import type { BehaviorRegistry } from './BehaviorRegistry.js'
-
 import { DeviceEnergyManagementServer } from '@matter/main/behaviors/device-energy-management'
 import { DeviceEnergyManagementModeServer } from '@matter/main/behaviors/device-energy-management-mode'
 import { DeviceEnergyManagement } from '@matter/main/clusters/device-energy-management'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
-
-/**
- * Wrap a handler failure the way every Homebridge behavior does: a Matter
- * status the plugin threw on purpose goes back to the controller as it is,
- * anything else becomes a plain Failure so the endpoint stays up.
- */
-function asStatusError(error: unknown, action: string): unknown {
-  if (MatterStatus.isMatterProtocolError(error)) {
-    return error
-  }
-  const message = error instanceof Error
-    ? error.message
-    : String(error)
-  return new StatusResponseError(`Failed to ${action}: ${message}`, Status.Failure)
-}
-
-/**
- * Run the plugin's handler for a command, if it registered one. Every handler
- * here is optional - a battery that can only pause has no use for the forecast
- * commands - so a missing one falls through to the default behavior instead of
- * failing the command.
- */
-async function runOptionalHandler(registry: BehaviorRegistry, endpointId: string, clusterName: string, commandName: string, args?: unknown): Promise<void> {
-  if (registry.getHandler(endpointId, clusterName, commandName)) {
-    await registry.executeHandler(endpointId, clusterName, commandName, args)
-  }
-}
+import { registryOf } from './EndpointContext.js'
+import { changeToModeWithHandler } from './handlerResponse.js'
+import { repairCurrentMode } from './modeRepair.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Every optional feature, so the commands below exist to override. The device
@@ -119,14 +91,12 @@ export class DefaultDeviceEnergyManagementServer extends FeatureRichDeviceEnergy
   // eslint-disable-next-line unused-imports/no-unused-vars
   override async requestConstraintBasedForecast(request: DeviceEnergyManagement.RequestConstraintBasedForecastRequest): Promise<void> {}
 
-  override async cancelRequest(): Promise<void> {
-    // Undoes whichever adjustment is running
-    if (this.state.esaState === DeviceEnergyManagement.EsaState.PowerAdjustActive) {
-      await this.cancelPowerAdjustRequest()
-    } else if (this.state.esaState === DeviceEnergyManagement.EsaState.Paused) {
-      await this.resumeRequest()
-    }
-  }
+  // CancelRequest withdraws an earlier change to the forecast (StartTimeAdjust,
+  // ModifyForecast, RequestConstraintBasedForecast). It does not end a power
+  // adjustment or a pause: those have CancelPowerAdjustRequest and
+  // ResumeRequest. Like the forecast commands it is accepted, and the plugin's
+  // next forecast stands.
+  override async cancelRequest(): Promise<void> {}
 }
 
 /**
@@ -134,92 +104,75 @@ export class DefaultDeviceEnergyManagementServer extends FeatureRichDeviceEnergy
  * default so the super calls record each request.
  */
 export class HomebridgeDeviceEnergyManagementServer extends DefaultDeviceEnergyManagementServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  private async run(commandName: string, action: string, apply: () => Promise<void>, request?: unknown): Promise<void> {
+  private async run(commandName: string, apply: () => Promise<void>, request?: unknown): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      await runOptionalHandler(registry, endpointId, 'deviceEnergyManagement', commandName, request)
-      await apply()
-      registry.syncStateToCache(endpointId, 'deviceEnergyManagement', { esaState: this.state.esaState })
-    } catch (error) {
-      throw asStatusError(error, action)
-    }
+    // Every handler here is optional - a battery that can only pause has no
+    // use for the forecast commands - and a missing one is not a failure: the
+    // default behavior below still records the request.
+    await registry.executeHandler(endpointId, 'deviceEnergyManagement', commandName, request)
+    await lockStateForWrite(this)
+    await apply()
+    // A power adjustment also records its reason, in powerAdjustmentCapability
+    // (which only exists with the PowerAdjustment feature)
+    const capability = this.state.powerAdjustmentCapability
+    registry.syncStateToCache(endpointId, 'deviceEnergyManagement', {
+      esaState: this.state.esaState,
+      ...(capability !== undefined
+        ? { powerAdjustmentCapability: capability }
+        : {}),
+    })
   }
 
   override async powerAdjustRequest(request: DeviceEnergyManagement.PowerAdjustRequest): Promise<void> {
-    await this.run('powerAdjustRequest', 'adjust power', () => super.powerAdjustRequest(request), request)
+    await this.run('powerAdjustRequest', () => super.powerAdjustRequest(request), request)
   }
 
   override async cancelPowerAdjustRequest(): Promise<void> {
-    await this.run('cancelPowerAdjustRequest', 'cancel the power adjustment', () => super.cancelPowerAdjustRequest())
+    await this.run('cancelPowerAdjustRequest', () => super.cancelPowerAdjustRequest())
   }
 
   override async pauseRequest(request: DeviceEnergyManagement.PauseRequest): Promise<void> {
-    await this.run('pauseRequest', 'pause', () => super.pauseRequest(request), request)
+    await this.run('pauseRequest', () => super.pauseRequest(request), request)
   }
 
   override async resumeRequest(): Promise<void> {
-    await this.run('resumeRequest', 'resume', () => super.resumeRequest())
+    await this.run('resumeRequest', () => super.resumeRequest())
   }
 
   override async startTimeAdjustRequest(request: DeviceEnergyManagement.StartTimeAdjustRequest): Promise<void> {
-    await this.run('startTimeAdjustRequest', 'adjust the start time', () => super.startTimeAdjustRequest(request), request)
+    await this.run('startTimeAdjustRequest', () => super.startTimeAdjustRequest(request), request)
   }
 
   override async modifyForecastRequest(request: DeviceEnergyManagement.ModifyForecastRequest): Promise<void> {
-    await this.run('modifyForecastRequest', 'modify the forecast', () => super.modifyForecastRequest(request), request)
+    await this.run('modifyForecastRequest', () => super.modifyForecastRequest(request), request)
   }
 
   override async requestConstraintBasedForecast(request: DeviceEnergyManagement.RequestConstraintBasedForecastRequest): Promise<void> {
-    await this.run('requestConstraintBasedForecast', 'apply the constraints', () => super.requestConstraintBasedForecast(request), request)
+    await this.run('requestConstraintBasedForecast', () => super.requestConstraintBasedForecast(request), request)
   }
 
   override async cancelRequest(): Promise<void> {
-    // Not routed through run(): super.cancelRequest() calls the overridden
-    // cancel/resume methods, which ask the plugin themselves
-    const endpointId = this.endpoint.id
-    try {
-      await runOptionalHandler(this.getRegistry(), endpointId, 'deviceEnergyManagement', 'cancelRequest')
-      await super.cancelRequest()
-    } catch (error) {
-      throw asStatusError(error, 'cancel the request')
-    }
+    await this.run('cancelRequest', () => super.cancelRequest())
   }
 }
 
 /**
  * Custom DeviceEnergyManagementMode Server that calls plugin handlers.
  *
- * matter.js's base server already validates the mode and records it, so this
- * only has to tell the plugin first.
+ * matter.js's base server validates the mode and records it, but only after
+ * the plugin has been told - so the mode is checked here first, and the plugin
+ * only hears about a mode the device lists.
  */
 export class HomebridgeDeviceEnergyManagementModeServer extends DeviceEnergyManagementModeServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
+  /** A saved mode the device no longer lists is replaced first, or matter.js refuses to start (#4057). */
+  override initialize() {
+    repairCurrentMode(this, 'deviceEnergyManagementMode')
+    return super.initialize()
   }
 
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
-    try {
-      await registry.executeHandler(endpointId, 'deviceEnergyManagementMode', 'changeToMode', request)
-
-      // Only reached if the handler succeeded
-      const result = await super.changeToMode(request)
-
-      if (request?.newMode !== undefined) {
-        registry.syncStateToCache(endpointId, 'deviceEnergyManagementMode', { currentMode: request.newMode })
-      }
-
-      return result
-    } catch (error) {
-      throw asStatusError(error, 'change energy management mode')
-    }
+    return changeToModeWithHandler(this, 'deviceEnergyManagementMode', request, () => super.changeToMode(request))
   }
 }

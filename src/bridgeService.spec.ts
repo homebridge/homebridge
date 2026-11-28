@@ -2,7 +2,7 @@ import type { MockInstance } from 'vitest'
 
 import type { BridgeConfiguration } from './bridgeService.js'
 
-import { Accessory, Categories, CharacteristicWarningType, uuid } from '@homebridge/hap-nodejs'
+import { Accessory, AccessoryEventTypes, Categories, Characteristic, CharacteristicWarningType, RemoteController, Service, uuid } from '@homebridge/hap-nodejs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
@@ -34,6 +34,11 @@ vi.mock('./storageService.js', () => {
     },
   }
 })
+
+// No real socket is opened to ask whether a port is free.
+vi.mock('./util/port.js', () => ({
+  isPortInUse: vi.fn().mockResolvedValue(false),
+}))
 
 function makeBridgeConfig(overrides: any = {}): any {
   return {
@@ -115,12 +120,22 @@ describe('bridgeService', () => {
       expect(storageInstances.list[after - 1].initSync).toHaveBeenCalled()
     })
 
-    it('respects insecureAccess option from bridgeOptions', () => {
-      const opts = makeBridgeOptions({ insecureAccess: true })
+    it.each([
+      { insecureAccess: true, expected: true },
+      { insecureAccess: false, expected: false },
+      { insecureAccess: undefined, expected: false },
+    ])('publishes the bridge and external accessories with insecure access $expected for the option $insecureAccess', async ({ insecureAccess, expected }) => {
+      const opts = makeBridgeOptions({ insecureAccess })
       const service = new BridgeService(api, pluginManager, externalPortService, opts, makeBridgeConfig())
-      // allowInsecureAccess is private but observable through bridge.publish behavior;
-      // smoke-test by reading the internal field.
-      expect((service as any).allowInsecureAccess).toBe(true)
+      const publishBridge = vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+      const external = makePlatformAccessory('External')
+      const publishExternal = vi.spyOn(external._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      service.publishBridge()
+      await service.handlePublishExternalAccessories([external])
+
+      expect(publishBridge.mock.calls[0][1]).toBe(expected)
+      expect(publishExternal.mock.calls[0][1]).toBe(expected)
     })
 
     it('creates a Bridge with the configured name', () => {
@@ -132,18 +147,14 @@ describe('bridgeService', () => {
   describe('handleRegisterPlatformAccessories', () => {
     it('registers a new accessory and adds it to the bridge', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      const addBridgedAccessoriesSpy = vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
       const accessory = makePlatformAccessory('Light')
       service.handleRegisterPlatformAccessories([accessory])
-      expect(addBridgedAccessoriesSpy).toHaveBeenCalledTimes(1)
-      const passed = addBridgedAccessoriesSpy.mock.calls[0][0] as Accessory[]
-      expect(passed).toHaveLength(1)
-      expect(passed[0]).toBe(accessory._associatedHAPAccessory)
+      expect(service.bridge.bridgedAccessories).toEqual([accessory._associatedHAPAccessory])
+      expect((service as any).cachedPlatformAccessories).toEqual([accessory])
     })
 
     it('skips a duplicate-UUID accessory and logs a warning', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
       const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
       const original = makePlatformAccessory('Original')
       const duplicate = makePlatformAccessory('Duplicate')
@@ -164,7 +175,6 @@ describe('bridgeService', () => {
 
     it('skips duplicate UUIDs within the same registration batch', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      const addBridgedAccessoriesSpy = vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
       const original = makePlatformAccessory('Original')
       const duplicate = makePlatformAccessory('Duplicate')
       ;(duplicate as any)._associatedHAPAccessory.UUID = original._associatedHAPAccessory.UUID
@@ -172,7 +182,7 @@ describe('bridgeService', () => {
 
       service.handleRegisterPlatformAccessories([original, duplicate])
 
-      expect(addBridgedAccessoriesSpy.mock.calls[0][0]).toEqual([original._associatedHAPAccessory])
+      expect(service.bridge.bridgedAccessories).toEqual([original._associatedHAPAccessory])
       expect((service as any).cachedPlatformAccessories).toEqual([original])
     })
 
@@ -180,7 +190,6 @@ describe('bridgeService', () => {
       const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
       pluginManager.getPlugin.mockReturnValue(undefined)
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
 
       service.handleRegisterPlatformAccessories([
         makePlatformAccessory('Orphan'),
@@ -194,14 +203,13 @@ describe('bridgeService', () => {
 
     it('also rejects collisions with accessories already on the bridge from the legacy load path', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      const addBridgedAccessoriesSpy = vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
       const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
 
-      // Simulate an accessory already on the bridge — the legacy
+      // An accessory already on the bridge — the legacy
       // \`config.accessories[]\` flow adds via \`addBridgedAccessory\` directly,
       // so it lives on \`bridge.bridgedAccessories\` but not in the cache map.
       const staticAccessory = makePlatformAccessory('Static')
-      ;(service.bridge as any).bridgedAccessories = [staticAccessory._associatedHAPAccessory]
+      service.bridge.addBridgedAccessory(staticAccessory._associatedHAPAccessory)
 
       const dynamic = makePlatformAccessory('Dynamic')
       ;(dynamic as any)._associatedHAPAccessory.UUID = staticAccessory._associatedHAPAccessory.UUID
@@ -209,11 +217,10 @@ describe('bridgeService', () => {
 
       service.handleRegisterPlatformAccessories([dynamic])
 
-      // Filtered out before reaching addBridgedAccessories (which is what
-      // threw deep in HAP-NodeJS before the fix).
-      expect(addBridgedAccessoriesSpy).toHaveBeenCalledTimes(1)
-      const passed = addBridgedAccessoriesSpy.mock.calls[0][0] as Accessory[]
-      expect(passed).toHaveLength(0)
+      // Filtered out before it reaches the bridge (which is what threw deep
+      // in HAP-NodeJS before the fix).
+      expect(service.bridge.bridgedAccessories).toEqual([staticAccessory._associatedHAPAccessory])
+      expect((service as any).cachedPlatformAccessories).toEqual([])
       const warned = warnSpy.mock.calls.some(call =>
         typeof call[0] === 'string' && call[0].includes('existing bridged accessory'),
       )
@@ -224,7 +231,6 @@ describe('bridgeService', () => {
   describe('handleUpdatePlatformAccessories', () => {
     it('is a no-op for non-array input', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
 
       // Cast through unknown to bypass the type system; the runtime guard is the contract.
       service.handleUpdatePlatformAccessories('not-an-array' as unknown as PlatformAccessory[])
@@ -235,7 +241,6 @@ describe('bridgeService', () => {
 
     it('replaces matching cached accessories by UUID', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
 
       const a = makePlatformAccessory('A')
       const b = makePlatformAccessory('B')
@@ -261,16 +266,15 @@ describe('bridgeService', () => {
   describe('handleUnregisterPlatformAccessories', () => {
     it('removes accessories from the cache and the bridge', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation(() => {})
-      const removeSpy = vi.spyOn(service.bridge, 'removeBridgedAccessories').mockImplementation(() => {})
 
       const a = makePlatformAccessory('A')
       service.handleRegisterPlatformAccessories([a])
       expect((service as any).cachedPlatformAccessories).toHaveLength(1)
+      expect(service.bridge.bridgedAccessories).toHaveLength(1)
 
       service.handleUnregisterPlatformAccessories([a])
       expect((service as any).cachedPlatformAccessories).toHaveLength(0)
-      expect(removeSpy).toHaveBeenCalledTimes(1)
+      expect(service.bridge.bridgedAccessories).toHaveLength(0)
     })
   })
 
@@ -278,23 +282,11 @@ describe('bridgeService', () => {
     it('does not discard a registerPlatformAccessories() call made synchronously from configureAccessory()', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
 
-      // Mirror HAP-NodeJS: adding the same accessory (by UUID) to the bridge a
-      // second time throws. If the restore loop wrongly re-visits an accessory
-      // registered mid-restore, this mock surfaces it instead of hiding it.
-      const bridgedUuids = new Set<string>()
-      vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation((accessory: any) => {
-        if (bridgedUuids.has(accessory.UUID)) {
-          throw new Error(`Cannot add a bridged Accessory with the same UUID as another bridged Accessory: ${accessory.UUID}`)
-        }
-        bridgedUuids.add(accessory.UUID)
-        return accessory
-      })
-      vi.spyOn(service.bridge, 'addBridgedAccessories').mockImplementation((accessories: any) => {
-        for (const accessory of accessories) {
-          service.bridge.addBridgedAccessory(accessory)
-        }
-      })
-
+      // The real bridge: HAP-NodeJS refuses an accessory that is bridged
+      // already. If the restore loop wrongly re-visits an accessory registered
+      // mid-restore, that shows as a "Could not restore" warning and as the
+      // accessory dropping out of the cache.
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
       const cachedA = makePlatformAccessory('A')
       const cachedB = makePlatformAccessory('B')
       ;(service as any).cachedPlatformAccessories = [cachedA, cachedB]
@@ -327,12 +319,18 @@ describe('bridgeService', () => {
       // back through configureAccessory or bridged a second time.
       expect(platform.configureAccessory).toHaveBeenCalledTimes(2)
       expect(platform.configureAccessory).not.toHaveBeenCalledWith(companion)
+      expect(service.bridge.bridgedAccessories).toEqual([
+        companion._associatedHAPAccessory,
+        cachedA._associatedHAPAccessory,
+        cachedB._associatedHAPAccessory,
+      ])
+      expect(warnSpy.mock.calls.flat().join(' ')).not.toMatch(/Could not restore/)
     })
 
     it('does not restore an accessory unregistered synchronously from an earlier configureAccessory()', () => {
+      // nothing of the bridge is replaced: HAP-NodeJS throws when it is asked
+      // to remove an accessory that is not on the bridge
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation(accessory => accessory)
-      vi.spyOn(service.bridge, 'removeBridgedAccessories').mockImplementation(() => {})
 
       const cachedA = makePlatformAccessory('A')
       const cachedB = makePlatformAccessory('B')
@@ -362,11 +360,14 @@ describe('bridgeService', () => {
       expect(platform.configureAccessory).toHaveBeenCalledWith(cachedA)
       expect(platform.configureAccessory).toHaveBeenCalledWith(cachedC)
       expect(platform.configureAccessory).not.toHaveBeenCalledWith(cachedB)
+      expect(service.bridge.bridgedAccessories).toEqual([
+        cachedA._associatedHAPAccessory,
+        cachedC._associatedHAPAccessory,
+      ])
     })
 
     it('does not discard an updatePlatformAccessories() call made synchronously from configureAccessory()', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
-      vi.spyOn(service.bridge, 'addBridgedAccessory').mockImplementation(accessory => accessory)
 
       const cachedA = makePlatformAccessory('A')
       const cachedB = makePlatformAccessory('B')
@@ -413,17 +414,56 @@ describe('bridgeService', () => {
   })
 
   describe('handlePublishExternalAccessories', () => {
-    it('allocates a port for each external accessory', async () => {
-      externalPortService.requestPort.mockResolvedValue(50000)
+    it('publishes each external accessory on the port it was given, under its own username', async () => {
+      externalPortService.requestPort.mockResolvedValueOnce(50000).mockResolvedValueOnce(50001)
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
 
       const a = makePlatformAccessory('External-A')
+      const b = makePlatformAccessory('External-B')
       // Stub publish so it doesn't actually try to bind a port.
-      vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+      const publishA = vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+      const publishB = vi.spyOn(b._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
 
-      await service.handlePublishExternalAccessories([a])
+      await service.handlePublishExternalAccessories([a, b])
 
-      expect(externalPortService.requestPort).toHaveBeenCalledTimes(1)
+      expect(externalPortService.requestPort).toHaveBeenCalledTimes(2)
+      const [infoA, infoB] = [publishA.mock.calls[0][0], publishB.mock.calls[0][0]]
+      expect(infoA).toMatchObject({ port: 50000, pincode: '031-45-154', category: Categories.OTHER })
+      expect(infoB).toMatchObject({ port: 50001, pincode: '031-45-154', category: Categories.OTHER })
+      // the port is asked for under the username the accessory is published with
+      expect(externalPortService.requestPort.mock.calls.map((call: unknown[]) => call[0])).toEqual([infoA.username, infoB.username])
+      expect(infoA.username).not.toBe(infoB.username)
+      // the metadata file for the UI names both, with their ports
+      const storage = storageInstances.list.at(-1)
+      expect(storage.setItemSync).toHaveBeenLastCalledWith('externalAccessories', [
+        expect.objectContaining({
+          username: infoA.username,
+          displayName: 'External-A',
+          plugin: 'homebridge-test',
+          port: 50000,
+        }),
+        expect.objectContaining({
+          username: infoB.username,
+          displayName: 'External-B',
+          plugin: 'homebridge-test',
+          port: 50001,
+        }),
+      ])
+    })
+
+    it('logs an external accessory that could not be published, and publishes the next one', async () => {
+      const errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+      const a = makePlatformAccessory('External-A')
+      const b = makePlatformAccessory('External-B')
+      vi.spyOn(a._associatedHAPAccessory, 'publish').mockRejectedValue(new Error('no advertiser'))
+      const publishB = vi.spyOn(b._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+
+      await service.handlePublishExternalAccessories([a, b])
+      await Promise.resolve()
+
+      expect(errorSpy).toHaveBeenCalledWith('Failed to publish external accessory \'%s\': %s', 'External-A', 'no advertiser')
+      expect(publishB).toHaveBeenCalledTimes(1)
     })
 
     it('forwards hap.disableIdentifyingMaterial to external accessories', async () => {
@@ -447,16 +487,19 @@ describe('bridgeService', () => {
       expect(publishInfo.addIdentifyingMaterial).toBe(false)
     })
 
-    it('throws when an accessory address collides with an existing one', async () => {
+    it('does not publish an accessory a second time, and does not throw for it', async () => {
       externalPortService.requestPort.mockResolvedValue(50000)
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
 
       const a = makePlatformAccessory('External-A')
-      vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
+      const publish = vi.spyOn(a._associatedHAPAccessory, 'publish').mockResolvedValue(undefined)
       await service.handlePublishExternalAccessories([a])
 
-      // Re-publish the same accessory — same UUID → same advertise-address → collision
-      await expect(service.handlePublishExternalAccessories([a])).rejects.toThrow(/address collision/)
+      // Re-publish the same accessory — same UUID → same advertise-address.
+      // The handler runs from an event, so a throw here could not be caught by
+      // the plugin and would end the process as an unhandled rejection.
+      await expect(service.handlePublishExternalAccessories([a])).resolves.toBeUndefined()
+      expect(publish).toHaveBeenCalledTimes(1)
     })
 
     it('skips publishing external accessories when HAP is disabled (no externalsOnly)', async () => {
@@ -584,6 +627,103 @@ describe('bridgeService', () => {
     })
   })
 
+  describe('createHAPAccessory with real services', () => {
+    const plugin = {
+      getPluginIdentifier: () => 'homebridge-test',
+    } as any
+
+    function makeService(): BridgeService {
+      return new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
+    }
+
+    it('gives nothing for an accessory with no services and no controllers', () => {
+      const none = {
+        getServices: () => [],
+      }
+      const onlyUndefined = {
+        getServices: () => [undefined],
+        getControllers: () => [undefined],
+      }
+
+      expect(makeService().createHAPAccessory(plugin, none, 'Empty', 'Example')).toBeUndefined()
+      expect(makeService().createHAPAccessory(plugin, onlyUndefined as any, 'Empty', 'Example')).toBeUndefined()
+    })
+
+    it('makes the UUID from the accessory type and the name, or the uuid base when there is one', () => {
+      const instance = {
+        getServices: () => [
+          new Service.Switch('Lamp'),
+        ],
+      }
+      const service = makeService()
+
+      expect(service.createHAPAccessory(plugin, instance, 'Lamp', 'Example')!.UUID).toBe(uuid.generate('Example:Lamp'))
+      expect(service.createHAPAccessory(plugin, {
+        getServices: () => [
+          new Service.Switch('Lamp'),
+        ],
+      }, 'Lamp', 'Example', 'base')!.UUID).toBe(uuid.generate('Example:base'))
+    })
+
+    it('adds the services, and merges the plugin\'s AccessoryInformation into the one of the accessory', () => {
+      const information = new Service.AccessoryInformation()
+      information.setCharacteristic(Characteristic.Manufacturer, 'Acme')
+      information.setCharacteristic(Characteristic.Model, 'Lamp 2000')
+      // a listener some plugins put on Identify, which would take the place of the one of HAP-NodeJS
+      const pluginIdentify = vi.fn()
+      information.getCharacteristic(Characteristic.Identify).on('set', pluginIdentify)
+      const lamp = new Service.Switch('Lamp')
+
+      const accessory = makeService().createHAPAccessory(plugin, {
+        getServices: () => [information, lamp],
+      }, 'Lamp', 'Example')!
+
+      // one AccessoryInformation service (the one HAP-NodeJS made), plus the switch
+      expect(accessory.services.filter(service => service instanceof Service.AccessoryInformation)).toHaveLength(1)
+      expect(accessory.services).toContain(lamp)
+      expect(accessory.services).not.toContain(information)
+      const merged = accessory.getService(Service.AccessoryInformation)!
+      expect(merged.getCharacteristic(Characteristic.Manufacturer).value).toBe('Acme')
+      expect(merged.getCharacteristic(Characteristic.Model).value).toBe('Lamp 2000')
+      expect(merged.getCharacteristic(Characteristic.Name).value).toBe('Lamp')
+      expect(information.getCharacteristic(Characteristic.Identify).listenerCount('set')).toBe(0)
+    })
+
+    it('calls identify() of the accessory with a callback, and answers HomeKit itself', () => {
+      const identify = vi.fn()
+      const instance = {
+        identify,
+        getServices: () => [
+          new Service.Switch('Lamp'),
+        ],
+      }
+      const accessory = makeService().createHAPAccessory(plugin, instance, 'Lamp', 'Example')!
+      const answered = vi.fn()
+
+      accessory.emit(AccessoryEventTypes.IDENTIFY, true, answered)
+
+      expect(identify).toHaveBeenCalledTimes(1)
+      // old plugins wait for a callback; called on the instance, so `this` works in the plugin
+      expect(identify.mock.calls[0][0]).toBeTypeOf('function')
+      expect(identify.mock.contexts[0]).toBe(instance)
+      expect(answered).toHaveBeenCalledTimes(1)
+    })
+
+    it('configures the controllers the accessory returns', () => {
+      const controller = new RemoteController()
+      const instance = {
+        getServices: () => [],
+        getControllers: () => [controller],
+      }
+      const configure = vi.spyOn(Accessory.prototype, 'configureController')
+
+      const accessory = makeService().createHAPAccessory(plugin, instance, 'Remote', 'Example')
+
+      expect(accessory).toBeDefined()
+      expect(configure).toHaveBeenCalledExactlyOnceWith(controller)
+    })
+  })
+
   describe('teardown', () => {
     it('keeps the four InternalAPIEvent listeners attached so plugin shutdown handlers can still persist updates', () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
@@ -690,6 +830,63 @@ describe('bridgeService', () => {
     it('routes DEBUG_MESSAGE to debug', () => {
       BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(CharacteristicWarningType.DEBUG_MESSAGE))
       expect(debugSpy).toHaveBeenCalled()
+    })
+
+    const WIKI = 'See https://homebridge.io/w/JtMGR for more info.'
+    const PREFIX = expect.stringContaining('homebridge-test')
+
+    it('names the plugin, the characteristic and the accessory for a warning, at info level', () => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(CharacteristicWarningType.WARN_MESSAGE, 'value is out of range'))
+
+      expect(logSpy).toHaveBeenCalledExactlyOnceWith(
+        PREFIX,
+        'This plugin generated a warning from the characteristic \'FakeCharacteristic\' of the accessory \'FakeAccessory\':',
+        'value is out of range.',
+        WIKI,
+      )
+      expect(errorSpy).not.toHaveBeenCalled()
+    })
+
+    it('names the accessory for an error, at error level', () => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(CharacteristicWarningType.ERROR_MESSAGE, 'handler threw'))
+
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+        PREFIX,
+        'This plugin threw an error from the characteristic \'FakeCharacteristic\' of the accessory \'FakeAccessory\':',
+        'handler threw.',
+        WIKI,
+      )
+    })
+
+    it.each(['Adding anyway.', 'Is that right?', 'Fix it!'])('does not add a second full stop to "%s"', (message) => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(CharacteristicWarningType.WARN_MESSAGE, message))
+
+      expect(logSpy.mock.calls[0][2]).toBe(message)
+    })
+
+    it('prints a type it does not know as a warning, at info level', () => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning('some-new-type' as CharacteristicWarningType, 'new'))
+
+      expect(logSpy).toHaveBeenCalledExactlyOnceWith(PREFIX, expect.stringContaining('generated a warning'), 'new.', WIKI)
+    })
+
+    it.each([
+      CharacteristicWarningType.SLOW_READ,
+      CharacteristicWarningType.SLOW_WRITE,
+    ])('says the plugin slows down Homebridge for %s, at info level', (type) => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), {}, makeWarning(type, 'took 4 seconds'))
+
+      expect(logSpy).toHaveBeenCalledExactlyOnceWith(PREFIX, 'This plugin slows down Homebridge.', 'took 4 seconds', WIKI)
+    })
+
+    it.each([
+      CharacteristicWarningType.TIMEOUT_READ,
+      CharacteristicWarningType.TIMEOUT_WRITE,
+    ])('says the plugin did not answer in time for %s, at error level', (type) => {
+      BridgeService.printCharacteristicWriteWarning(fakePlugin(), fakeAccessory(), { ignoreSlow: true }, makeWarning(type, 'gave no answer'))
+
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(PREFIX, 'This plugin did not answer in time, which slows down Homebridge.', 'gave no answer', WIKI)
+      expect(logSpy).not.toHaveBeenCalled()
     })
 
     it('emits a debug log when warning.stack is present', () => {
@@ -830,6 +1027,31 @@ describe('bridgeService', () => {
       expect(publishInfo.setupID).toBeUndefined()
     })
 
+    it.each([
+      { setupID: 'TOOLONG', warning: /not 4 characters long/ },
+      { setupID: 1234, warning: /not 4 characters long/ },
+      { setupID: 'ab-1', warning: /should be 4 characters from 0-9 and A-Z/ },
+    ])('warns about the setupID $setupID', ({ setupID, warning }) => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig({ setupID }))
+      vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+
+      service.publishBridge()
+
+      expect(warnSpy.mock.calls.flat().join(' ')).toMatch(warning)
+    })
+
+    it('gives no warning for a good setupID, or for none', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      for (const setupID of ['AB12', undefined]) {
+        const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig({ setupID }))
+        vi.spyOn(service.bridge, 'publish').mockResolvedValue(undefined)
+        service.publishBridge()
+      }
+
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
+
     it('logs an error when bridge.publish() rejects (e.g. mDNS bring-up failure)', async () => {
       const service = new BridgeService(api, pluginManager, externalPortService, makeBridgeOptions(), makeBridgeConfig())
       const errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
@@ -925,6 +1147,32 @@ describe('bridgeService', () => {
     it('accepts an empty hap object', () => {
       const cfg = makeBridgeConfig({ hap: {} })
       expect(() => validateHapConfig(cfg, { bridgeLabel: 'main' })).not.toThrow()
+    })
+
+    it.each([
+      {
+        hap: { enabled: 'false' },
+        key: 'enabled',
+      },
+      {
+        hap: { enabled: 0 },
+        key: 'enabled',
+      },
+      {
+        hap: { externalsOnly: 'true' },
+        key: 'externalsOnly',
+      },
+    ])('warns about $hap and leaves the value out, so the bridge does what it did before', ({ hap, key }) => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      const cfg = makeBridgeConfig({ hap })
+
+      validateHapConfig(cfg, { bridgeLabel: 'main bridge' })
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`'hap\\.${key}' must be true or false`)))
+      expect(cfg.hap).toEqual({})
+      // unchanged: a value that is not the boolean false never turned HAP off, and only true turns externalsOnly on
+      expect(isHapConfigEnabled(cfg.hap)).toBe(true)
+      expect(isHapExternalsOnly(cfg.hap)).toBe(false)
     })
 
     it('rejects a non-boolean hap.disableIdentifyingMaterial value', () => {

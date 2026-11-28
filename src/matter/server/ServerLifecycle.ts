@@ -1,31 +1,29 @@
 /**
  * Server Lifecycle Manager
  *
- * Handles start(), stop(), cleanup(), waitForServerReady(),
+ * Handles start(), stop(), cleanup(),
  * runServer(), createServerNodeWithRecovery(), and storage setup.
  */
 
-import type { VariableService } from '@matter/general'
-import type { ServerNode } from '@matter/main'
+import type { ServerNode, VariableService } from '@matter/main'
 
 import type { MatterAccessoryCache } from '../accessoryCache.js'
 import type { MatterServerConfig } from '../sharedTypes.js'
+import type { InternalMatterAccessory } from '../types.js'
 import type { CommissioningDeps, CommissioningManager } from './CommissioningManager.js'
 import type { FabricManager } from './FabricManager.js'
 
 import { constants } from 'node:fs'
-import { access, mkdir, rm, stat } from 'node:fs/promises'
+import { access, mkdir, rename } from 'node:fs/promises'
 import { homedir, release } from 'node:os'
 import { isAbsolute, join, normalize, relative, resolve } from 'node:path'
 import process from 'node:process'
 
-import { Filesystem } from '@matter/general'
-import {
-  Endpoint,
+import { Endpoint,
   Environment,
+  Filesystem,
   ServerNode as MatterServerNode,
-  VendorId,
-} from '@matter/main'
+  VendorId } from '@matter/main'
 import { AggregatorEndpoint as AggregatorEndpointType } from '@matter/main/endpoints'
 import { NodeJsFilesystem } from '@matter/nodejs'
 
@@ -33,18 +31,39 @@ import { DEFAULT_BRIDGE_DEFAULTS } from '../../bridgeService.js'
 import { Logger } from '../../logger.js'
 import { User } from '../../user.js'
 import getVersion from '../../version.js'
+import { truncateUtf8 } from '../configValidator.js'
 import { errorHandler } from '../errorHandler.js'
 import { MatterDeviceError } from '../types.js'
-import { stripVendorFromLabel } from '../utils.js'
+import { resolveInterfaceNames, stripVendorFromLabel } from '../utils.js'
 import {
-  SERVER_INIT_DELAY_MS,
-  SERVER_READY_POLL_INTERVAL_MS,
-  SERVER_READY_TIMEOUT_MS,
   STORAGE_LOCK_RETRY_ATTEMPTS,
   STORAGE_LOCK_RETRY_DELAY_MS,
 } from './ServerConfig.js'
+import { reclaimStaleStorageLock } from './storageLock.js'
 
 const log = Logger.withPrefix('Matter/Server')
+
+/**
+ * Messages of matter.js for stored data it can not read back.
+ *
+ * 'key-input' was in this list and could never match: it is the `id` of
+ * matter.js's KeyInputError, not part of any message. It is not replaced by a
+ * test for that class on purpose: matter.js throws KeyInputError for many key
+ * problems that have nothing to do with stored data, and a match here sets
+ * the bridge's pairings aside.
+ */
+const CORRUPT_STORAGE_MESSAGES = ['Invalid public key encoding', 'FabricManager unavailable']
+
+/** The `code` of a system error, such as EACCES, ENOSPC or EMFILE. */
+const SYSTEM_ERROR_CODE_RE = /^E[A-Z0-9]+$/
+
+/** The start of a server was overtaken by its stop. */
+class StartCancelledError extends Error {
+  constructor() {
+    super('The start of the Matter server was cancelled because it was asked to stop')
+    this.name = 'StartCancelledError'
+  }
+}
 
 export interface ServerLifecycleDeps {
   config: MatterServerConfig
@@ -67,19 +86,22 @@ export interface ServerLifecycleDeps {
   getAggregator: () => Endpoint<typeof AggregatorEndpointType> | null
   setIsRunning: (running: boolean) => void
   getIsRunning: () => boolean
+  /** Told when matter.js took the node offline without Homebridge asking. */
+  noteStoppedByItself?: () => void
   cleanupHandlers: Array<() => void | Promise<void>>
-  // A getter (not a snapshot value) so reads always see the current handler.
-  // start() registers the handler partway through via setShutdownHandler; if
-  // this were a value copied when the deps object was built, a cleanup() call
-  // inside the same failed start() would read the stale null and never detach
-  // the SIGINT/SIGTERM listeners. Mirrors getServerNode/getAggregator.
-  getShutdownHandler: () => (() => Promise<void>) | null
-  setShutdownHandler: (handler: (() => Promise<void>) | null) => void
-  onStop: () => Promise<void>
 }
 
 export class ServerLifecycle {
   public matterStoragePath?: string
+
+  // This server's own matter.js environment (a child of Environment.default)
+  private environment?: Environment
+
+  // True from the first to the last line of start()
+  private starting = false
+
+  // stop() was called while start() was still at work (a SIGTERM during start-up)
+  private stopRequestedWhileStarting = false
 
   /**
    * Whether a ServerNode creation failure is a transient storage-lock contention
@@ -91,10 +113,20 @@ export class ServerLifecycle {
    * deliberately not treated as transient.
    */
   private isTransientStorageLock(error: unknown): boolean {
-    const message = error instanceof Error
-      ? error.message
-      : String(error)
-    return message.includes('locked by another process')
+    // matter.js reports the lock as the CAUSE of a "node store unavailable"
+    // error, so look down the chain and not only at the top message.
+    for (let current: unknown = error, depth = 0; current !== undefined && current !== null && depth < 10; depth++) {
+      const message = current instanceof Error
+        ? current.message
+        : String(current)
+      if (message.includes('locked by another process')) {
+        return true
+      }
+      current = current instanceof Error
+        ? current.cause
+        : undefined
+    }
+    return false
   }
 
   /**
@@ -108,11 +140,23 @@ export class ServerLifecycle {
   private async createServerNode(
     nodeOptions: Parameters<typeof MatterServerNode.create>[0],
   ): Promise<ServerNode> {
+    let lockReclaimed = false
     for (let attempt = 1; ; attempt++) {
       try {
         return await MatterServerNode.create(nodeOptions)
       } catch (error: unknown) {
-        if (!this.isTransientStorageLock(error) || attempt >= STORAGE_LOCK_RETRY_ATTEMPTS) {
+        if (!this.isTransientStorageLock(error)) {
+          throw error
+        }
+        // A lock left behind by a run that was killed, whose process id now
+        // belongs to another program, never clears by waiting (#4047). When
+        // that can be proven the lock is removed, and matter.js is asked again
+        // straight away.
+        if (!lockReclaimed && this.matterStoragePath && nodeOptions.id && await reclaimStaleStorageLock(join(this.matterStoragePath, nodeOptions.id))) {
+          lockReclaimed = true
+          continue
+        }
+        if (attempt >= STORAGE_LOCK_RETRY_ATTEMPTS) {
           throw error
         }
         log.warn(
@@ -125,7 +169,36 @@ export class ServerLifecycle {
   }
 
   /**
-   * Create ServerNode with automatic recovery from corrupted storage
+   * Whether a failed node creation was caused by stored data that matter.js
+   * can not read back (a key it can not decode, a fabric entry of the wrong
+   * shape), as opposed to the storage not being reachable at all.
+   *
+   * A system error anywhere in the chain (permission denied, disk full, too
+   * many open files) is never corruption: the data is fine, and whoever fixes
+   * the cause gets every pairing back.
+   */
+  private isCorruptStorageError(error: unknown): boolean {
+    let corrupt = false
+    let current: unknown = error
+    for (let depth = 0; current instanceof Error && depth < 10; depth++) {
+      const { message, cause } = current
+      const code = (current as { code?: unknown }).code
+      if (typeof code === 'string' && SYSTEM_ERROR_CODE_RE.test(code)) {
+        return false
+      }
+      if (CORRUPT_STORAGE_MESSAGES.some(text => message.includes(text))) {
+        corrupt = true
+      }
+      current = cause
+    }
+    return corrupt
+  }
+
+  /**
+   * Create the ServerNode. When its stored data turns out to be unreadable,
+   * the node's folder is set aside under a new name, so the next start begins
+   * a new bridge. Nothing is deleted: the pairings in the old folder are lost
+   * to this bridge, but the folder is there to look at or put back.
    */
   async createServerNodeWithRecovery(
     nodeOptions: Parameters<typeof MatterServerNode.create>[0],
@@ -134,85 +207,42 @@ export class ServerLifecycle {
     try {
       return await this.createServerNode(nodeOptions)
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : ''
-      const causeMessage = error instanceof Error && error.cause instanceof Error
-        ? error.cause.message
-        : ''
-      const isStorageError = errorMessage.includes('Invalid public key encoding')
-        || errorMessage.includes('FabricManager unavailable')
-        || errorMessage.includes('key-input')
-        || causeMessage.includes('Invalid public key encoding')
-
-      if (!isStorageError) {
+      if (!this.isCorruptStorageError(error) || !this.matterStoragePath) {
         throw error
       }
 
-      log.warn('Detected corrupted Matter storage, attempting automatic recovery...')
-
-      const environment = Environment.default
-      const filesystem = environment.get(Filesystem)
-      const storageLocation = filesystem.path
-
-      if (!storageLocation) {
-        throw new Error('Storage location not set, cannot recover from corrupted storage')
-      }
-
-      const serverNodeStorePath = join(storageLocation, sanitizedId)
-      const serverNodeStoreJsonFile = `${serverNodeStorePath}.json`
-
+      const nodeStorePath = join(this.matterStoragePath, sanitizedId)
+      const setAsidePath = `${nodeStorePath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      log.error('The stored Matter data of this bridge can not be read:', error)
       try {
-        let removedSomething = false
-
-        // Delete the ServerNodeStore subdirectory
-        try {
-          await stat(serverNodeStorePath)
-          log.info(`Removing corrupted ServerNodeStore directory: ${serverNodeStorePath}`)
-          await rm(serverNodeStorePath, { recursive: true, force: true })
-          removedSomething = true
-        } catch (err: unknown) {
-          const code = err instanceof Error && 'code' in err
-            ? (err as any).code
-            : undefined
-          if (code !== 'ENOENT') {
-            throw err
-          }
-        }
-
-        // Delete the ServerNodeStore JSON file
-        try {
-          await stat(serverNodeStoreJsonFile)
-          log.info(`Removing corrupted ServerNodeStore JSON file: ${serverNodeStoreJsonFile}`)
-          await rm(serverNodeStoreJsonFile, { force: true })
-          removedSomething = true
-        } catch (err: unknown) {
-          const code = err instanceof Error && 'code' in err
-            ? (err as any).code
-            : undefined
-          if (code !== 'ENOENT') {
-            throw err
-          }
-        }
-
-        if (removedSomething) {
-          log.info('Corrupted storage removed, retrying ServerNode creation...')
-        } else {
-          log.warn('No corrupted storage files found, corruption may be elsewhere')
-        }
-
-        const serverNode = await this.createServerNode(nodeOptions)
-        log.info('Successfully recovered from corrupted Matter storage')
-        return serverNode
-      } catch (retryError) {
-        log.error('Failed to recover from corrupted storage:', retryError)
-        log.error('Original error:', error)
-        throw new Error(
-          'Matter storage is corrupted and automatic recovery failed. '
-          + `Please manually delete: ${serverNodeStorePath}`,
-        )
+        await rename(nodeStorePath, setAsidePath)
+      } catch (renameError) {
+        log.error(`Could not set the unreadable Matter data aside (${nodeStorePath}):`, renameError)
+        throw error
       }
+      // No second attempt in this run: matter.js keeps the storage it opened
+      // for the failed attempt, so creating the node again here fails as well.
+      // The next start finds no stored data and begins a new bridge.
+      throw new Error(
+        `The stored Matter data of this bridge could not be read. It was set aside as ${setAsidePath}; nothing was deleted. `
+        + 'Restart Homebridge: this bridge then starts as a new, unpaired Matter bridge, to be removed from your controllers and paired again.',
+        { cause: error },
+      )
     }
+  }
+
+  /**
+   * This server's own matter.js environment, with its own storage folder.
+   *
+   * Environment.default is one object for the whole process, so setting the
+   * folder there let two servers that start at the same time (two external
+   * accessories, say) open their node storage in whichever folder was set
+   * last. Everything else is inherited from the default.
+   */
+  private createEnvironment(id: string): Environment {
+    this.environment = new Environment(`homebridge-${id}`, Environment.default)
+    this.environment.set(Filesystem, new NodeJsFilesystem(this.matterStoragePath!))
+    return this.environment
   }
 
   /**
@@ -264,9 +294,7 @@ export class ServerLifecycle {
     this.matterStoragePath = join(normalizedPath, bridgeId)
     await mkdir(this.matterStoragePath, { recursive: true })
 
-    // Configure environment to use native matter.js storage
-    const environment = Environment.default
-    environment.set(Filesystem, new NodeJsFilesystem(this.matterStoragePath))
+    this.createEnvironment(bridgeId)
 
     // Create accessory cache
     const { MatterAccessoryCache } = await import('../accessoryCache.js')
@@ -286,6 +314,8 @@ export class ServerLifecycle {
       return
     }
 
+    this.starting = true
+    this.stopRequestedWhileStarting = false
     try {
       log.info('Starting Matter.js server...')
 
@@ -296,14 +326,13 @@ export class ServerLifecycle {
       // Load or generate commissioning credentials
       await deps.commissioningManager.loadOrGenerateCredentials(this.matterStoragePath!)
 
-      log.info(`Configuration: Port=${deps.config.port}, Passcode=${deps.commissioningManager.passcode}, Discriminator=${deps.commissioningManager.discriminator}`)
+      // The passcode is not logged here: the pairing banner is the one place for it.
+      log.info(`Configuration: Port=${deps.config.port}`)
 
       const commissioningOptions = {
         passcode: deps.commissioningManager.passcode,
         discriminator: deps.commissioningManager.discriminator,
       }
-
-      log.info(`Using commissioning credentials: passcode=${deps.commissioningManager.passcode}, discriminator=${deps.commissioningManager.discriminator}`)
 
       const displayName = deps.config.displayName || 'Matter Device'
 
@@ -330,7 +359,7 @@ export class ServerLifecycle {
       // identity of every commissioned bridge as a side effect of this fix.
       const isExternal = deps.config.externalAccessory === true
       const vendorName = (isExternal ? deps.config.manufacturer : undefined) || DEFAULT_BRIDGE_DEFAULTS.vendorName
-      const productName = ((isExternal ? deps.config.model : undefined) || displayName).slice(0, 32)
+      const productName = truncateUtf8((isExternal ? deps.config.model : undefined) || displayName, 32)
       // productLabel SHALL NOT include the vendor name per the Matter spec.
       // Fall back when stripping the vendor consumes the whole display name.
       const labelFallback = isExternal
@@ -339,20 +368,21 @@ export class ServerLifecycle {
 
       const nodeOptions: Parameters<typeof MatterServerNode.create>[0] = {
         id: sanitizedId,
+        environment: this.environment,
         network: {
           port: deps.config.port,
           ipv4: true,
         },
         commissioning: commissioningOptions,
         basicInformation: {
-          nodeLabel: displayName.slice(0, 32),
+          nodeLabel: truncateUtf8(displayName, 32),
           // vendorId stays as issued: an uncertified node cannot claim a real
           // Matter vendor ID, and vendorName is free text unrelated to it
           vendorId: VendorId(deps.commissioningManager.vendorId),
           vendorName,
           productId: deps.commissioningManager.productId,
           productName,
-          productLabel: (stripVendorFromLabel(displayName, vendorName) || labelFallback).slice(0, 64),
+          productLabel: truncateUtf8(stripVendorFromLabel(displayName, vendorName) || labelFallback, 64),
           serialNumber: deps.config.serialNumber || deps.config.uniqueId,
           hardwareVersion: 1,
           hardwareVersionString: release(),
@@ -372,24 +402,23 @@ export class ServerLifecycle {
         }
       }
 
-      // Determine the mDNS network interface to use.  MdnsService reads
-      // 'mdns.networkInterface' at construction time (inside createServerNodeWithRecovery),
-      // so this value MUST be set before calling createServerNodeWithRecovery().
+      // Determine the mDNS network interface to use. MdnsService reads
+      // 'mdns.networkInterface' when it is constructed (inside
+      // createServerNodeWithRecovery), so the value MUST be set before that call.
       //
-      // 'network.interface' (Matter UDP transport) is intentionally set AFTER ServerNode
-      // creation because Behaviors.defaultsFor('network') reads the full 'network' env
-      // subtree during construction and the ValueCaster rejects the unknown 'interface' key.
-      // ServerNetworkRuntime reads it lazily at run() time, so setting it post-creation is fine.
+      // ⚠️ bridge.bind limits Matter's mDNS only. The Matter port itself (UDP)
+      // listens on every interface: matter.js binds it to the addresses in
+      // `network.listeningAddressIpv4` / `listeningAddressIpv6`, which
+      // Homebridge does not set. `network.interface` was set here before in
+      // the belief that it did this. It does not: matter.js only reads it to
+      // label interfaces in the general diagnostics list, and logs an error
+      // for it ("Property interface is unsupported") each time the last
+      // controller removes the bridge.
 
       // Clear any previously set values from a prior server instance. Environment.default is
       // a singleton shared across all server instances in the process.
       // VariableService.get() returns a direct reference to the internal vars object, so
       // deleting the key here mutates the stored value without needing a private API.
-      const networkVars = Environment.default.vars.get<VariableService.Map>('network')
-      if (typeof networkVars === 'object' && networkVars !== null && 'interface' in networkVars) {
-        delete networkVars.interface
-        log.debug('Cleared network.interface from environment before ServerNode creation')
-      }
       const mdnsVars = Environment.default.vars.get<VariableService.Map>('mdns')
       if (typeof mdnsVars === 'object' && mdnsVars !== null && 'networkInterface' in mdnsVars) {
         delete mdnsVars.networkInterface
@@ -416,41 +445,48 @@ export class ServerLifecycle {
       }
 
       // Set mdns.networkInterface BEFORE creating the ServerNode.
-      if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
+      //
+      // bridge.bind may hold IP addresses as well as interface names (HAP takes
+      // both), but matter.js wants a name: given an address, or a name this
+      // machine does not have, its mDNS service fails and the node never
+      // starts. So work out the names, here at start so that an address is
+      // resolved against the interfaces this run actually has, and say so when
+      // an entry matches nothing.
+      const { names: interfaceNames, unknown: unknownBindEntries, unspecified: unspecifiedBindEntries } = resolveInterfaceNames(deps.config.networkInterfaces ?? [])
+      for (const entry of unknownBindEntries) {
+        log.warn(`bridge.bind entry "${entry}" is not the name or an address of a network interface on this machine. It is ignored for Matter.`)
+      }
+      if (interfaceNames.length > 0) {
         // Use the interface from bridge.bind — same interface Homebridge's HAP stack uses.
         // matter.js only accepts a single string for mdns.networkInterface.
-        const [primary, ...rest] = deps.config.networkInterfaces
+        const [primary, ...rest] = interfaceNames
         Environment.default.vars.set('mdns.networkInterface', primary)
         if (rest.length === 0) {
-          log.info(`Configured Matter mDNS to bind to interface: ${primary}`)
+          log.info(`Configured Matter mDNS to bind to interface: ${primary} (the Matter port itself listens on all interfaces)`)
         } else {
           log.info(`Configured Matter mDNS to bind to interface: ${primary} (matter.js only supports a single mDNS interface; the other interfaces in bridge.bind — ${rest.join(', ')} — are unused for mDNS).`)
         }
+      } else if (unspecifiedBindEntries.length > 0) {
+        // HAP reads 0.0.0.0 / :: in bridge.bind as "every interface", so Matter does the same.
+        log.info(`bridge.bind holds the unspecified address ${unspecifiedBindEntries.join(', ')}. Matter mDNS will listen on all network interfaces.`)
+      } else if (unknownBindEntries.length > 0) {
+        log.warn('No bridge.bind entry matches a network interface on this machine. Matter mDNS will listen on all network interfaces.')
       } else {
         // No bridge.bind configured — Matter mDNS will listen on all interfaces, consistent
         // with Homebridge's own HAP/ciao mDNS behaviour when bind is unset.
-        log.warn('bridge.bind is not set. Matter mDNS will listen on all network interfaces, which increases CPU usage. Set bridge.bind in your Homebridge config to restrict it to a single interface.')
+        log.warn('bridge.bind is not set. Matter mDNS will listen on all network interfaces, which increases CPU usage. Set bridge.bind in your Homebridge config to an interface name or one of its IP addresses to restrict it to a single interface.')
       }
 
       const serverNode = await this.createServerNodeWithRecovery(nodeOptions, sanitizedId)
       deps.setServerNode(serverNode)
-
-      // Configure network.interface for the Matter UDP transport after ServerNode creation.
-      // (See comment above for why this must be post-creation.)
-      if (deps.config.networkInterfaces && deps.config.networkInterfaces.length > 0) {
-        const interfaceConfig: Record<string, { type: number }> = {}
-        for (const interfaceName of deps.config.networkInterfaces) {
-          interfaceConfig[interfaceName] = { type: 2 }
-        }
-        Environment.default.vars.set('network.interface', interfaceConfig)
-      }
+      this.throwIfStopRequested()
 
       // Set up commissioning event listeners. Register a matching cleanup
       // handler so the matter.js Observable observers (which capture deps and
       // the manager) are released on stop().
       deps.commissioningManager.setupCommissioningEventListeners(deps.getCommissioningDeps())
       deps.cleanupHandlers.push(() => {
-        deps.commissioningManager.teardownCommissioningEventListeners(deps.getServerNode())
+        deps.commissioningManager.teardownCommissioningEventListeners()
       })
 
       // Create aggregator endpoint for bridge pattern
@@ -468,15 +504,11 @@ export class ServerLifecycle {
       // Generate and display commissioning information
       await deps.commissioningManager.generateCommissioningInfo(deps.getCommissioningDeps())
 
-      // Set up graceful shutdown handler
-      const shutdownHandler = async () => {
-        log.info('Shutting down Matter server...')
-        await deps.onStop()
-      }
-      deps.setShutdownHandler(shutdownHandler)
-
-      process.on('SIGINT', shutdownHandler)
-      process.on('SIGTERM', shutdownHandler)
+      // No signal listeners here. The main process and every child bridge
+      // handle SIGINT/SIGTERM themselves and stop each of their Matter servers
+      // through the manager's teardown(). A listener per server stopped every
+      // server a second time at the same moment, and the eleventh server in a
+      // process tripped Node's MaxListenersExceededWarning.
 
       if (!deps.config.externalAccessory) {
         // Restore cached accessories into the aggregator before going online.
@@ -486,6 +518,8 @@ export class ServerLifecycle {
         if (deps.restoreAccessoriesFromCache) {
           await deps.restoreAccessoriesFromCache()
         }
+        // Also in deferred-online mode: a stop during the restore ends the start here
+        this.throwIfStopRequested()
 
         if (deps.config.deferOnline) {
           // Deferred-online mode: the node is fully built (cache restored) but
@@ -494,15 +528,27 @@ export class ServerLifecycle {
           // structure, and subscription re-establishment runs on a quiet node.
           log.info('Deferred online mode - Matter node built, waiting for initial registrations before going online')
         } else {
+          this.throwIfStopRequested()
           await this.startServerNode(serverNode, deps)
         }
       } else {
-        log.debug('Deferred start mode - server prepared but not running yet (will start after device registration)')
+        log.debug('External accessory mode - server prepared but not running yet (will start after device registration)')
       }
-      log.info(`Matter server started successfully on port ${deps.config.port}`)
-      log.info('Plugins can now register Matter accessories via the API')
+      if (deps.getIsRunning()) {
+        log.info(`Matter server started successfully on port ${deps.config.port}`)
+      } else {
+        // an external accessory, or a bridge that waits for its accessories
+        log.info(`Matter server prepared for port ${deps.config.port} (it goes on the network once its accessories are registered)`)
+      }
     } catch (error) {
-      log.error('Failed to start Matter server:', error)
+      if (error instanceof StartCancelledError) {
+        log.info('Matter server start was cancelled, as Homebridge is stopping')
+        // A restore that was cut short asked for a save of the accessories it
+        // got to. Writing that would drop every cached accessory it did not reach.
+        deps.getAccessoryCache()?.cancelPendingSave()
+      } else {
+        log.error('Failed to start Matter server:', error)
+      }
       // If we created a ServerNode before failing (e.g. commissioning setup
       // or aggregator creation threw), close it so its internal storage
       // adapters and observables are torn down rather than left for GC.
@@ -540,6 +586,30 @@ export class ServerLifecycle {
       // still-bound node with no way to address or tear it down.
       await this.cleanup(deps, { preserveNodeReference: nodeMayStillBeBound })
       throw error
+    } finally {
+      this.starting = false
+    }
+  }
+
+  /**
+   * Give up a start that stop() overtook.
+   *
+   * A stop that came while the node was still being created found nothing to
+   * stop and returned, and the start then carried on and put the node on the
+   * network of a Homebridge that was shutting down. The start now ends here
+   * instead: its error path closes the node it built.
+   */
+  /**
+   * Whether stop() was called while a start() is still at work. The cache
+   * restore checks it between accessories, so it stops early.
+   */
+  isStopRequested(): boolean {
+    return this.starting && this.stopRequestedWhileStarting
+  }
+
+  private throwIfStopRequested(): void {
+    if (this.stopRequestedWhileStarting) {
+      throw new StartCancelledError()
     }
   }
 
@@ -573,17 +643,24 @@ export class ServerLifecycle {
    * Shared by both start() (non-external mode) and runServer() (deferred external mode).
    */
   private async startServerNode(serverNode: ServerNode, deps: ServerLifecycleDeps): Promise<void> {
-    serverNode.run().then(
+    // start() resolves once the node is online and rejects when it cannot get
+    // there (the port is taken, say), so a failed start reaches the caller.
+    // The older run() call was not awaited: its failure was only logged, and
+    // the server was still reported as started and running.
+    await serverNode.start()
+
+    // Log the end of the node, whenever that comes.
+    Promise.resolve(serverNode.construction.closed).then(
       () => {
         log.info('Matter server stopped normally')
       },
-      (error) => {
+      (error: unknown) => {
         log.error('Matter server stopped with error:', error)
-        errorHandler.handleError(error, 'server-runtime')
+        errorHandler.handleError(error instanceof Error
+          ? error
+          : new Error(String(error)), 'server-runtime')
       },
     )
-
-    await this.waitForServerReady(deps)
 
     const cache = deps.getAccessoryCache()
     if (cache) {
@@ -598,41 +675,62 @@ export class ServerLifecycle {
     })
 
     deps.setIsRunning(true)
+    this.watchForUnrequestedStop(serverNode, deps)
   }
 
   /**
-   * Wait for the server to be ready
+   * Notice a node that goes offline when Homebridge did not stop it.
+   *
+   * Every matter.js node in a process is a worker of one shared runtime, and
+   * a background task of any node that fails makes that runtime shut all of
+   * them down. Homebridge logged "stopped normally" and went on reporting the
+   * server as running. Now it says so, and no longer reports it as running.
+   * The server is not started again: the cause is an internal error, and a
+   * restart of Homebridge is the way to a known state.
+   *
+   * Two cases are not this one. Homebridge's own stop() marks the server as
+   * not running before it closes the node. And when the last controller
+   * removes the bridge, matter.js resets the node: it goes offline and comes
+   * straight back, still wanting to be online.
    */
-  async waitForServerReady(deps: ServerLifecycleDeps, maxWaitTime = SERVER_READY_TIMEOUT_MS): Promise<void> {
-    const startTime = Date.now()
-
-    while (!deps.getServerNode() || (!deps.config.externalAccessory && !deps.getAggregator())) {
-      if (Date.now() - startTime > maxWaitTime) {
-        throw new Error('Server failed to become ready within timeout')
+  private watchForUnrequestedStop(serverNode: ServerNode, deps: ServerLifecycleDeps): void {
+    const onOffline = (): void => {
+      if (!deps.getIsRunning() || serverNode.lifecycle.shouldBeOnline) {
+        return
       }
-      await new Promise(resolve => setTimeout(resolve, SERVER_READY_POLL_INTERVAL_MS))
+      deps.setIsRunning(false)
+      deps.noteStoppedByItself?.()
+      log.error(
+        `The Matter server on port ${deps.config.port} went offline without being asked to. matter.js shut it down, `
+        + 'most likely after an internal error, which is logged above. Its accessories can not be reached over Matter until Homebridge is restarted.',
+      )
     }
-
-    await new Promise(resolve => setTimeout(resolve, SERVER_INIT_DELAY_MS))
+    serverNode.lifecycle.offline.on(onOffline)
+    deps.cleanupHandlers.push(() => {
+      serverNode.lifecycle.offline.off(onOffline)
+    })
   }
 
   /**
    * Stop the Matter server.
    *
-   * External-accessory mode runs `start()` (which registers SIGINT/SIGTERM
-   * handlers and creates the ServerNode) but defers `runServer()` until
-   * after accessory registration — between those two steps `isRunning` is
-   * still false. A check of just `isRunning` would skip cleanup and leave
-   * the process handlers + half-initialised server node leaked when a
+   * External-accessory mode runs `start()` (which creates the ServerNode) but
+   * defers `runServer()` until after accessory registration — between those
+   * two steps `isRunning` is still false. A check of just `isRunning` would
+   * skip cleanup and leave the half-initialised server node leaked when a
    * publish failure called `stop()` in its catch block. Tear down any
    * resources we actually allocated, regardless of `isRunning`.
    */
-  async stop(deps: ServerLifecycleDeps, accessories: Map<string, any>): Promise<void> {
+  async stop(deps: ServerLifecycleDeps, accessories: Map<string, InternalMatterAccessory>): Promise<void> {
     const isRunning = deps.getIsRunning()
     const serverNode = deps.getServerNode()
-    const hasShutdownHandler = deps.getShutdownHandler() != null
 
-    if (!isRunning && !serverNode && !hasShutdownHandler) {
+    // Tell a start() that is still at work to give up (see throwIfStopRequested)
+    if (this.starting) {
+      this.stopRequestedWhileStarting = true
+    }
+
+    if (!isRunning && !serverNode) {
       log.debug('Matter server is not running and has no resources to clean up')
       return
     }
@@ -644,25 +742,29 @@ export class ServerLifecycle {
     // publishExternalMatterAccessory) gate port release on stop() resolving
     // cleanly — if close() failed, the matter.js server may still be bound to
     // the port and the caller must see the rejection so it keeps the port
-    // reserved. The SIGINT/SIGTERM handler is deliberately left registered in
-    // that case (see cleanup) so the still-bound node keeps a shutdown hook.
+    // reserved.
     let closeError: unknown
 
     try {
-      // Persist the accessory cache only if we actually reached the running
+      // Persist the accessory cache when the server reached the running
       // state — an init-but-never-ran external server has no meaningful
-      // state to save.
-      if (isRunning) {
-        const cache = deps.getAccessoryCache()
-        if (cache && accessories.size > 0) {
-          try {
-            await cache.save(accessories)
-            log.debug('Saved accessory cache before shutdown')
-          } catch (error) {
-            // Persistence is best-effort during teardown. Still close the node
-            // and run cleanup if storage is unavailable.
-            log.error('Failed to save accessory cache before shutdown:', error)
-          }
+      // state to save. A bridge also writes a save that is still waiting,
+      // whether it is online yet or not and also when no accessory is left:
+      // that save is how the removal of the last accessory reaches the file.
+      // Without it the removed accessory came back at the next start.
+      const cache = deps.getAccessoryCache()
+      // Not while a start() is still restoring the cache: the list then holds
+      // only the accessories restored so far, and the save would drop the rest
+      // from the file.
+      const savePending = cache?.hasPendingSave() === true && !deps.config.externalAccessory && !this.starting
+      if (cache && ((isRunning && accessories.size > 0) || savePending)) {
+        try {
+          await cache.save(accessories)
+          log.debug('Saved accessory cache before shutdown')
+        } catch (error) {
+          // Persistence is best-effort during teardown. Still close the node
+          // and run cleanup if storage is unavailable.
+          log.error('Failed to save accessory cache before shutdown:', error)
         }
       }
 
@@ -693,9 +795,8 @@ export class ServerLifecycle {
       }
 
       // Always run cleanup so the cleanupHandlers fire even when close()
-      // failed. When close() failed we hold onto the serverNode reference (and
-      // keep the SIGINT/SIGTERM handler registered) so the still-bound node
-      // keeps a graceful-shutdown hook and a caller could retry stop() —
+      // failed. When close() failed we hold onto the serverNode reference so a
+      // caller could retry stop() —
       // otherwise cleanup would null it out and a retry would see no node and
       // silently no-op, stranding a potentially still-bound matter.js server
       // with no handle to close it.
@@ -720,27 +821,13 @@ export class ServerLifecycle {
    *
    * `preserveNodeReference` is set by stop() when `serverNode.close()` failed —
    * matter.js may still be holding the port, and dropping the reference would
-   * leave no way to retry the close. In that case the SIGINT/SIGTERM shutdown
-   * handler is also kept registered: the sole caller
-   * (ExternalMatterAccessoryPublisher) never retries stop(), so removing the
-   * handler would leave the still-bound node with no graceful-shutdown hook
-   * for the rest of the process lifetime. The cleanupHandlers are always run
+   * leave no way to retry the close. The cleanupHandlers are always run
    * because they are independent of the node reference.
    */
   async cleanup(
     deps: ServerLifecycleDeps,
     options: { preserveNodeReference?: boolean } = {},
   ): Promise<void> {
-    // Keep the shutdown handler registered when we are preserving a node whose
-    // close() failed, so that orphaned (still port-bound) node is still torn
-    // down on process exit. Otherwise remove it as normal.
-    const shutdownHandler = deps.getShutdownHandler()
-    if (shutdownHandler && !options.preserveNodeReference) {
-      process.off('SIGINT', shutdownHandler)
-      process.off('SIGTERM', shutdownHandler)
-      deps.setShutdownHandler(null)
-    }
-
     for (const handler of deps.cleanupHandlers) {
       try {
         await handler()

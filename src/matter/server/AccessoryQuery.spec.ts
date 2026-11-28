@@ -100,7 +100,7 @@ describe('featureMap enrichment for the UI payload', () => {
       [accessory.UUID, accessory],
     ]), () => null)
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
-    const partClusters = entry.parts[0].clusters as Record<string, Record<string, unknown>>
+    const partClusters = entry.parts![0].clusters
 
     expect(partClusters.thermostat.featureMap).toEqual({ heating: true, cooling: false, autoMode: false })
     expect(partClusters.thermostat.occupiedHeatingSetpoint).toBe(1800)
@@ -124,7 +124,7 @@ describe('featureMap enrichment for the UI payload', () => {
       [accessory.UUID, accessory],
     ]), () => null)
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
-    const partClusters = entry.parts[0].clusters as Record<string, Record<string, unknown>>
+    const partClusters = entry.parts![0].clusters
 
     expect(partClusters.thermostat.featureMap).toBeUndefined()
     expect(partClusters.thermostat.occupiedHeatingSetpoint).toBe(1800)
@@ -186,5 +186,100 @@ describe('accessory information for the UI payload', () => {
     const [entry] = query.collectAccessories('user', 'child', 'Bridge')
 
     expect(entry.firmwareRevision).toBeUndefined()
+  })
+})
+
+describe('the accessory handed out by getAccessory() and getAccessories()', () => {
+  // A matter.js endpoint refers back to itself, like this one
+  const liveEndpoint = (): Record<string, unknown> => {
+    const endpoint: Record<string, unknown> = { state: {} }
+    endpoint.owner = endpoint
+    return endpoint
+  }
+  const record = (): InternalMatterAccessory => makeAccessory({
+    context: { room: 'hall' },
+    parts: [
+      {
+        id: 'one',
+        deviceType: { name: 'OnOffLightDevice' },
+        clusters: {},
+      },
+    ],
+    endpoint: liveEndpoint(),
+    _parts: [
+      {
+        id: 'one',
+        deviceType: { name: 'OnOffLightDevice' },
+        clusters: {},
+        endpoint: liveEndpoint(),
+      },
+    ],
+    _eventEmitter: {},
+    _restoredFromCache: false,
+    _associatedPlugin: 'homebridge-test',
+    _associatedPlatform: 'Test',
+  } as unknown as Partial<InternalMatterAccessory>)
+
+  it('has the public fields only, with no live endpoint anywhere in it', () => {
+    const query = new AccessoryQuery(new Map([
+      [
+        'uuid-1',
+        record(),
+      ],
+    ]), () => null)
+
+    for (const accessory of [
+      query.getAccessory('uuid-1')!,
+      query.getAccessories()[0],
+    ]) {
+      expect(Object.keys(accessory).sort()).toEqual([
+        'UUID',
+        'clusters',
+        'context',
+        'deviceType',
+        'displayName',
+        'manufacturer',
+        'model',
+        'parts',
+        'serialNumber',
+      ])
+      // it can be written as JSON: nothing in it refers back to itself
+      expect(JSON.parse(JSON.stringify(accessory))).toMatchObject({
+        UUID: 'uuid-1',
+        context: { room: 'hall' },
+      })
+    }
+  })
+
+  it('is undefined for an accessory that is not registered', () => {
+    expect(new AccessoryQuery(new Map(), () => null).getAccessory('nope')).toBeUndefined()
+  })
+})
+
+describe('the live state read for the UI', () => {
+  it('can be written as JSON when matter.js holds a value as a bigint', () => {
+    const accessory = makeAccessory({
+      endpoint: {
+        state: {
+          electricalEnergyMeasurement: {
+            cumulativeEnergyImported: { energy: 123456789n },
+            $internal: 'hidden',
+          },
+          generalDiagnostics: { upTime: 42n },
+        },
+      },
+    } as unknown as Partial<InternalMatterAccessory>)
+    const query = new AccessoryQuery(new Map([
+      [accessory.UUID, accessory],
+    ]), () => null)
+
+    const state = query.getLiveState(accessory.UUID)
+
+    expect(JSON.parse(JSON.stringify(state))).toEqual({
+      electricalEnergyMeasurement: {
+        cumulativeEnergyImported: { energy: 123456789 },
+      },
+      generalDiagnostics: { upTime: 42 },
+    })
   })
 })

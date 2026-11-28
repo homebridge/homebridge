@@ -6,10 +6,10 @@
 
 import { ValveConfigurationAndControlServer } from '@matter/main/behaviors/valve-configuration-and-control'
 import { ValveConfigurationAndControl } from '@matter/main/clusters/valve-configuration-and-control'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { HandlerFailure } from './BehaviorRegistry.js'
+import { registryOf } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Default ValveConfigurationAndControl Server.
@@ -42,45 +42,31 @@ export class DefaultValveConfigurationAndControlServer extends ValveConfiguratio
  */
 export class HomebridgeValveConfigurationAndControlServer extends DefaultValveConfigurationAndControlServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Handle 'open' command
    */
   override async open(request: ValveConfigurationAndControl.OpenRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'open', request)
-
-      // Only reached if handler succeeded - update Matter state via super
-      await super.open(request)
-
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'valveConfigurationAndControl', {
-        currentState: ValveConfigurationAndControl.ValveState.Open,
-        targetState: ValveConfigurationAndControl.ValveState.Open,
-      })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to open valve: ${message}`, Status.Failure)
+    // Execute user handler. A controller always sends a request; the
+    // Homebridge UI calls the command with none, so the handler is given an
+    // empty one and can read request.openDuration either way.
+    const handled = await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'open', request ?? {})
+    // A valve is not reported as open when nothing opened it (decided by BP):
+    // with handlers for the valve but none for this command, it fails and the state stays.
+    if (!handled) {
+      throw new HandlerFailure('There is no valveConfigurationAndControl.open handler, so the valve was not opened')
     }
+    await lockStateForWrite(this)
+
+    // Only reached if handler succeeded - update Matter state via super
+    await super.open(request)
+
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'valveConfigurationAndControl', {
+      currentState: ValveConfigurationAndControl.ValveState.Open,
+      targetState: ValveConfigurationAndControl.ValveState.Open,
+    })
   }
 
   /**
@@ -88,33 +74,23 @@ export class HomebridgeValveConfigurationAndControlServer extends DefaultValveCo
    */
   override async close(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'close')
-
-      // Only reached if handler succeeded - update Matter state via super
-      await super.close()
-
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'valveConfigurationAndControl', {
-        currentState: ValveConfigurationAndControl.ValveState.Closed,
-        targetState: ValveConfigurationAndControl.ValveState.Closed,
-      })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to close valve: ${message}`, Status.Failure)
+    // Execute user handler
+    const handled = await registry.executeHandler(endpointId, 'valveConfigurationAndControl', 'close')
+    // Not reported as closed when nothing closed it (see open)
+    if (!handled) {
+      throw new HandlerFailure('There is no valveConfigurationAndControl.close handler, so the valve was not closed')
     }
+    await lockStateForWrite(this)
+
+    // Only reached if handler succeeded - update Matter state via super
+    await super.close()
+
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'valveConfigurationAndControl', {
+      currentState: ValveConfigurationAndControl.ValveState.Closed,
+      targetState: ValveConfigurationAndControl.ValveState.Closed,
+    })
   }
 }

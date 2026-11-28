@@ -4,12 +4,15 @@ import type { ExternalPortService } from '../externalPortService.js'
 import type { PluginManager } from '../pluginManager.js'
 import type { HomebridgeOptions } from '../server.js'
 
+import { AddressInUseError } from '@matter/main'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
 import { MatterBridgeManager } from './MatterBridgeManager.js'
 import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
+import { MatterServer } from './server.js'
+import { AccessoryQuery } from './server/AccessoryQuery.js'
 
 describe('matterBridgeManager', () => {
   let mockConfig: HomebridgeConfig
@@ -17,7 +20,7 @@ describe('matterBridgeManager', () => {
   let mockExternalPortService: ExternalPortService
   let mockPluginManager: PluginManager
   let mockOptions: HomebridgeOptions
-  let mockServer: { registerExternalMatterBridge: any, ipcService: any }
+  let mockServer: { registerExternalMatterBridge: any, unregisterExternalMatterBridge: any, ipcService: any }
 
   beforeEach(() => {
     mockConfig = {
@@ -52,6 +55,7 @@ describe('matterBridgeManager', () => {
 
     mockServer = {
       registerExternalMatterBridge: vi.fn(),
+      unregisterExternalMatterBridge: vi.fn(),
       ipcService: {
         sendMessage: vi.fn(),
       },
@@ -76,12 +80,103 @@ describe('matterBridgeManager', () => {
   }
 
   describe('constructor', () => {
+    it('routes a replacement object to the restored external server', async () => {
+      const m = buildManager({ enabled: true })
+      const accessory = { UUID: 'restored', displayName: 'Restored' } as any
+      ;(m as any).externalMatterServers.set(accessory.UUID, {})
+      const attach = vi.spyOn(m as any, 'attachRestoredExternalAccessory').mockResolvedValue(true)
+      await m.handlePublishExternalAccessories([accessory], 'replacement')
+      expect(attach).toHaveBeenCalledWith(accessory)
+      expect(mockApi._resolveExternalRegistration).toHaveBeenCalledWith('replacement')
+    })
+
     it('does NOT attach API listeners during construction (deferred to initialize)', () => {
       buildManager({ enabled: true })
       // Before initialize(), no listeners are wired up. This avoids spurious
       // warn-level logs from the existing handlers in modes where the server
       // is not running (externalsOnly or disabled).
       expect(mockApi.on).not.toHaveBeenCalled()
+    })
+  })
+
+  // The main bridge does not get its Matter port from the Matter allocator, so
+  // it has to tell the allocator which port it took: its default, 5540, lies
+  // inside the allocator's default range and was handed out a second time.
+  describe('initialize — the main bridge\'s Matter port', () => {
+    beforeEach(() => {
+      mockExternalPortService.reserveMatterPort = vi.fn()
+      // stop before a real server is started
+      vi.spyOn(MatterServer.prototype, 'start').mockRejectedValue(new Error('not started in this test'))
+      for (const level of ['info', 'warn', 'error', 'debug'] as const) {
+        vi.spyOn(Logger.prototype, level).mockImplementation(() => {})
+      }
+    })
+
+    it.each([
+      {
+        what: 'the default port',
+        matter: {},
+        pool: undefined,
+        port: 5540,
+      },
+      {
+        what: 'a port from the ports pool',
+        matter: {},
+        pool: 52100,
+        port: 52100,
+      },
+      {
+        what: 'a configured port',
+        matter: { port: 5555 },
+        pool: undefined,
+        port: 5555,
+      },
+    ])('reserves $what', async ({ matter, pool, port }) => {
+      vi.mocked(mockExternalPortService.requestPort).mockResolvedValue(pool)
+
+      await buildManager(matter).initialize()
+
+      expect(mockExternalPortService.reserveMatterPort).toHaveBeenCalledExactlyOnceWith(port)
+    })
+  })
+
+  describe('initialize — a bridge server that fails to start', () => {
+    beforeEach(() => {
+      mockExternalPortService.reserveMatterPort = vi.fn()
+      vi.spyOn(MatterServer.prototype, 'start').mockRejectedValue(new Error('address already in use'))
+      vi.spyOn(MatterServer.prototype, 'stop').mockResolvedValue(undefined)
+      for (const level of ['info', 'warn', 'error', 'debug'] as const) {
+        vi.spyOn(Logger.prototype, level).mockImplementation(() => {})
+      }
+    })
+
+    it('is reported as failed, not as enabled and still starting', async () => {
+      const manager = buildManager({ port: 5555 })
+
+      await manager.initialize()
+
+      expect(manager.getMatterStatus()).toEqual({
+        enabled: false,
+        port: 5555,
+        externalsOnly: false,
+        startFailed: true,
+      })
+      expect(manager.isBridgeServerStarting()).toBe(false)
+      expect(manager.getBridgeStartFailure()).toBe('address already in use')
+      // the listeners are attached, and external accessories can still publish
+      expect(manager.hasActiveMatter()).toBe(true)
+      expect(MatterServer.prototype.stop).toHaveBeenCalledOnce()
+    })
+
+    it('explains what to do when matter.js reports that the port is taken', async () => {
+      // what matter.js 0.18 throws: no EADDRINUSE code, and its own text
+      vi.spyOn(MatterServer.prototype, 'start').mockRejectedValue(new AddressInUseError('Cannot bind UDP socket to port 5555 because port is already in use'))
+      const errorSpy = vi.spyOn(Logger.withPrefix('Matter/MainManager'), 'error').mockImplementation(() => {})
+      const manager = buildManager({ port: 5555 })
+
+      await manager.initialize()
+
+      expect(errorSpy.mock.calls.flat().join('\n')).toContain('MATTER PORT ALREADY IN USE')
     })
   })
 
@@ -259,6 +354,24 @@ describe('matterBridgeManager', () => {
       errorSpy.mockRestore()
     })
 
+    it('warns when a bridge that is running is given an update for a uuid it does not have', async () => {
+      const m = buildManager({ enabled: true })
+      ;(m as any).matterServer = {
+        getAccessoryInfo: () => undefined,
+      }
+      const logging = Logger.withPrefix('Matter/MainManager')
+      const warnSpy = vi.spyOn(logging, 'warn').mockImplementation(() => {})
+      const tracked: Promise<void>[] = []
+
+      ;(m as any)._onUpdateMatterAccessoryState('typo-uuid', 'onOff', { onOff: true }, undefined, (work: Promise<void>) => tracked.push(work))
+      // the listener hands its work back, so the plugin's await can wait for it
+      expect(tracked).toHaveLength(1)
+      await tracked[0]
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('typo-uuid'))
+      warnSpy.mockRestore()
+    })
+
     it('still logs at error for an unexpected (non-sentinel) failure', async () => {
       const m = buildManager({ enabled: false, externalsOnly: true })
       await m.initialize()
@@ -335,6 +448,120 @@ describe('matterBridgeManager', () => {
       // REGISTER appears twice — once for the normal handler, once for the drop stub.
       const registerRemovals = removed.filter((e: any) => e === InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES)
       expect(registerRemovals.length).toBe(2)
+    })
+  })
+
+  describe('collectAllAccessories — live cluster state for the UI (#4014)', () => {
+    // The UI can only toggle an accessory whose state it was sent. The state
+    // was read through server.getAccessory(), which strips the endpoint, so
+    // every main-bridge accessory reached the UI with `clusters: {}` and a
+    // click failed with "OnOff cluster not found".
+    function buildServer() {
+      const uuid = 'switch-uuid'
+      const accessories = new Map<string, any>([
+        [
+          uuid,
+          {
+            UUID: uuid,
+            displayName: 'Switch',
+            clusters: {
+              onOff: { onOff: false },
+            },
+            endpoint: {
+              state: {
+                onOff: { onOff: true, $internal: 'hidden', _private: 'hidden' },
+              },
+            },
+            _parts: [
+              {
+                id: 'outlet-1',
+                endpoint: {
+                  state: {
+                    onOff: { onOff: false },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      ])
+      const query = new AccessoryQuery(accessories, () => null)
+      return {
+        getAllCachedAccessories: () => [
+          {
+            uuid,
+            displayName: 'Switch',
+            deviceType: { name: 'OnOffLightSwitch' },
+            parts: [
+              {
+                id: 'outlet-1',
+                displayName: 'Outlet',
+                deviceType: { name: 'OnOffPlugInUnit' },
+              },
+            ],
+          },
+        ],
+        getCommissioningSnapshot: () => ({ commissioned: true, fabricCount: 0, fabrics: [] }),
+        getAccessory: (id: string) => query.getAccessory(id),
+        getLiveState: (id: string, partId?: string) => query.getLiveState(id, partId),
+      }
+    }
+
+    it('sends each accessory and part with its live state from the endpoint', () => {
+      const manager = buildManager({ enabled: true })
+      ;(manager as any).matterServer = buildServer()
+
+      const [accessory] = manager.collectAllAccessories()
+
+      expect(accessory.clusters).toEqual({
+        onOff: { onOff: true },
+      })
+      expect(accessory.parts?.[0].clusters).toEqual({
+        onOff: { onOff: false },
+      })
+    })
+
+    it('still lists the accessories when one cache entry has no device type', () => {
+      const manager = buildManager({ enabled: true })
+      const server = buildServer()
+      ;(manager as any).matterServer = {
+        ...server,
+        getAllCachedAccessories: () => [
+          // only the uuid of a cache entry is checked when the file is loaded
+          {
+            uuid: 'damaged-uuid',
+            displayName: 'Damaged',
+            parts: [
+              { id: 'part' },
+            ],
+          },
+          ...server.getAllCachedAccessories(),
+        ],
+      }
+
+      const accessories = manager.collectAllAccessories()
+
+      expect(accessories.map(accessory => [accessory.uuid, accessory.deviceType])).toEqual([
+        ['damaged-uuid', 'Device Code unknown'],
+        ['switch-uuid', 'OnOffLightSwitch'],
+      ])
+    })
+
+    it('lists the external accessories in externalsOnly mode, where there is no bridge server', () => {
+      const manager = buildManager({ enabled: false, externalsOnly: true })
+      ;(manager as any).externalMatterServers.set('switch-uuid', {
+        ...buildServer(),
+        username: 'AA:BB:CC:DD:EE:FF',
+        bridgeName: 'Matter Bridge Vacuum',
+      })
+
+      const accessories = manager.collectAllAccessories()
+
+      expect(accessories).toHaveLength(1)
+      expect(accessories[0]).toMatchObject({
+        uuid: 'switch-uuid',
+        bridge: { username: 'AA:BB:CC:DD:EE:FF', type: 'external', name: 'Matter Bridge Vacuum' },
+      })
     })
   })
 })

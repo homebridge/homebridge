@@ -41,6 +41,16 @@ export type PlatformName = string
 export type AccessoryIdentifier = string // format: "PluginIdentifier.AccessoryName"
 export type PlatformIdentifier = string // format: "PluginIdentifier.PlatformName"
 
+/**
+ * The two kinds of plugin: an accessory plugin or a platform plugin.
+ *
+ * This is a `const enum`. A plugin built with plain `tsc` gets the value written into its code at
+ * compile time. A plugin built with `isolatedModules` or `verbatimModuleSyntax` (esbuild, tsx, swc,
+ * Vite) can not use it: TypeScript reports TS2748 ("Cannot access ambient const enums"). Write the text
+ * value instead: `'accessory'` or `'platform'`.
+ * It stays a `const enum` for now: as a normal enum, every plugin built with plain `tsc` would start
+ * to import the `homebridge` package at run time.
+ */
 // eslint-disable-next-line no-restricted-syntax
 export const enum PluginType {
   ACCESSORY = 'accessory',
@@ -122,11 +132,41 @@ export interface DynamicPlatformPlugin extends PlatformPlugin {
    * It should be used to track cached accessories so the plugin can determine which accessories
    * to re-register and which to remove (if they no longer exist in the external system).
    *
-   * This is the Matter equivalent of configureAccessory for HAP accessories.
+   * This is the Matter equivalent of configureAccessory for HAP accessories, with these differences:
+   * - The object is a copy of the cached data, not the live accessory. Its `deviceType` is only
+   *   the cached name (`{ name, clusterFeatures }`), not a real device type, and its `parts` have
+   *   no handlers. Read `UUID`, `displayName`, `context` and the device information from it, and
+   *   build a new accessory to register. Do not pass this object to `registerPlatformAccessories()`.
+   *   It is fine to pass it to `updatePlatformAccessories()` and `unregisterPlatformAccessories()`.
+   * - Every accessory must be registered again at every start (see `registerPlatformAccessories()`).
+   * - External accessories are not delivered unless the platform explicitly enables
+   *   `restoreExternalMatterAccessories`. See that option for the external restore contract.
+   * - `context`: the `context` of the registered object is used. The cached context is kept
+   *   only when the registered object has none (no `context`, or an empty one). To be sure a
+   *   value is kept, copy the cached `context` into the accessory you register.
    *
    * @param {MatterAccessory} accessory - cached Matter accessory
    */
   configureMatterAccessory?: (accessory: MatterAccessory) => void
+
+  /**
+   * Opt in to restoring external Matter accessories owned by this bridge.
+   * Defaults to false so existing plugins keep their current cache behaviour.
+   *
+   * When true, `configureMatterAccessory` also receives external accessories
+   * before `didFinishLaunching`. Their device types are reconstructed, but
+   * handlers cannot be persisted: the plugin must provide its live handlers,
+   * either on the cached object or by registering a freshly built accessory.
+   * Unregister any restored external accessory the plugin no longer manages.
+   * Otherwise it stays online without live handlers, regardless of
+   * `keepOrphanedCachedAccessories`, which does not cover external accessories.
+   * Do not unregister accessories the plugin still manages as bridged leftovers:
+   * external unregistration removes the node's storage, including its pairing information.
+   *
+   * Legacy storage without bridge ownership is not restored automatically;
+   * an explicit plugin registration records its owner for the next startup.
+   */
+  restoreExternalMatterAccessories?: boolean
 }
 
 /**
@@ -155,18 +195,31 @@ export interface IndependentPlatformPlugin extends PlatformPlugin {
   // does not expose any methods
 }
 
+/**
+ * The events a plugin can listen for on the {@link API} object.
+ *
+ * This is a `const enum`. A plugin built with plain `tsc` gets the value written into its code at
+ * compile time. A plugin built with `isolatedModules` or `verbatimModuleSyntax` (esbuild, tsx, swc,
+ * Vite) can not use it: TypeScript reports TS2748 ("Cannot access ambient const enums"). Write the text
+ * value instead, which is typed the same: `api.on('didFinishLaunching', ...)`, `api.on('shutdown', ...)`.
+ * It stays a `const enum` for now: as a normal enum, every plugin built with plain `tsc` would start
+ * to import the `homebridge` package at run time.
+ */
 // eslint-disable-next-line no-restricted-syntax
 export const enum APIEvent {
   /**
    * Event is fired once homebridge has finished with booting up and initializing all components and plugins.
    * When this event is fired it is possible that the Bridge accessory isn't published yet, if homebridge still needs
-   * to wait for some {@see StaticPlatformPlugin | StaticPlatformPlugins} to finish accessory creation.
+   * to wait for some {@link StaticPlatformPlugin | StaticPlatformPlugins} to finish accessory creation.
    */
   DID_FINISH_LAUNCHING = 'didFinishLaunching',
 
   /**
    * This event is fired when homebridge gets shutdown. This could be a regular shutdown or an unexpected crash.
    * At this stage all Accessories are already unpublished and all PlatformAccessories are already saved to disk!
+   *
+   * That is true for HomeKit only. The Matter servers are stopped, and the Matter accessory cache is
+   * saved, after this event: Matter accessories are still published while the listeners run.
    */
   SHUTDOWN = 'shutdown',
 }
@@ -210,18 +263,48 @@ export type MatterWorkTracker = (work: Promise<void>) => void
  * undefined otherwise. Plugins must use optional chaining or guard
  * with `isMatterEnabled()`.
  *
+ * How this differs from the HomeKit side of the API:
+ * - **Platform plugins only.** Registering and restoring Matter accessories needs
+ *   a dynamic platform (`api.registerPlatform()`). An accessory plugin
+ *   (`api.registerAccessory()`) has no way to expose a Matter accessory, and a
+ *   `matter` block on an accessory child bridge is ignored with a warning.
+ * - **The accessory is a plain object, and Homebridge keeps its own copy.**
+ *   A `PlatformAccessory` is live: change it and HomeKit sees it. A
+ *   `MatterAccessory` is copied at registration, so changing your object
+ *   afterwards does nothing. Send state with `updateAccessoryState()`, and a new
+ *   name, device information or `context` with `updatePlatformAccessories()`.
+ * - **There is no `publishExternalAccessories()` for Matter.** Homebridge
+ *   decides from the device type: a `RoboticVacuumCleaner` is published on its
+ *   own (its own pairing code), every other type goes on the bridge. A plugin
+ *   can not choose either way.
+ * - **There is no general "a value was written" handler** like HAP's `onSet`.
+ *   See `MatterAccessory.handlers` for what reaches a plugin.
+ * - **Never depend on the `@matter/*` packages in a plugin.** Use what
+ *   `api.matter` carries (`deviceTypes`, `deviceRequirements`, `clusters`,
+ *   `status`). A second copy of matter.js in the process has its own classes,
+ *   so a status error or device type built from it is not recognised by
+ *   Homebridge's copy, and it costs about 150 MB of memory.
+ *
  * @example
  * ```typescript
- * // Defensive pattern (recommended for plugins that work with or without Matter):
- * api.matter?.registerPlatformAccessories('homebridge-example', 'Example', [{
- *   UUID: api.hap.uuid.generate('my-light'),
- *   displayName: 'Living Room Light',
- *   deviceType: api.matter!.deviceTypes.OnOffLight,
- *   manufacturer: 'Example',
- *   model: 'Example Light',
- *   serialNumber: 'EX-001',
- *   clusters: { onOff: { onOff: false } },
- * }])
+ * // Defensive pattern (recommended for plugins that work with or without Matter).
+ * // The Matter methods return promises, and a registration is rejected when it can
+ * // not be done (for example when the Matter server of the bridge did not start).
+ * // Always await them and catch the error: a rejection nobody handles ends Homebridge.
+ * try {
+ *   await api.matter?.registerPlatformAccessories('homebridge-example', 'Example', [{
+ *     UUID: api.hap.uuid.generate('my-light'),
+ *     displayName: 'Living Room Light',
+ *     deviceType: api.matter!.deviceTypes.OnOffLight,
+ *     manufacturer: 'Example',
+ *     model: 'Example Light',
+ *     serialNumber: 'EX-001',
+ *     context: {},
+ *     clusters: { onOff: { onOff: false } },
+ *   }])
+ * } catch (error) {
+ *   log.error('Could not register the Matter accessory:', error)
+ * }
  *
  * // Update state when device changes externally
  * await api.matter?.updateAccessoryState(uuid, 'onOff', { onOff: true })
@@ -248,12 +331,12 @@ export interface MatterAPI {
    *
    * @example
    * ```typescript
-   * const uuid = api.matter?.uuid.generate('my-light-unique-id')
-   * api.matter?.registerAccessory({
-   *   uuid,
+   * const UUID = api.matter?.uuid.generate('my-light-unique-id')
+   * await api.matter?.registerPlatformAccessories('homebridge-example', 'Example', [{
+   *   UUID,
    *   displayName: 'Living Room Light',
    *   // ...
-   * })
+   * }])
    * ```
    */
   readonly uuid: HAP['uuid']
@@ -261,6 +344,23 @@ export interface MatterAPI {
   /**
    * Matter device types for creating accessories.
    * Maps friendly names to Matter.js device types, including stateless controller types like `GenericSwitch`.
+   *
+   * Most names are the Matter name of the device type (`OnOffLight`,
+   * `DimmableLight`, `WindowCovering`). Some are friendlier names for a Matter
+   * type that is called something else:
+   *
+   * | Name here | Matter device type |
+   * |---|---|
+   * | `OnOffSwitch` | On/Off Light Switch |
+   * | `OnOffOutlet` | On/Off Plug-in Unit |
+   * | `DimmableOutlet` | Dimmable Plug-in Unit |
+   * | `MotionSensor` | Occupancy Sensor |
+   * | `LeakSensor` | Water Leak Detector |
+   * | `SmokeSensor` | Smoke CO Alarm |
+   * | `MediaPlayer` | Basic Video Player |
+   *
+   * The raw matter.js device types are not on `api.matter`. Compose on top of
+   * these with `.with(...)` and {@link deviceRequirements}.
    */
   readonly deviceTypes: typeof deviceTypes
 
@@ -280,12 +380,18 @@ export interface MatterAPI {
    *   api.matter.deviceRequirements.Thermostat.ThermostatServer.with('Heating', 'Cooling'),
    * )
    * ```
+   *
+   * @since 2.4.0
    */
   readonly deviceRequirements: typeof deviceRequirements
 
   /**
    * Matter clusters - Direct access to Matter.js cluster definitions
    * For advanced use cases requiring low-level cluster access
+   *
+   * This is the same object as {@link types}, under a second name. It holds
+   * the clusters that have enums or feature names a plugin needs, which is
+   * fewer than {@link clusterNames} lists.
    */
   readonly clusters: typeof clusters
 
@@ -304,6 +410,8 @@ export interface MatterAPI {
   /**
    * Matter types - Access to Matter.js cluster type definitions and enums
    * Use these for type-safe attribute values (modes, states, etc.)
+   *
+   * The same object as {@link clusters}. This is the name to prefer for enums.
    *
    * @example
    * ```typescript
@@ -340,6 +448,8 @@ export interface MatterAPI {
    *   }
    * }
    * ```
+   *
+   * @since 2.3.0
    */
   readonly status: typeof MatterStatus
 
@@ -354,8 +464,28 @@ export interface MatterAPI {
    * so a restored accessory answers every command with a failure until it is registered again.
    *
    * When an accessory is restored from the cache, its cached state is kept: the `clusters`
-   * values passed here are the starting state for a new accessory only. To set the current
-   * state of a restored accessory, call `updateAccessoryState()` once this promise resolves (#4015).
+   * values passed here are the starting state for a new accessory only. One exception: a
+   * value the plugin declares differently from the last time it registered the accessory (a
+   * new `maxLevel`, a room added to `supportedAreas`) is a new setting, and it is used. To set
+   * the current state of a restored accessory, call `updateAccessoryState()` once this promise
+   * resolves (#4015).
+   *
+   * An accessory that can not be registered is logged and skipped, and the promise still
+   * resolves (HAP throws for a bad accessory). That is so for one that fails the checks here
+   * (`UUID`, `displayName`, `deviceType`, `manufacturer`, `model` and `serialNumber` are all
+   * required, and none has a default as in HAP) and for one the bridge refuses (a UUID that is
+   * already registered, a value Matter does not allow). The other accessories of the call are
+   * registered. The promise is rejected only when nothing can be registered at all: when it is
+   * called before Homebridge has finished launching, or when the Matter server of the bridge
+   * did not start.
+   *
+   * A `RoboticVacuumCleaner` is not added to the bridge. It is published on its own, with its
+   * own pairing code in the log, because controllers want it that way. There is no method to
+   * ask for this for another device type, and none to keep a vacuum on the bridge.
+   *
+   * Use the names of a platform registered with `api.registerPlatform()`: a wrong
+   * `platformName` works for this run, and at the next start the accessory is removed as an
+   * orphan, as nothing can be found to hand it back to.
    *
    * @param pluginIdentifier - The plugin identifier (e.g., 'homebridge-example')
    * @param platformName - The platform name (e.g., 'ExamplePlatform')
@@ -364,22 +494,35 @@ export interface MatterAPI {
   registerPlatformAccessories: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[]) => Promise<void>
 
   /**
-   * Update Matter platform accessories in the cache
+   * Update the name, device information and context of Matter platform accessories
    *
-   * Use this to update cached accessory information (displayName, manufacturer, model, etc.)
-   * without unregistering and re-registering. This is useful when:
+   * Use this to update accessory information without unregistering and re-registering.
+   * This is useful when:
    * - Device name changes in the external system
    * - Firmware version gets updated
    * - Other metadata needs to be refreshed
    *
-   * Similar to api.updatePlatformAccessories() for HAP accessories.
+   * Similar to api.updatePlatformAccessories() for HAP accessories, with one difference:
+   * Homebridge holds a copy of a Matter accessory, so a change to your own object reaches
+   * Homebridge only through this call.
    *
-   * @param accessories - Array of Matter accessories to update (must include uuid)
+   * Only these fields are taken from each object: `displayName`, `manufacturer`, `model`,
+   * `serialNumber`, `firmwareRevision`, `hardwareRevision`, `softwareVersion` and `context`.
+   * A field that is `undefined` is left as it is. They are saved to the cache and sent to
+   * controllers at once (a controller may still keep the name its user gave the device).
+   * Nothing else is read, so the device type, parts, handlers and cluster state can not be
+   * changed this way: use `updateAccessoryState()` for state, and register the accessory
+   * again for a new structure.
+   *
+   * An accessory that is not registered is skipped with a warning. The promise resolves when
+   * the bridge has applied the update; a failure is logged, not thrown.
+   *
+   * @param accessories - Array of Matter accessories to update (each needs its `UUID`)
    *
    * @example
    * ```typescript
    * // Update the display name after it changed in the external system
-   * const accessory = cachedAccessories.find(a => a.uuid === uuid)
+   * const accessory = cachedAccessories.find(a => a.UUID === uuid)
    * if (accessory) {
    *   accessory.displayName = 'New Name from API'
    *   await api.matter?.updatePlatformAccessories([accessory])
@@ -390,9 +533,25 @@ export interface MatterAPI {
 
   /**
    * Unregister Matter platform accessories by UUID
+   *
+   * The accessory is taken off the bridge and out of the cache, and what the bridge stored
+   * for it is erased, its Matter identity included. An accessory that is not registered is
+   * ignored without an error.
+   *
+   * Unregister an accessory only when it is gone for good. Registering the same UUID again
+   * later makes a NEW device as far as a controller can tell: it may lose its room, name and
+   * automations there. To change an accessory that stays, use `updatePlatformAccessories()`
+   * (name and device information) or register it again WITHOUT unregistering first: Homebridge
+   * then rebuilds it and keeps its identity.
+   *
+   * This also works for an external accessory (a robot vacuum cleaner), which HAP can not
+   * unregister. Its own Matter server is stopped and **its pairing is deleted**: registering
+   * it again later starts a new device that has to be paired again. An external accessory a
+   * plugin simply stops registering keeps its pairing data on disk.
+   *
    * @param pluginIdentifier - The plugin identifier
    * @param platformName - The platform name
-   * @param accessories - Array of Matter accessories to unregister (only uuid is required)
+   * @param accessories - Array of Matter accessories to unregister (only `UUID` is required)
    */
   unregisterPlatformAccessories: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[]) => Promise<void>
 
@@ -406,7 +565,12 @@ export interface MatterAPI {
    * - Polling results
    *
    * DO NOT use inside handlers - state auto-updates after handlers complete!
-   * Similar to HAP's characteristic.updateValue()
+   * Similar to HAP's characteristic.updateValue(): the plugin's own handlers are not called for it.
+   *
+   * The promise resolves when the bridge has applied the update. A failure (an accessory
+   * that is not registered, a value Matter does not allow) is logged, not thrown. Called from
+   * inside one of the accessory's handlers anyway, it resolves at once and the update is
+   * applied after the command: matter.js can hold the cluster's state until the handler returns.
    *
    * @param uuid - The UUID of the accessory
    * @param cluster - The cluster name (use api.matter?.clusterNames for autocomplete)
@@ -497,6 +661,8 @@ export interface MatterAPI {
    * await api.matter?.switch.emit(uuid, 'press')
    * await api.matter?.switch.emit(uuid, 'release')
    * ```
+   *
+   * @since 2.0.0
    */
   readonly switch: SwitchAPI
 }
@@ -504,6 +670,13 @@ export interface MatterAPI {
 export interface API {
   /**
    * The homebridge API version as a floating point number.
+   *
+   * @deprecated This number has been `2.7` since Homebridge v1.3.0 (November 2020) and has not followed
+   * the additions to the API since then, so it can not be used to find out what the API supports.
+   * Use {@link versionGreaterOrEqual} (or {@link serverVersion}) instead. The value is kept as it is
+   * for plugins that read it.
+   * To test for one feature, pass the Homebridge version it arrived in to {@link versionGreaterOrEqual}
+   * (the Matter members carry a `@since` tag), or test for the member itself.
    */
   readonly version: number
 
@@ -531,9 +704,19 @@ export interface API {
    *
    * Safe access patterns:
    * ```typescript
-   * api.matter?.registerPlatformAccessories(...)         // defensive, no-ops when disabled
+   * await api.matter?.registerPlatformAccessories(...)   // defensive, no-ops when disabled
    * if (api.isMatterEnabled()) {
-   *   api.matter!.registerPlatformAccessories(...)       // explicit guard
+   *   await api.matter!.registerPlatformAccessories(...) // explicit guard
+   * }
+   * ```
+   *
+   * The Matter methods return promises. Await them inside a `try`/`catch`:
+   * a rejection that nobody handles ends Homebridge.
+   * ```typescript
+   * try {
+   *   await api.matter?.registerPlatformAccessories(...)
+   * } catch (error) {
+   *   log.error('Could not register the Matter accessories:', error)
    * }
    * ```
    *
@@ -566,10 +749,14 @@ export interface API {
    * ```
    *  versionGreaterOrEqual("1.2.0"); // will return true
    *  versionGreaterOrEqual("1.3.0"); // will return false (the RELEASE version 1.3.0 is bigger than the BETA version 1.3.0-beta.12)
-   *  versionGreaterOrEqual("1.3.0-beta.8); // will return true
+   *  versionGreaterOrEqual("1.3.0-beta.8"); // will return true
    * ```
    *
-   * @param version
+   * The version must be a full semver version (`"2.5.0"`, `"v2.5.0"`, `"2.5.0-beta.1"`).
+   * Anything else (`"2"`, `"2.5"`, `"abc"`, `undefined`) makes this method throw a `TypeError`.
+   *
+   * @param version - a full semver version
+   * @throws TypeError when `version` is not a full semver version
    */
   versionGreaterOrEqual: (version: string) => boolean
 
@@ -589,6 +776,7 @@ export interface API {
    * meaning as {@link isMatterEnabled}. False only when HAP is disabled outright.
    * Use {@link isHapExternalsOnly} to tell whether bridged accessories will show.
    * @returns true if HAP is in use on this bridge
+   * @since 2.5.0
    */
   isHapEnabled: () => boolean
 
@@ -596,12 +784,23 @@ export interface API {
    * Check if this bridge is in HAP externalsOnly mode: the bridge accessory, and
    * so every bridged accessory, is not published, while external accessories are.
    * @returns true if only external HAP accessories publish from this bridge
+   * @since 2.5.0
    */
   isHapExternalsOnly: () => boolean
 
   /**
-   * Check if Matter is available in this version of Homebridge
+   * Check if this version of Homebridge knows Matter at all.
+   *
+   * It only compares the version number. It does NOT mean Matter can be used
+   * here: it is also true on a bridge with Matter switched off, and when
+   * matter.js could not be loaded. To decide whether to use Matter, test
+   * `api.matter` (or {@link isMatterEnabled}): the two always agree.
+   *
+   * The method does not exist on Homebridge 1.x, so a plugin that still
+   * supports 1.x has to call it as `api.isMatterAvailable?.()`.
+   *
    * @returns true if Homebridge version is >= 2.0.0-alpha.0
+   * @since 2.0.0
    */
   isMatterAvailable: () => boolean
 
@@ -610,6 +809,7 @@ export interface API {
    * For main bridge: returns true if Matter is enabled in `bridge.matter` config
    * For child bridge: returns true if Matter is enabled in the _bridge.matter config
    * @returns true if Matter is enabled
+   * @since 2.0.0
    */
   isMatterEnabled: () => boolean
 
@@ -618,22 +818,44 @@ export interface API {
    * every bridged accessory, is not published, while external accessories are.
    * Only ever true when {@link isMatterEnabled} is.
    * @returns true if only external Matter accessories publish from this bridge
+   * @since 2.5.0
    */
   isMatterExternalsOnly: () => boolean
 
+  /**
+   * Listen for an event of Homebridge: `didFinishLaunching` or `shutdown` (see {@link APIEvent}).
+   */
   on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
+
+  /**
+   * Like {@link on}, but the listener is called at most once.
+   */
+  once: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
+
+  /**
+   * Remove a listener that was added with {@link on} or {@link once}.
+   */
+  off: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
+
+  /**
+   * The same as {@link off}.
+   */
+  removeListener: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this)
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface HomebridgeAPI {
-  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, listener: (accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM, listener: (platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, listener: (accessories: MatterAccessory[], registrationId: string) => void) => this) & ((event: InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, listener: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[], track?: MatterWorkTracker) => void) => this) & ((event: InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, listener: (accessories: MatterAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, listener: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[], track?: MatterWorkTracker) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, listener: (accessories: MatterAccessory[], track?: MatterWorkTracker) => void) => this) & ((event: InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, listener: (uuid: string, cluster: string, attributes: Record<string, any>, partId?: string) => void) => this)
+  on: ((event: 'didFinishLaunching', listener: () => void) => this) & ((event: 'shutdown', listener: () => void) => this) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, listener: (accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM, listener: (platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, listener: (accessories: PlatformAccessory[]) => void) => this) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, listener: (accessories: MatterAccessory[], registrationId: string) => void) => this) & ((event: InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, listener: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[], track?: MatterWorkTracker) => void) => this) & ((event: InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, listener: (accessories: MatterAccessory[], track?: MatterWorkTracker) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, listener: (pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[], track?: MatterWorkTracker) => void) => this) & ((event: InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, listener: (accessories: MatterAccessory[], track?: MatterWorkTracker) => void) => this) & ((event: InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, listener: (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, track?: MatterWorkTracker) => void) => this)
 
-  emit: ((event: 'didFinishLaunching') => boolean) & ((event: 'shutdown') => boolean) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM, platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, accessories: MatterAccessory[], registrationId: string) => boolean) & ((event: InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[], track?: MatterWorkTracker) => boolean) & ((event: InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, accessories: MatterAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[], track?: MatterWorkTracker) => boolean) & ((event: InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, accessories: MatterAccessory[], track?: MatterWorkTracker) => boolean) & ((event: InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, uuid: string, cluster: string, attributes: Record<string, any>, partId?: string) => boolean)
+  emit: ((event: 'didFinishLaunching') => boolean) & ((event: 'shutdown') => boolean) & ((event: InternalAPIEvent.REGISTER_ACCESSORY, accessoryName: AccessoryName, accessoryConstructor: AccessoryPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM, platformName: PlatformName, platformConstructor: PlatformPluginConstructor, pluginIdentifier?: PluginIdentifier) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES, accessories: PlatformAccessory[]) => boolean) & ((event: InternalAPIEvent.PUBLISH_EXTERNAL_MATTER_ACCESSORIES, accessories: MatterAccessory[], registrationId: string) => boolean) & ((event: InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[], track?: MatterWorkTracker) => boolean) & ((event: InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, accessories: MatterAccessory[], track?: MatterWorkTracker) => boolean) & ((event: InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: MatterAccessory[], track?: MatterWorkTracker) => boolean) & ((event: InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, accessories: MatterAccessory[], track?: MatterWorkTracker) => boolean) & ((event: InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, track?: MatterWorkTracker) => boolean)
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export class HomebridgeAPI extends EventEmitter implements API {
-  public readonly version = 2.7 // homebridge API version
+  /**
+   * @deprecated Fixed at `2.7` since Homebridge v1.3.0: it tells a plugin nothing. See {@link API.version}.
+   */
+  public readonly version = 2.7 // homebridge API version (kept at this value on purpose)
   public readonly serverVersion = getVersion() // homebridge node module version
 
   // ------------------ LEGACY EXPORTS FOR PRE TYPESCRIPT  ------------------
@@ -714,6 +936,9 @@ export class HomebridgeAPI extends EventEmitter implements API {
     }
     if (!this._matterAPILoadPromise) {
       this._matterAPILoadPromise = (async () => {
+        // Before matter.js itself is loaded: it reads these switches once, then
+        const { configureMatterJsProcess } = await import('./matter/processConfig.js')
+        await configureMatterJsProcess()
         const { MatterAPIImpl } = await import('./matter/MatterAPIImpl.js')
         this._matterAPI = new MatterAPIImpl(this)
         // Mark Matter as enabled here, before plugins initialise. The later
@@ -729,8 +954,34 @@ export class HomebridgeAPI extends EventEmitter implements API {
     return this._matterAPILoadPromise
   }
 
+  /**
+   * Load the Matter API, and say whether Matter can be used in this run.
+   *
+   * matter.js may fail to load at all (a package the installer left out, a
+   * Node.js version one of its packages does not accept). That must not stop
+   * a bridge that also serves HomeKit: the failure is logged once, Matter
+   * stays off (`api.matter` is undefined, `isMatterEnabled()` is false) and
+   * the caller carries on without it.
+   *
+   * @internal
+   */
+  async tryLoadMatterAPI(): Promise<boolean> {
+    try {
+      await this.loadMatterAPI()
+      return true
+    } catch (error: unknown) {
+      log.error('Matter could not be loaded, so Matter is switched off for this run. HomeKit is not affected.', error)
+      return false
+    }
+  }
+
   constructor() {
     super()
+    // Every platform adds its own `didFinishLaunching` (and often `shutdown`) listener, so a bridge
+    // with 11 or more platforms went past Node's default of 10 listeners per event and Node printed a
+    // "possible EventEmitter memory leak" warning for something that is not a leak.
+    // `Infinity` (not `0`) so the `+ 1` / `- 1` a child bridge does on this limit keeps it unlimited.
+    this.setMaxListeners(Number.POSITIVE_INFINITY)
   }
 
   /**
@@ -779,6 +1030,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   /**
+   * Internal method to remember the promise of an external accessory registration
+   * Called by MatterAPIImpl before it asks the manager to publish the accessories
+   * @internal
+   */
+  _addPendingExternalRegistration(registrationId: string, resolve: () => void): void {
+    this._pendingExternalRegistrations.set(registrationId, resolve)
+  }
+
+  /**
    * Internal method to resolve pending external accessory registrations
    * Called by MatterBridgeManager when external accessories finish publishing
    * @internal
@@ -796,7 +1056,12 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   public static isDynamicPlatformPlugin(platformPlugin: PlatformPlugin): platformPlugin is DynamicPlatformPlugin {
+    // A platform that only does Matter has configureMatterAccessory and no
+    // configureAccessory. It is a dynamic platform too: without this its
+    // cached Matter accessories had no platform to go back to, and were
+    // removed as orphans at every start. A static platform stays static.
     return 'configureAccessory' in platformPlugin
+      || ('configureMatterAccessory' in platformPlugin && !HomebridgeAPI.isStaticPlatformPlugin(platformPlugin))
   }
 
   public static isStaticPlatformPlugin(platformPlugin: PlatformPlugin): platformPlugin is StaticPlatformPlugin {
@@ -808,7 +1073,19 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   signalShutdown(): void {
-    this.emit(APIEvent.SHUTDOWN)
+    // Each listener is called on its own. With a plain emit, the first plugin
+    // whose shutdown listener throws stopped every later listener (the other
+    // plugins, and Homebridge's own) and the rest of the teardown with it.
+    for (const listener of this.rawListeners(APIEvent.SHUTDOWN)) {
+      try {
+        const result: unknown = listener.call(this)
+        if (result instanceof Promise) {
+          result.catch((error: unknown) => log.error('A shutdown listener failed:', error))
+        }
+      } catch (error: unknown) {
+        log.error('A shutdown listener failed:', error)
+      }
+    }
   }
 
   registerAccessory(accessoryName: AccessoryName, constructor: AccessoryPluginConstructor): void
@@ -840,12 +1117,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
       log.info(`One of your plugins incorrectly registered an external accessory using the platform name (${pluginIdentifier}) and not the plugin identifier. Please report this to the developer!`)
     }
 
+    // check all of them before changing any: a bad one must not leave the others half registered
     accessories.forEach((accessory) => {
       // noinspection SuspiciousTypeOfGuard
       if (!(accessory instanceof PlatformAccessory)) {
         throw new TypeError(`${pluginIdentifier} attempt to register an accessory that isn't PlatformAccessory!`)
       }
+    })
 
+    accessories.forEach((accessory) => {
       accessory._associatedPlugin = pluginIdentifier
     })
 
@@ -853,12 +1133,15 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   registerPlatformAccessories(pluginIdentifier: PluginIdentifier, platformName: PlatformName, accessories: PlatformAccessory[]): void {
+    // check all of them before changing any: a bad one must not leave the others half registered
     accessories.forEach((accessory) => {
       // noinspection SuspiciousTypeOfGuard
       if (!(accessory instanceof PlatformAccessory)) {
         throw new TypeError(`${pluginIdentifier} - ${platformName} attempt to register an accessory that isn't PlatformAccessory!`)
       }
+    })
 
+    accessories.forEach((accessory) => {
       accessory._associatedPlugin = pluginIdentifier
       accessory._associatedPlatform = platformName
     })
@@ -896,7 +1179,8 @@ export class HomebridgeAPI extends EventEmitter implements API {
   }
 
   /**
-   * Check if Matter is available in this version of Homebridge
+   * Check if Matter is available in this version of Homebridge (always true on v2)
+   * @see API.isMatterAvailable
    * @returns true if Homebridge version satisfies >= 2.0.0-alpha.0
    */
   isMatterAvailable(): boolean {

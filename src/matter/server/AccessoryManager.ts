@@ -6,14 +6,14 @@
  * and restoring cached state.
  */
 
-import type { EndpointType, ServerNode } from '@matter/main'
-import type { Behavior } from '@matter/node'
+import type { Behavior, EndpointType, ServerNode } from '@matter/main'
 
 import type { MatterAccessoryCache } from '../accessoryCache.js'
 import type { BehaviorRegistry, RegistryManager } from '../behaviors/index.js'
 import type { MatterEvent } from '../ipc-types.js'
 import type { MatterServerConfig } from '../sharedTypes.js'
 import type {
+  DeclaredClusterState,
   InternalMatterAccessory,
   InternalMatterAccessoryPart,
   MatterAccessory,
@@ -22,17 +22,22 @@ import type {
 } from '../types.js'
 
 import { EventEmitter } from 'node:events'
-import process from 'node:process'
+import { isDeepStrictEqual } from 'node:util'
 
 import { Endpoint } from '@matter/main'
-import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
-import { PowerSourceServer } from '@matter/node/behaviors'
+import { BasicInformationServer, BridgedDeviceBasicInformationServer, DescriptorServer, FixedLabelServer, PowerSourceServer } from '@matter/main/behaviors'
 
 import { IpcOutgoingEvent } from '../../ipcService.js'
 import { Logger } from '../../logger.js'
-import { setRegistryManager } from '../behaviors/EndpointContext.js'
+import { sendToParent } from '../../util/ipc.js'
+import { setDeclaredClusters, setRegistryManager } from '../behaviors/EndpointContext.js'
 import { HomebridgeRvcCleanModeServer, HomebridgeServiceAreaServer } from '../behaviors/index.js'
+import { isSupportedMode } from '../behaviors/modeRepair.js'
+import { notePluginUpdate } from '../behaviors/pluginUpdates.js'
+import { lockStateForWrite } from '../behaviors/stateLock.js'
 import { declaredClusterFeatures } from '../clusterFeatures.js'
+import { truncateUtf8 } from '../configValidator.js'
+import { deviceErrorFrom } from '../MatterError.js'
 import {
   applyDeviceEnergyManagementFeatures,
   applyElectricalMeasurementClusters,
@@ -40,11 +45,11 @@ import {
   applyEnergyEvseFeatures,
   applyFanAutoFeature,
   applyLevelControlLightingFloor,
+  applyOptionalMeasurementClusters,
   applyRoomAirConditionerAutoMode,
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
   applyWindowCoveringFeatures,
-  CLUSTER_IDS,
   detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
   detectSmokeCoAlarmFeatures,
@@ -52,10 +57,9 @@ import {
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
-  extractColorControlFeatures,
   extractDeclaredFeatures,
-  extractLevelControlFeatures,
-  extractThermostatFeatures,
+  isWindowCoveringComposed,
+  markWindowCoveringComposed,
   validateAccessoryRequiredFields,
 } from '../serverHelpers.js'
 import {
@@ -66,24 +70,12 @@ import {
 import { stripVendorFromLabel } from '../utils.js'
 import { CORE_CLUSTER_BEHAVIOR_MAP } from './BehaviorMap.js'
 
-// The parts-list update and ConfigurationVersion bump run inside matter.js
-// transactions that acquire their resource lock synchronously. A controller
-// re-establishing its subscription (matter.js-internal "offline" transactions)
-// can briefly hold that lock, making the synchronous acquisition throw. Those
-// transactions release almost immediately, so retry with a short yield rather
-// than dropping the structure-change notification (#3970).
-const PARTS_LIST_NOTIFY_ATTEMPTS = 5
-const PARTS_LIST_NOTIFY_RETRY_DELAY_MS = 50
-
 type BehaviorType = Behavior.Type
 
 interface DetectedClusterFeatures {
   windowCoveringFeatures: string[]
   serviceAreaFeatures: string[] | null
   colorControlFeatures: string[] | null
-  thermostatFeatures: string[] | null
-  closureControlFeatures: string[] | null
-  mediaPlaybackFeatures: string[] | null
   /**
    * LevelControl features to apply via `.with(...)`. `null` means the accessory
    * has no `levelControl` handler and we should leave the base class alone.
@@ -120,6 +112,15 @@ const TAGGED_POWER_SOURCE_DEVICE_TYPES = new Set<number>([
 ].filter((code): code is NonNullable<typeof code> => code !== undefined))
 
 /**
+ * A closure must carry exactly one descriptor tag from the Closure namespace,
+ * saying what kind of closure it is. Without one matter.js refuses the
+ * endpoint. A plugin that gives none gets the garage door tag.
+ */
+const CLOSURE_DEVICE_TYPE = devices.ClosureDevice?.deviceType
+const CLOSURE_TAG_NAMESPACE = 0x44
+const CLOSURE_TAG_GARAGE_DOOR = 0x5
+
+/**
  * Clusters whose Homebridge behavior is declared with every optional feature
  * (so the feature-gated commands exist to override), and so must always be
  * narrowed to the features the device type chose.
@@ -141,12 +142,7 @@ const FEATURE_RICH_BEHAVIOR_CLUSTERS = new Set([
  * which the Homebridge behavior overrides, so they still reach the plugin.
  */
 const FEATURE_AWARE_CLUSTERS = new Set([
-  'closureControl',
   'colorControl',
-  'levelControl',
-  'mediaPlayback',
-  'serviceArea',
-  'thermostat',
   'windowCovering',
 ])
 
@@ -171,6 +167,77 @@ interface BuiltAccessoryPart {
   hasElectrical: boolean
 }
 
+/**
+ * The attribute names a cluster on an endpoint knows: every attribute in the
+ * cluster's Matter definition (whatever its feature), plus the extra state
+ * matter.js keeps for the cluster. Undefined when the endpoint does not have
+ * the cluster, or when it is not a Matter cluster (nothing to compare with).
+ */
+function knownAttributeNames(endpoint: Endpoint | undefined, clusterName: string): Set<string> | undefined {
+  try {
+    const type = endpoint?.behaviors.supported[clusterName] as (Behavior.Type & {
+      schema?: { attributes?: Iterable<{ propertyName: string }> }
+    }) | undefined
+    const attributes = type?.schema?.attributes
+    if (!type || !attributes) {
+      return undefined
+    }
+    const names = new Set<string>(Object.keys(new type.State()))
+    for (const attribute of attributes) {
+      names.add(attribute.propertyName)
+    }
+    return names
+  } catch {
+    // never let a check that only warns stop a registration
+    return undefined
+  }
+}
+
+/**
+ * Whether the endpoint is known not to have the cluster. False when that can
+ * not be told (no endpoint yet, or one that does not list its behaviors).
+ */
+function lacksCluster(endpoint: Endpoint | undefined, clusterName: string): boolean {
+  try {
+    const supported = endpoint?.behaviors.supported
+    return !!supported && !(clusterName in supported)
+  } catch {
+    // never let a check that only warns stop a registration
+    return false
+  }
+}
+
+/**
+ * A copy of the cluster state a plugin declares for an accessory and its parts.
+ */
+function declaredStateOf(accessory: MatterAccessory): DeclaredClusterState | undefined {
+  try {
+    const parts = Object.fromEntries((accessory.parts ?? []).map(part => [
+      part.id,
+      structuredClone(part.clusters),
+    ]))
+    return {
+      clusters: structuredClone(accessory.clusters),
+      ...(Object.keys(parts).length > 0 && { parts }),
+    }
+  } catch {
+    // a value that can not be copied: there is nothing to compare with next time
+    return undefined
+  }
+}
+
+/**
+ * The context an accessory keeps when its plugin registers it again: the
+ * plugin's, as on a registration that attaches to the restored accessory.
+ * The known one only when the plugin passes none.
+ */
+function contextToKeep(pluginContext: MatterAccessory['context'], knownContext: MatterAccessory['context']): MatterAccessory['context'] {
+  const pluginGaveNone = pluginContext === undefined || (typeof pluginContext === 'object' && pluginContext !== null && Object.keys(pluginContext).length === 0)
+  return pluginGaveNone && knownContext
+    ? knownContext
+    : pluginContext
+}
+
 export class AccessoryManager {
   /**
    * Register a single Matter accessory
@@ -190,6 +257,12 @@ export class AccessoryManager {
     }
 
     validateAccessoryRequiredFields(accessory)
+
+    // What the plugin declares now, before any known value is put over it. A
+    // restore from the cache brings the plugin's last declaration with it.
+    const declared = (accessory as InternalMatterAccessory)._restoredFromCache
+      ? (accessory as InternalMatterAccessory)._declared
+      : declaredStateOf(accessory)
 
     let preservedUniqueId: string | undefined
 
@@ -211,14 +284,6 @@ export class AccessoryManager {
             }))
             .filter(({ enabledFeatures }) => enabledFeatures.length > 0),
         )
-        const partShape = (list?: { id: string, features?: MatterAccessory['features'] }[]) => JSON.stringify(
-          (list ?? [])
-            .map(part => ({
-              id: part.id,
-              features: featureShape(part.features),
-            }))
-            .sort((left, right) => left.id.localeCompare(right.id)),
-        )
         // ⚠️ The name is not enough. The cache stores a device type as
         // {name, code}, so a restore rebuilds the BASE type - anything the
         // plugin composed itself (via api.matter.deviceRequirements) is gone,
@@ -233,13 +298,49 @@ export class AccessoryManager {
         const clusterFeatureShape = (deviceType: unknown) => JSON.stringify(
           Object.entries(declaredClusterFeatures(deviceType) ?? {}).sort(([left], [right]) => left.localeCompare(right)),
         )
+        // Every cluster the plugin has handlers for must have had a handler
+        // set on the restored accessory too (a real one or the restore's empty
+        // stub), because the Homebridge behavior that calls the handlers is
+        // only put on the endpoint for those clusters. A cache written before
+        // the handler names were saved does not know a cluster with handlers
+        // and no state: without this check its handlers were attached to an
+        // endpoint that never calls them.
+        const handlersCovered = (restored?: Record<string, unknown>, wanted?: Record<string, unknown>) =>
+          Object.keys(wanted ?? {}).every(clusterName => restored?.[clusterName] !== undefined)
+        const restoredParts = existing._parts ?? existing.parts ?? []
+        const partHandlersCovered = (accessory.parts ?? []).every(part =>
+          handlersCovered(restoredParts.find(restoredPart => restoredPart.id === part.id)?.handlers, part.handlers))
+        const partShape = (list?: MatterAccessory['parts']) => JSON.stringify(
+          (list ?? [])
+            .map(part => ({
+              id: part.id,
+              type: (part.deviceType as { name?: string })?.name,
+              behaviors: behaviorKeys(part.deviceType),
+              clusterFeatures: clusterFeatureShape(part.deviceType),
+              features: featureShape(part.features),
+            }))
+            .sort((left, right) => left.id.localeCompare(right.id)),
+        )
         const sameShape = (existing.deviceType as { name?: string })?.name === (accessory.deviceType as { name?: string })?.name
+          && handlersCovered(existing.handlers, accessory.handlers)
+          && partHandlersCovered
           && partShape(existing._parts ?? existing.parts) === partShape(accessory.parts)
           && featureShape(existing.features) === featureShape(accessory.features)
           && behaviorKeys(existing.deviceType) === behaviorKeys(accessory.deviceType)
           && clusterFeatureShape(existing.deviceType) === clusterFeatureShape(accessory.deviceType)
         if (sameShape) {
-          log.info(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
+          log.debug(`Attached plugin registration to restored accessory ${accessory.displayName} (${accessory.UUID})`)
+          // The endpoint keeps the state it was restored with. Keep the record
+          // (what the UI lists and the cache saves) the same: the plugin's
+          // registration declares its start-up defaults, and taking those
+          // would save "off" for a lamp that is on.
+          const changed = this.keepKnownState(accessory.clusters, existing.clusters, existing._declared?.clusters)
+          await this.applyNewSettings(existing.endpoint, accessory.displayName, changed)
+          for (const part of accessory.parts ?? []) {
+            const partChanged = this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters, existing._declared?.parts?.[part.id])
+            await this.applyNewSettings(existing._parts?.find(restoredPart => restoredPart.id === part.id)?.endpoint, `${accessory.displayName} (part ${part.id})`, partChanged)
+          }
+          await this.updateBridgedInformation(existing.endpoint, accessory, deps.config)
           deps.accessories.set(accessory.UUID, {
             ...existing,
             ...accessory,
@@ -247,14 +348,23 @@ export class AccessoryManager {
             _parts: existing._parts,
             registered: true,
             _restoredFromCache: false,
+            _declared: declared,
           })
+          this.warnForUnknownAttributes(accessory, existing.endpoint, existing._parts)
+          // Remove old static handlers as well as live sources, including parts
+          // whose replacement deliberately no longer supplies any handlers.
+          deps.behaviorRegistry.removeEndpoint(accessory.UUID)
           this.registerAccessoryHandlers(accessory, deps)
           for (const part of accessory.parts ?? []) {
+            const partEndpointId = `${accessory.UUID}-part-${part.id}`
+            deps.behaviorRegistry.registerPartEndpoint(partEndpointId, accessory.UUID, part.id)
+            if ((accessory as InternalMatterAccessory)._restoredFromCache) {
+              deps.behaviorRegistry.registerHandlerSource(partEndpointId,
+                () => accessory.parts?.find(candidate => candidate.id === part.id)?.handlers)
+            }
             if (!part.handlers) {
               continue
             }
-            const partEndpointId = `${accessory.UUID}-part-${part.id}`
-            deps.behaviorRegistry.registerPartEndpoint(partEndpointId, accessory.UUID, part.id)
             for (const [clusterName, handlers] of Object.entries(part.handlers)) {
               for (const [commandName, handler] of Object.entries(handlers)) {
                 deps.behaviorRegistry.registerHandler(partEndpointId, clusterName, commandName, handler)
@@ -271,7 +381,16 @@ export class AccessoryManager {
         // controller may treat it as a new device (#4018).
         preservedUniqueId = this.readUniqueId(existing.endpoint)
         log.info(`Restored accessory ${accessory.displayName} changed structure - re-registering`)
-        await this.unregisterAccessory(accessory.UUID, deps)
+        // Unregistering drops the cached entry. Hold on to it until the new
+        // registration has worked, and carry the state and the plugin's
+        // context it restored over to the new accessory.
+        deps.accessoryCache?.retain(accessory.UUID)
+        await this.unregisterAccessory(accessory.UUID, deps, { keepStorage: true })
+        this.keepKnownState(accessory.clusters, existing.clusters, existing._declared?.clusters)
+        for (const part of accessory.parts ?? []) {
+          this.keepKnownState(part.clusters, restoredParts.find(restoredPart => restoredPart.id === part.id)?.clusters, existing._declared?.parts?.[part.id])
+        }
+        accessory.context = contextToKeep(accessory.context, existing.context)
       } else {
         throw new MatterDeviceError(
           `Matter accessory with UUID "${accessory.UUID}" is already registered.\n`
@@ -283,6 +402,7 @@ export class AccessoryManager {
     }
 
     this.restoreCachedState(accessory, deps.accessoryCache)
+    ;(accessory as InternalMatterAccessory)._declared = declared
 
     if (deps.accessories.size >= 1000) {
       throw new MatterDeviceError(
@@ -308,6 +428,19 @@ export class AccessoryManager {
       }
 
       const endpointOptions = this.createEndpointOptions(accessory, deps.config, preservedUniqueId)
+
+      if (CLOSURE_DEVICE_TYPE !== undefined && Number(deviceType.deviceType) === CLOSURE_DEVICE_TYPE) {
+        const tagList: { namespaceId?: number }[] = endpointOptions.descriptor?.tagList ?? []
+        if (!tagList.some(tag => tag.namespaceId === CLOSURE_TAG_NAMESPACE)) {
+          endpointOptions.descriptor = {
+            ...endpointOptions.descriptor,
+            tagList: [
+              ...tagList,
+              { mfgCode: null, namespaceId: CLOSURE_TAG_NAMESPACE, tag: CLOSURE_TAG_GARAGE_DOOR },
+            ],
+          }
+        }
+      }
 
       // Composed parents carry a FixedLabel marking the composition, matching
       // known-good bridges - Apple's controller needs it to bind child endpoints
@@ -351,7 +484,7 @@ export class AccessoryManager {
                 mfgCode: null,
                 namespaceId: 7,
                 tag: 0,
-                label: (endpointOptions.powerSource?.description ?? accessory.clusters?.powerSource?.description ?? 'Power').slice(0, 64),
+                label: truncateUtf8(endpointOptions.powerSource?.description ?? accessory.clusters?.powerSource?.description ?? 'Power', 64),
               },
             ],
           }
@@ -373,6 +506,7 @@ export class AccessoryManager {
       })
 
       setRegistryManager(endpoint, deps.registryManager)
+      setDeclaredClusters(endpoint, accessory.clusters)
 
       if (deps.config.debugModeEnabled) {
         log.debug(`Created endpoint for ${accessory.displayName} with initial cluster states`)
@@ -409,33 +543,120 @@ export class AccessoryManager {
 
       this.registerAccessoryHandlers(accessory, deps)
       const internalParts = await this.finishAccessoryParts(accessory, builtParts, deps)
+      // A restore registers what the cache holds, not what a plugin wrote now
+      if (!(accessory as InternalMatterAccessory)._restoredFromCache) {
+        this.warnForUnknownAttributes(accessory, endpoint, internalParts)
+      }
 
       await this.finalizeAccessoryRegistration(accessory, endpoint, internalParts, deps)
+      deps.accessoryCache?.release(accessory.UUID)
     } catch (error) {
       log.error(`Failed to register Matter accessory ${accessory.displayName}:`, error)
-      throw new MatterDeviceError(`Failed to register accessory: ${error}`)
+      this.forgetFailedRegistration(accessory.UUID, deps)
+      throw deviceErrorFrom('Failed to register accessory', error)
     }
   }
 
   /**
-   * Unregister a Matter accessory
+   * Warn for each attribute a plugin declared that its cluster does not have,
+   * and for each cluster the endpoint does not have at all. matter.js leaves
+   * such a name out without a word when the endpoint is built, and the
+   * plugin's state then seems to be lost. A typo is the usual cause. The
+   * registration still goes ahead.
+   *
+   * Only a name that is not in the cluster at all is reported. An attribute
+   * that belongs to a feature the endpoint does not have is a real attribute,
+   * and matter.js reports that case itself.
    */
-  async unregisterAccessory(uuid: string, deps: AccessoryManagerDeps): Promise<void> {
+  private warnForUnknownAttributes(
+    accessory: MatterAccessory,
+    endpoint: Endpoint | undefined,
+    parts: InternalMatterAccessoryPart[] | undefined,
+  ): void {
+    const check = (label: string, clusters: Record<string, unknown> | undefined, target: Endpoint | undefined) => {
+      for (const [clusterName, declared] of Object.entries(clusters ?? {})) {
+        if (!declared || typeof declared !== 'object') {
+          continue
+        }
+        // A cluster the endpoint does not have: its device type does not carry
+        // it. matter.js drops the whole block without a word, and every later
+        // update for it fails with "Behavior ... is not present".
+        if (lacksCluster(target, clusterName)) {
+          log.warn(`Matter accessory "${label}": the device type has no ${clusterName} cluster, so its state was left out. `
+            + 'Use a device type that carries this cluster.')
+          continue
+        }
+        const known = knownAttributeNames(target, clusterName)
+        if (!known) {
+          continue
+        }
+        const unknown = Object.keys(declared).filter(name => !known.has(name))
+        if (unknown.length > 0) {
+          log.warn(`Matter accessory "${label}": the ${clusterName} cluster has no attribute named ${unknown.map(name => `"${name}"`).join(', ')}. `
+            + 'It was left out. Please check the spelling.')
+        }
+      }
+    }
+
+    check(accessory.displayName, accessory.clusters, endpoint)
+    for (const part of accessory.parts ?? []) {
+      const partEndpoint = parts?.find(internal => internal.id === part.id)?.endpoint
+      check(`${accessory.displayName}" part "${part.displayName || part.id}`, part.clusters, partEndpoint)
+    }
+  }
+
+  /**
+   * Drop what a registration put in the handler registries before it failed.
+   * They are filled while the endpoint is being built, so a failure left the
+   * plugin's handlers (and the part mappings) behind for good: nothing else
+   * removes them for an accessory that never made it into the list.
+   */
+  private forgetFailedRegistration(uuid: string, deps: AccessoryManagerDeps): void {
+    if (deps.accessories.has(uuid)) {
+      return
+    }
+    for (const endpointId of deps.behaviorRegistry.removeEndpoint(uuid)) {
+      deps.registryManager.unregisterEndpoint(endpointId)
+    }
+  }
+
+  /**
+   * Unregister a Matter accessory.
+   *
+   * By default what matter.js stored for the accessory's endpoint (its
+   * uniqueId, its endpoint number, any stored attribute) is erased too: the
+   * accessory is gone for good, and the files otherwise stayed in the node's
+   * storage for ever, to come back to life if the UUID was used again. Only
+   * the accessory's own data goes; the bridge's pairings are not touched.
+   *
+   * `keepStorage` is for an accessory that is taken off the bridge only to be
+   * registered again with a new structure: there the stored uniqueId and
+   * endpoint number are wanted, so a controller sees the same device.
+   */
+  async unregisterAccessory(uuid: string, deps: AccessoryManagerDeps, options: { keepStorage?: boolean } = {}): Promise<void> {
     const accessory = deps.accessories.get(uuid)
     if (!accessory) {
       log.debug(`Accessory ${uuid} not found or not registered`)
 
-      if (deps.accessoryCache && deps.accessoryCache.getCached(uuid)) {
-        log.debug(`Removing ${uuid} from cache`)
-        deps.accessoryCache.removeCached(uuid)
-        deps.accessoryCache.requestSave(deps.accessories)
+      if (deps.accessoryCache) {
+        // An entry held for an accessory that could not be restored goes too
+        const wasHeld = deps.accessoryCache.release(uuid)
+        if (wasHeld || deps.accessoryCache.getCached(uuid)) {
+          log.debug(`Removing ${uuid} from cache`)
+          deps.accessoryCache.removeCached(uuid)
+          deps.accessoryCache.requestSave(deps.accessories)
+        }
       }
       return
     }
 
     try {
-      if (accessory.endpoint && deps.getAggregator()) {
-        await accessory.endpoint.close()
+      if (accessory.endpoint && (deps.getAggregator() || deps.config.externalAccessory)) {
+        if (options.keepStorage) {
+          await accessory.endpoint.close()
+        } else {
+          await this.deleteEndpoint(accessory.endpoint, accessory.displayName)
+        }
         log.debug(`Removed endpoint for ${accessory.displayName}`)
       }
 
@@ -459,55 +680,155 @@ export class AccessoryManager {
         deps.accessoryCache.requestSave(deps.accessories)
       }
 
-      if (deps.getMonitoringEnabled() && process.send) {
+      if (deps.getMonitoringEnabled()) {
         const event: MatterEvent = {
           type: 'accessoryRemoved',
           data: { uuid },
         }
-        process.send({
+        sendToParent({
           id: IpcOutgoingEvent.MATTER_EVENT,
           data: event,
         })
       }
     } catch (error) {
       log.error(`Failed to unregister Matter accessory ${uuid}:`, error)
-      throw new MatterDeviceError(`Failed to unregister accessory: ${error}`)
+      throw deviceErrorFrom('Failed to unregister accessory', error)
     }
   }
 
   /**
-   * Restore cached state for an accessory
+   * Take an endpoint off the bridge and erase what matter.js stored for it.
+   * An endpoint that can not be erased (one that never finished being built,
+   * say) is closed as before: it must still come off the bridge.
    */
+  private async deleteEndpoint(endpoint: Endpoint, displayName: string): Promise<void> {
+    try {
+      await endpoint.delete()
+    } catch (error) {
+      log.debug(`Could not erase the stored Matter data of ${displayName}; closing its endpoint instead:`, error)
+      await endpoint.close()
+    }
+  }
+
+  /**
+   * Put the values already known for an accessory over the ones its plugin
+   * declares, for the clusters and attributes the plugin still declares. A
+   * plugin declares its start-up defaults at every start ("off" for a lamp
+   * that is on), so the known value is the true one.
+   *
+   * Not when the plugin now declares an attribute differently from the last
+   * time (`lastDeclared`): that is a new setting (a new `maxLevel`, a room
+   * added to `supportedAreas`), and the plugin's value is kept. Before, the
+   * known value won for good. With no last declaration (a cache written by an
+   * older version), the known value wins, as it did.
+   *
+   * @returns the attributes where the plugin's new value was kept, by cluster
+   */
+  private keepKnownState(
+    declared: MatterAccessory['clusters'],
+    known: MatterAccessory['clusters'],
+    lastDeclared?: MatterAccessory['clusters'],
+  ): Record<string, Record<string, unknown>> {
+    const changed: Record<string, Record<string, unknown>> = {}
+    if (!declared || !known) {
+      return changed
+    }
+    for (const [clusterName, declaredAttributes] of Object.entries(declared)) {
+      const knownAttributes = known[clusterName] as Record<string, unknown> | undefined
+      if (!knownAttributes || !declaredAttributes) {
+        continue
+      }
+      const lastAttributes = lastDeclared?.[clusterName] as Record<string, unknown> | undefined
+      const declaredMode = (declaredAttributes as Record<string, unknown>).currentMode
+      for (const [attributeName, value] of Object.entries(declaredAttributes)) {
+        if (!(attributeName in knownAttributes)) {
+          continue
+        }
+        const isNewSetting = lastDeclared !== undefined
+          && !isDeepStrictEqual(lastAttributes?.[attributeName], value)
+          && !isDeepStrictEqual(knownAttributes[attributeName], value)
+        if (isNewSetting) {
+          (changed[clusterName] ??= {})[attributeName] = value
+        } else {
+          (declaredAttributes as Record<string, unknown>)[attributeName] = knownAttributes[attributeName]
+        }
+      }
+      // A known current mode is only kept while the list of modes still has it. After a plugin
+      // update with fewer modes it may not, and matter.js then refuses the whole accessory (#4057)
+      const modes = declaredAttributes as { supportedModes?: unknown, currentMode?: unknown }
+      if (Array.isArray(modes.supportedModes) && declaredMode !== undefined && !isSupportedMode(modes.supportedModes, modes.currentMode)) {
+        modes.currentMode = declaredMode
+        if (!isDeepStrictEqual(knownAttributes.currentMode, declaredMode)) {
+          (changed[clusterName] ??= {}).currentMode = declaredMode
+        }
+      }
+    }
+    return changed
+  }
+
+  /**
+   * Put the new settings a plugin declares (see keepKnownState) on an
+   * endpoint that was built from the cache. A value matter.js refuses is
+   * logged; the endpoint keeps the one it has.
+   */
+  private async applyNewSettings(endpoint: Endpoint | undefined, label: string, changed: Record<string, Record<string, unknown>>): Promise<void> {
+    if (!endpoint) {
+      return
+    }
+    for (const [clusterName, attributes] of Object.entries(changed)) {
+      try {
+        const current = (endpoint.state as Record<string, Record<string, unknown> | undefined>)[clusterName]
+        // the plugin's own value: no change handler of the plugin is called for it
+        notePluginUpdate(endpoint, clusterName, attributes, current)
+        await endpoint.set({ [clusterName]: attributes })
+        log.debug(`Took the new ${clusterName} settings ${label} declares:`, attributes)
+      } catch (error) {
+        log.warn(`Matter accessory "${label}": could not take the new ${clusterName} settings it declares (${Object.keys(attributes).join(', ')}):`, error)
+      }
+    }
+  }
+
+  /**
+   * Bring the name, maker, model, serial number and firmware version on a
+   * bridged endpoint in line with what its plugin now registers. A restored
+   * endpoint is built from the cache, so without this a renamed accessory or
+   * a new firmware version only showed after one more restart.
+   */
+  async updateBridgedInformation(endpoint: Endpoint | undefined, accessory: MatterAccessory, config: MatterServerConfig): Promise<void> {
+    if (!endpoint || config.externalAccessory) {
+      return
+    }
+    const current = (endpoint.state as Record<string, Record<string, unknown> | undefined> | undefined)?.bridgedDeviceBasicInformation
+    if (!current) {
+      return
+    }
+    const wanted: Record<string, unknown> = this.createEndpointOptions(accessory, config).bridgedDeviceBasicInformation ?? {}
+    const changed = Object.fromEntries(
+      Object.entries(wanted).filter(([name, value]) => name !== 'reachable' && value !== undefined && value !== current[name]),
+    )
+    if (Object.keys(changed).length === 0) {
+      return
+    }
+    try {
+      await endpoint.setStateOf('bridgedDeviceBasicInformation', changed)
+      log.debug(`Updated the bridged device information of ${accessory.displayName}:`, changed)
+    } catch (error) {
+      log.warn(`Could not update the bridged device information of ${accessory.displayName}:`, error)
+    }
+  }
+
   private restoreCachedState(accessory: MatterAccessory, accessoryCache: MatterAccessoryCache | null): void {
     if (accessoryCache && accessoryCache.hasCached(accessory.UUID)) {
       const cached = accessoryCache.getCached(accessory.UUID)
       if (cached?.clusters && accessory.clusters) {
-        for (const [clusterName, cachedAttrs] of Object.entries(cached.clusters)) {
-          if (!accessory.clusters[clusterName]) {
-            // Skip clusters that the accessory no longer declares
-            continue
-          }
-
-          // Only restore attributes that the accessory's current definition includes
-          const currentAttrs = accessory.clusters[clusterName] as Record<string, unknown>
-          const filteredCached: Record<string, unknown> = {}
-          for (const key of Object.keys(cachedAttrs as Record<string, unknown>)) {
-            if (key in currentAttrs) {
-              filteredCached[key] = (cachedAttrs as Record<string, unknown>)[key]
-            }
-          }
-
-          accessory.clusters[clusterName] = {
-            ...currentAttrs,
-            ...filteredCached,
-          }
+        // Only the attributes the accessory still declares; a new setting it declares is kept
+        this.keepKnownState(accessory.clusters, cached.clusters, cached.declared?.clusters)
+        for (const part of accessory.parts ?? []) {
+          this.keepKnownState(part.clusters, cached.parts?.find(cachedPart => cachedPart.id === part.id)?.clusters, cached.declared?.parts?.[part.id])
         }
+        accessory.context = contextToKeep(accessory.context, cached.context)
 
-        if (cached.context) {
-          accessory.context = cached.context
-        }
-
-        log.info(`Restored cached state for Matter accessory: ${accessory.displayName}`)
+        log.debug(`Restored cached state for Matter accessory: ${accessory.displayName}`)
       }
     }
   }
@@ -546,10 +867,7 @@ export class AccessoryManager {
       if (windowCoveringFeatures.length > 0) {
         log.debug(`${accessory.displayName} composed its own WindowCovering cluster - keeping its features`)
       }
-      if (!accessory.context) {
-        accessory.context = {}
-      }
-      (accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior = true
+      markWindowCoveringComposed(accessory)
     } else if (windowCoveringFeatures.length > 0) {
       deviceType = applyWindowCoveringFeatures(deviceType, accessory, windowCoveringFeatures)
     }
@@ -602,6 +920,11 @@ export class AccessoryManager {
       )
     }
 
+    // A device type carries only its mandatory clusters, so the optional
+    // readings a plugin declares - an air quality sensor's PM2.5, a
+    // thermostat's humidity - need composing too, see applyOptionalMeasurementClusters
+    deviceType = applyOptionalMeasurementClusters(deviceType, accessory)
+
     const features = this.detectClusterFeatures(accessory, deviceType)
 
     // Now that we know whether LevelControl keeps its Lighting feature, make
@@ -611,7 +934,7 @@ export class AccessoryManager {
     const customBehaviors = await this.buildCustomBehaviors(accessory, deviceType, features)
     if (customBehaviors.length > 0) {
       deviceType = (deviceType as any).with(...customBehaviors)
-      log.info(`Applied ${customBehaviors.length} custom behavior(s) to device type`)
+      log.debug(`Applied ${customBehaviors.length} custom behavior(s) to the device type of ${accessory.displayName}`)
     }
 
     return { deviceType, hasElectrical }
@@ -661,17 +984,15 @@ export class AccessoryManager {
       }
       if (features.length > 0) {
         serviceAreaFeatures = features
-        log.info(`ServiceArea features will be enabled for ${accessory.displayName}: ${features.join(', ')}`)
+        log.debug(`ServiceArea features will be enabled for ${accessory.displayName}: ${features.join(', ')}`)
       }
     }
 
     let colorControlFeatures: string[] | null = null
     if (accessory.handlers?.colorControl) {
-      colorControlFeatures = detectBehaviorFeatures(
-        deviceType,
-        CLUSTER_IDS.COLOR_CONTROL,
-        extractColorControlFeatures,
-      )
+      // Only asked here whether the device type has the cluster at all: the
+      // features themselves are worked out below.
+      colorControlFeatures = detectBehaviorFeatures(deviceType, 'colorControl', extractDeclaredFeatures)
       if (colorControlFeatures) {
         // Handlers first: they are the authority on what the plugin can actually do.
         // On a cache restore they are empty stubs though (functions cannot be cached),
@@ -685,79 +1006,18 @@ export class AccessoryManager {
       }
     }
 
-    let thermostatFeatures: string[] | null = null
-    if (accessory.handlers?.thermostat) {
-      thermostatFeatures = detectBehaviorFeatures(
-        deviceType,
-        CLUSTER_IDS.THERMOSTAT,
-        extractThermostatFeatures,
-      )
-    }
-
-    // ClosureControl and MediaPlayback are feature-gated too, and the device
-    // type is where the choice was made - Closure composes Positioning, and a
-    // plugin may have composed more. Read whatever is there so replacing the
-    // base behavior with the handler-calling one carries it across instead of
-    // resetting the cluster to its featureless form.
-    let closureControlFeatures: string[] | null = null
-    if (accessory.handlers?.closureControl) {
-      closureControlFeatures = detectBehaviorFeatures(
-        deviceType,
-        CLUSTER_IDS.CLOSURE_CONTROL,
-        extractDeclaredFeatures,
-      )
-    }
-
-    let mediaPlaybackFeatures: string[] | null = null
-    if (accessory.handlers?.mediaPlayback) {
-      mediaPlaybackFeatures = detectBehaviorFeatures(
-        deviceType,
-        CLUSTER_IDS.MEDIA_PLAYBACK,
-        extractDeclaredFeatures,
-      )
-    }
-
-    // LevelControl: matter.js's public `LevelControlServer` inherits the
-    // Lighting+OnOff feature set from its internal `LevelControlBase` (see
-    // LevelControlServer.ts line ~20: `LevelControlBehavior.with(OnOff, Lighting)`).
-    // The `.for(LevelControl)` pattern that's supposed to reset features is a
-    // no-op because the raw `LevelControl` cluster doesn't declare
-    // `supportedFeatures`, so `syncFeatures` returns the base schema unchanged.
-    //
-    // Consequence: on a Pump endpoint (whose device-type requirements put
-    // LevelControl in `optional`, not `SupportedBehaviors`), attaching our
-    // behavior as-is leaves `features.lighting === true` at runtime. matter.js
-    // then picks the spec's `[LT]` branch for MinLevel ("constraint 1 to 254")
-    // and rejects `minLevel: 0` with a ValidationError, plus
-    // `initializeLighting()` emits "currentLevel/minLevel invalid" warnings.
-    //
-    // Fix: detect the device type's declared LevelControl features and apply
-    // them via `.with(...)`. When the device type declares nothing (Pump and
-    // similar), fall back to an EMPTY feature set so `.with()` explicitly
-    // strips the inherited Lighting/OnOff — the `[!LT]` branch then applies,
-    // `minLevel: 0` is valid, and `initializeLighting()` is skipped.
-    //
-    // See homebridge#3905 and the matter.js Device Library spec § 5 (Pump).
-    let levelControlFeatures: string[] | null = null
-    if (accessory.handlers?.levelControl) {
-      levelControlFeatures = detectBehaviorFeatures(
-        deviceType,
-        CLUSTER_IDS.LEVEL_CONTROL,
-        extractLevelControlFeatures,
-      )
-      if (levelControlFeatures === null) {
-        levelControlFeatures = []
-        log.debug(`[${accessory.displayName}] Device type declares no LevelControl requirement; stripping inherited Lighting via .with()`)
-      }
-    }
+    // LevelControl: the features the device type declares (a dimmable light's
+    // Lighting and OnOff). They are carried onto the Homebridge behavior by
+    // the general path in buildCustomBehaviors; they are read here as well
+    // because applyLevelControlLightingFloor needs to know about Lighting.
+    const levelControlFeatures = accessory.handlers?.levelControl
+      ? detectBehaviorFeatures(deviceType, 'levelControl', extractDeclaredFeatures)
+      : null
 
     return {
       windowCoveringFeatures,
       serviceAreaFeatures,
       colorControlFeatures,
-      thermostatFeatures,
-      closureControlFeatures,
-      mediaPlaybackFeatures,
       levelControlFeatures,
     }
   }
@@ -833,13 +1093,13 @@ export class AccessoryManager {
       customBehaviors.push(powerSourceBehavior)
     }
 
-    if (!accessory.handlers) {
-      return customBehaviors
+    if (accessory.handlers) {
+      log.debug(`[${accessory.displayName}] Has handlers: ${Object.keys(accessory.handlers).join(', ')}`)
     }
 
-    log.debug(`[${accessory.displayName}] Has handlers: ${Object.keys(accessory.handlers).join(', ')}`)
-
-    // Handle RoboticVacuumCleaner optional clusters
+    // Handle RoboticVacuumCleaner optional clusters. A vacuum with state and no
+    // handlers gets them too (the base servers), so this comes before the
+    // "no handlers" return: after it, those clusters and their state were dropped.
     if (deviceType.deviceType === devices.RoboticVacuumCleanerDevice.deviceType) {
       const { RvcCleanModeServer, ServiceAreaServer } = devices.RoboticVacuumCleanerRequirements
 
@@ -855,11 +1115,11 @@ export class AccessoryManager {
             )
           }
           behaviorClass = (behaviorClass as any).with('DirectModeChange')
-          log.info('RvcCleanMode DirectModeChange feature enabled')
+          log.debug('RvcCleanMode DirectModeChange feature enabled')
         }
 
         customBehaviors.push(behaviorClass)
-        log.info(`Adding ${accessory.handlers?.rvcCleanMode ? 'custom' : 'base'} RvcCleanMode server`)
+        log.debug(`Adding ${accessory.handlers?.rvcCleanMode ? 'custom' : 'base'} RvcCleanMode server`)
       }
 
       if (accessory.clusters?.serviceArea) {
@@ -867,25 +1127,40 @@ export class AccessoryManager {
           let behaviorClass: BehaviorType = HomebridgeServiceAreaServer
           if (features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
             behaviorClass = (behaviorClass as any).with(...features.serviceAreaFeatures)
-            log.info(`ServiceArea custom behavior will have features: ${features.serviceAreaFeatures.join(', ')}`)
+            log.debug(`ServiceArea custom behavior will have features: ${features.serviceAreaFeatures.join(', ')}`)
           }
           customBehaviors.push(behaviorClass)
-          log.info('Adding custom ServiceArea behavior with handlers')
+          log.debug('Adding custom ServiceArea behavior with handlers')
         } else {
           let behaviorClass: BehaviorType = ServiceAreaServer
           if (features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
             behaviorClass = (behaviorClass as any).with(...features.serviceAreaFeatures)
-            log.info(`ServiceArea base server will have features: ${features.serviceAreaFeatures.join(', ')}`)
+            log.debug(`ServiceArea base server will have features: ${features.serviceAreaFeatures.join(', ')}`)
           }
           customBehaviors.push(behaviorClass)
-          log.info('Adding base ServiceArea server')
+          log.debug('Adding base ServiceArea server')
         }
       }
     }
 
-    for (const clusterName of Object.keys(accessory.handlers || {})) {
-      const skipWindowCoveringBehavior = accessory.context?._skipWindowCoveringBehavior as boolean | undefined
-      if (clusterName === 'windowCovering' && skipWindowCoveringBehavior) {
+    // The energy mode of a device energy management device is optional on its
+    // device type. With a handler it gets the Homebridge behavior below; with
+    // state and no handler it needs the base server, or the mode is dropped.
+    const baseEnergyModeServer = devices.DeviceEnergyManagementRequirements?.DeviceEnergyManagementModeServer
+    if (baseEnergyModeServer
+      && deviceType.deviceType === devices.DeviceEnergyManagementEndpoint?.deviceType
+      && accessory.clusters?.deviceEnergyManagementMode
+      && !accessory.handlers?.deviceEnergyManagementMode) {
+      customBehaviors.push(baseEnergyModeServer)
+      log.debug('Adding base DeviceEnergyManagementMode server')
+    }
+
+    if (!accessory.handlers) {
+      return customBehaviors
+    }
+
+    for (const clusterName of Object.keys(accessory.handlers)) {
+      if (clusterName === 'windowCovering' && isWindowCoveringComposed(accessory)) {
         log.debug('Skipping custom WindowCovering behavior (using base server with features instead)')
         continue
       }
@@ -898,41 +1173,7 @@ export class AccessoryManager {
 
       if (clusterName === 'colorControl' && behaviorClass && features.colorControlFeatures && features.colorControlFeatures.length > 0) {
         behaviorClass = (behaviorClass as any).with(...features.colorControlFeatures)
-        log.info(`ColorControl custom behavior will preserve features: ${features.colorControlFeatures.join(', ')}`)
-      }
-
-      if (clusterName === 'thermostat' && behaviorClass && features.thermostatFeatures && features.thermostatFeatures.length > 0) {
-        behaviorClass = (behaviorClass as any).with(...features.thermostatFeatures)
-        log.info(`Thermostat custom behavior will preserve features: ${features.thermostatFeatures.join(', ')}`)
-      }
-
-      // LevelControl: unlike the branches above, we apply `.with(...)` even when
-      // the feature array is empty. That's deliberate — an empty feature set is
-      // what strips the Lighting/OnOff features HomebridgeLevelControlServer
-      // inherits from matter.js's LevelControlBase. See detectClusterFeatures()
-      // above for the full explanation.
-      if (clusterName === 'levelControl' && behaviorClass && features.levelControlFeatures !== null) {
-        behaviorClass = (behaviorClass as any).with(...features.levelControlFeatures)
-        if (features.levelControlFeatures.length > 0) {
-          log.info(`LevelControl custom behavior will preserve features: ${features.levelControlFeatures.join(', ')}`)
-        } else {
-          log.debug('LevelControl custom behavior applied with empty feature set (strips inherited Lighting)')
-        }
-      }
-
-      if (clusterName === 'closureControl' && behaviorClass && features.closureControlFeatures && features.closureControlFeatures.length > 0) {
-        behaviorClass = (behaviorClass as any).with(...features.closureControlFeatures)
-        log.info(`ClosureControl custom behavior will preserve features: ${features.closureControlFeatures.join(', ')}`)
-      }
-
-      if (clusterName === 'mediaPlayback' && behaviorClass && features.mediaPlaybackFeatures && features.mediaPlaybackFeatures.length > 0) {
-        behaviorClass = (behaviorClass as any).with(...features.mediaPlaybackFeatures)
-        log.info(`MediaPlayback custom behavior will preserve features: ${features.mediaPlaybackFeatures.join(', ')}`)
-      }
-
-      if (clusterName === 'serviceArea' && behaviorClass && features.serviceAreaFeatures && features.serviceAreaFeatures.length > 0) {
-        behaviorClass = (behaviorClass as any).with(...features.serviceAreaFeatures)
-        log.info(`ServiceArea custom behavior will preserve features: ${features.serviceAreaFeatures.join(', ')}`)
+        log.debug(`ColorControl custom behavior will preserve features: ${features.colorControlFeatures.join(', ')}`)
       }
 
       if (clusterName === 'windowCovering') {
@@ -949,14 +1190,16 @@ export class AccessoryManager {
       // already chose. Replacing the base behavior with the handler-calling one
       // otherwise resets the cluster to its featureless form - a fan composed
       // with Auto lost it, and so did an air quality sensor composed for the
-      // levels beyond Good and Poor. On a cache restore every cached cluster
+      // levels beyond Good and Poor. A thermostat, a closure (which composes
+      // Positioning) and a media player go this way too: the device type is
+      // where their features were chosen. On a cache restore every cached cluster
       // gets an empty handler stub, so it happened to every such accessory on
       // every restart, plugin handlers or not.
       if (behaviorClass && !FEATURE_AWARE_CLUSTERS.has(clusterName)) {
         const declared = detectBehaviorFeatures(deviceType, clusterName, extractDeclaredFeatures)
         if (declared && declared.length > 0) {
           behaviorClass = (behaviorClass as any).with(...declared)
-          log.info(`${clusterName} custom behavior will preserve features: ${declared.join(', ')}`)
+          log.debug(`${clusterName} custom behavior will preserve features: ${declared.join(', ')}`)
         } else if (FEATURE_RICH_BEHAVIOR_CLUSTERS.has(clusterName)) {
           // These handler-calling behaviors carry every feature so their
           // commands exist to override; one the device did not choose must not
@@ -967,7 +1210,7 @@ export class AccessoryManager {
 
       if (behaviorClass) {
         customBehaviors.push(behaviorClass)
-        log.info(`Will use ${behaviorClass.name} for ${accessory.displayName}`)
+        log.debug(`Will use ${behaviorClass.name} for ${accessory.displayName}`)
       } else if (Object.keys(accessory.handlers?.[clusterName] ?? {}).length === 0) {
         // No handlers, so there is nothing for a custom behavior to route and nothing
         // to warn about. This is the normal shape for a read-only cluster the plugin
@@ -1016,12 +1259,16 @@ export class AccessoryManager {
       // constraint error nobody could trace back to `model` (#4016). Shorten it
       // instead, as the bridge's own names already are, and say which property
       const fit = (value: string | undefined, maxLength: number, property: string) => {
-        if (typeof value !== 'string' || value.length <= maxLength) {
+        if (typeof value !== 'string') {
           return value
         }
-        log.warn(`Matter accessory "${accessory.displayName}": ${property} is longer than the ${maxLength} characters Matter allows, `
-          + `so it has been shortened to "${value.slice(0, maxLength)}"`)
-        return value.slice(0, maxLength)
+        // The limit is in bytes: a name of 20 "ü" is 40 bytes
+        const shortened = truncateUtf8(value, maxLength)
+        if (shortened !== value) {
+          log.warn(`Matter accessory "${accessory.displayName}": ${property} is longer than the ${maxLength} bytes Matter allows, `
+            + `so it has been shortened to "${shortened}"`)
+        }
+        return shortened
       }
       endpointOptions.bridgedDeviceBasicInformation = {
         vendorName: fit(accessory.manufacturer, 32, 'manufacturer'),
@@ -1045,7 +1292,7 @@ export class AccessoryManager {
       // failed uint32 validation would block the accessory registering).
       // The spec caps SoftwareVersionString at 64 characters.
       if (typeof accessory.firmwareRevision === 'string' && accessory.firmwareRevision.length > 0) {
-        endpointOptions.bridgedDeviceBasicInformation.softwareVersionString = accessory.firmwareRevision.slice(0, 64)
+        endpointOptions.bridgedDeviceBasicInformation.softwareVersionString = truncateUtf8(accessory.firmwareRevision, 64)
         const semver = accessory.firmwareRevision.match(/^(\d+)\.(\d+)\.(\d+)/)
         if (semver) {
           const [major, minor, patch] = [
@@ -1069,16 +1316,25 @@ export class AccessoryManager {
    * Register command handlers for an accessory
    */
   private registerAccessoryHandlers(accessory: MatterAccessory, deps: AccessoryManagerDeps): void {
+    // Every endpoint gets its registry, handlers or not. Some clusters always
+    // use Homebridge's own server (a window covering, for one), and it looks
+    // the registry up on each command: without one, a covering that has state
+    // and no handlers answered every command with a raw "No registry found".
+    deps.registryManager.registerEndpoint(accessory.UUID, deps.behaviorRegistry)
+
+    // Cache callbacks may replace handlers after this endpoint is already online.
+    deps.behaviorRegistry.registerHandlerSource(accessory.UUID,
+      (accessory as InternalMatterAccessory)._restoredFromCache
+        ? () => accessory.handlers
+        : undefined)
     if (!accessory.handlers) {
       return
     }
 
-    log.info(`Setting up handlers for accessory ${accessory.UUID}`)
-
-    deps.registryManager.registerEndpoint(accessory.UUID, deps.behaviorRegistry)
+    log.debug(`Setting up handlers for accessory ${accessory.UUID}`)
 
     for (const [clusterName, handlers] of Object.entries(accessory.handlers)) {
-      log.info(`  Processing cluster: ${clusterName}`)
+      log.debug(`  Processing cluster: ${clusterName}`)
 
       for (const [commandName, handler] of Object.entries(handlers)) {
         deps.behaviorRegistry.registerHandler(accessory.UUID, clusterName, commandName, handler)
@@ -1106,7 +1362,7 @@ export class AccessoryManager {
       return builtParts
     }
 
-    log.info(`Creating ${accessory.parts.length} child endpoint(s) for ${accessory.displayName}`)
+    log.debug(`Creating ${accessory.parts.length} child endpoint(s) for ${accessory.displayName}`)
 
     for (const [partIndex, part] of accessory.parts.entries()) {
       const partEndpointId = `${accessory.UUID}-part-${part.id}`
@@ -1133,7 +1389,7 @@ export class AccessoryManager {
               mfgCode: null,
               namespaceId: 7, // Number namespace
               tag: partIndex,
-              label: (part.displayName || part.id).slice(0, 64),
+              label: truncateUtf8(part.displayName || part.id, 64),
             },
           ],
         },
@@ -1143,6 +1399,7 @@ export class AccessoryManager {
 
       const partEndpoint = new Endpoint(partDeviceType, partEndpointOptions)
       setRegistryManager(partEndpoint, deps.registryManager)
+      setDeclaredClusters(partEndpoint, part.clusters)
 
       builtParts.push({ part, endpoint: partEndpoint, hasElectrical: partPrepared.hasElectrical })
     }
@@ -1176,11 +1433,14 @@ export class AccessoryManager {
         await this.advertiseUtilityDeviceType(partEndpoint, 'PowerSource', part.displayName || part.id)
       }
 
-      log.info(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
+      log.debug(`  Created part endpoint: ${part.displayName || part.id} (${partEndpointId}) as child of ${accessory.displayName}`)
 
+      deps.registryManager.registerEndpoint(partEndpointId, deps.behaviorRegistry)
       if (part.handlers) {
-        deps.registryManager.registerEndpoint(partEndpointId, deps.behaviorRegistry)
-
+        if ((accessory as InternalMatterAccessory)._restoredFromCache) {
+          deps.behaviorRegistry.registerHandlerSource(partEndpointId,
+            () => accessory.parts?.find(candidate => candidate.id === part.id)?.handlers)
+        }
         for (const [clusterName, handlers] of Object.entries(part.handlers)) {
           for (const [commandName, handler] of Object.entries(handlers)) {
             deps.behaviorRegistry.registerHandler(partEndpointId, clusterName, commandName, handler)
@@ -1199,16 +1459,24 @@ export class AccessoryManager {
   }
 
   /**
-   * Advertise the ElectricalSensor utility device type (0x0510) in the
-   * endpoint's descriptor. Controllers discover power/energy metering through
-   * the device type list, not just the clusters, so an outlet that carries
-   * the measurement clusters must also list ElectricalSensor. matter.js
-   * dedupes the entry, so this is safe when the base device type already is
-   * an ElectricalSensor.
+   * Advertise a utility device type (ElectricalSensor 0x0510, PowerSource
+   * 0x0011) in the endpoint's descriptor. Controllers discover power/energy
+   * metering and batteries through the device type list, not just the
+   * clusters, so an endpoint that carries those clusters must also list the
+   * type. matter.js dedupes the entry, so this is safe when the base device
+   * type already is one.
+   *
+   * The write waits for the descriptor's lock. Taken without waiting, it
+   * failed whenever something else held the lock at that moment, and the
+   * battery or power meter was then invisible to controllers.
    */
   private async advertiseUtilityDeviceType(endpoint: Endpoint, deviceTypeName: string, displayName: string): Promise<void> {
     try {
-      await endpoint.act(agent => agent.get(DescriptorServer).addDeviceTypes(deviceTypeName as never))
+      await endpoint.act(async (agent) => {
+        const descriptor = agent.get(DescriptorServer)
+        await lockStateForWrite(descriptor)
+        descriptor.addDeviceTypes(deviceTypeName)
+      })
       log.debug(`Advertised ${deviceTypeName} device type for ${displayName}`)
     } catch (error) {
       log.warn(`Could not advertise ${deviceTypeName} device type for ${displayName}:`, error)
@@ -1247,12 +1515,12 @@ export class AccessoryManager {
       deps.accessoryCache.requestSave(deps.accessories)
     }
 
-    if (deps.getMonitoringEnabled() && process.send) {
+    if (deps.getMonitoringEnabled()) {
       const event: MatterEvent = {
         type: 'accessoryAdded',
         data: { uuid: accessory.UUID },
       }
-      process.send({
+      sendToParent({
         id: IpcOutgoingEvent.MATTER_EVENT,
         data: event,
       })
@@ -1260,7 +1528,14 @@ export class AccessoryManager {
   }
 
   /**
-   * Notify controllers that the parts list has changed
+   * Notify controllers that the parts list has changed.
+   *
+   * matter.js keeps the aggregator's parts list up to date by itself. What is
+   * left for the bridge is the Matter 1.6 signal for a change of structure:
+   * BasicInformation's ConfigurationVersion. matter.js seeds the attribute but
+   * does not bump it when endpoints are added or removed.
+   *
+   * A failure is logged and never fails the registration it follows.
    */
   private async notifyPartsListChanged(deps: AccessoryManagerDeps): Promise<void> {
     const aggregator = deps.getAggregator()
@@ -1268,68 +1543,27 @@ export class AccessoryManager {
       return
     }
 
-    for (let attempt = 1; attempt <= PARTS_LIST_NOTIFY_ATTEMPTS; attempt++) {
-      try {
-        await this.applyPartsListNotification(aggregator, deps)
-        return
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error
-          ? error.message
-          : String(error)
-
-        // matter.js reports synchronous lock contention with "Cannot lock ...
-        // synchronously" / "acquire locks asynchronously". The blocking
-        // transaction releases almost immediately, so yield and retry rather
-        // than dropping the notification.
-        const isLockContention = errorMessage.includes('Cannot lock') || errorMessage.includes('acquire locks')
-        if (isLockContention && attempt < PARTS_LIST_NOTIFY_ATTEMPTS) {
-          await new Promise(resolve => setTimeout(resolve, PARTS_LIST_NOTIFY_RETRY_DELAY_MS))
-          continue
-        }
-
-        log.warn(`Failed to notify controllers of parts list change: ${errorMessage}`)
-        return
-      }
-    }
-  }
-
-  /**
-   * A single attempt at pushing the parts-list change to controllers: update the
-   * aggregator's parts list and bump the bridge ConfigurationVersion. Both bump
-   * once per successful call, so retrying the whole thing after a mid-way lock
-   * failure does not double-count (the parts-list set is idempotent and only a
-   * successful `increaseConfigurationVersion()` mutates the version).
-   */
-  private async applyPartsListNotification(
-    aggregator: NonNullable<ReturnType<AccessoryManagerDeps['getAggregator']>>,
-    deps: AccessoryManagerDeps,
-  ): Promise<void> {
-    const aggregatorState = aggregator as any
-
-    if (aggregatorState.state?.descriptor) {
-      const partsList = aggregatorState.state.descriptor.partsList || []
-
+    try {
       if (deps.config.debugModeEnabled) {
+        const partsList = aggregator.state?.descriptor?.partsList ?? []
         log.debug(`Parts list changed: ${partsList.length} devices (endpoints: ${partsList.join(', ')})`)
       }
 
-      await aggregator.set({
-        descriptor: {
-          partsList,
-        },
-      } as any)
-    }
+      const serverNode = deps.getServerNode()
+      if (serverNode) {
+        await serverNode.act(async (agent) => {
+          const basicInformation = agent.get(BasicInformationServer)
+          await lockStateForWrite(basicInformation)
+          await basicInformation.increaseConfigurationVersion()
+        })
+        log.debug('Increased bridge configuration version')
+      }
 
-    // Matter 1.6 signals bridge structure changes to controllers via
-    // BasicInformation's ConfigurationVersion. matter.js seeds the attribute
-    // but does not bump it when endpoints are added or removed — that is the
-    // bridge's job.
-    const serverNode = deps.getServerNode()
-    if (serverNode) {
-      await serverNode.act(agent => agent.get(BasicInformationServer).increaseConfigurationVersion())
-      log.debug('Increased bridge configuration version')
+      log.debug(`Notified controllers of parts list change (${deps.accessories.size} devices)`)
+    } catch (error: unknown) {
+      log.warn(`Failed to notify controllers of parts list change: ${error instanceof Error
+        ? error.message
+        : String(error)}`)
     }
-
-    log.info(`Notified controllers of parts list change (${deps.accessories.size} devices)`)
   }
 }

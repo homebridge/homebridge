@@ -4,27 +4,19 @@
  * Handles service area selection for robotic vacuum cleaners
  */
 
-import type { ServiceArea } from '@matter/main/clusters'
-
 import type { ServiceAreaState } from '../clusterTypes.js'
 
 import { ServiceAreaServer } from '@matter/main/behaviors/service-area'
-import { Status, StatusResponseError } from '@matter/main/types'
+import { ServiceArea } from '@matter/main/clusters/service-area'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
+import { statusResponse } from './handlerResponse.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom ServiceArea Server that calls plugin handlers
  */
 export class HomebridgeServiceAreaServer extends ServiceAreaServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   /**
    * Sync current service area state to cache for UI updates
    * Helper method to avoid code duplication
@@ -33,7 +25,7 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
    */
   private syncServiceAreaStateToCache(includeProgress = false): void {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
     const currentState = this.state as ServiceAreaState
     const stateUpdate: Partial<ServiceAreaState> = {}
 
@@ -61,33 +53,31 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
    */
   override async selectAreas(request: ServiceArea.SelectAreasRequest): Promise<ServiceArea.SelectAreasResponse> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'serviceArea', 'selectAreas', request)
-
-      // Only reached if handler succeeded - call base implementation
-      const result = await super.selectAreas(request)
-
-      // Sync state to cache
-      this.syncServiceAreaStateToCache()
-
-      return result
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to select areas: ${message}`, Status.Failure)
+    // Check the request first, with matter.js's own rules: an area the
+    // device does not have is refused without the plugin being called.
+    const { result: checked } = this.assertSelectServiceArea(request)
+    if (checked.status !== ServiceArea.SelectAreasStatus.Success) {
+      return checked
     }
+
+    // Execute user handler
+    // The handler may refuse the selection with an answer of its own
+    const { response } = await registry.runHandler(endpointId, 'serviceArea', 'selectAreas', request)
+    const answer = statusResponse<ServiceArea.SelectAreasResponse>(response)
+    if (answer && answer.status !== ServiceArea.SelectAreasStatus.Success) {
+      return answer
+    }
+    await lockStateForWrite(this)
+
+    // Only reached if handler succeeded - call base implementation
+    const result = await super.selectAreas(request)
+
+    // Sync state to cache
+    this.syncServiceAreaStateToCache()
+
+    return result
   }
 
   /**
@@ -99,32 +89,32 @@ export class HomebridgeServiceAreaServer extends ServiceAreaServer {
    */
   override async skipArea(request: ServiceArea.SkipAreaRequest): Promise<ServiceArea.SkipAreaResponse> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'serviceArea', 'skipArea', request)
-
-      // Only reached if handler succeeded - call base implementation
-      const result = await super.skipArea(request)
-
-      // Sync state to cache (include progress for skip operations)
-      this.syncServiceAreaStateToCache(true)
-
+    // Check the request first, with matter.js's own rules: an area that is
+    // not selected is refused without the plugin being called.
+    const result = this.assertSkipServiceArea(request)
+    if (result.status !== ServiceArea.SkipAreaStatus.Success) {
       return result
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to skip area: ${message}`, Status.Failure)
     }
+
+    // Execute user handler
+    // The handler may refuse to skip with an answer of its own
+    const { response } = await registry.runHandler(endpointId, 'serviceArea', 'skipArea', request)
+    const answer = statusResponse<ServiceArea.SkipAreaResponse>(response)
+    if (answer && answer.status !== ServiceArea.SkipAreaStatus.Success) {
+      return answer
+    }
+    await lockStateForWrite(this)
+
+    // Only reached if handler succeeded. There is no base implementation to
+    // call: matter.js leaves skipArea itself unimplemented (super.skipArea()
+    // throws), because what a skip does to the progress and the current area
+    // is up to the device. The plugin reports that with updateAccessoryState.
+
+    // Sync state to cache (include progress for skip operations)
+    this.syncServiceAreaStateToCache(true)
+
+    return result
   }
 }

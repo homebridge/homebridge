@@ -103,10 +103,10 @@ describe('homebridgeValveConfigurationAndControlServer', () => {
       )
     })
 
-    it('should wrap handler execution errors', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
 
-      await expect(behavior.open(request)).rejects.toThrow('Failed to open valve: Handler failed')
+      await expect(behavior.open(request)).rejects.toThrow('Handler failed')
     })
 
     it('should not change state or sync cache if handler fails', async () => {
@@ -150,10 +150,10 @@ describe('homebridgeValveConfigurationAndControlServer', () => {
       )
     })
 
-    it('should wrap handler execution errors', async () => {
+    it('should pass a handler error on to matter.js', async () => {
       mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
 
-      await expect(behavior.close()).rejects.toThrow('Failed to close valve: Handler failed')
+      await expect(behavior.close()).rejects.toThrow('Handler failed')
     })
   })
 })

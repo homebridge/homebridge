@@ -10,6 +10,8 @@
  * Advanced features can be added later based on production error patterns.
  */
 
+import { AddressInUseError } from '@matter/main'
+
 import { Logger } from '../logger.js'
 import {
   MatterCommissioningError,
@@ -21,6 +23,29 @@ import {
 } from './types.js'
 
 const log = Logger.withPrefix('Matter/Errors')
+
+/**
+ * Whether an error, or anything in its chain of causes, says the port is
+ * taken by another program.
+ *
+ * matter.js replaces the system error (code EADDRINUSE) with its own
+ * AddressInUseError, which has no code and a text of its own ("Cannot bind
+ * ... because port is already in use"). Matching the code or the system's
+ * text alone never fired, so go by the class, and keep the system forms for
+ * an error that comes straight from Node.
+ */
+export function isPortInUseError(error: unknown): boolean {
+  let current: unknown = error
+  for (let depth = 0; current instanceof Error && depth < 10; depth++) {
+    if (current instanceof AddressInUseError
+      || (current as NodeJS.ErrnoException).code === 'EADDRINUSE'
+      || /eaddrinuse|address already in use/i.test(current.message)) {
+      return true
+    }
+    current = current.cause
+  }
+  return false
+}
 
 /**
  * Simplified Matter Error Handler
@@ -39,48 +64,62 @@ export class MatterErrorHandler {
   }
 
   /**
-   * Handle a Matter error with appropriate logging
+   * Handle a Matter error with appropriate logging.
+   *
+   * Never rejects, whatever it is given: one caller does not wait for it, and
+   * a rejection nobody handles ends Homebridge. matter.js normally rejects
+   * with real errors, but anything can be thrown.
    */
-  async handleError(error: Error | MatterError, context?: string): Promise<void> {
-    const matterError = this.categorizeError(error, context)
-    this.logError(matterError)
+  async handleError(error: unknown, context?: string): Promise<void> {
+    try {
+      const matterError = this.categorizeError(error instanceof Error
+        ? error
+        : new Error(String(error)), context)
+      this.logError(matterError)
+    } catch (handlerError) {
+      log.error('Matter error (and the error handler failed on it):', error, handlerError)
+    }
   }
 
   /**
-   * Categorize a generic error into a typed MatterError
+   * Categorize a generic error into a typed MatterError.
+   *
+   * The new error keeps the original text as it is (logError adds the kind,
+   * so adding it here as well printed "Matter storage error: Storage error:
+   * ...") and keeps the original error, whose stack is the useful one.
    */
-  private categorizeError(error: Error | MatterError, context?: string): MatterError {
+  private categorizeError(error: Error, context?: string): MatterError {
     // If already a typed MatterError, return it
     if (error instanceof MatterError) {
       return error
     }
 
-    const errorMessage = error.message.toLowerCase()
+    const errorMessage = String(error.message ?? '').toLowerCase()
     const errorCode = 'code' in error
       ? (error as NodeJS.ErrnoException).code
       : undefined
 
     // Network errors — prefer error.code for Node.js system errors, fallback to string matching
-    if (errorCode === 'EADDRINUSE' || errorMessage.includes('eaddrinuse')) {
+    if (isPortInUseError(error)) {
       return new MatterNetworkError(
-        `Port is already in use: ${error.message}`,
-        { code: 'PORT_IN_USE', recoverable: false },
+        error.message,
+        { code: 'PORT_IN_USE', recoverable: false, originalError: error },
       )
     }
 
     if (errorCode === 'ECONNREFUSED' || errorCode === 'ETIMEDOUT'
       || errorMessage.includes('econnrefused') || errorMessage.includes('etimedout')) {
       return new MatterNetworkError(
-        `Connection failed: ${error.message}`,
-        { code: 'CONNECTION_FAILED', recoverable: true },
+        error.message,
+        { code: 'CONNECTION_FAILED', recoverable: true, originalError: error },
       )
     }
 
     // Commissioning errors
     if (errorMessage.includes('commissioning') || errorMessage.includes('pairing')) {
       return new MatterCommissioningError(
-        `Commissioning error: ${error.message}`,
-        { recoverable: false },
+        error.message,
+        { recoverable: false, originalError: error },
       )
     }
 
@@ -89,34 +128,39 @@ export class MatterErrorHandler {
       || errorMessage.includes('enoent')
       || errorMessage.includes('storage') || errorMessage.includes('corrupted')) {
       return new MatterStorageError(
-        `Storage error: ${error.message}`,
-        { recoverable: true },
+        error.message,
+        { recoverable: true, originalError: error },
       )
     }
 
     // Configuration errors
     if (errorMessage.includes('config') || errorMessage.includes('invalid')) {
       return new MatterError(
-        `Configuration error: ${error.message}`,
+        error.message,
         'CONFIGURATION_ERROR',
-        { recoverable: false, type: MatterErrorType.CONFIGURATION },
+        { recoverable: false, type: MatterErrorType.CONFIGURATION, originalError: error },
       )
     }
 
     // Device sync errors (context-based)
     if (context?.includes('sync') || context?.includes('device')) {
       return new MatterDeviceError(
-        `Device sync error: ${error.message}`,
-        { recoverable: true, context },
+        error.message,
+        { recoverable: true, context, originalError: error },
       )
     }
 
     // Server errors (context-based)
     if (context?.includes('server')) {
       return new MatterError(
-        `Server error: ${error.message}`,
+        error.message,
         'SERVER_ERROR',
-        { recoverable: true, type: MatterErrorType.SERVER, context },
+        {
+          recoverable: true,
+          type: MatterErrorType.SERVER,
+          context,
+          originalError: error,
+        },
       )
     }
 
@@ -141,7 +185,7 @@ export class MatterErrorHandler {
     } else if (error instanceof MatterCommissioningError) {
       log.info(`Matter commissioning issue: ${error.message}`)
     } else if (error instanceof MatterDeviceError) {
-      log.debug(`Device sync error: ${error.message}`)
+      log.debug(error.message)
     } else if (error instanceof MatterStorageError) {
       log.warn(`Matter storage error: ${error.message}`)
       if (error.message.includes('corrupted')) {
@@ -155,9 +199,11 @@ export class MatterErrorHandler {
       log.error(`Matter error: ${error.message}`)
     }
 
-    // Log stack trace for non-recoverable errors
-    if (!error.recoverable && error.stack) {
-      log.debug('Stack trace:', error.stack)
+    // Log stack trace for non-recoverable errors: that of the original error
+    // when there is one, as the stack of the error made here only shows this file
+    const stack = error.details?.originalError?.stack ?? error.stack
+    if (!error.recoverable && stack) {
+      log.debug('Stack trace:', stack)
     }
   }
 }

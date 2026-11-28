@@ -3,40 +3,24 @@ import { describe, expect, it } from 'vitest'
 import {
   applyElectricalMeasurementClusters,
   applyElectricalMeasurementDefaults,
-  applyFeaturesToBehavior,
   applyLevelControlLightingFloor,
   applySmokeCoAlarmFeatures,
   applyThermostatFeatures,
   applyWindowCoveringFeatures,
   checkThermostatSetpointLimits,
-  CLUSTER_IDS,
   detectBehaviorFeatures,
   detectElectricalMeasurementClusters,
-  detectServiceAreaFeatures,
   detectSmokeCoAlarmFeatures,
   detectThermostatFeatures,
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
-  extractColorControlFeatures,
-  extractLevelControlFeatures,
-  extractThermostatFeatures,
+  isWindowCoveringComposed,
   validateAccessoryRequiredFields,
 } from './serverHelpers.js'
 import { devices, MatterDeviceError } from './types.js'
 
 describe('serverHelpers', () => {
-  describe('cLUSTER_IDS', () => {
-    it('should export cluster ID constants', () => {
-      expect(CLUSTER_IDS.COLOR_CONTROL).toBeDefined()
-      expect(CLUSTER_IDS.THERMOSTAT).toBeDefined()
-      expect(CLUSTER_IDS.WINDOW_COVERING).toBeDefined()
-      expect(CLUSTER_IDS.DOOR_LOCK).toBeDefined()
-      expect(CLUSTER_IDS.ON_OFF).toBeDefined()
-      expect(CLUSTER_IDS.LEVEL_CONTROL).toBeDefined()
-    })
-  })
-
   describe('validateAccessoryRequiredFields', () => {
     it('should pass validation for valid accessory', () => {
       const validAccessory = {
@@ -215,111 +199,6 @@ describe('serverHelpers', () => {
       } as any
 
       expect(() => validateAccessoryRequiredFields(accessory)).toThrow(/part "part1" is missing or has invalid 'clusters' field/)
-    })
-  })
-
-  describe('extractColorControlFeatures', () => {
-    it('should extract HueSaturation feature', () => {
-      const features = extractColorControlFeatures({ hueSaturation: true })
-      expect(features).toContain('HueSaturation')
-    })
-
-    it('should extract Xy feature', () => {
-      const features = extractColorControlFeatures({ xy: true })
-      expect(features).toContain('Xy')
-    })
-
-    it('should extract ColorTemperature feature', () => {
-      const features = extractColorControlFeatures({ colorTemperature: true })
-      expect(features).toContain('ColorTemperature')
-    })
-
-    it('should extract multiple features', () => {
-      const features = extractColorControlFeatures({
-        hueSaturation: true,
-        xy: true,
-        colorTemperature: true,
-      })
-      expect(features).toEqual(['HueSaturation', 'Xy', 'ColorTemperature'])
-    })
-
-    it('should return empty array when no features are enabled', () => {
-      const features = extractColorControlFeatures({})
-      expect(features).toEqual([])
-    })
-  })
-
-  describe('extractThermostatFeatures', () => {
-    it('should extract Heating feature', () => {
-      const features = extractThermostatFeatures({ heating: true })
-      expect(features).toContain('Heating')
-    })
-
-    it('should extract Cooling feature', () => {
-      const features = extractThermostatFeatures({ cooling: true })
-      expect(features).toContain('Cooling')
-    })
-
-    it('should extract Occupancy feature', () => {
-      const features = extractThermostatFeatures({ occupancy: true })
-      expect(features).toContain('Occupancy')
-    })
-
-    it('should extract AutoMode feature', () => {
-      const features = extractThermostatFeatures({ autoMode: true })
-      expect(features).toContain('AutoMode')
-    })
-
-    it('should extract multiple features', () => {
-      const features = extractThermostatFeatures({
-        heating: true,
-        cooling: true,
-        occupancy: true,
-        autoMode: true,
-      })
-      expect(features).toEqual([
-        'Heating',
-        'Cooling',
-        'Occupancy',
-        'AutoMode',
-      ])
-    })
-
-    it('should return empty array when no features are enabled', () => {
-      const features = extractThermostatFeatures({})
-      expect(features).toEqual([])
-    })
-  })
-
-  describe('extractLevelControlFeatures', () => {
-    it('should extract OnOff feature', () => {
-      const features = extractLevelControlFeatures({ onOff: true })
-      expect(features).toContain('OnOff')
-    })
-
-    it('should extract Lighting feature', () => {
-      const features = extractLevelControlFeatures({ lighting: true })
-      expect(features).toContain('Lighting')
-    })
-
-    it('should extract Frequency feature', () => {
-      const features = extractLevelControlFeatures({ frequency: true })
-      expect(features).toContain('Frequency')
-    })
-
-    it('should extract multiple features in declaration order', () => {
-      const features = extractLevelControlFeatures({ onOff: true, lighting: true, frequency: true })
-      expect(features).toEqual(['OnOff', 'Lighting', 'Frequency'])
-    })
-
-    it('should return empty array when no features are declared (non-lighting device case)', () => {
-      const features = extractLevelControlFeatures({})
-      expect(features).toEqual([])
-    })
-
-    it('should omit Lighting when device type explicitly opts out', () => {
-      const features = extractLevelControlFeatures({ onOff: true, lighting: false })
-      expect(features).toEqual(['OnOff'])
     })
   })
 
@@ -532,47 +411,28 @@ describe('serverHelpers', () => {
       const features = detectWindowCoveringFeatures(accessory)
       expect(features).toEqual([])
     })
-  })
 
-  describe('detectServiceAreaFeatures', () => {
-    it('should detect Maps feature', () => {
-      const cluster = {
-        supportedMaps: [],
-      }
+    it('gives Lift to a covering that declares no position', () => {
+      const accessory = {
+        displayName: 'Open/close blind',
+        clusters: { windowCovering: {} },
+      } as any
 
-      const features = detectServiceAreaFeatures(cluster)
-      expect(features).toContain('Maps')
+      expect(detectWindowCoveringFeatures(accessory)).toEqual(['Lift'])
     })
 
-    it('should detect ProgressReporting feature', () => {
-      const cluster = {
-        progress: [],
-      }
+    it('gives Lift to a covering that only has handlers', () => {
+      const accessory = {
+        displayName: 'Open/close blind',
+        clusters: {},
+        handlers: {
+          windowCovering: {
+            upOrOpen: async () => {},
+          },
+        },
+      } as any
 
-      const features = detectServiceAreaFeatures(cluster)
-      expect(features).toContain('ProgressReporting')
-    })
-
-    it('should detect multiple features', () => {
-      const cluster = {
-        supportedMaps: [],
-        progress: [],
-      }
-
-      const features = detectServiceAreaFeatures(cluster)
-      expect(features).toEqual(['Maps', 'ProgressReporting'])
-    })
-
-    it('should return empty array when cluster is undefined', () => {
-      const features = detectServiceAreaFeatures(undefined)
-      expect(features).toEqual([])
-    })
-
-    it('should return empty array when no features present', () => {
-      const cluster = {}
-
-      const features = detectServiceAreaFeatures(cluster)
-      expect(features).toEqual([])
+      expect(detectWindowCoveringFeatures(accessory)).toEqual(['Lift'])
     })
   })
 
@@ -614,7 +474,7 @@ describe('serverHelpers', () => {
       expect(accessory.clusters.windowCovering.type).toBe(8) // TiltBlindLift
     })
 
-    it('should set _skipWindowCoveringBehavior context flag', () => {
+    it('notes the composed cluster without touching the plugin context', () => {
       const deviceType = {
         name: 'WindowCovering',
         with: () => deviceType,
@@ -626,8 +486,8 @@ describe('serverHelpers', () => {
 
       applyWindowCoveringFeatures(deviceType, accessory, ['Lift'])
 
-      expect(accessory.context).toBeDefined()
-      expect((accessory.context as any)._skipWindowCoveringBehavior).toBe(true)
+      expect(isWindowCoveringComposed(accessory)).toBe(true)
+      expect(accessory.context).toBeUndefined()
     })
   })
 
@@ -1226,35 +1086,9 @@ describe('serverHelpers', () => {
     })
   })
 
-  describe('applyFeaturesToBehavior', () => {
-    it('should return original behavior when features is null', () => {
-      const mockBehavior = { id: 'test' } as any
-      const result = applyFeaturesToBehavior(mockBehavior, null, 'TestCluster')
-
-      expect(result).toBe(mockBehavior)
-    })
-
-    it('should return original behavior when features is empty', () => {
-      const mockBehavior = { id: 'test' } as any
-      const result = applyFeaturesToBehavior(mockBehavior, [], 'TestCluster')
-
-      expect(result).toBe(mockBehavior)
-    })
-
-    it('should apply features to behavior when features provided', () => {
-      const extendedBehavior = { id: 'extended' } as any
-      const mockBehavior = {
-        id: 'test',
-        with: () => extendedBehavior,
-      } as any
-
-      const result = applyFeaturesToBehavior(mockBehavior, ['Feature1', 'Feature2'], 'TestCluster')
-
-      expect(result).toBe(extendedBehavior)
-    })
-  })
-
   describe('detectBehaviorFeatures', () => {
+    const enabled = (flags: Record<string, boolean>) => Object.keys(flags).filter(name => flags[name]).sort()
+
     it('should return null when device type has no behaviors', () => {
       const deviceType = {} as any
       const result = detectBehaviorFeatures(deviceType, 'colorControl', () => [])
@@ -1262,66 +1096,19 @@ describe('serverHelpers', () => {
       expect(result).toBeNull()
     })
 
-    it('should return null when cluster not found in behaviors', () => {
-      const deviceType = {
-        behaviors: [
-          {
-            id: 'otherCluster',
-            cluster: { id: 999 },
-          },
-        ],
-      } as any
-
-      const result = detectBehaviorFeatures(deviceType, 'colorControl', () => [])
-
-      expect(result).toBeNull()
+    it('returns null for a cluster the device type does not carry', () => {
+      expect(detectBehaviorFeatures(devices.OnOffLightDevice, 'colorControl', enabled)).toBeNull()
     })
 
-    it('should return null when cluster has no supportedFeatures', () => {
-      const deviceType = {
-        behaviors: [
-          {
-            id: 'colorControl',
-            cluster: { id: 768 },
-          },
-        ],
-      } as any
-
-      const result = detectBehaviorFeatures(deviceType, 'colorControl', () => [])
-
-      expect(result).toBeNull()
+    it('reads the features a real matter.js device type composed a cluster with', () => {
+      // a dimmable light's level control is composed with the Lighting and OnOff features
+      expect(detectBehaviorFeatures(devices.DimmableLightDevice, 'levelControl', enabled)).toEqual(['lighting', 'onOff'])
     })
 
-    it('should extract features using provided extractor', () => {
-      const deviceType = {
-        behaviors: [
-          {
-            id: 'colorControl',
-            cluster: {
-              id: 768,
-              supportedFeatures: {
-                hueSaturation: true,
-                xy: true,
-              },
-            },
-          },
-        ],
-      } as any
+    it('reads the features a plugin composed itself', () => {
+      const thermostat = devices.ThermostatDevice.with(devices.ThermostatRequirements.ThermostatServer.with('Heating', 'Cooling'))
 
-      const extractor = (supportedFeatures: Record<string, boolean>) => {
-        const features: string[] = []
-        if (supportedFeatures.hueSaturation) {
-          features.push('HueSaturation')
-        }
-        if (supportedFeatures.xy) {
-          features.push('Xy')
-        }
-        return features
-      }
-
-      const result = detectBehaviorFeatures(deviceType, 'colorControl', extractor)
-
-      expect(result).toEqual(['HueSaturation', 'Xy'])
+      expect(detectBehaviorFeatures(thermostat, 'thermostat', enabled)).toEqual(['cooling', 'heating'])
     })
   })
 })

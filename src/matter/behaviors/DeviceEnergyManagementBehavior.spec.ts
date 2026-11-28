@@ -1,9 +1,11 @@
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
+import { ModeBase } from '@matter/main/clusters'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   DefaultDeviceEnergyManagementServer,
+  HomebridgeDeviceEnergyManagementModeServer,
   HomebridgeDeviceEnergyManagementServer,
 } from './DeviceEnergyManagementBehavior.js'
 import { setRegistryManager } from './EndpointContext.js'
@@ -121,12 +123,19 @@ describe('defaultDeviceEnergyManagementServer', () => {
     expect((behavior as any).events.resumed.emit).toHaveBeenCalled()
   })
 
-  it('cancels whichever adjustment is running', async () => {
-    state.esaState = Paused
+  // CancelRequest withdraws a forecast change. Ending a pause or a power
+  // adjustment is what ResumeRequest and CancelPowerAdjustRequest are for.
+  it.each([
+    ['a pause', Paused],
+    ['a power adjustment', PowerAdjustActive],
+  ])('does not end %s on CancelRequest', async (_, esaState) => {
+    state.esaState = esaState
 
     await behavior.cancelRequest()
 
-    expect(state.esaState).toBe(Online)
+    expect(state.esaState).toBe(esaState)
+    expect((behavior as any).events.resumed.emit).not.toHaveBeenCalled()
+    expect((behavior as any).events.powerAdjustEnd.emit).not.toHaveBeenCalled()
   })
 
   it('accepts the forecast commands without changing the state', async () => {
@@ -146,7 +155,6 @@ describe('homebridgeDeviceEnergyManagementServer', () => {
 
   beforeEach(() => {
     registry = {
-      getHandler: vi.fn().mockReturnValue(vi.fn()),
       executeHandler: vi.fn().mockResolvedValue(true),
       syncStateToCache: vi.fn(),
     } as any
@@ -169,18 +177,82 @@ describe('homebridgeDeviceEnergyManagementServer', () => {
   it('leaves the state alone when the plugin refuses', async () => {
     registry.executeHandler = vi.fn().mockRejectedValue(new Error('battery is full'))
 
-    await expect(behavior.powerAdjustRequest(powerAdjustRequest)).rejects.toThrow('Failed to adjust power: battery is full')
+    await expect(behavior.powerAdjustRequest(powerAdjustRequest)).rejects.toThrow('battery is full')
     expect(state.esaState).toBe(Online)
     expect(registry.syncStateToCache).not.toHaveBeenCalled()
   })
 
+  it('calls only the cancelRequest handler for CancelRequest, and leaves a paused device paused', async () => {
+    state.esaState = Paused
+
+    await behavior.cancelRequest()
+
+    expect(registry.executeHandler).toHaveBeenCalledTimes(1)
+    expect(registry.executeHandler).toHaveBeenCalledWith(endpointId, 'deviceEnergyManagement', 'cancelRequest', undefined)
+    expect(state.esaState).toBe(Paused)
+  })
+
   it('still answers a command the plugin has no handler for', async () => {
     // Every handler is optional - a missing one used to fail the command
-    registry.getHandler = vi.fn().mockReturnValue(undefined)
+    // the registry says so by returning false; it does not throw
+    registry.executeHandler = vi.fn().mockResolvedValue(false)
 
     await behavior.pauseRequest(pauseRequest)
 
-    expect(registry.executeHandler).not.toHaveBeenCalled()
     expect(state.esaState).toBe(Paused)
+  })
+})
+
+/**
+ * The plugin must only hear about a mode the device lists - matter.js checks
+ * the mode in its own changeToMode, which runs after the plugin's handler.
+ */
+describe('homebridgeDeviceEnergyManagementModeServer', () => {
+  let mockRegistry: BehaviorRegistry
+  let behavior: HomebridgeDeviceEnergyManagementModeServer
+  let state: { currentMode: number, supportedModes: { label: string, mode: number, modeTags: [] }[] }
+  const endpointId = 'device-1'
+
+  beforeEach(() => {
+    mockRegistry = {
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
+      syncStateToCache: vi.fn(),
+    } as any
+    const endpoint = { id: endpointId }
+    const registryManager = new RegistryManager()
+    setRegistryManager(endpoint, registryManager)
+    registryManager.registerEndpoint(endpointId, mockRegistry)
+
+    state = {
+      currentMode: 0,
+      supportedModes: [
+        { label: 'First', mode: 0, modeTags: [] },
+        { label: 'Second', mode: 1, modeTags: [] },
+      ],
+    }
+    behavior = Object.create(HomebridgeDeviceEnergyManagementModeServer.prototype)
+    for (const [key, value] of Object.entries({ endpoint, state })) {
+      Object.defineProperty(behavior, key, {
+        get: () => value,
+        configurable: true,
+      })
+    }
+  })
+
+  it('asks the plugin first, then records a supported mode', async () => {
+    const result = await behavior.changeToMode({ newMode: 1 })
+
+    expect(mockRegistry.runHandler).toHaveBeenCalledWith(endpointId, 'deviceEnergyManagementMode', 'changeToMode', { newMode: 1 })
+    expect(result.status).toBe(ModeBase.ModeChangeStatus.Success)
+    expect(state.currentMode).toBe(1)
+  })
+
+  it('refuses a mode the device does not list, without asking the plugin', async () => {
+    const result = await behavior.changeToMode({ newMode: 7 })
+
+    expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
+    expect(mockRegistry.runHandler).not.toHaveBeenCalled()
+    expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+    expect(state.currentMode).toBe(0)
   })
 })

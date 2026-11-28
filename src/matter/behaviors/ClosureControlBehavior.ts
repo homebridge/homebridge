@@ -6,10 +6,9 @@
 
 import { ClosureControlServer } from '@matter/main/behaviors/closure-control'
 import { ClosureControl } from '@matter/main/clusters/closure-control'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Default ClosureControl Server.
@@ -25,13 +24,50 @@ import { getRegistryManager } from './EndpointContext.js'
  * its own device reports; the point here is only that the target is recorded
  * and the closure never looks stuck.
  */
+/**
+ * Where the closure is once it has moved to a target. The two are different
+ * lists in Matter (the current position also has "partially opened"), so the
+ * numbers only match for fully closed and fully open.
+ */
+const CURRENT_POSITION_FOR_TARGET: Record<ClosureControl.TargetPosition, ClosureControl.CurrentPosition> = {
+  [ClosureControl.TargetPosition.MoveToFullyClosed]: ClosureControl.CurrentPosition.FullyClosed,
+  [ClosureControl.TargetPosition.MoveToFullyOpen]: ClosureControl.CurrentPosition.FullyOpened,
+  [ClosureControl.TargetPosition.MoveToPedestrianPosition]: ClosureControl.CurrentPosition.OpenedForPedestrian,
+  [ClosureControl.TargetPosition.MoveToVentilationPosition]: ClosureControl.CurrentPosition.OpenedForVentilation,
+  [ClosureControl.TargetPosition.MoveToSignaturePosition]: ClosureControl.CurrentPosition.OpenedAtSignature,
+}
+
+/**
+ * The target that keeps the closure at a position. "Partially opened" is not
+ * something a closure can be sent to, so it has no target (null).
+ */
+const TARGET_FOR_CURRENT_POSITION: Record<ClosureControl.CurrentPosition, ClosureControl.TargetPosition | null> = {
+  [ClosureControl.CurrentPosition.FullyClosed]: ClosureControl.TargetPosition.MoveToFullyClosed,
+  [ClosureControl.CurrentPosition.FullyOpened]: ClosureControl.TargetPosition.MoveToFullyOpen,
+  [ClosureControl.CurrentPosition.PartiallyOpened]: null,
+  [ClosureControl.CurrentPosition.OpenedForPedestrian]: ClosureControl.TargetPosition.MoveToPedestrianPosition,
+  [ClosureControl.CurrentPosition.OpenedForVentilation]: ClosureControl.TargetPosition.MoveToVentilationPosition,
+  [ClosureControl.CurrentPosition.OpenedAtSignature]: ClosureControl.TargetPosition.MoveToSignaturePosition,
+}
+
+/**
+ * Whether a closure is secure: fully closed, and latched when it has a latch.
+ * Null (unknown) when the position or the latch is unknown.
+ */
+function secureStateOf(current: { position?: ClosureControl.CurrentPosition | null, latch?: boolean | null }): boolean | null {
+  if (current.position === null || current.latch === null) {
+    return null
+  }
+  if (current.position === undefined && current.latch === undefined) {
+    return null
+  }
+  return (current.position === undefined || current.position === ClosureControl.CurrentPosition.FullyClosed)
+    && (current.latch === undefined || current.latch)
+}
+
 export class DefaultClosureControlServer extends ClosureControlServer {
   override async moveTo(request: ClosureControl.MoveToRequest): Promise<void> {
-    const target = {
-      ...(this.state.overallTargetState ?? {}),
-      ...(request.position !== undefined
-        ? { position: request.position }
-        : {}),
+    const moved = {
       ...(request.latch !== undefined
         ? { latch: request.latch }
         : {}),
@@ -40,15 +76,51 @@ export class DefaultClosureControlServer extends ClosureControlServer {
         : {}),
     }
 
-    this.state.overallTargetState = target as typeof this.state.overallTargetState
-    this.state.overallCurrentState = target as typeof this.state.overallCurrentState
+    this.state.overallTargetState = {
+      ...(this.state.overallTargetState ?? {}),
+      ...(request.position !== undefined
+        ? { position: request.position }
+        : {}),
+      ...moved,
+    }
+
+    // The fields the request did not mention stay as they were
+    const current = {
+      ...(this.state.overallCurrentState ?? {}),
+      ...(request.position !== undefined
+        ? { position: CURRENT_POSITION_FOR_TARGET[request.position] }
+        : {}),
+      ...moved,
+    }
+    this.state.overallCurrentState = {
+      ...current,
+      secureState: secureStateOf(current),
+    }
     this.state.mainState = ClosureControl.MainState.Stopped
   }
 
   override async stop(): Promise<void> {
     // Stopping leaves the closure wherever it is, so the target becomes the
     // current position rather than the other way round.
-    this.state.overallTargetState = this.state.overallCurrentState as typeof this.state.overallTargetState
+    const current = this.state.overallCurrentState
+    if (current) {
+      this.state.overallTargetState = {
+        ...(this.state.overallTargetState ?? {}),
+        ...(current.position !== undefined
+          ? {
+              position: current.position === null
+                ? null
+                : TARGET_FOR_CURRENT_POSITION[current.position],
+            }
+          : {}),
+        ...(current.latch !== undefined
+          ? { latch: current.latch }
+          : {}),
+        ...(current.speed !== undefined
+          ? { speed: current.speed }
+          : {}),
+      }
+    }
     this.state.mainState = ClosureControl.MainState.Stopped
   }
 }
@@ -61,46 +133,25 @@ export class DefaultClosureControlServer extends ClosureControlServer {
  */
 export class HomebridgeClosureControlServer extends DefaultClosureControlServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Handle 'moveTo' command
    */
   override async moveTo(request: ClosureControl.MoveToRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'closureControl', 'moveTo', request)
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'closureControl', 'moveTo', request)
+    await lockStateForWrite(this)
 
-      // Only reached if handler succeeded - update Matter state via super
-      await super.moveTo(request)
+    // Only reached if handler succeeded - update Matter state via super
+    await super.moveTo(request)
 
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'closureControl', {
-        overallTargetState: this.state.overallTargetState,
-        overallCurrentState: this.state.overallCurrentState,
-        mainState: this.state.mainState,
-      })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to move closure: ${message}`, Status.Failure)
-    }
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'closureControl', {
+      overallTargetState: this.state.overallTargetState,
+      overallCurrentState: this.state.overallCurrentState,
+      mainState: this.state.mainState,
+    })
   }
 
   /**
@@ -108,33 +159,19 @@ export class HomebridgeClosureControlServer extends DefaultClosureControlServer 
    */
   override async stop(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'closureControl', 'stop')
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'closureControl', 'stop')
+    await lockStateForWrite(this)
 
-      // Only reached if handler succeeded - update Matter state via super
-      await super.stop()
+    // Only reached if handler succeeded - update Matter state via super
+    await super.stop()
 
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'closureControl', {
-        overallTargetState: this.state.overallTargetState,
-        mainState: this.state.mainState,
-      })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to stop closure: ${message}`, Status.Failure)
-    }
+    // Sync state to cache
+    registry.syncStateToCache(endpointId, 'closureControl', {
+      overallTargetState: this.state.overallTargetState,
+      mainState: this.state.mainState,
+    })
   }
 }

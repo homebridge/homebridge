@@ -1,42 +1,29 @@
 /**
  * Matter API Implementation
  *
- * Implements the Matter API facade with lazy loading to optimize performance.
+ * The object behind `api.matter`.
  *
- * Architecture:
- * - Separates Matter-specific logic from core HomebridgeAPI class
- * - Uses dynamic imports to prevent loading Matter.js at module parse time
- * - Loads Matter types on first access to `api.matter` properties
- * - Child bridges that don't use Matter have zero Matter.js overhead
- *
- * Performance Impact:
- * - Before: Every child bridge loaded ~800ms of Matter.js code (8-16s on RPi)
- * - After: Only child bridges using Matter load it on first access
- * - Improvement: 75-90% reduction in startup time for multi-bridge setups
+ * This file imports matter.js at the top, so loading it loads all of
+ * matter.js. The lazy part is one level up: `HomebridgeAPI.loadMatterAPI()`
+ * imports this file, and Server / ChildBridgeFork call that only for a bridge
+ * whose own config uses Matter, before its plugins start. A bridge without
+ * Matter never loads this file, and `api.matter` stays undefined there.
  */
 
 import type { EndpointType } from '@matter/main'
 
 import type { HomebridgeAPI, MatterAPI, MatterWorkTracker, PlatformName, PluginIdentifier } from '../api.js'
-import type { BaseMatterManager } from './BaseMatterManager.js'
-import type { InternalMatterAccessory, MatterAccessory, MatterServer } from './index.js'
+import type { InternalMatterAccessory, MatterAccessory } from './index.js'
 
 import { InternalAPIEvent } from '../api.js'
 import { Logger } from '../logger.js'
 import { clusterNames, clusters, deviceRequirements, deviceTypes, MatterStatus, MatterTypes } from './index.js'
 import { SwitchAPIImpl } from './SwitchAPI.js'
 
-/**
- * Type helper to access internal properties on HomebridgeAPI
- * We use Record to avoid conflicts with private properties
- */
-interface HomebridgeAPIInternals {
-  _pendingExternalRegistrations?: Map<string, (value: void) => void>
-  _matterManager?: BaseMatterManager
-  _matterServer?: MatterServer | null
-}
-
 const log = Logger.withPrefix('Matter/API')
+
+/** The cluster names Homebridge knows, built once: the check runs on every state update and read */
+const VALID_CLUSTER_NAMES = new Set<string>(Object.values(clusterNames))
 
 // ============================================================================
 // External Device Type Configuration
@@ -88,12 +75,9 @@ class MatterAccessoryValidationError extends Error {
  * Implementation of the Matter API
  *
  * This facade provides Matter protocol support through the Homebridge API.
- * It uses lazy loading to prevent loading the heavy Matter.js library until
- * actually needed, improving startup performance for child bridges that don't
- * use Matter.
+ * It is only constructed for a bridge that uses Matter (see the top of this file).
  *
  * Features:
- * - Lazy-loads Matter types on first access
  * - Validates accessories before registration
  * - Handles both bridge accessories and external standalone devices
  * - Provides detailed error messages for debugging
@@ -101,6 +85,9 @@ class MatterAccessoryValidationError extends Error {
  */
 export class MatterAPIImpl implements MatterAPI {
   readonly switch: SwitchAPIImpl
+
+  /** Unknown cluster names already warned about */
+  private readonly warnedClusterNames = new Set<string>()
 
   constructor(private readonly api: HomebridgeAPI) {
     this.switch = new SwitchAPIImpl(this)
@@ -179,20 +166,25 @@ export class MatterAPIImpl implements MatterAPI {
   }
 
   /**
-   * Validate cluster name is valid
+   * Warn about a cluster name Homebridge does not know. It does not block:
+   * the name may still be right for a cluster a plugin composed itself.
+   *
+   * Once per name. This runs on every state update and every state read, and
+   * a plugin that polls with an unknown name filled the log with the same
+   * line, each one listing every valid name.
    *
    * @param clusterName - Cluster name to validate
    * @param context - Context string for error messages
    */
   private validateClusterName(clusterName: string, context: string): void {
-    // Check if cluster name is in the known cluster names
-    const validClusterNames = Object.values(clusterNames) as string[]
-    if (!validClusterNames.includes(clusterName)) {
-      log.warn(
-        `${context}: Unknown cluster name '${clusterName}'. This might cause issues. `
-        + `Valid clusters: ${validClusterNames.join(', ')}`,
-      )
+    if (VALID_CLUSTER_NAMES.has(clusterName) || this.warnedClusterNames.has(clusterName)) {
+      return
     }
+    this.warnedClusterNames.add(clusterName)
+    log.warn(
+      `${context}: Unknown cluster name '${clusterName}'. This might cause issues (this is logged once for each name). `
+      + `Valid clusters: ${[...VALID_CLUSTER_NAMES].join(', ')}`,
+    )
   }
 
   /**
@@ -251,20 +243,15 @@ export class MatterAPIImpl implements MatterAPI {
   }
 
   /**
-   * Register Matter platform accessories
-   * Automatically handles external accessories (e.g., RoboticVacuumCleaner) that need dedicated bridges
-   * Validates accessories before registration
-   * Returns a promise that resolves when all accessories are fully registered
-   */
-  /**
    * Guard the register/update/publish entry points. Two conditions must hold
    * before these methods may emit, or the emitted event has no listener:
    * bridged registrations are silently dropped, and external ones await a
    * resolver that never fires (hanging forever).
    *
-   * 1. The Matter manager must be attached — it is constructed only once
-   *    Homebridge has finished launching, so calls during plugin
-   *    initialisation are too early.
+   * 1. The Matter manager must be attached. That happens when the bridge sets
+   *    up Matter, which is after the plugin initialisers have run (and, on the
+   *    main bridge, before the platforms are constructed), so a call from a
+   *    plugin's initialiser function is too early.
    * 2. The manager must have active Matter on THIS bridge, or a call would
    *    drop/hang with no listener attached. `api.matter` is only loaded for a
    *    bridge whose own config uses Matter, so this is a safety net rather
@@ -273,7 +260,7 @@ export class MatterAPIImpl implements MatterAPI {
    * @param cannotAction - leading clause, e.g. `${plugin}: Cannot register Matter accessories`
    */
   private assertMatterReady(cannotAction: string): void {
-    const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
+    const matterManager = this.api._matterManager
     if (!matterManager) {
       throw new Error(
         `${cannotAction} before Homebridge has finished launching. Do this from your platform's 'didFinishLaunching' event, not during plugin initialisation.`,
@@ -281,11 +268,17 @@ export class MatterAPIImpl implements MatterAPI {
     }
     if (!matterManager.hasActiveMatter()) {
       throw new Error(
-        `${cannotAction}: Matter is not enabled for this bridge. api.matter is available because another bridge uses Matter, but this bridge has no active 'matter' configuration to register against.`,
+        `${cannotAction}: Matter is not enabled for this bridge. It has no active 'matter' configuration to register against (or Homebridge is shutting down).`,
       )
     }
   }
 
+  /**
+   * Register Matter platform accessories
+   * Automatically handles external accessories (e.g., RoboticVacuumCleaner) that need dedicated bridges
+   * Validates accessories before registration
+   * Returns a promise that resolves when all accessories are fully registered
+   */
   async registerPlatformAccessories(
     pluginIdentifier: PluginIdentifier,
     platformName: PlatformName,
@@ -336,7 +329,18 @@ export class MatterAPIImpl implements MatterAPI {
       // can tell the accessory was not registered. External accessories are
       // unaffected — they run on their own dedicated server and already await a
       // completion resolver.
-      const matterManager = (this.api as unknown as HomebridgeAPIInternals)._matterManager
+      const matterManager = this.api._matterManager
+      const startFailure = matterManager?.getBridgeStartFailure()
+      if (startFailure !== undefined) {
+        throw new Error(
+          `${pluginIdentifier}: Cannot register Matter accessories — the Matter server for this bridge failed to start (${startFailure}). See the error at start-up in the log. HomeKit accessories are not affected.`,
+        )
+      }
+      if (matterManager?.hasBridgeServerStopped()) {
+        throw new Error(
+          `${pluginIdentifier}: Cannot register Matter accessories — the Matter server for this bridge has stopped. matter.js shut it down after an internal error; see the error in the log. Restart Homebridge to start it again. HomeKit accessories are not affected.`,
+        )
+      }
       if (matterManager && matterManager.isBridgeServerStarting()) {
         throw new Error(
           `${pluginIdentifier}: Cannot register Matter accessories yet — the Matter server for this bridge is still starting. Register from your platform's 'didFinishLaunching' event; if you already do, this is transient and the accessories are restored from cache on the next start.`,
@@ -365,10 +369,11 @@ export class MatterAPIImpl implements MatterAPI {
 
     // Handle external accessories (standalone bridges)
     if (externalAccessories.length > 0) {
-      // Add plugin association (no platform for external)
+      // Preserve platform ownership so external caches can be restored on restart.
       externalAccessories.forEach((accessory) => {
         const internal = accessory as InternalMatterAccessory
         internal._associatedPlugin = pluginIdentifier
+        internal._associatedPlatform = platformName
       })
 
       log.debug(
@@ -381,12 +386,7 @@ export class MatterAPIImpl implements MatterAPI {
       const registrationId = `${pluginIdentifier}-${Date.now()}-${Math.random()}`
       const registrationPromise = new Promise<void>((resolve) => {
         // Store the resolve function so it can be called when publishing completes
-        // Access internal properties through type assertion
-        const internalApi = this.api as unknown as HomebridgeAPIInternals
-        if (!internalApi._pendingExternalRegistrations) {
-          internalApi._pendingExternalRegistrations = new Map()
-        }
-        internalApi._pendingExternalRegistrations.set(registrationId, resolve)
+        this.api._addPendingExternalRegistration(registrationId, resolve)
       })
 
       // Emit event with registration ID
@@ -413,8 +413,11 @@ export class MatterAPIImpl implements MatterAPI {
       ? 'y'
       : 'ies'} in cache`)
 
-    // Emit event for Server/ChildBridgeFork to handle
-    this.api.emit(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, accessories)
+    // Wait for the bridge to finish, as register and unregister do, so the
+    // update is in place when the plugin's await returns
+    await emitAndWait((track) => {
+      this.api.emit(InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES, accessories, track)
+    })
   }
 
   /**
@@ -433,12 +436,18 @@ export class MatterAPIImpl implements MatterAPI {
 
     this.assertMatterReady(`${pluginIdentifier}: Cannot unregister Matter accessories`)
 
-    // Split accessories into normal (bridge) and external (standalone) based on device type
+    // Split accessories into normal (bridge) and external (standalone) by where
+    // each one lives. Only the UUID is needed for that, as for a HAP accessory:
+    // the device type is not there on a `{ UUID }` object, and it is a plain
+    // copy on the object a plugin is given in configureMatterAccessory.
+    const matterManager = this.api._matterManager
     const normalAccessories: MatterAccessory[] = []
     const externalAccessories: MatterAccessory[] = []
 
     for (const accessory of accessories) {
-      if (requiresExternalBridge(accessory.deviceType)) {
+      const isExternal = matterManager?.getExternalServer(accessory.UUID) !== undefined
+        || (accessory.deviceType?.deviceType !== undefined && requiresExternalBridge(accessory.deviceType))
+      if (isExternal) {
         externalAccessories.push(accessory)
       } else {
         normalAccessories.push(accessory)
@@ -464,7 +473,7 @@ export class MatterAPIImpl implements MatterAPI {
       log.debug(
         `${pluginIdentifier}: Unregistering ${externalAccessories.length} external Matter accessor${externalAccessories.length === 1
           ? 'y'
-          : 'ies'} (${externalAccessories.map(a => a.displayName).join(', ')})`,
+          : 'ies'} (${externalAccessories.map(a => a.displayName ?? a.UUID).join(', ')})`,
       )
       await emitAndWait((track) => {
         this.api.emit(InternalAPIEvent.UNREGISTER_EXTERNAL_MATTER_ACCESSORIES, externalAccessories, track)
@@ -509,8 +518,11 @@ export class MatterAPIImpl implements MatterAPI {
         : ''}`,
     )
 
-    // Emit the event (listeners will be called synchronously by EventEmitter)
-    this.api.emit(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, uuid, cluster, attributes, partId)
+    // Wait for the bridge to finish, so a read straight after the plugin's
+    // await sees the new value. A failure is logged by the bridge, not thrown.
+    await emitAndWait((track) => {
+      this.api.emit(InternalAPIEvent.UPDATE_MATTER_ACCESSORY_STATE, uuid, cluster, attributes, partId, track)
+    })
   }
 
   /**
@@ -544,8 +556,7 @@ export class MatterAPIImpl implements MatterAPI {
     )
 
     // Check external servers first (for accessories like robot vacuums)
-    const internalApi = this.api as unknown as HomebridgeAPIInternals
-    const matterManager = internalApi._matterManager
+    const matterManager = this.api._matterManager
     if (matterManager) {
       const externalServer = matterManager.getExternalServer(uuid)
       if (externalServer) {
@@ -554,7 +565,7 @@ export class MatterAPIImpl implements MatterAPI {
     }
 
     // Otherwise, try the main bridge server
-    const matterServer = internalApi._matterServer
+    const matterServer = this.api._matterServer
     if (!matterServer) {
       log.debug(`getAccessoryState: Matter server not available for accessory ${uuid}`)
       return undefined

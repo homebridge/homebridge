@@ -200,25 +200,62 @@ describe('stateManager', () => {
   })
 })
 
+/** An endpoint whose commands are the given functions, the way matter.js offers them. */
+function createCommandEndpoint(
+  clusters: Record<string, Record<string, (...args: unknown[]) => unknown>>,
+  requestFields: Record<string, Record<string, number>> = {},
+) {
+  const supported: Record<string, unknown> = {}
+  for (const [cluster, commands] of Object.entries(requestFields)) {
+    supported[cluster] = {
+      cluster: {
+        commands: Object.fromEntries(Object.entries(commands).map(([command, count]) => [
+          command,
+          {
+            schema: {
+              members: Array.from({ length: count }, () => ({})),
+            },
+          },
+        ])),
+      },
+    }
+  }
+  return createMockEndpoint({
+    behaviors: { supported },
+    commandsOf: (cluster: string) => {
+      const commands = clusters[cluster]
+      if (!commands) {
+        throw new Error(`Behavior ${cluster} is not supported by this endpoint`)
+      }
+      return new Proxy(commands, {
+        get: (target, name: string) => async (...args: unknown[]) => {
+          if (typeof target[name] !== 'function') {
+            throw new TypeError(`Command ${name} is not implemented`)
+          }
+          return target[name](...args)
+        },
+      })
+    },
+  })
+}
+
 describe('stateManager triggerCommand ordering (#4029)', () => {
   it('waits for one command on an endpoint to finish before starting the next', async () => {
     const order: string[] = []
     let finishFirst!: () => void
-    const endpoint = createMockEndpoint({
-      act: vi.fn(async (fn: any) => fn({
-        levelControl: {
-          moveToLevelWithOnOff: () => new Promise<void>((resolve) => {
-            order.push('level started')
-            finishFirst = () => {
-              order.push('level finished')
-              resolve()
-            }
-          }),
-        },
-        onOff: {
-          on: () => order.push('on started'),
-        },
-      })),
+    const endpoint = createCommandEndpoint({
+      levelControl: {
+        moveToLevelWithOnOff: () => new Promise<void>((resolve) => {
+          order.push('level started')
+          finishFirst = () => {
+            order.push('level finished')
+            resolve()
+          }
+        }),
+      },
+      onOff: {
+        on: () => order.push('on started'),
+      },
     })
     const manager = createManager(endpoint)
 
@@ -234,17 +271,15 @@ describe('stateManager triggerCommand ordering (#4029)', () => {
 
   it('still runs the next command when the one before it failed', async () => {
     let calls = 0
-    const endpoint = createMockEndpoint({
-      act: vi.fn(async (fn: any) => fn({
-        onOff: {
-          on: () => {
-            calls++
-            if (calls === 1) {
-              throw new Error('first failed')
-            }
-          },
+    const endpoint = createCommandEndpoint({
+      onOff: {
+        on: () => {
+          calls++
+          if (calls === 1) {
+            throw new Error('first failed')
+          }
         },
-      })),
+      },
     })
     const manager = createManager(endpoint)
 
@@ -253,5 +288,97 @@ describe('stateManager triggerCommand ordering (#4029)', () => {
     await expect(first).rejects.toThrow('first failed')
     await expect(second).resolves.toBeUndefined()
     expect(calls).toBe(2)
+  })
+
+  it('fails for a cluster the endpoint does not have, and for a command the cluster does not have', async () => {
+    const manager = createManager(createCommandEndpoint({ onOff: {} }))
+
+    await expect(manager.triggerCommand('uuid-1', 'doorLock', 'lockDoor')).rejects.toThrow('Failed to trigger command: Behavior doorLock is not supported')
+    await expect(manager.triggerCommand('uuid-1', 'onOff', 'blink')).rejects.toThrow('Failed to trigger command: Command blink is not implemented')
+  })
+})
+
+describe('stateManager triggerCommand request object', () => {
+  it('gives a command that has request fields an empty request when the caller sent none', async () => {
+    const calls: unknown[] = []
+    const endpoint = createCommandEndpoint({
+      doorLock: {
+        lockDoor: request => calls.push(request),
+      },
+    }, {
+      doorLock: { lockDoor: 1 },
+    })
+    const manager = createManager(endpoint)
+
+    await manager.triggerCommand('uuid-1', 'doorLock', 'lockDoor')
+    await manager.triggerCommand('uuid-1', 'doorLock', 'lockDoor', {})
+
+    expect(calls).toEqual([{}, {}])
+  })
+
+  it('gives a command that takes no request none', async () => {
+    const calls: unknown[] = []
+    const endpoint = createCommandEndpoint({
+      onOff: {
+        on: request => calls.push(request),
+      },
+    }, {
+      onOff: { on: 0 },
+    })
+    const manager = createManager(endpoint)
+
+    await manager.triggerCommand('uuid-1', 'onOff', 'on')
+    await manager.triggerCommand('uuid-1', 'onOff', 'on', {})
+
+    expect(calls).toEqual([undefined, undefined])
+  })
+})
+
+describe('stateManager updateAccessoryState when it can not be done', () => {
+  const errorOf = (work: Promise<unknown>): Promise<string> => work.then(() => 'no error', (error: Error) => error.message)
+
+  it('says the accessory is not registered', async () => {
+    const manager = createManager(createMockEndpoint())
+
+    expect(await errorOf(manager.updateAccessoryState('uuid-unknown', 'onOff', { onOff: true })))
+      .toContain('uuid-unknown not found or not registered')
+  })
+
+  it('says the part is not there', async () => {
+    const manager = createManager(createMockEndpoint())
+
+    expect(await errorOf(manager.updateAccessoryState('uuid-1', 'onOff', { onOff: true }, 'no-such-part')))
+      .toContain('Part no-such-part not found in accessory uuid-1')
+  })
+
+  it('leaves the saved state as it was when matter.js refuses the value', async () => {
+    const endpoint = createMockEndpoint({
+      set: vi.fn(async () => {
+        throw new Error('constraint: level must be 1 to 254')
+      }),
+    })
+    const accessories = new Map<string, InternalMatterAccessory>()
+    const record = {
+      UUID: 'uuid-1',
+      displayName: 'Lamp',
+      deviceType: {} as any,
+      clusters: {
+        levelControl: { currentLevel: 100 },
+      },
+      endpoint,
+    } as any
+    accessories.set('uuid-1', record)
+    const emitter = new EventEmitter()
+    const emitted = vi.spyOn(emitter, 'emit')
+    const manager = new StateManager(accessories, emitter, () => true)
+
+    expect(await errorOf(manager.updateAccessoryState('uuid-1', 'levelControl', { currentLevel: 300 })))
+      .toContain('level must be 1 to 254')
+
+    // what the cache saves and the UI lists is unchanged, and nobody is told of a change
+    expect(record.clusters).toEqual({
+      levelControl: { currentLevel: 100 },
+    })
+    expect(emitted).not.toHaveBeenCalled()
   })
 })

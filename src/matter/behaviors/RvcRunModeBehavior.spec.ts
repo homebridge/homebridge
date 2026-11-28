@@ -1,5 +1,6 @@
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
+import { ModeBase } from '@matter/main/clusters'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setRegistryManager } from './EndpointContext.js'
@@ -15,7 +16,7 @@ describe('homebridgeRvcRunModeServer', () => {
   beforeEach(() => {
     // Create mock registry
     mockRegistry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -36,6 +37,16 @@ describe('homebridgeRvcRunModeServer', () => {
       configurable: true,
     })
 
+    // Modes 0-3 are supported, the device starts in mode 0
+    const state = {
+      currentMode: 0,
+      supportedModes: [0, 1, 2, 3].map(mode => ({ label: `Mode ${mode}`, mode, modeTags: [] })),
+    }
+    Object.defineProperty(behavior, 'state', {
+      get: () => state,
+      configurable: true,
+    })
+
     // Mock super method
     vi.spyOn(Object.getPrototypeOf(HomebridgeRvcRunModeServer.prototype), 'changeToMode').mockReturnValue(undefined)
   })
@@ -46,7 +57,7 @@ describe('homebridgeRvcRunModeServer', () => {
 
       await behavior.changeToMode(request)
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'rvcRunMode',
         'changeToMode',
@@ -61,7 +72,7 @@ describe('homebridgeRvcRunModeServer', () => {
         const request = { newMode: mode }
         await behavior.changeToMode(request)
 
-        expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+        expect(mockRegistry.runHandler).toHaveBeenCalledWith(
           testEndpointId,
           'rvcRunMode',
           'changeToMode',
@@ -72,12 +83,20 @@ describe('homebridgeRvcRunModeServer', () => {
       }
     })
 
-    it('should handle handler execution errors gracefully', async () => {
-      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+    it('should pass a handler error on to matter.js', async () => {
+      mockRegistry.runHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = { newMode: 1 }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.changeToMode(request)).rejects.toThrow('Failed to change run mode: Handler failed')
+      await expect(behavior.changeToMode(request)).rejects.toThrow('Handler failed')
+    })
+
+    it('should refuse a mode the device does not list, without calling the handler', async () => {
+      const result = await behavior.changeToMode({ newMode: 7 })
+
+      expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
+      expect(mockRegistry.runHandler).not.toHaveBeenCalled()
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
     })
   })
 })

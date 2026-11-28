@@ -9,7 +9,10 @@ import { MediaPlaybackServer } from '@matter/main/behaviors/media-playback'
 import { MediaPlayback } from '@matter/main/clusters/media-playback'
 
 import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { HandlerFailure } from './BehaviorRegistry.js'
+import { registryOf } from './EndpointContext.js'
+import { statusResponse } from './handlerResponse.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Default MediaPlayback Server.
@@ -98,13 +101,6 @@ const PLAYBACK_COMMANDS = {
  */
 export class HomebridgeMediaPlaybackServer extends DefaultMediaPlaybackServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Run a plugin handler and reflect the resulting playback state.
    *
    * A handler that throws a Matter protocol error is propagated as-is so the
@@ -117,10 +113,16 @@ export class HomebridgeMediaPlaybackServer extends DefaultMediaPlaybackServer {
     request?: unknown,
   ): Promise<MediaPlayback.PlaybackResponse> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     try {
-      await registry.executeHandler(endpointId, 'mediaPlayback', commandName, request)
+      const { response: handlerResponse } = await registry.runHandler(endpointId, 'mediaPlayback', commandName, request)
+      // The handler may refuse with an answer of its own (not allowed, not active, ...)
+      const answer = statusResponse<MediaPlayback.PlaybackResponse>(handlerResponse)
+      if (answer && answer.status !== MediaPlayback.Status.Success) {
+        return answer
+      }
+      await lockStateForWrite(this)
 
       // Only reached if the handler succeeded - update Matter state
       const response = this.reflect(PLAYBACK_COMMANDS[commandName])
@@ -129,7 +131,8 @@ export class HomebridgeMediaPlaybackServer extends DefaultMediaPlaybackServer {
 
       return response
     } catch (error) {
-      if (MatterStatus.isMatterProtocolError(error)) {
+      // A Matter status the plugin threw on purpose goes to the controller as it is
+      if (MatterStatus.isMatterProtocolError(error) && !(error instanceof HandlerFailure)) {
         throw error
       }
 

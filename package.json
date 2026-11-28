@@ -1,24 +1,37 @@
 {
   "name": "homebridge",
   "type": "module",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "HomeKit support for the impatient",
   "author": "Nick Farina",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/homebridge/homebridge#readme",
   "repository": {
     "type": "git",
-    "url": "git://github.com/homebridge/homebridge.git"
+    "url": "git+https://github.com/homebridge/homebridge.git"
   },
   "bugs": {
     "url": "https://github.com/homebridge/homebridge/issues"
   },
-  "exports": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./matter": {
+      "types": "./dist/matterExports.d.ts",
+      "default": "./dist/matterExports.js"
+    }
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "maintainers": [
-    "oznu <dev@oz.nu>",
-    "Andreas Bauer <mail@anderl-bauer.de>"
-  ],
+  "typesVersions": {
+    "*": {
+      "matter": [
+        "dist/matterExports.d.ts"
+      ]
+    }
+  },
   "bin": {
     "homebridge": "bin/homebridge.js"
   },
@@ -50,31 +63,29 @@
     "watch": "nodemon"
   },
   "dependencies": {
-    "@homebridge/hap-nodejs": "2.3.0",
-    "@matter/main": "0.18.0",
+    "@homebridge/hap-nodejs": "2.3.1",
+    "@matter/main": "0.18.1",
+    "@matter/nodejs": "0.18.1",
     "chalk": "6.0.1",
-    "commander": "15.0.0",
+    "commander": "15.1.0",
     "fs-extra": "11.4.1",
     "qrcode-terminal": "0.12.0",
-    "semver": "7.8.5",
+    "semver": "7.8.6",
     "source-map-support": "0.5.21"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^10.0.0",
-    "@prettier/plugin-xml": "^3.4.2",
-    "@types/debug": "^4.1.13",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.11",
     "@types/semver": "^7.8.0",
     "@types/source-map-support": "^0.5.10",
-    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/coverage-v8": "^5.1.2",
     "eslint-plugin-format": "^2.0.1",
     "nodemon": "^3.1.14",
-    "rimraf": "^6.1.3",
-    "ts-node": "^10.9.2",
+    "rimraf": "^6.1.4",
     "typedoc": "^0.28.20",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.2"
   },
   "overrides": {
     "micromark-extension-math": {

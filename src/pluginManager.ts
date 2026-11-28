@@ -17,6 +17,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { delimiter, join, resolve } from 'node:path'
 import process from 'node:process'
+import { inspect } from 'node:util'
 
 import { InternalAPIEvent } from './api.js'
 import { Logger } from './logger.js'
@@ -26,18 +27,24 @@ const log = Logger.internal
 const require = createRequire(import.meta.url)
 const paths = require.resolve.paths('')
 
+/**
+ * The `exports` field of a package.json: a file, a list of fallbacks, or a
+ * map of sub-paths or conditions, nested to any depth.
+ */
+export type PackageExports = string | null | PackageExports[] | { [key: string]: PackageExports }
+
 export interface PackageJSON { // incomplete type for package.json (just stuff we use here)
   name: string
   version: string
   keywords?: string[]
 
-  // see https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_package_entry_points
-  exports?: string | Record<string, string | Record<string, string>>
+  // see https://nodejs.org/api/packages.html#package-entry-points
+  exports?: PackageExports
   main?: string
 
   /**
    * When set as module, it marks .js file to be treated as ESM.
-   * See https://nodejs.org/dist/latest-v14.x/docs/api/esm.html#esm_enabling
+   * See https://nodejs.org/api/packages.html#type
    */
   type?: 'module' | 'commonjs'
 
@@ -106,8 +113,8 @@ export class PluginManager {
     const absolutePath = resolve(parentPath, entry.name)
     try {
       return statSync(absolutePath).isDirectory()
-    } catch (error: any) {
-      log.debug(`Ignoring path ${absolutePath} - ${error.message}`)
+    } catch (error: unknown) {
+      log.debug(`Ignoring path ${absolutePath} - ${PluginManager.errorMessage(error)}`)
       return false
     }
   }
@@ -156,6 +163,25 @@ export class PluginManager {
     return undefined
   }
 
+  /**
+   * The message of a thrown value. A plugin can throw anything, not only an Error.
+   */
+  private static errorMessage(error: unknown): string {
+    return error instanceof Error
+      ? error.message
+      : String(error)
+  }
+
+  /**
+   * The stack of a thrown Error, or the thrown value as text when it is not an Error
+   * (`error.stack` of a thrown text is `undefined`, which said nothing in the log).
+   */
+  private static errorStack(error: unknown): string {
+    return error instanceof Error
+      ? (error.stack ?? error.message)
+      : `A value that is not an Error was thrown: ${inspect(error)}`
+  }
+
   public static isQualifiedPluginIdentifier(identifier: string): boolean {
     return PluginManager.PLUGIN_IDENTIFIER_PATTERN.test(identifier)
   }
@@ -176,24 +202,39 @@ export class PluginManager {
     return match[2]
   }
 
-  public static getAccessoryName(identifier: AccessoryIdentifier): AccessoryName {
-    if (!identifier.includes('.')) {
-      return identifier
-    }
-
-    return identifier.split('.')[1]
+  /**
+   * Where the plugin part of an accessory or platform identifier ends (the index of the dot),
+   * or -1 when the identifier is a bare name.
+   *
+   * The forms are `Name`, `homebridge-x.Name` and `@scope/homebridge-x.Name`. A scope may hold dots
+   * (`@my.scope/homebridge-x.Name`), so for a scoped plugin only a dot after the `/` ends the plugin part.
+   */
+  private static pluginPartEnd(identifier: string): number {
+    const packageStart = identifier.startsWith('@')
+      ? identifier.indexOf('/') + 1
+      : 0
+    return identifier.indexOf('.', packageStart)
   }
 
-  public static getPlatformName(identifier: PlatformIdentifier): PlatformIdentifier {
-    if (!identifier.includes('.')) {
-      return identifier
-    }
+  public static getAccessoryName(identifier: AccessoryIdentifier): AccessoryName {
+    const end = PluginManager.pluginPartEnd(identifier)
+    return end === -1
+      ? identifier
+      : identifier.slice(end + 1)
+  }
 
-    return identifier.split('.')[1]
+  public static getPlatformName(identifier: PlatformIdentifier): PlatformName {
+    const end = PluginManager.pluginPartEnd(identifier)
+    return end === -1
+      ? identifier
+      : identifier.slice(end + 1)
   }
 
   public static getPluginIdentifier(identifier: AccessoryIdentifier | PlatformIdentifier): PluginIdentifier {
-    return identifier.split('.')[0]
+    const end = PluginManager.pluginPartEnd(identifier)
+    return end === -1
+      ? identifier
+      : identifier.slice(0, end)
   }
 
   public async initializeInstalledPlugins(): Promise<void> {
@@ -204,10 +245,10 @@ export class PluginManager {
     for (const [identifier, plugin] of this.plugins) {
       try {
         await plugin.load()
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error('====================')
         log.error(`ERROR LOADING PLUGIN ${identifier}:`)
-        log.error(error.stack)
+        log.error(PluginManager.errorStack(error))
         log.error('====================')
 
         this.plugins.delete(identifier)
@@ -236,19 +277,45 @@ export class PluginManager {
     try {
       this.currentInitializingPlugin = plugin
       await plugin.initialize(this.api) // call the plugin's initializer and pass it our API instance
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.error('====================')
       log.error(`ERROR INITIALIZING PLUGIN ${identifier}:`)
-      log.error(error.stack)
+      log.error(PluginManager.errorStack(error))
       log.error('====================')
 
-      this.plugins.delete(identifier)
+      this.forgetPlugin(plugin, identifier)
     } finally {
       // Clear the in-progress reference so any late async registration that
       // fires after this initializer settles is rejected by the registration
       // handlers' guard rather than getting attributed to a stale (and now
       // possibly deleted) plugin.
       this.currentInitializingPlugin = undefined
+    }
+  }
+
+  /**
+   * Remove every trace of a plugin whose initializer failed. Anything it registered before it
+   * failed must go too, or a config block that names the accessory or platform by its short name
+   * would still be started from a plugin that was just reported as failed.
+   */
+  private forgetPlugin(plugin: Plugin, identifier: PluginIdentifier): void {
+    this.plugins.delete(identifier)
+
+    for (const nameMap of [this.accessoryToPluginMap, this.platformToPluginMap]) {
+      for (const [name, plugins] of nameMap) {
+        const remaining = plugins.filter(registered => registered !== plugin)
+        if (remaining.length === 0) {
+          nameMap.delete(name)
+        } else if (remaining.length !== plugins.length) {
+          nameMap.set(name, remaining)
+        }
+      }
+    }
+
+    for (const [wrongIdentifier, realIdentifier] of this.pluginIdentifierTranslation) {
+      if (realIdentifier === identifier) {
+        this.pluginIdentifierTranslation.delete(wrongIdentifier)
+      }
     }
   }
 
@@ -297,64 +364,41 @@ export class PluginManager {
   }
 
   public getPluginForAccessory(accessoryIdentifier: AccessoryIdentifier | AccessoryName): Plugin {
-    let plugin: Plugin
-    if (!accessoryIdentifier.includes('.')) { // see if it matches exactly one accessory
-      let found = this.accessoryToPluginMap.get(accessoryIdentifier)
-
-      if (!found) {
-        throw new Error(`No plugin was found for the accessory "${accessoryIdentifier}" in your config.json. Please make sure the corresponding plugin is installed correctly.`)
-      }
-
-      if (found.length > 1) {
-        const options = found.map(plugin => `${plugin.getPluginIdentifier()}.${accessoryIdentifier}`).join(', ')
-        // check if only one of the multiple platforms is not disabled
-        found = found.filter(plugin => !plugin.disabled)
-        if (found.length !== 1) {
-          throw new Error(`The requested accessory '${accessoryIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`)
-        }
-      }
-
-      plugin = found[0]
-      accessoryIdentifier = `${plugin.getPluginIdentifier()}.${accessoryIdentifier}`
-    } else {
-      const pluginIdentifier = PluginManager.getPluginIdentifier(accessoryIdentifier)
-      if (!this.hasPluginRegistered(pluginIdentifier)) {
-        throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`)
-      }
-
-      plugin = this.getPlugin(pluginIdentifier)!
-    }
-
-    return plugin
+    return this.getPluginFor('accessory', accessoryIdentifier, this.accessoryToPluginMap)
   }
 
   public getPluginForPlatform(platformIdentifier: PlatformIdentifier | PlatformName): Plugin {
-    let plugin: Plugin
-    if (!platformIdentifier.includes('.')) { // see if it matches exactly one platform
-      let found = this.platformToPluginMap.get(platformIdentifier)
+    return this.getPluginFor('platform', platformIdentifier, this.platformToPluginMap)
+  }
+
+  /**
+   * The plugin behind an `accessory` or `platform` value of config.json: a bare name
+   * (`Name`, which must then belong to exactly one enabled plugin) or the long form (`plugin.Name`).
+   */
+  private getPluginFor(kind: 'accessory' | 'platform', identifier: string, registeredNames: Map<string, Plugin[]>): Plugin {
+    if (PluginManager.pluginPartEnd(identifier) === -1) { // see if it matches exactly one accessory or platform
+      let found = registeredNames.get(identifier)
 
       if (!found) {
-        throw new Error(`No plugin was found for the platform "${platformIdentifier}" in your config.json. Please make sure the corresponding plugin is installed correctly.`)
+        throw new Error(`No plugin was found for the ${kind} "${identifier}" in your config.json. Please make sure the corresponding plugin is installed correctly.`)
       }
 
       if (found.length > 1) {
-        const options = found.map(plugin => `${plugin.getPluginIdentifier()}.${platformIdentifier}`).join(', ')
-        // check if only one of the multiple platforms is not disabled
+        const options = found.map(plugin => `${plugin.getPluginIdentifier()}.${identifier}`).join(', ')
+        // check if only one of the multiple plugins is not disabled
         found = found.filter(plugin => !plugin.disabled)
         if (found.length !== 1) {
-          throw new Error(`The requested platform '${platformIdentifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`)
+          throw new Error(`The requested ${kind} '${identifier}' has been registered multiple times. Please be more specific by writing one of: ${options}`)
         }
       }
 
-      plugin = found[0]
-      platformIdentifier = `${plugin.getPluginIdentifier()}.${platformIdentifier}`
-    } else {
-      const pluginIdentifier = PluginManager.getPluginIdentifier(platformIdentifier)
-      if (!this.hasPluginRegistered(pluginIdentifier)) {
-        throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`)
-      }
+      return found[0]
+    }
 
-      plugin = this.getPlugin(pluginIdentifier)!
+    const pluginIdentifier = PluginManager.getPluginIdentifier(identifier)
+    const plugin = this.getPlugin(pluginIdentifier)
+    if (!plugin) {
+      throw new Error(`The requested plugin '${pluginIdentifier}' was not registered.`)
     }
 
     return plugin
@@ -405,9 +449,16 @@ export class PluginManager {
 
       if (existsSync(join(searchPath, 'package.json'))) { // does this path point inside a single plugin and not a directory containing plugins?
         try {
+          // The `plugins` allow-list of config.json counts here too. The folder may have any name
+          // (a checkout, a linked folder), so the name in its package.json is what is compared.
+          const pluginIdentifier = PluginManager.loadPackageJSON(searchPath).name
+          if (this.activePlugins && !this.activePlugins.includes(pluginIdentifier)) {
+            log.info(`Not loading plugin '${pluginIdentifier}' found at '${searchPath}', as it is not in the "plugins" list of your config.json.`)
+            return
+          }
           this.loadPlugin(searchPath)
-        } catch (error: any) {
-          log.warn(error.message)
+        } catch (error: unknown) {
+          log.warn(PluginManager.errorMessage(error))
         }
       } else { // read through each directory in this node_modules folder
         let relativePluginPaths = readdirSync(searchPath, { withFileTypes: true })
@@ -435,8 +486,8 @@ export class PluginManager {
             try {
               const absolutePath = resolve(searchPath, pluginIdentifier)
               this.loadPlugin(absolutePath)
-            } catch (error: any) {
-              log.warn(error.message)
+            } catch (error: unknown) {
+              log.warn(PluginManager.errorMessage(error))
             }
           })
       }
@@ -474,12 +525,13 @@ export class PluginManager {
 
     try {
       packageJson = JSON.parse(readFileSync(packageJsonPath, { encoding: 'utf8' })) // attempt to parse package.json
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(`Plugin ${pluginPath} contains an invalid package.json. Error: ${error}`)
     }
 
-    if (!packageJson.name || !PluginManager.isQualifiedPluginIdentifier(packageJson.name)) {
-      throw new Error(`Plugin ${pluginPath} does not have a package name that begins with 'homebridge-' or '@scope/homebridge-.`)
+    // the file can hold anything: `null`, a list, a name that is a number
+    if (typeof packageJson !== 'object' || packageJson === null || typeof packageJson.name !== 'string' || !PluginManager.isQualifiedPluginIdentifier(packageJson.name)) {
+      throw new Error(`Plugin ${pluginPath} does not have a package name that begins with 'homebridge-' or '@scope/homebridge-'.`)
     }
 
     // verify that it's tagged with the correct keyword
@@ -506,12 +558,8 @@ export class PluginManager {
       paths.forEach(path => this.searchPaths.add(path))
     }
 
-    // THIS SECTION FROM: https://github.com/yeoman/environment/blob/master/lib/resolver.js
-
-    // Adding global npm directories
-    // We tried using npm to get the global modules path, but it hasn't work out
-    // because of bugs in the parsable implementation of `ls` command and mostly
-    // performance issues. So, we go with our best bet for now.
+    // Add the global npm folders: the ones named in NODE_PATH, or else the usual places
+    // plus the folder npm itself reports (`npm -g prefix`, see addNpmPrefixToSearchPaths).
     if (process.env.NODE_PATH) {
       process.env
         .NODE_PATH
@@ -529,9 +577,20 @@ export class PluginManager {
   }
 
   private addNpmPrefixToSearchPaths(): void {
-    if (process.platform === 'win32') {
-      this.searchPaths.add(join(process.env.APPDATA!, 'npm/node_modules'))
-    } else {
+    // Best effort: this adds one more folder to search, on top of NODE_PATH
+    // and node's own module paths. When it can not be worked out (npm is not
+    // on the PATH of a service, npm exits with an error, APPDATA is not set)
+    // Homebridge carries on with the folders it has, and must not fail to start.
+    try {
+      if (process.platform === 'win32') {
+        if (process.env.APPDATA) {
+          this.searchPaths.add(join(process.env.APPDATA, 'npm/node_modules'))
+        } else {
+          log.debug('APPDATA is not set, so the global npm folder is not searched for plugins.')
+        }
+        return
+      }
+
       // Spread process.env first so our explicit silencing keys actually
       // override anything the user has exported (e.g. npm_config_loglevel=info)
       // — otherwise startup gets noisy npm output we tried to suppress.
@@ -544,6 +603,10 @@ export class PluginManager {
         },
       }).trim()
       this.searchPaths.add(join(npmPrefix, 'lib', 'node_modules'))
+    } catch (error: unknown) {
+      log.debug('Could not find the global npm folder, so it is not searched for plugins:', error instanceof Error
+        ? error.message
+        : error)
     }
   }
 }

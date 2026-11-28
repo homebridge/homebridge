@@ -8,6 +8,7 @@
 import type { EndpointType, ServerNode } from '@matter/main'
 
 import type { SerializedMatterAccessory } from './accessoryCache.js'
+import type { AccessoryInfo, ServerAccessoryData, ServerAccessoryListEntry } from './managerTypes.js'
 import type { MatterServerConfig } from './sharedTypes.js'
 
 import { EventEmitter } from 'node:events'
@@ -20,18 +21,18 @@ import { Logger } from '../logger.js'
 import { MatterAccessoryCache } from './accessoryCache.js'
 import { BehaviorRegistry, RegistryManager } from './behaviors/index.js'
 import { applyDeclaredClusterFeatures } from './clusterFeatures.js'
-import { createHomebridgeLogFormatter } from './logFormatter.js'
+import { createHomebridgeLogFormatter, QUIET_FACILITY_LEVELS } from './logFormatter.js'
 import {
   AccessoryManager,
   AccessoryQuery,
   CommissioningManager,
+  DEFAULT_MATTER_PORT,
   FabricManager,
   ServerLifecycle,
   StateManager,
   validateAndSanitizeConfig,
 } from './server/index.js'
 import {
-  clusters,
   deviceTypes,
   InternalMatterAccessory,
   MatterAccessory,
@@ -39,6 +40,18 @@ import {
 } from './types.js'
 
 const log = Logger.withPrefix('Matter/Server')
+
+/** The fields `updatePlatformAccessories` takes from the plugin's object. */
+const UPDATABLE_ACCESSORY_FIELDS = [
+  'displayName',
+  'context',
+  'manufacturer',
+  'model',
+  'serialNumber',
+  'firmwareRevision',
+  'hardwareRevision',
+  'softwareVersion',
+] as const satisfies readonly (keyof MatterAccessory)[]
 const NON_HEX_RE = /[^A-F0-9]/gi
 const HEX_PAIR_RE = /.{1,2}/g
 
@@ -46,6 +59,16 @@ const HEX_PAIR_RE = /.{1,2}/g
  * Matter Server for Homebridge Plugin API
  * Allows plugins to register Matter accessories explicitly
  */
+/**
+ * A plugin's cached context, without the flag older versions of Homebridge
+ * wrote into it for their own use.
+ */
+function withoutInternalFlags(context: Record<string, unknown> | undefined): Record<string, unknown> {
+  const pluginContext = { ...context }
+  delete pluginContext._skipWindowCoveringBehavior
+  return pluginContext
+}
+
 export class MatterServer extends EventEmitter {
   // Typed event emitter methods
   public declare on: <K extends keyof MatterServerEvents>(event: K, listener: MatterServerEvents[K]) => this
@@ -61,9 +84,10 @@ export class MatterServer extends EventEmitter {
   private readonly behaviorRegistry: BehaviorRegistry
   private readonly registryManager: RegistryManager
   private isRunning = false
+  // matter.js took the node offline without being asked (an internal error)
+  private stoppedByItself = false
   private lastRegistrationAt = 0
   private registrationsInFlight = 0
-  private shutdownHandler: (() => Promise<void>) | null = null
   private cleanupHandlers: Array<() => void | Promise<void>> = []
   private accessoryCache: MatterAccessoryCache | null = null
   private monitoringEnabled = false
@@ -101,10 +125,19 @@ export class MatterServer extends EventEmitter {
       MatterLogger.level = MatterLogLevel.NOTICE
     }
 
+    MatterLogger.facilityLevels = { ...QUIET_FACILITY_LEVELS }
     MatterLogger.format = createHomebridgeLogFormatter()
 
-    MatterLogger.destinations.default.write = (text: string) => {
-      if (text.trim() !== '') {
+    // Warnings and errors go to stderr and the rest to stdout, the same split
+    // Homebridge's own logger makes. All on stdout, a tool that reads the two
+    // streams apart filed matter.js errors as normal output.
+    MatterLogger.destinations.default.write = (text: string, message?: { level?: number }) => {
+      if (text.trim() === '') {
+        return
+      }
+      if (message?.level !== undefined && message.level >= MatterLogLevel.WARN) {
+        console.error(text)
+      } else {
         console.log(text) // eslint-disable-line no-console
       }
     }
@@ -112,10 +145,7 @@ export class MatterServer extends EventEmitter {
     // Initialize sub-modules
     this.commissioningManager = new CommissioningManager()
 
-    this.fabricManager = new FabricManager(
-      () => this.serverNode,
-      () => this.serverLifecycle.matterStoragePath,
-    )
+    this.fabricManager = new FabricManager(() => this.serverNode)
 
     this.serverLifecycle = new ServerLifecycle()
 
@@ -178,8 +208,31 @@ export class MatterServer extends EventEmitter {
     this.lastRegistrationAt = Date.now()
     try {
       for (const accessory of accessories) {
-        await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
+        // One accessory the bridge refuses (a duplicate UUID, a value Matter
+        // does not allow) must not stop the ones after it in the same call.
+        // registerAccessory has logged the reason.
+        try {
+          await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
+        } catch {
+          log.warn(`Skipped Matter accessory ${accessory?.displayName ?? accessory?.UUID} - the other accessories in this call are not affected`)
+        }
       }
+    } finally {
+      this.lastRegistrationAt = Date.now()
+      this.registrationsInFlight--
+    }
+  }
+
+  /**
+   * Register one accessory and fail when it can not be registered. For a
+   * caller that has to know: an external accessory's server is of no use
+   * without its accessory.
+   */
+  async registerAccessory(pluginIdentifier: string, platformName: string, accessory: MatterAccessory): Promise<void> {
+    this.registrationsInFlight++
+    this.lastRegistrationAt = Date.now()
+    try {
+      await this.accessoryManager.registerAccessory(pluginIdentifier, platformName, accessory, this.getAccessoryManagerDeps())
     } finally {
       this.lastRegistrationAt = Date.now()
       this.registrationsInFlight--
@@ -192,7 +245,12 @@ export class MatterServer extends EventEmitter {
 
   async unregisterPlatformAccessories(_pluginIdentifier: string, _platformName: string, accessories: MatterAccessory[]): Promise<void> {
     for (const accessory of accessories) {
-      await this.accessoryManager.unregisterAccessory(accessory.UUID, this.getAccessoryManagerDeps())
+      // As for a registration: one failure does not stop the rest of the call
+      try {
+        await this.accessoryManager.unregisterAccessory(accessory.UUID, this.getAccessoryManagerDeps())
+      } catch {
+        log.warn(`Could not unregister Matter accessory ${accessory?.displayName ?? accessory?.UUID} - the other accessories in this call are not affected`)
+      }
     }
   }
 
@@ -203,29 +261,30 @@ export class MatterServer extends EventEmitter {
     }
 
     for (const accessory of accessories) {
-      const internal = accessory as InternalMatterAccessory
-
       if (!this.accessories.has(accessory.UUID)) {
         log.warn(`Cannot update Matter accessory ${accessory.UUID} - not registered in current session`)
         continue
       }
 
-      if (!this.accessoryCache.hasCached(accessory.UUID)) {
-        log.warn(`Cannot update Matter accessory ${accessory.UUID} - not found in cache`)
+      // An update is for the name, the device information and the context,
+      // as it is for a HAP accessory. Nothing else is taken: a plugin often
+      // passes the object it was given in configureMatterAccessory, which has
+      // the cache's plain copy of the device type, parts with no handlers and
+      // the state of the last save. Those replaced the live ones, and the
+      // next save wrote the damage to the cache.
+      const existing = this.accessories.get(accessory.UUID)
+      if (!existing) {
         continue
       }
-
-      const existing = this.accessories.get(accessory.UUID)!
-      this.accessories.set(accessory.UUID, {
-        ...existing,
-        ...internal,
-        endpoint: existing.endpoint,
-        _parts: existing._parts,
-        _eventEmitter: existing._eventEmitter,
-        registered: existing.registered,
-        _restoredFromCache: existing._restoredFromCache,
-      })
-      log.debug(`Updated Matter accessory ${accessory.UUID} (${accessory.displayName})`)
+      const updated: InternalMatterAccessory = { ...existing }
+      for (const field of UPDATABLE_ACCESSORY_FIELDS) {
+        if (accessory[field] !== undefined) {
+          (updated as unknown as Record<string, unknown>)[field] = accessory[field]
+        }
+      }
+      this.accessories.set(accessory.UUID, updated)
+      await this.accessoryManager.updateBridgedInformation(updated.endpoint, updated, this.config)
+      log.debug(`Updated Matter accessory ${accessory.UUID} (${updated.displayName})`)
     }
 
     this.accessoryCache.requestSave(this.accessories)
@@ -235,8 +294,8 @@ export class MatterServer extends EventEmitter {
   // State management (Plugin API)
   // ============================================================================
 
-  async updateAccessoryState(uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): Promise<void> {
-    return this.stateManager.updateAccessoryState(uuid, cluster, attributes, partId)
+  async updateAccessoryState(uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, options?: { callHandlers?: boolean }): Promise<void> {
+    return this.stateManager.updateAccessoryState(uuid, cluster, attributes, partId, options)
   }
 
   getAccessoryState(uuid: string, cluster: string, partId?: string): Record<string, unknown> | undefined {
@@ -267,11 +326,15 @@ export class MatterServer extends EventEmitter {
     return this.accessoryQuery.getCachedAccessory(uuid)
   }
 
-  collectAccessories(bridgeUsername: string, bridgeType: string, bridgeName: string): any[] {
+  getLiveState(uuid: string, partId?: string): Record<string, Record<string, unknown>> {
+    return this.accessoryQuery.getLiveState(uuid, partId)
+  }
+
+  collectAccessories(bridgeUsername: string, bridgeType: AccessoryInfo['bridge']['type'], bridgeName: string): ServerAccessoryListEntry[] {
     return this.accessoryQuery.collectAccessories(bridgeUsername, bridgeType, bridgeName)
   }
 
-  getAccessoryInfo(uuid: string): any | undefined {
+  getAccessoryInfo(uuid: string): ServerAccessoryData | undefined {
     return this.accessoryQuery.getAccessoryInfo(uuid)
   }
 
@@ -328,31 +391,12 @@ export class MatterServer extends EventEmitter {
   // Server info & monitoring
   // ============================================================================
 
-  getServerInfo(): {
-    running: boolean
-    port: number
-    deviceCount: number
-    commissioned: boolean
-    fabricCount: number
-    serialNumber?: string
-  } {
-    return {
-      running: this.isRunning,
-      port: this.config.port || 5540,
-      deviceCount: this.accessories.size,
-      commissioned: this.isCommissioned(),
-      fabricCount: this.getCommissionedFabricCount(),
-      serialNumber: this.config.serialNumber || this.config.uniqueId,
-    }
-  }
-
-  getStorageStats(): null {
-    // Storage is now managed natively by matter.js
-    return null
-  }
-
   isServerRunning(): boolean {
     return this.isRunning
+  }
+
+  get port(): number {
+    return this.config.port ?? DEFAULT_MATTER_PORT
   }
 
   /**
@@ -364,15 +408,16 @@ export class MatterServer extends EventEmitter {
    * "starting", or they would be silently dropped (#3970).
    */
   isDeferredPreOnline(): boolean {
-    return this.config.deferOnline === true && !this.isRunning && this.aggregator !== null
+    return this.config.deferOnline === true && !this.isRunning && this.aggregator !== null && !this.stoppedByItself
   }
 
-  getDeviceTypes(): typeof deviceTypes {
-    return deviceTypes
-  }
-
-  getClusters(): typeof clusters {
-    return clusters
+  /**
+   * True once matter.js has taken this server's node offline without
+   * Homebridge asking, which it does after an internal error. Nothing starts
+   * the server again in this run.
+   */
+  hasStoppedByItself(): boolean {
+    return this.stoppedByItself
   }
 
   enableStateMonitoring(): void {
@@ -383,10 +428,6 @@ export class MatterServer extends EventEmitter {
   disableStateMonitoring(): void {
     this.monitoringEnabled = false
     log.debug('Matter state monitoring disabled')
-  }
-
-  isMonitoringEnabled(): boolean {
-    return this.monitoringEnabled
   }
 
   notifyStateChange(uuid: string, cluster: string, state: Record<string, unknown>, partId?: string): void {
@@ -433,8 +474,9 @@ export class MatterServer extends EventEmitter {
           return
         }
 
-        // Device types are cached as name-only info; resolve them back through
-        // the public registry.
+        // Device types are cached by name, with the cluster features the plugin
+        // chose (clusterFeatures); resolve the name back through the public
+        // registry, and put the features back on top below.
         const typeByName = new Map<string, EndpointType>()
         for (const [key, value] of Object.entries(deviceTypes)) {
           typeByName.set(key, value as EndpointType)
@@ -446,12 +488,17 @@ export class MatterServer extends EventEmitter {
 
         // Handlers are functions and cannot be cached, but custom behaviors
         // (e.g. the OnOff server on switch device types) are only attached for
-        // clusters that have handlers. Synthesize empty stubs per cached
-        // cluster so the restored endpoint is structurally identical to the
-        // original; the plugin's re-registration supplies the real handlers.
-        const stubHandlers = (clusters?: Record<string, unknown>) => {
+        // clusters that have handlers. Synthesize an empty stub per cached
+        // cluster, and per cluster the plugin had handlers for (some have
+        // handlers and no state, like keypadInput), so the restored endpoint
+        // carries the same behaviors as the original; the plugin's
+        // re-registration supplies the real handlers.
+        const stubHandlers = (clusters?: Record<string, unknown>, handlerClusters?: string[]) => {
           const handlers: Record<string, Record<string, never>> = {}
-          for (const clusterName of Object.keys(clusters ?? {})) {
+          for (const clusterName of [
+            ...Object.keys(clusters ?? {}),
+            ...(handlerClusters ?? []),
+          ]) {
             handlers[clusterName] = {}
           }
           return Object.keys(handlers).length > 0
@@ -461,13 +508,18 @@ export class MatterServer extends EventEmitter {
 
         let restored = 0
         for (const serialized of cached.values()) {
+          // Homebridge is stopping: the start ends after this loop
+          if (this.serverLifecycle.isStopRequested()) {
+            break
+          }
           try {
             const baseType = typeByName.get(serialized.deviceType?.name ?? '')
             // The cache names the type; the plugin's own feature choices are
             // put back on top, or the cached state may not fit the endpoint
             const deviceType = baseType && applyDeclaredClusterFeatures(baseType, serialized.deviceType?.clusterFeatures)
             if (!deviceType) {
-              log.warn(`Cannot restore cached Matter accessory ${serialized.displayName}: unknown device type "${serialized.deviceType?.name}"`)
+              log.warn(`Cannot restore cached Matter accessory ${serialized.displayName}: unknown device type "${serialized.deviceType?.name}". Its cache entry is kept.`)
+              this.accessoryCache.retain(serialized.uuid)
               continue
             }
             const parts = (serialized.parts ?? [])
@@ -479,7 +531,7 @@ export class MatterServer extends EventEmitter {
                   deviceType: partType && applyDeclaredClusterFeatures(partType, part.deviceType?.clusterFeatures),
                   features: part.features,
                   clusters: part.clusters ?? {},
-                  handlers: stubHandlers(part.clusters),
+                  handlers: stubHandlers(part.clusters, part.handlerClusters),
                 }
               })
               .filter((part): part is typeof part & { deviceType: EndpointType } => part.deviceType !== undefined)
@@ -495,13 +547,14 @@ export class MatterServer extends EventEmitter {
               hardwareRevision: serialized.hardwareRevision,
               softwareVersion: serialized.softwareVersion,
               features: serialized.features,
-              context: serialized.context ?? {},
+              context: withoutInternalFlags(serialized.context),
               clusters: serialized.clusters ?? {},
-              handlers: stubHandlers(serialized.clusters),
+              handlers: stubHandlers(serialized.clusters, serialized.handlerClusters),
               registered: false,
               _restoredFromCache: true,
               _associatedPlugin: serialized.plugin,
               _associatedPlatform: serialized.platform,
+              _declared: serialized.declared,
             }
             if (parts.length > 0) {
               accessory.parts = parts
@@ -509,7 +562,11 @@ export class MatterServer extends EventEmitter {
             await this.accessoryManager.registerAccessory(serialized.plugin, serialized.platform, accessory, this.getAccessoryManagerDeps())
             restored++
           } catch (error) {
-            log.warn(`Failed to restore cached Matter accessory ${serialized.displayName}:`, error)
+            log.warn(`Failed to restore cached Matter accessory ${serialized.displayName} (its cache entry is kept):`, error)
+            // It is not on the bridge now, and a save writes what is on the
+            // bridge. Hold the entry so it is written back unchanged: the
+            // plugin's own registration, or a later version, can still use it.
+            this.accessoryCache.retain(serialized.uuid)
           }
         }
         if (restored > 0) {
@@ -520,20 +577,18 @@ export class MatterServer extends EventEmitter {
         this.serverNode = node
       },
       getServerNode: () => this.serverNode,
-      setAggregator: (agg: any) => {
-        this.aggregator = agg
+      setAggregator: (aggregator: MatterServer['aggregator']) => {
+        this.aggregator = aggregator
       },
       getAggregator: () => this.aggregator,
       setIsRunning: (running: boolean) => {
         this.isRunning = running
       },
       getIsRunning: () => this.isRunning,
-      cleanupHandlers: this.cleanupHandlers,
-      getShutdownHandler: () => this.shutdownHandler,
-      setShutdownHandler: (handler: (() => Promise<void>) | null) => {
-        this.shutdownHandler = handler
+      noteStoppedByItself: () => {
+        this.stoppedByItself = true
       },
-      onStop: () => this.stop(),
+      cleanupHandlers: this.cleanupHandlers,
     }
   }
 

@@ -8,40 +8,37 @@ import type { Thermostat } from '@matter/main/clusters'
 
 import { Node } from '@matter/main'
 import { ThermostatServer } from '@matter/main/behaviors/thermostat'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
+import { isPluginUpdate } from './pluginUpdates.js'
+import { revertFailedChange } from './revertFailedChange.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom Thermostat Server that calls plugin handlers
  */
 export class HomebridgeThermostatServer extends ThermostatServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  override initialize(): void {
-    super.initialize()
+  override async initialize(): Promise<void> {
+    // matter.js's own set-up can be async and can fail (it refuses a thermostat
+    // whose limits it can not make sense of). Waited for, the failure fails
+    // this one registration. Not waited for, nobody caught it, and Node ended
+    // Homebridge for an unhandled rejection.
+    await super.initialize()
 
     // React to systemMode attribute changes (off, heat, cool, auto, etc.)
     this.reactTo(this.events.systemMode$Changed, this.#handleSystemModeChange, { offline: true })
 
-    // React to occupiedHeatingSetpoint attribute changes (target heating temperature)
-    // Using 'as any' because these events are feature-dependent (Heating/Cooling features)
-    // and may not be present in the base events type at compile time
-    const events = this.events as any
-    if (events.occupiedHeatingSetpoint$Changing) {
-      this.reactTo(events.occupiedHeatingSetpoint$Changing, this.#handleOccupiedHeatingSetpointChanging, { offline: true })
-    }
-
-    // React to occupiedCoolingSetpoint attribute changes (target cooling temperature)
-    if (events.occupiedCoolingSetpoint$Changing) {
-      this.reactTo(events.occupiedCoolingSetpoint$Changing, this.#handleOccupiedCoolingSetpointChanging, { offline: true })
-    }
+    // React to changes of the setpoints (the target temperatures). These use
+    // the "changing" event, raised while the write is still being made, where
+    // the system mode above uses "changed", raised after it. Either way the
+    // reaction runs on its own, after the write was accepted. Which of
+    // them exist depends on the features (Heating, Cooling, Occupancy), so the
+    // base type does not list their events.
+    const events = this.events as unknown as Record<string, Parameters<typeof this.reactTo>[0] | undefined>
+    this.maybeReactTo(events.occupiedHeatingSetpoint$Changing, this.#handleOccupiedHeatingSetpointChanging, { offline: true })
+    this.maybeReactTo(events.occupiedCoolingSetpoint$Changing, this.#handleOccupiedCoolingSetpointChanging, { offline: true })
+    this.maybeReactTo(events.unoccupiedHeatingSetpoint$Changing, this.#handleUnoccupiedHeatingSetpointChanging, { offline: true })
+    this.maybeReactTo(events.unoccupiedCoolingSetpoint$Changing, this.#handleUnoccupiedCoolingSetpointChanging, { offline: true })
 
     // matter.js links the temperature and occupancy that controllers read to
     // the state a plugin sets only at the moment the node comes online. A
@@ -75,16 +72,17 @@ export class HomebridgeThermostatServer extends ThermostatServer {
   protected linkExternalReadings(): void {
     const features = this.features as { localTemperatureNotExposed?: boolean, occupancy?: boolean }
     const state = this.state as { externalMeasuredIndoorTemperature?: number | null, externallyMeasuredOccupancy?: boolean }
-    const events = this.events as any
+    // Which of these events exist depends on the features, so the base type does not list them
+    const events = this.events as unknown as Record<string, Parameters<typeof this.reactTo>[0] | undefined>
 
     if (!features.localTemperatureNotExposed && state.externalMeasuredIndoorTemperature !== undefined) {
       this.mirrorTemperature(state.externalMeasuredIndoorTemperature)
-      this.reactTo(events.externalMeasuredIndoorTemperature$Changed, this.mirrorTemperature)
+      this.maybeReactTo(events.externalMeasuredIndoorTemperature$Changed, this.mirrorTemperature)
     }
 
     if (features.occupancy && state.externallyMeasuredOccupancy !== undefined) {
       this.mirrorOccupancy(state.externallyMeasuredOccupancy)
-      this.reactTo(events.externallyMeasuredOccupancy$Changed, this.mirrorOccupancy)
+      this.maybeReactTo(events.externallyMeasuredOccupancy$Changed, this.mirrorOccupancy)
     }
   }
 
@@ -104,7 +102,13 @@ export class HomebridgeThermostatServer extends ThermostatServer {
 
   async #handleSystemModeChange(value: number, oldValue: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
+
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'thermostat', 'systemMode', value)) {
+      return
+    }
 
     try {
       // Execute user handler
@@ -118,123 +122,91 @@ export class HomebridgeThermostatServer extends ThermostatServer {
       // Sync state to cache
       registry.syncStateToCache(endpointId, 'thermostat', { systemMode: value })
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change system mode: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'thermostat', 'systemMode', value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'thermostat', { systemMode: oldValue })
     }
   }
 
-  async #handleOccupiedHeatingSetpointChanging(value: unknown): Promise<void> {
+  // One reaction per setpoint: matter.js wants each to be a method of its own.
+  async #handleOccupiedHeatingSetpointChanging(value: number, oldValue: number): Promise<void> {
+    await this.setpointChanging('occupiedHeatingSetpoint', 'oldOccupiedHeatingSetpoint', value, oldValue)
+  }
+
+  async #handleOccupiedCoolingSetpointChanging(value: number, oldValue: number): Promise<void> {
+    await this.setpointChanging('occupiedCoolingSetpoint', 'oldOccupiedCoolingSetpoint', value, oldValue)
+  }
+
+  async #handleUnoccupiedHeatingSetpointChanging(value: number, oldValue: number): Promise<void> {
+    await this.setpointChanging('unoccupiedHeatingSetpoint', 'oldUnoccupiedHeatingSetpoint', value, oldValue)
+  }
+
+  async #handleUnoccupiedCoolingSetpointChanging(value: number, oldValue: number): Promise<void> {
+    await this.setpointChanging('unoccupiedCoolingSetpoint', 'oldUnoccupiedCoolingSetpoint', value, oldValue)
+  }
+
+  /**
+   * Tell the plugin a setpoint was changed, through its `<setpoint>Change`
+   * handler, which is given the new and the old value.
+   */
+  private async setpointChanging(attribute: string, oldName: string, value: number, oldValue: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-    // Using 'as any' because occupiedHeatingSetpoint is feature-dependent (Heating feature)
-    const oldValue = (this.state as any).occupiedHeatingSetpoint
+    const registry = registryOf(this.endpoint)
+
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'thermostat', attribute, value)) {
+      return
+    }
 
     try {
       // Execute user handler
       await registry.executeHandler(
         endpointId,
         'thermostat',
-        'occupiedHeatingSetpointChange',
-        { occupiedHeatingSetpoint: value as number, oldOccupiedHeatingSetpoint: oldValue },
+        `${attribute}Change`,
+        { [attribute]: value, [oldName]: oldValue },
       )
 
       // Sync state to cache
-      registry.syncStateToCache(endpointId, 'thermostat', { occupiedHeatingSetpoint: value })
+      registry.syncStateToCache(endpointId, 'thermostat', { [attribute]: value })
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change heating setpoint: ${message}`, Status.Failure)
-    }
-  }
-
-  async #handleOccupiedCoolingSetpointChanging(value: unknown): Promise<void> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-    // Using 'as any' because occupiedCoolingSetpoint is feature-dependent (Cooling feature)
-    const oldValue = (this.state as any).occupiedCoolingSetpoint
-
-    try {
-      // Execute user handler
-      await registry.executeHandler(
-        endpointId,
-        'thermostat',
-        'occupiedCoolingSetpointChange',
-        { occupiedCoolingSetpoint: value as number, oldOccupiedCoolingSetpoint: oldValue },
-      )
-
-      // Sync state to cache
-      registry.syncStateToCache(endpointId, 'thermostat', { occupiedCoolingSetpoint: value })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change cooling setpoint: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'thermostat', attribute, value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'thermostat', { [attribute]: oldValue })
     }
   }
 
   override async setpointRaiseLower(request: Thermostat.SetpointRaiseLowerRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'thermostat', 'setpointRaiseLower', request)
-
-      // Only reached if handler succeeded - update Matter state
-      await super.setpointRaiseLower(request)
-
-      // Sync thermostat setpoints to cache
-      // Using 'as any' because these properties are feature-dependent (Heating/Cooling features)
-      // and may not be present in the base state type at compile time
-      const currentState = this.state as any
-      const stateUpdate: Record<string, number> = {}
-      if (currentState.occupiedCoolingSetpoint !== undefined) {
-        stateUpdate.occupiedCoolingSetpoint = currentState.occupiedCoolingSetpoint
-      }
-      if (currentState.occupiedHeatingSetpoint !== undefined) {
-        stateUpdate.occupiedHeatingSetpoint = currentState.occupiedHeatingSetpoint
-      }
-      registry.syncStateToCache(endpointId, 'thermostat', stateUpdate)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to adjust setpoint: ${message}`, Status.Failure)
+    // The handler is optional. matter.js moves the setpoints itself, and each
+    // move reaches the plugin through its setpoint-change handler, so a plugin
+    // with only those handlers needs nothing more for this command.
+    if (!registry.getHandler(endpointId, 'thermostat', 'setpointRaiseLower')) {
+      return super.setpointRaiseLower(request)
     }
+
+    // Execute user handler
+    await registry.executeHandler(endpointId, 'thermostat', 'setpointRaiseLower', request)
+    await lockStateForWrite(this)
+
+    // Only reached if handler succeeded - update Matter state
+    await super.setpointRaiseLower(request)
+
+    // Sync thermostat setpoints to cache. Which of them exist depends on the
+    // features (Heating, Cooling), so the base state type does not list them.
+    const currentState = this.state as { occupiedCoolingSetpoint?: number, occupiedHeatingSetpoint?: number }
+    const stateUpdate: Record<string, number> = {}
+    if (currentState.occupiedCoolingSetpoint !== undefined) {
+      stateUpdate.occupiedCoolingSetpoint = currentState.occupiedCoolingSetpoint
+    }
+    if (currentState.occupiedHeatingSetpoint !== undefined) {
+      stateUpdate.occupiedHeatingSetpoint = currentState.occupiedHeatingSetpoint
+    }
+    registry.syncStateToCache(endpointId, 'thermostat', stateUpdate)
   }
 }

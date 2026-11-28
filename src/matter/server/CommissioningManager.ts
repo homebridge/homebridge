@@ -1,3 +1,5 @@
+/* global NodeJS */
+
 /**
  * Commissioning Manager
  *
@@ -12,13 +14,14 @@ import type { MatterServerConfig } from '../sharedTypes.js'
 import type { CommissioningSnapshot, FabricManager } from './FabricManager.js'
 
 import { randomBytes } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
+import { rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { SubscriptionsServer } from '@matter/node'
-import { ManualPairingCodeCodec, QrCode, QrPairingCodeCodec } from '@matter/types/schema'
+import { ObserverGroup } from '@matter/main'
+import { QrCode } from '@matter/main/types'
 
 import { Logger } from '../../logger.js'
+import { MatterDeviceError } from '../types.js'
 import { DEFAULT_PRODUCT_ID, DEFAULT_VENDOR_ID, MAX_PASSCODE_ATTEMPTS } from './ServerConfig.js'
 
 const log = Logger.withPrefix('Matter/Server')
@@ -38,6 +41,34 @@ export interface CommissioningDeps {
   fabricManager: FabricManager
 }
 
+/** The last write of each file that writePrivateFile() started. */
+const pendingWrites = new Map<string, Promise<void>>()
+
+/**
+ * Write a file that holds the pairing passcode: readable by the Homebridge
+ * user only, and swapped into place in one step so a reader (the UI) never
+ * sees half of it. The rename also replaces an older, world-readable file.
+ */
+async function writePrivateFile(path: string, content: string): Promise<void> {
+  // One write at a time per file. Two at once (the save at start-up is not
+  // waited for, and a pairing change can save at the same moment) shared the
+  // temporary file: the second rename found it gone and the save failed.
+  const previous = pendingWrites.get(path) ?? Promise.resolve()
+  const write = previous.catch(() => {}).then(async () => {
+    const temporaryPath = `${path}.tmp`
+    await writeFile(temporaryPath, content, { encoding: 'utf-8', mode: 0o600 })
+    await rename(temporaryPath, path)
+  })
+  pendingWrites.set(path, write)
+  try {
+    await write
+  } finally {
+    if (pendingWrites.get(path) === write) {
+      pendingWrites.delete(path)
+    }
+  }
+}
+
 export class CommissioningManager {
   public passcode = 0
   public discriminator = 0
@@ -45,13 +76,10 @@ export class CommissioningManager {
   public readonly productId: number
   public commissioningInfo: CommissioningInfo = {}
 
-  // Stored references so commissioning Observable listeners can be removed in
-  // teardownCommissioningEventListeners(). matter.js Observables require the
-  // exact same observer reference passed to .off() that was passed to .on().
-  // Bound at registration time so each CommissioningDeps closure stays consistent.
-  private onFabricsChanged: ((fabricIndex: number, action: unknown) => void) | null = null
-  private onCommissioned: (() => void) | null = null
-  private onDecommissioned: (() => void) | null = null
+  // The commissioning listeners, held as a group so cleanup can remove them in
+  // one go and release what they capture (the node, the fabric manager, the emitter).
+  private readonly observers = new ObserverGroup()
+  private listening = false
 
   constructor() {
     this.vendorId = DEFAULT_VENDOR_ID
@@ -185,23 +213,40 @@ export class CommissioningManager {
   async loadOrGenerateCredentials(matterStoragePath: string): Promise<void> {
     const credentialsPath = join(matterStoragePath, 'credentials.json')
 
+    // Only a file that is not there means "first start". Any other read error
+    // (no permission, a disk that is not ready) says nothing about the file:
+    // making new credentials then replaced the ones the user's pairing code
+    // came from, and the code printed on a label or saved in a note was wrong
+    // from that start on.
+    let stored: string | undefined
     try {
       const { readFile } = await import('node:fs/promises')
-      const data = JSON.parse(await readFile(credentialsPath, 'utf-8'))
-      if (
-        Number.isInteger(data.passcode)
-        && this.isValidPasscode(data.passcode)
-        && Number.isInteger(data.discriminator)
-        && data.discriminator >= 0
-        && data.discriminator <= 4095
-      ) {
-        log.info('Loading existing commissioning credentials from storage')
-        this.passcode = data.passcode
-        this.discriminator = data.discriminator
-        return
+      stored = await readFile(credentialsPath, 'utf-8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        throw new Error(`The Matter commissioning credentials could not be read from ${credentialsPath}. They were not replaced.`, { cause: error })
       }
-    } catch {
-      // File doesn't exist or is invalid - generate new credentials
+    }
+
+    if (stored !== undefined) {
+      try {
+        const data = JSON.parse(stored)
+        if (
+          Number.isInteger(data.passcode)
+          && this.isValidPasscode(data.passcode)
+          && Number.isInteger(data.discriminator)
+          && data.discriminator >= 0
+          && data.discriminator <= 4095
+        ) {
+          log.info('Loading existing commissioning credentials from storage')
+          this.passcode = data.passcode
+          this.discriminator = data.discriminator
+          return
+        }
+      } catch {
+        // not JSON: handled below, with a stored file whose values are not valid
+      }
+      log.warn(`The Matter commissioning credentials in ${credentialsPath} are not valid (the file is damaged, or it holds a passcode or discriminator Matter does not allow). New ones are generated, so the pairing code of this bridge changes.`)
     }
 
     // Generate new credentials and store them
@@ -210,11 +255,7 @@ export class CommissioningManager {
     this.discriminator = this.generateRandomDiscriminator()
 
     // Store for future use
-    await writeFile(
-      credentialsPath,
-      JSON.stringify({ passcode: this.passcode, discriminator: this.discriminator }, null, 2),
-      'utf-8',
-    )
+    await writePrivateFile(credentialsPath, JSON.stringify({ passcode: this.passcode, discriminator: this.discriminator }, null, 2))
     log.info('Commissioning credentials saved to storage')
   }
 
@@ -222,36 +263,16 @@ export class CommissioningManager {
    * Generate and display commissioning information
    */
   async generateCommissioningInfo(deps: CommissioningDeps): Promise<void> {
-    const passcode = this.passcode.toString().padStart(8, '0')
-    const discriminator = this.discriminator
-    const vendorId = this.vendorId
-    const productId = this.productId
+    if (!deps.serverNode) {
+      throw new MatterDeviceError('The pairing codes can only be read once the Matter server node exists')
+    }
 
-    // Use Matter.js library to generate pairing codes properly
-    const manualCode = ManualPairingCodeCodec.encode({
-      discriminator,
-      passcode: this.passcode,
-    })
+    // matter.js builds both codes from the node's own passcode, discriminator,
+    // vendor id and product id, so they can not drift from what it advertises.
+    const { manualPairingCode: manualCode, qrPairingCode: qrCodePayload } = deps.serverNode.state.commissioning.pairingCodes
 
     // Format as XXXX-XXX-XXXX for display
     const manualPairingCode = `${manualCode.slice(0, 4)}-${manualCode.slice(4, 7)}-${manualCode.slice(7, 11)}`
-
-    log.info(`Encoding QR code with: passcode=${this.passcode}, discriminator=${discriminator}, vendorId=${vendorId}, productId=${productId}`)
-
-    const qrCodePayload = QrPairingCodeCodec.encode([
-      {
-        version: 0,
-        vendorId,
-        productId,
-        flowType: 0, // Standard commissioning flow
-        discoveryCapabilities: 4, // OnNetwork=4
-        discriminator,
-        passcode: this.passcode,
-      },
-    ])
-
-    log.info(`Generated QR code: ${qrCodePayload}`)
-    log.info(`Generated manual code: ${manualPairingCode}`)
 
     // Store commissioning info
     this.commissioningInfo = {
@@ -273,7 +294,7 @@ export class CommissioningManager {
         discriminator: this.discriminator,
         commissioned: deps.fabricManager.isCommissioned(),
       }
-      await writeFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2), 'utf-8')
+      await writePrivateFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2))
       log.debug(`Saved commissioning info to ${commissioningFilePath}`)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error
@@ -282,18 +303,28 @@ export class CommissioningManager {
       log.warn(`Failed to save commissioning info to disk: ${errorMessage}`)
     }
 
-    // Display commissioning information
+    // The pairing codes let anybody on the network add this bridge, and logs
+    // get shared. So they are shown in one place only, and only while there is
+    // something to pair: a bridge that already has a controller says so in one
+    // line. The codes stay available in the Homebridge UI either way.
+    if (deps.fabricManager.isCommissioned()) {
+      log.info('Matter is paired with a controller. The pairing codes are not shown; find them in the Homebridge UI.')
+      return
+    }
+
     log.info(`${'='.repeat(60)}`)
     log.info('📱 MATTER COMMISSIONING INFORMATION')
     log.info('='.repeat(60))
     log.info(`Manual Pairing Code: ${manualPairingCode}`)
-    log.info(`Passcode: ${passcode}`)
-    log.info(`Discriminator: ${discriminator}`)
-    log.info('QR Code for commissioning:')
 
-    // Generate and display QR code in terminal using matter.js native QR renderer
-    const qrCodeString = QrCode.get(qrCodePayload)
-    log.info(`\n${qrCodeString}`)
+    // -Q / --no-qrcode: no QR code in the log, as for HomeKit
+    if (!deps.config.hideQRCode) {
+      log.info('QR Code for commissioning:')
+
+      // Generate and display QR code in terminal using matter.js native QR renderer
+      const qrCodeString = QrCode.get(qrCodePayload)
+      log.info(`\n${qrCodeString}`)
+    }
 
     log.info(`${'='.repeat(60)}`)
   }
@@ -307,7 +338,7 @@ export class CommissioningManager {
       return
     }
 
-    if (this.onFabricsChanged || this.onCommissioned || this.onDecommissioned) {
+    if (this.listening) {
       log.debug('Commissioning event listeners already registered, skipping')
       return
     }
@@ -315,84 +346,37 @@ export class CommissioningManager {
     log.debug('Setting up commissioning event listeners')
 
     try {
-      // Listen for fabric changes (add/remove/update)
-      this.onFabricsChanged = (fabricIndex, action) => {
+      const events = deps.serverNode.events.commissioning
+
+      // Every fabric change (added, removed, updated). matter.js raises this
+      // after it has updated its fabric list, and after `commissioned` or
+      // `decommissioned` for the first and the last fabric, so this is the one
+      // place that saves the new state and tells the UI. Doing it from the
+      // other two events as well wrote the file twice at the same moment and
+      // told the UI twice.
+      this.observers.on(events.fabricsChanged, (fabricIndex, action) => {
         log.info(`Fabric ${action}: index ${fabricIndex}`)
 
-        if (action === 'deleted') {
-          this.purgeSubscriptionsForFabric(deps.serverNode, fabricIndex).catch((error) => {
-            log.debug(`Failed to purge persisted subscriptions for removed fabric ${fabricIndex}:`, error)
-          })
-        }
+        // Nothing to clean up for a removed fabric: matter.js closes its
+        // sessions, which ends their subscriptions for good, and it drops the
+        // saved entry of a subscription that ended that way.
 
-        // Compute commissioning state once and reuse for both the file update
-        // and the IPC emit, then push the snapshot into updateCommissioningFile
-        // so it doesn't redo the same fabric reads.
         const snapshot = deps.fabricManager.getCommissioningSnapshot()
         this.updateCommissioningFile(deps, snapshot).catch((error) => {
           log.warn('Failed to update commissioning file after fabric change:', error)
         })
         deps.emitter.emit('commissioning-status-changed', snapshot.commissioned, snapshot.fabricCount)
-      }
-      deps.serverNode.events.commissioning.fabricsChanged.on(this.onFabricsChanged)
-
-      // Listen for commissioning (first fabric added)
-      this.onCommissioned = () => {
-        log.info('Bridge commissioned')
-
-        const snapshot = deps.fabricManager.getCommissioningSnapshot()
-        this.updateCommissioningFile(deps, snapshot).catch((error) => {
-          log.warn('Failed to update commissioning file after commissioning:', error)
-        })
-        deps.emitter.emit('commissioning-status-changed', true, snapshot.fabricCount)
-      }
-      deps.serverNode.events.commissioning.commissioned.on(this.onCommissioned)
-
-      // Listen for decommissioning (last fabric removed)
-      this.onDecommissioned = () => {
-        log.info('Bridge decommissioned')
-
-        this.updateCommissioningFile(deps).catch((error) => {
-          log.warn('Failed to update commissioning file after decommissioning:', error)
-        })
-        deps.emitter.emit('commissioning-status-changed', false, 0)
-      }
-      deps.serverNode.events.commissioning.decommissioned.on(this.onDecommissioned)
+      })
+      this.observers.on(events.commissioned, () => log.info('Bridge commissioned'))
+      this.observers.on(events.decommissioned, () => log.info('Bridge decommissioned'))
+      this.listening = true
 
       log.debug('Commissioning event listeners registered successfully')
     } catch (error) {
       log.error('Failed to set up commissioning event listeners:', error)
       // Roll back any partial registration so a retry can succeed
-      this.teardownCommissioningEventListeners(deps.serverNode)
+      this.teardownCommissioningEventListeners()
     }
-  }
-
-  /**
-   * Delete persisted subscriptions belonging to a removed fabric.
-   *
-   * matter.js persists controller subscriptions so it can proactively
-   * re-establish them when the node next comes online (a single pass with a
-   * short, no-retry connection timeout per peer). It removes the fabric's
-   * sessions on removal but leaves the persisted subscription entries behind,
-   * so re-establishment wastes its window on peers that can never answer
-   * ("Failed to connect to ... Fabric index #N does not exist").
-   */
-  private async purgeSubscriptionsForFabric(serverNode: ServerNode | null, fabricIndex: number): Promise<void> {
-    if (!serverNode) {
-      return
-    }
-
-    await serverNode.act((agent) => {
-      const subscriptions = agent.get(SubscriptionsServer)
-      const remaining = subscriptions.state.subscriptions.filter(
-        subscription => subscription.peerAddress.fabricIndex !== fabricIndex,
-      )
-      const purged = subscriptions.state.subscriptions.length - remaining.length
-      if (purged > 0) {
-        subscriptions.state.subscriptions = remaining
-        log.debug(`Purged ${purged} persisted subscription(s) for removed fabric ${fabricIndex}`)
-      }
-    })
   }
 
   /**
@@ -403,31 +387,14 @@ export class CommissioningManager {
    * Without this, the matter.js Observable retains the observer across stop()
    * cycles, holding the entire CommissioningDeps graph from GC.
    */
-  teardownCommissioningEventListeners(serverNode: ServerNode | null): void {
-    if (!serverNode) {
-      this.onFabricsChanged = null
-      this.onCommissioned = null
-      this.onDecommissioned = null
-      return
-    }
-
+  teardownCommissioningEventListeners(): void {
     try {
-      if (this.onFabricsChanged) {
-        serverNode.events.commissioning.fabricsChanged.off(this.onFabricsChanged)
-      }
-      if (this.onCommissioned) {
-        serverNode.events.commissioning.commissioned.off(this.onCommissioned)
-      }
-      if (this.onDecommissioned) {
-        serverNode.events.commissioning.decommissioned.off(this.onDecommissioned)
-      }
+      this.observers.close()
       log.debug('Commissioning event listeners removed')
     } catch (error) {
       log.debug('Error removing commissioning event listeners:', error)
     } finally {
-      this.onFabricsChanged = null
-      this.onCommissioned = null
-      this.onDecommissioned = null
+      this.listening = false
     }
   }
 
@@ -458,7 +425,7 @@ export class CommissioningManager {
         fabricCount,
         fabrics,
       }
-      await writeFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2), 'utf-8')
+      await writePrivateFile(commissioningFilePath, JSON.stringify(commissioningData, null, 2))
       log.debug('Updated commissioning info file')
     } catch (error: unknown) {
       const errorMessage = error instanceof Error

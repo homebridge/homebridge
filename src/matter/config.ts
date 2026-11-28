@@ -112,6 +112,14 @@ export function stripMatterExternalsOnlyForAccessory(
   }
 }
 
+/** The port numbers a Matter server accepts (the same limits as validatePort in configValidator.ts). */
+const MIN_MATTER_PORT = 1025
+const MAX_MATTER_PORT = 65534
+
+function isMatterPortNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= MIN_MATTER_PORT && value <= MAX_MATTER_PORT
+}
+
 /**
  * Lightweight config collector that doesn't require Matter.js imports
  */
@@ -166,19 +174,24 @@ export class MatterConfigCollector {
 
   /**
    * Validate the matterPorts pool configuration
-   * Ensures start and end are defined and start <= end
+   * Ensures start and end are whole port numbers and start <= end
    *
    * @param config - The Homebridge configuration
    */
   static validateMatterPortsPool(config: HomebridgeConfig): void {
     if (config.matterPorts !== undefined) {
-      if (config.matterPorts.start && config.matterPorts.end) {
-        if (config.matterPorts.start > config.matterPorts.end) {
-          log.error('Invalid Matter port pool configuration. End should be greater than or equal to start.')
-          config.matterPorts = undefined
-        }
-      } else {
+      const { start, end } = config.matterPorts ?? {}
+      if (!start || !end) {
         log.error('Invalid configuration for \'matterPorts\'. Missing \'start\' and \'end\' properties! Ignoring it!')
+        config.matterPorts = undefined
+      } else if (!isMatterPortNumber(start) || !isMatterPortNumber(end)) {
+        // A port given as text ("5530") was added to as text: the pool handed
+        // out "5530", then "55301", then "553011".
+        log.error(`Invalid configuration for 'matterPorts'. 'start' and 'end' must be whole numbers from ${MIN_MATTER_PORT} to ${MAX_MATTER_PORT}, not in quotes `
+          + `(got start: ${JSON.stringify(start)}, end: ${JSON.stringify(end)}). Ignoring it!`)
+        config.matterPorts = undefined
+      } else if (start > end) {
+        log.error('Invalid Matter port pool configuration. End should be greater than or equal to start.')
         config.matterPorts = undefined
       }
     }
@@ -195,9 +208,9 @@ export class MatterConfigCollector {
       return
     }
 
-    // externalsOnly coherence checks run first so misconfigurations throw with
-    // a clear message before downstream validators get the chance to silently
-    // strip the matter block on unrelated errors. Accessory child bridges have
+    // externalsOnly coherence checks run first, so a misconfiguration is
+    // warned about and put right in place before downstream validators get the
+    // chance to silently strip the matter block on unrelated errors. Accessory child bridges have
     // externalsOnly stripped with a warning here too (mirrors hap.externalsOnly).
     if (config.bridge.matter) {
       validateMatterExternalsOnly(config.bridge.matter, 'main bridge')
@@ -269,16 +282,15 @@ export class MatterConfigCollector {
       log.warn(warning)
     }
 
-    // Check for conflicts between main bridge Matter port and child bridge
-    // ports — again only when the main server will actually bind its port,
-    // so a disabled/externalsOnly main doesn't raise a spurious conflict.
+    // Check the main bridge's Matter port against its HAP port — again only
+    // when the main server will actually bind its port.
     if (shouldStartMatterServer(config.bridge.matter) && config.bridge.matter?.port) {
       this.checkPortConflicts(config)
     }
   }
 
   /**
-   * Check for port conflicts between main bridge and child bridges
+   * Warn when the main bridge's Matter port is very close to its HAP port
    *
    * @param config - The Homebridge configuration
    */
@@ -288,25 +300,10 @@ export class MatterConfigCollector {
       return
     }
 
-    // Collect all child bridge Matter ports
-    const childMatterPorts: number[] = []
-
-    for (const platform of config.platforms) {
-      if (platform._bridge?.matter?.port) {
-        childMatterPorts.push(platform._bridge.matter.port)
-      }
-    }
-
-    for (const accessory of config.accessories) {
-      if (accessory._bridge?.matter?.port) {
-        childMatterPorts.push(accessory._bridge.matter.port)
-      }
-    }
-
-    // Check for conflicts with child bridge Matter ports
-    if (childMatterPorts.includes(mainMatterPort)) {
-      log.error(`Main bridge Matter port ${mainMatterPort} conflicts with a child bridge Matter port. Please use unique ports.`)
-    }
+    // A child bridge that will start on the same Matter port has had its
+    // Matter config removed by the child validator already (the main port is
+    // reserved there), and a child that is disabled never binds its port. So
+    // there is no child conflict left to report here.
 
     // Check for conflict with main bridge HAP port
     if (config.bridge.port && Math.abs(config.bridge.port - mainMatterPort) < 10) {

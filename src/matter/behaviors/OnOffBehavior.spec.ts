@@ -17,6 +17,8 @@ describe('homebridgeOnOffServer', () => {
     // Create mock registry
     mockRegistry = {
       executeHandler: vi.fn().mockResolvedValue(true),
+      // the plugin registered every handler, toggle included
+      getHandler: vi.fn(() => vi.fn()),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -48,8 +50,12 @@ describe('homebridgeOnOffServer', () => {
     })
 
     // Mock super methods to prevent actual execution
-    vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'on').mockReturnValue(undefined)
-    vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'off').mockReturnValue(undefined)
+    vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'on').mockImplementation(() => {
+      mockState.onOff = true
+    })
+    vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'off').mockImplementation(() => {
+      mockState.onOff = false
+    })
     vi.spyOn(Object.getPrototypeOf(HomebridgeOnOffServer.prototype), 'toggle').mockImplementation(() => {
       mockState.onOff = !mockState.onOff
     })

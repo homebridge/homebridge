@@ -2,6 +2,292 @@
 
 All notable changes to `homebridge` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v2.5.1 (2026-11-29)
+
+### Changes
+
+- ci: refresh upstream Homebridge dependencies daily and on demand for alpha
+- docs: bring the readme's install list in line with the wiki
+- docs(matter): fix the concentration unit values in the example (4 = µg/m³, 0 = ppm)
+- fix(matter): reject rvc clean mode changes while the robot is not idle, unless DirectModeChange
+- fix(matter): check a requested mode exists before calling the plugin's changeToMode handler
+- fix(matter): expose the optional readings a plugin declares, like an air quality sensor's pm2.5
+- fix(matter): send the ui each main-bridge accessory's state, so its tiles can be controlled (#4014)
+- fix(matter): send the level commands with on/off to the plugin's handlers (#4045) (@zerafachris)
+- fix(matter): fall back to the plain level handlers for move, step and stop with on/off
+- fix(matter): keep matter's session decrypt failures out of the normal log (#4026)
+- fix: stop counting a child bridge restart asked for in the ui as a crash
+- fix: tell a child bridge started again after a manual stop when homebridge shuts down
+- fix: skip only the accessory with no name when a child bridge loads its accessories
+- fix: keep a child bridge running when the bridge refuses one of its accessories
+- fix(matter): keep the storage of matter servers that start together in their own folders
+- fix(matter): stop reporting an unpaired bridge as paired once its accessory cache is saved
+- fix(matter): keep calling the handlers of a cluster with no state after a restart
+- fix(matter): report a matter server that fails to go online as a failed start
+- fix(matter): make toggle work without a toggle handler and call the plugin only once
+- fix(matter): run a level command with no handler of its own through one that can do it
+- fix(matter): answer a robot vacuum's skip area command instead of always failing it
+- fix(matter): check a robot vacuum's select areas request before calling the plugin
+- fix(matter): stop calling a plugin's fan and thermostat handlers for the state it reports itself
+- fix(matter): put the old value back when a fan or thermostat change handler fails
+- fix(matter): start matter when bridge.bind holds an ip address or an unknown interface
+- fix(matter): clear a storage lock left by a killed run whose process id is in use again (#4047)
+- fix(matter): let a closure register without a descriptor tag by adding the garage door tag
+- fix(matter): keep the saved state and apply a new name when a plugin registers a restored accessory
+- fix(matter): keep the saved state and context when an accessory comes back with a new structure
+- fix(matter): let a tilt-only window covering register and keep a type matter allows
+- fix(matter): let a window covering that declares its position register without configStatus
+- fix(matter): stop writing an internal window covering flag into the plugin's context
+- fix(matter): stop each matter server adding its own shutdown signal listeners
+- fix(matter): show the pairing codes in one banner only and keep the passcode files private
+- refactor(matter): turn a plugin handler error into a matter failure in one place
+- refactor(matter): drop the repeated error wrapping from the on/off, level and colour behaviors
+- refactor(matter): drop the repeated error wrapping from the covering, closure, lock and valve code
+- refactor(matter): drop the repeated error wrapping from the robot vacuum behaviors
+- refactor(matter): drop the repeated error wrapping from the thermostat and identify behaviors
+- refactor(matter): drop the repeated error wrapping from the water heater and energy behaviors
+- refactor(matter): remove helpers, a behavior map and six no-op classes that nothing uses
+- refactor(matter): look a device type's cluster up by name instead of searching by cluster number
+- refactor(matter): drop the level control work-around that matter.js 0.18 no longer needs
+- refactor(matter): read the paired controllers from matter.js alone, not from three places
+- refactor(matter): read a cluster's state from its entries instead of probing key by key
+- refactor(matter): take the pairing codes from matter.js instead of encoding them by hand
+- fix(matter): save and report a pairing change once instead of twice for the first controller
+- fix: let a plugin unregister an accessory that is not on the bridge without an error
+- fix: keep one characteristic warning listener on an accessory that is registered again
+- fix: start with a damaged accessory cache file, and keep the good backup when restoring from it
+- fix: only save an accessory passed to updatePlatformAccessories when it is already in the cache
+- fix: skip a plugin block whose _bridge has no valid username instead of crashing at start-up
+- fix: load the other accessories of a static platform when the bridge refuses one of them
+- fix: log a duplicate external accessory instead of ending homebridge with an unhandled error
+- fix: call every shutdown listener and finish the teardown when one plugin's listener throws
+- fix: load a commonjs plugin whose main has no file extension or names a folder
+- fix: read nested conditions, fallback lists and sub-path maps in a plugin's exports field
+- fix: start without the global npm folder when npm can not be run to find it
+- fix: log what stopped homebridge when the thrown value is not an error object
+- fix: end with exit code 1 after a fatal error so a supervisor restarts homebridge
+- fix: refresh a child bridge's config on restart when its username is lower case in config.json
+- fix: keep running when a message can not be sent because the parent process has gone
+- fix: ignore an ipc message of null instead of throwing in the message listener
+- fix: end a child bridge as soon as its teardown is done, and tear down when its parent has gone
+- fix(matter): never hand the main bridge's matter port out to a child bridge or accessory as well
+- fix(matter): only remove the vendor from a product label where it is a word of its own
+- fix(matter): set unreadable stored data aside instead of deleting it, and never for a system error
+- build: declare @matter/nodejs and import the other matter packages through @matter/main
+- fix: start without matter, and with homekit, when matter.js can not be loaded
+- feat: add the homebridge/matter entry for the matter values, and deprecate them on the main entry
+- fix(matter): make a thermostat's raise or lower command work without a handler of its own
+- fix(matter): call a color light's stop handler for a stop command, and one handler per command
+- fix(matter): give a plugin the real reason and the cause when a registration or update fails
+- fix(matter): remove the handlers and part mappings a failed registration left behind
+- fix(matter): register the other accessories of a call when the bridge refuses one of them
+- fix(matter): apply an update that comes straight after a new accessory is registered
+- fix(matter): take only the name, device information and context from updatePlatformAccessories
+- fix(matter): unregister an accessory by its uuid alone, and stop its own server when it has one
+- fix(matter): give every handler the context the docs promise, with the accessory and the part
+- fix: give a platform that only does matter its cached accessories back, and warn on a wrong name
+- fix(matter): report a bridge whose matter server failed to start as failed, not as still starting
+- fix(matter): resolve updateAccessoryState and updatePlatformAccessories when the update is done
+- fix(matter): shorten a name or label by bytes, as matter allows, and never inside a character
+- docs(matter): mark MatterAccessory.getState as deprecated, as it has never been called
+- docs(matter): deprecate the ready event a plugin can not receive, and name only methods that exist
+- fix(matter): make removeFabric remove the paired controller instead of always failing
+- fix(matter): fail only the registration of a thermostat matter.js refuses, not all of homebridge
+- fix(matter): let a command the plugin has no handler for change the state instead of failing
+- fix(matter): let two commands sent together for one accessory both succeed
+- fix(matter): keep the clean mode and service area of a robot vacuum that has no handlers
+- fix(matter): answer a command for a window covering with no handlers instead of an internal error
+- docs(matter): say how apple home presents the energy device types, from a user's test report
+- fix(matter): keep a child bridge and its homekit side running when its matter server fails to start
+- fix(matter): answer a ui control sent to one child bridge when that child cannot reply
+- fix(matter): echo the request id on every accessory info reply, so the ui no longer drops it
+- fix(matter): report a real main bridge failure for a ui control instead of accessory not found
+- fix: check the _bridge block a child bridge reads from config.json when it restarts
+- fix(matter): stop waiting to bring a child bridge online once it is torn down
+- fix: drop the pairing details of an earlier child bridge process from its status
+- fix(matter): send the ui the same accessory fields from a child bridge as from the main bridge
+- fix(matter): send ui updates for an external accessory published after monitoring was switched on
+- fix: do not load the plugin or start the bridge in a child process that was told to stop
+- fix: restart a crashed child bridge at once when asked, instead of waiting out the back-off
+- fix(matter): list only the child bridge the ui asks for, and skip one that is not running
+- fix(matter): keep a child bridge running when a plugin handler rejects a ui control with no error
+- fix: ignore a message from the parent process whose id is not a known request
+- refactor: type the messages between a child bridge and the main process by their id
+- docs: correct the comments on child bridge messages, and two typos in config errors
+- refactor: drop a child bridge's pending restart timer when homebridge shuts down
+- test: cover the child process message switch, and replace two tests that checked their own setup
+- fix: keep an accessory the bridge refuses out of the cache, and log it instead of throwing
+- fix: give an external accessory a random port when its port is in use, and name a taken bridge port
+- fix: name the pin in the error for a pin that is not a text, and warn about one homekit can not use
+- fix: log that the bridge was not published instead of failing start-up on its setup payload
+- fix: read port numbers written as text as numbers, and ignore a port that is not 1 to 65535
+- fix: wait for the hap accessories to leave the network on shutdown, and log an unpublish that fails
+- fix: save the other cached accessories when one accessory has a context that can not be written
+- fix: leave the accessory cache file alone when it could not be read, instead of overwriting it
+- fix: write the accessory cache through a temporary file so a crash can not leave half a file
+- fix: print the warnings of the bridge itself and of accessories whose plugin is not loaded
+- fix: drop a cached accessory whose uuid is on the bridge already before the plugin is given it
+- docs: say that the firmware revision of a cached accessory is reset to 0 on every start
+- fix: type the identify listener of a platform accessory with the arguments it is called with
+- perf: write the accessory cache at most once a second however often a plugin saves it
+- fix: warn once when an accessory gets no port from a used-up pool, however often it asks
+- fix: give a clear error or warning for a config.json with the wrong kind of value in it
+- refactor: type caught errors as unknown and replace any, casts and ts-expect-error with real types
+- refactor: remove unused storage and server methods and fix typos
+- fix: name the accessory in a characteristic warning, and end the line with one full stop
+- docs: stop marking the whole bridge hap option as deprecated when only its boolean form is
+- test: start the server without loading local plugins or using the network, and check what it does
+- test: run the bridge service tests on the real bridge, and cover external and old-style accessories
+- test: cover storage, mac addresses, ports and the parts of a platform accessory that had no test
+- fix(matter): refuse ev charger diagnostics on an enabled charger before calling the plugin
+- fix(matter): wait for the open or close handler of a blind with no position on a percentage command
+- fix(matter): skip the level handler for a command matter ignores, and cache the level it stored
+- fix(matter): store the right position and the secure state when a closure with no handlers moves
+- fix(matter): cache only the fan attribute a controller changed, as matter holds it
+- fix(matter): cache the tilt position too after a blind with lift and tilt opens, closes or stops
+- fix(matter): keep an energy device paused or adjusting when a controller cancels a forecast change
+- fix(matter): give a lock or valve handler a request object when the command comes from the ui
+- fix(matter): let the ui change only the hue of a light, and the mode of an energy device
+- fix(matter): cache the discharging state of an ev charger and the reason of a power adjustment
+- feat(matter): tell the plugin when a controller changes the unoccupied setpoint of a thermostat
+- docs(matter): say which commands matter records as finished at once, so the plugin reports the rest
+- fix(matter): match the cluster state types to matter.js 0.18 and add types for four more clusters
+- feat(matter): let a handler answer a mode change, vacuum, media or key command with its own status
+- refactor(matter): use real types in place of casts in the registry, thermostat and command mapper
+- docs(matter): correct comments on color transition times, the door lock base and the vacuum state
+- refactor(matter): drop an unused registry method and three copies of the optional handler helper
+- test(matter): replace behavior tests that could not fail, cover the ui mapping of blinds and areas
+- fix: let a plugin pass log.info, log.warn, log.error and the other log methods around as functions
+- fix: stop node's memory leak warning when more than ten platforms listen for didFinishLaunching
+- fix: find a plugin whose scope has a dot, and keep a dot in an accessory or platform name
+- fix: do not start an accessory or platform of a plugin whose initializer failed
+- fix: apply the plugins list of config.json when the plugin path points at a single plugin
+- fix: stop with an error when -U or -P is given without a path instead of using the default
+- docs: say when a hap enum imported from homebridge stays in a plugin at run time
+- docs: say what a plugin built with isolatedModules can use in place of homebridge's const enums
+- feat: export more hap-nodejs enums and types from homebridge, like MDNSAdvertiser and HAPConnection
+- feat: let a typescript plugin call api.once, api.off and api.removeListener without a cast
+- docs: correct the versionGreaterOrEqual example, say when it throws, and fix a link in the api docs
+- docs: mark api.version as deprecated, as it has been 2.7 since v1.3.0 and says nothing new
+- docs: bring CLAUDE.md and the copilot instructions in line with the code as it is now
+- test: make the logger timestamp tests pass on any locale and able to fail
+- test: make the storage path tests independent of each other and cover setting the path
+- test: let the matter lazy loading check see imports over several lines and through other files
+- test: cover the platform accessory calls of the api and let the getAccessoryState tests fail
+- test: cover the engines and dependency checks of a plugin and what it registers
+- test: cover plugin registration, lookup and loading from disk in the plugin manager
+- test: cover every command line option and the node version warning of the cli
+- test: cover the prefix, the format parameters and the output stream of each log level
+- build: stop publishing the 83 declaration map files, which point at sources that are not published
+- build: remove three unused dev dependencies (ts-node, @types/debug, @prettier/plugin-xml)
+- build: compile to es2024, which node 22 runs in full, and drop tsconfig options that are defaults
+- build: remove eslint settings that do nothing, and the global comment they forced on cli.ts
+- ci: pin the wiki notification action to a commit and keep the npm publish token to the publish job
+- fix: say what a plugin threw at load or start when it is not an Error, in place of undefined
+- refactor: type the prefixed logger, the plugin module and the matter state event without any
+- fix: leave the other accessories untouched when one in a register call is not a PlatformAccessory
+- fix: keep a higher colour level of the terminal when colour is forced with -C
+- fix: name a scoped plugin in full in its version and dependency warnings
+- refactor: look up the plugin of an accessory and of a platform with one shared method
+- docs: correct comments in the api, the package entry and the logger that said little or were wrong
+- fix(matter): write the removal of the last accessory to the cache when the bridge stops
+- fix(matter): save the other accessories to the cache when one has a value json can not hold
+- fix(matter): keep the cache entry of an accessory that could not be rebuilt at start
+- fix(matter): list external accessories in the ui when the main bridge is in externals-only mode
+- fix(matter): stop reporting a port conflict with a child bridge whose matter is disabled
+- fix(matter): log each child bridge config message once, and no warning for a port left out
+- fix(matter): ignore a matterPorts range that is not two whole port numbers, with an error
+- fix(matter): hand out an accessory with its public fields only, without the live endpoints
+- fix(matter): wait for the bridge's lock when telling controllers the accessory list changed
+- fix(matter): give the port-in-use help when matter.js reports that the port is taken
+- fix(matter): stop setting a matter.js network variable that did nothing but log an error
+- fix(matter): keep matter.js from reading its own config file, the command line and exit code
+- fix(matter): send matter.js warnings and errors to stderr, as homebridge's own are
+- fix(matter): report a matter server that matter.js shut down by itself, and stop calling it running
+- fix(matter): do not bring a matter server online that was told to stop while it was starting
+- fix(matter): make the enums of ten more clusters reachable through api.matter.types
+- fix(matter): export the types of accessory parts, handler context and the newer clusters
+- docs(matter): say in the plugin api docs where matter differs from hap and what really happens
+- fix(matter): keep the pairing code when the credentials file is there but can not be read
+- fix(matter): make the matter error handler safe for any thrown value and name the kind once
+- fix(matter): colour matter.js info lines grey and show warnings from its commissioning code
+- test(matter): keep the base manager tests out of the real storage folder and check what they claim
+- fix(matter): still send the ui its accessory list when a cache entry has no device type
+- fix(matter): send the ui the live state of an accessory when a value is held as a bigint
+- fix(matter): warn once for a cluster name homebridge does not know, not at every update
+- refactor(matter): log the set-up steps of each accessory at debug level and correct two messages
+- docs(matter): correct comments that described how the matter code used to work
+- refactor(matter): replace casts and any in the matter api and server with the real types
+- refactor(matter): remove matter server methods and manager types that nothing uses
+- fix(matter): give the port back when an external accessory's server refuses its config
+- test(matter): cover a state update for an unknown accessory, an unknown part and a refused value
+- fix(matter): register a window covering that can only open and close
+- fix(matter): let a typescript handler return its own answer to a command
+- fix(matter): give a command sent from the ui a request object when it has request fields
+- fix(matter): answer not mine before mapping a ui command on a bridge without the accessory
+- fix(matter): let the ui send media playback, key press and identify commands
+- fix(matter): export the newer state types, the answering handler types and two cluster names
+- fix(matter): warn at registration for an attribute name the cluster does not have
+- fix: say in plain words when the port set for a child bridge is in use by another program
+- fix: let a child bridge wait for the hap goodbye and the matter servers when it shuts down
+- fix(matter): send the ui updates for a main bridge external accessory published while it watches
+- fix(matter): tell a plugin the matter server has stopped, not that it is still starting
+- fix(matter): forget the routing entry of an external accessory when a plugin unregisters it
+- refactor(matter): run a ui command through the matter.js command lookup of the endpoint
+- refactor(matter): let matter.js drop the log lines of its quiet facilities by facility level
+- fix(matter): tell a plugin about an identify effect through a new triggerEffect handler
+- refactor(matter): leave the saved subscriptions of a removed fabric to matter.js
+- fix(matter): keep every feature a plugin composed on a thermostat that has handlers
+- refactor(matter): find the handler registry of an endpoint in one shared helper
+- fix(matter): erase what matter.js stored for an accessory when a plugin unregisters it
+- fix(matter): refuse a vacuum pause, resume or go home in a state matter does not allow it in
+- chore: use an https repository url, drop the stale maintainers field and correct the labeler job
+- fix: warn at start-up when a bridge uses the well-known default pin 031-45-154
+- chore: add the homepage url to package.json
+- fix(matter): warn when a plugin declares a cluster its device type does not carry
+- test(matter): keep the measurements spec's matter.js storage out of the home directory
+- refactor(matter): type what a matter server lists for the ui in place of any
+- fix(matter): keep every cached accessory when homebridge stops while the cache is being restored
+- fix(matter): stop a command hanging when its handler awaits an update of the same cluster
+- fix: stop with an error when -U or -P is followed by another option in place of a path
+- fix: publish an external accessory once when a plugin publishes it twice at the same time
+- fix(matter): turn a bigint inside a struct into a number too, so the ui gets the state
+- fix(matter): report a child bridge whose matter port is taken as a failed start
+- fix: say what is wrong with a child bridge's matter settings read again at a restart
+- fix: check the pin of a child bridge's settings read again at a restart
+- fix: say the default pin is only a risk while a bridge is not paired
+- fix: count a child bridge crash as one after a restart that a stop cut short
+- fix(matter): write the pairing files one save at a time, so two saves at once both work
+- docs(matter): list the two unoccupied setpoint change handlers with the other five
+- fix(matter): make each attribute of the four new cluster state types optional, like the others
+- fix(matter): read only a matter answer from what a handler returns, not an http response
+- fix(matter): tell the ui when matter refuses a command it sent, in place of success
+- fix(matter): stop a slow child bridge handler showing as accessory not found in the ui
+- fix: show what a thrown plain object holds in the log, in place of [object Object]
+- fix: start with the default bridge again for a bridge section of null, with a warning
+- fix(matter): use the fallback label when the vendor name is inside a word of the name
+- fix(matter): tell a plugin with only a level handler where a timed level move stopped
+- fix(matter): keep the energy mode a device energy management plugin declares without a handler
+- fix(matter): take a new setting a plugin declares for a restored accessory, not the cached one
+- fix(matter): keep the context a plugin passes when its restored accessory changed structure
+- docs(matter): say when a restored accessory takes the plugin's new settings and context
+- fix(matter): refuse a lock, unlock, open or close that has no handler, and keep the state
+- fix(matter): match a bridge.bind address as HAP does (#4049) (@stalinCCCP415)
+- fix(matter): register an accessory whose saved mode is no longer in its list of modes (#4057)
+- fix(matter): restore cached external accessories safely (#4048) (@inakietxeba)
+- ci: check that the packed tarball installs and the bridge starts on Node 22 and 26 (#4055)
+- refactor(matter): drop the decrypt failure log filter, matter.js 0.18.1 logs these at debug itself
+- chore(deps): dependency updates
+
+### Homebridge Dependencies
+
+- `@homebridge/hap-nodejs` @ `v2.3.1`
+
+### Matter Dependencies
+
+- `@matter/main` @ `v0.18.1`
+- `@matter/nodejs` @ `v0.18.1`
+
 ## v2.5.0 (2026-11-01)
 
 ### Changes

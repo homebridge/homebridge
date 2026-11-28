@@ -8,7 +8,9 @@ import { KeypadInputServer } from '@matter/main/behaviors/keypad-input'
 import { KeypadInput } from '@matter/main/clusters/keypad-input'
 
 import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { HandlerFailure } from './BehaviorRegistry.js'
+import { registryOf } from './EndpointContext.js'
+import { statusResponse } from './handlerResponse.js'
 
 /**
  * Default KeypadInput Server.
@@ -32,26 +34,28 @@ export class DefaultKeypadInputServer extends KeypadInputServer {
  */
 export class HomebridgeKeypadInputServer extends DefaultKeypadInputServer {
   /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
-  /**
    * Handle 'sendKey' command
    */
   override async sendKey(request: KeypadInput.SendKeyRequest): Promise<KeypadInput.SendKeyResponse> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
     try {
-      await registry.executeHandler(endpointId, 'keypadInput', 'sendKey', request)
-      return { status: KeypadInput.Status.Success }
+      // A key press has no state to update: with no handler nothing can act on it
+      const { handled, response } = await registry.runHandler(endpointId, 'keypadInput', 'sendKey', request)
+      // The handler may answer itself (the key is not valid in this state, say)
+      const answer = statusResponse<KeypadInput.SendKeyResponse>(response)
+      if (answer) {
+        return answer
+      }
+      return {
+        status: handled
+          ? KeypadInput.Status.Success
+          : KeypadInput.Status.UnsupportedKey,
+      }
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
+      // A Matter status the plugin threw on purpose goes to the controller as it is
+      if (MatterStatus.isMatterProtocolError(error) && !(error instanceof HandlerFailure)) {
         throw error
       }
 

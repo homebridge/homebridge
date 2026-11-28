@@ -44,7 +44,9 @@ import { getLogPrefix, Logger } from './logger.js'
 import { PlatformAccessory } from './platformAccessory.js'
 import { PluginManager } from './pluginManager.js'
 import { StorageService } from './storageService.js'
+import { errorMessage } from './util/errorMessage.js'
 import { generate } from './util/mac.js'
+import { isPortInUse } from './util/port.js'
 import getVersion from './version.js'
 
 export const DEFAULT_BRIDGE_DEFAULTS = {
@@ -54,6 +56,18 @@ export const DEFAULT_BRIDGE_DEFAULTS = {
 } as const
 
 const log = Logger.internal
+
+/** The most accessories HAP-NodeJS puts on one bridge (the HomeKit limit of 150, less the bridge itself). */
+const MAX_BRIDGED_ACCESSORIES = 149
+
+/** A HomeKit setup ID: four characters, digits and capital letters. */
+const SETUP_ID_FORMAT = /^[0-9A-Z]{4}$/
+
+/** The least time between two writes of the accessory cache that plugins ask for, in milliseconds. */
+const CACHE_SAVE_INTERVAL = 1000
+
+/** The longest a shutdown waits for the accessories to be taken off the network, in milliseconds. */
+const UNPUBLISH_TIMEOUT = 2000
 
 /**
  * HAP-specific configuration for a bridge. Mirrors the shape of `MatterConfig`
@@ -93,8 +107,18 @@ export interface BridgeConfiguration {
   pin: string // format like "000-00-000"
   advertiser?: MDNSAdvertiser
   port?: number
+  /**
+   * The network interfaces the bridge advertises on, as interface names
+   * (`"eth0"`) or IP addresses this machine has (`"192.168.1.50"`), or a
+   * mixture. An address names the interface that owns it when the bridge
+   * starts, so a bridge can follow a network rather than an interface — on a
+   * multi-homed Docker container, which of `eth0`/`eth1` sits on which
+   * network changes between starts, but the address on each network does not.
+   * Subnets are not accepted. `0.0.0.0` / `::` mean every interface.
+   * Unset: every interface.
+   */
   bind?: (InterfaceName | IPAddress) | (InterfaceName | IPAddress)[]
-  /** 4-character HomeKit setup ID (alphanumeric, e.g. "ABCD"). Validated at runtime. */
+  /** 4-character HomeKit setup ID (0-9 and A-Z, e.g. "ABCD"). One that is not 4 characters long is ignored, with a warning. */
   setupID?: string
   manufacturer?: string
   model?: string
@@ -110,7 +134,9 @@ export interface BridgeConfiguration {
    * accepted for back-compat and normalized to `{ enabled: <boolean> }` by
    * `validateHapConfig`. The type allows it so existing configs keep compiling.
    *
-   * @deprecated Pass `hap` as a boolean is deprecated; use `{ enabled }` instead.
+   * Only the boolean form is deprecated: use `{ enabled }` instead. (There is
+   * no `deprecated` tag here on purpose. A tag marks the whole property, so
+   * editors and the docs would strike through the object form as well.)
    */
   hap?: BridgeHapConfig | boolean
   matter?: MatterConfig
@@ -205,6 +231,17 @@ export function validateHapConfig(
 
   const hapBlock = hap as BridgeHapConfig
 
+  // `enabled` and `externalsOnly` are only acted on as true or false. A text
+  // like "false" was read as "not false", so HAP stayed on with no word about
+  // it. The value is still not used (what the bridge does stays as it was),
+  // but now it is said.
+  for (const key of ['enabled', 'externalsOnly'] as const) {
+    if (hapBlock[key] !== undefined && typeof hapBlock[key] !== 'boolean') {
+      log.warn(`${opts.bridgeLabel}: 'hap.${key}' must be true or false (without quotes), not ${JSON.stringify(hapBlock[key])}. Ignoring it.`)
+      delete hapBlock[key]
+    }
+  }
+
   if (hapBlock.disableIdentifyingMaterial !== undefined && typeof hapBlock.disableIdentifyingMaterial !== 'boolean') {
     throw new Error(`${opts.bridgeLabel}: 'hap.disableIdentifyingMaterial' must be a boolean.`)
   }
@@ -252,7 +289,7 @@ export interface HomebridgeConfig {
   /**
    * @deprecated
    */
-  mdns?: any // this is deprecated and not used anymore
+  mdns?: unknown // this is deprecated and not used anymore
 
   accessories: AccessoryConfig[]
   platforms: PlatformConfig[]
@@ -266,7 +303,7 @@ export interface HomebridgeConfig {
    */
   disabledPlugins?: PluginIdentifier[]
 
-  // This section is used to control the range of ports (inclusive) that separate accessory (like camera or television) should be bind to
+  // This section is used to control the range of ports (inclusive) that separate accessories (like a camera or a television) are bound to
   ports?: ExternalPortsConfiguration
 
   // This section is used to control the range of ports (inclusive) that Matter accessories should bind to
@@ -288,6 +325,20 @@ export interface ExternalAccessoryMetadata {
   port?: number
 }
 
+/**
+ * An accessory plugin from the days when `identify` was given a callback. The
+ * method is typed without one today, but old plugins still wait for it.
+ */
+interface LegacyIdentifyAccessoryPlugin {
+  identify: (callback: () => void) => void
+}
+
+/**
+ * An accessory as a static platform hands it over: an accessory plugin that
+ * carries its own name, and may carry a base for its UUID, as properties.
+ */
+type StaticPlatformAccessoryPlugin = AccessoryPlugin & { name: string, uuid_base?: string }
+
 export interface CharacteristicWarningOpts {
   ignoreSlow?: boolean
 }
@@ -300,6 +351,11 @@ export class BridgeService {
   private cachedAccessoriesFileLoaded = false
   private readonly publishedExternalAccessories: Map<MacAddress, PlatformAccessory> = new Map()
   private readonly publishedExternalAccessoriesMetadata: Map<MacAddress, ExternalAccessoryMetadata> = new Map()
+  private cacheSaveTimer?: ReturnType<typeof setTimeout>
+  private cacheSavePending = false
+  private shuttingDown = false
+  private readonly unsavableAccessories = new WeakSet<PlatformAccessory>()
+  private readonly characteristicWarningListeners = new WeakMap<Accessory, (warning: CharacteristicWarning) => void>()
 
   constructor(
     private api: HomebridgeAPI,
@@ -315,8 +371,8 @@ export class BridgeService {
     // from a previous run is stale until the owning plugin re-registers its accessories.
     try {
       this.storageService.removeItemSync(this.bridgeOptions.externalAccessoriesItemName)
-    } catch (error: any) {
-      log.warn('Failed to clear stale external accessories metadata file:', error.message)
+    } catch (error: unknown) {
+      log.warn('Failed to clear stale external accessories metadata file:', errorMessage(error))
     }
 
     // Server is "secure by default", meaning it creates a top-level Bridge accessory that
@@ -332,42 +388,126 @@ export class BridgeService {
     this.api.on(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES, this.handlePublishExternalAccessories.bind(this))
 
     this.bridge = new Bridge(bridgeConfig.name, uuid.generate('HomeBridge'))
-    this.bridge.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, () => {
+    this.bridge.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, (warning: CharacteristicWarning) => {
       // We register characteristic warning handlers on every bridged accessory (to have a reference to the plugin).
-      // For Bridges the warnings will propagate to the main Bridge accessory, thus we need to silence them here.
-      // Otherwise, those would be printed twice (by us and HAP-NodeJS as it detects no handlers on the bridge).
+      // For Bridges the warnings will propagate to the main Bridge accessory, and HAP-NodeJS only prints a warning
+      // itself when nothing listens for it. So this listener keeps those from being printed twice.
+      //
+      // It must not hide the warnings nobody else prints, though: one from a service of the bridge itself (a
+      // manufacturer or serial number from the config that HomeKit does not accept), or from an accessory whose
+      // plugin was not found. The handler of the accessory may run after this listener, so look once it has.
+      queueMicrotask(() => {
+        if (!BridgeService.printedWarnings.has(warning)) {
+          BridgeService.printUnclaimedCharacteristicWarning(warning)
+        }
+      })
     })
   }
 
-  // characteristic warning event has additional parameter originatorChain: string[] which is currently unused
+  /** The warnings {@link printCharacteristicWriteWarning} has taken, so the bridge does not print them again. */
+  private static readonly printedWarnings = new WeakSet<CharacteristicWarning>()
+
+  /**
+   * Print a characteristic warning that no plugin's accessory has taken, the
+   * way HAP-NodeJS prints one nobody listens for.
+   */
+  private static printUnclaimedCharacteristicWarning(warning: CharacteristicWarning): void {
+    const message = `[${warning.originatorChain.join('@')}] ${warning.message}`
+    switch (warning.type) {
+      case CharacteristicWarningType.ERROR_MESSAGE:
+      case CharacteristicWarningType.TIMEOUT_READ:
+      case CharacteristicWarningType.TIMEOUT_WRITE:
+        log.error(message)
+        break
+      case CharacteristicWarningType.DEBUG_MESSAGE:
+        log.debug(message)
+        break
+      default:
+        log.warn(message)
+        break
+    }
+    if (warning.stack) {
+      log.debug(warning.stack)
+    }
+  }
+
+  /**
+   * Print the characteristic warnings of a platform accessory under its
+   * plugin's name, with one listener per accessory however often the
+   * accessory is registered.
+   *
+   * A plugin may unregister an accessory and register the same object again.
+   * HAP-NodeJS up to v2.3.0 removed every listener from an accessory taken off
+   * the bridge, which hid that a new listener was added on each registration;
+   * from v2.3.1 it leaves the listeners alone, and each warning would be
+   * printed once per registration.
+   */
+  private watchCharacteristicWarnings(plugin: Plugin, hapAccessory: Accessory): void {
+    const previous = this.characteristicWarningListeners.get(hapAccessory)
+    if (previous) {
+      hapAccessory.removeListener(AccessoryEventTypes.CHARACTERISTIC_WARNING, previous)
+    }
+    const listener = BridgeService.printCharacteristicWriteWarning.bind(BridgeService, plugin, hapAccessory, {})
+    this.characteristicWarningListeners.set(hapAccessory, listener)
+    hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, listener)
+  }
+
+  /**
+   * Print a characteristic warning (for a read as well as a write) under the
+   * name of the plugin, with the accessory it came from.
+   */
   public static printCharacteristicWriteWarning(plugin: Plugin, accessory: Accessory, opts: CharacteristicWarningOpts, warning: CharacteristicWarning): void {
     const wikiInfo = 'See https://homebridge.io/w/JtMGR for more info.'
+    const prefix = getLogPrefix(plugin.getPluginIdentifier())
+    const source = `the characteristic '${warning.characteristic.displayName}' of the accessory '${accessory.displayName}'`
+    // HAP-NodeJS ends some of its messages with a full stop, and some not
+    const message = /[.!?]$/.test(warning.message)
+      ? warning.message
+      : `${warning.message}.`
+    BridgeService.printedWarnings.add(warning)
     switch (warning.type) {
       case CharacteristicWarningType.SLOW_READ:
       case CharacteristicWarningType.SLOW_WRITE:
         if (!opts.ignoreSlow) {
-          log.info(getLogPrefix(plugin.getPluginIdentifier()), 'This plugin slows down Homebridge.', warning.message, wikiInfo)
+          log.info(prefix, 'This plugin slows down Homebridge.', warning.message, wikiInfo)
         }
         break
       case CharacteristicWarningType.TIMEOUT_READ:
       case CharacteristicWarningType.TIMEOUT_WRITE:
-        log.error(getLogPrefix(plugin.getPluginIdentifier()), 'This plugin slows down Homebridge.', warning.message, wikiInfo)
+        log.error(prefix, 'This plugin did not answer in time, which slows down Homebridge.', warning.message, wikiInfo)
         break
       case CharacteristicWarningType.WARN_MESSAGE:
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, `${warning.message}.`, wikiInfo)
+        log.info(prefix, `This plugin generated a warning from ${source}:`, message, wikiInfo)
         break
       case CharacteristicWarningType.ERROR_MESSAGE:
-        log.error(getLogPrefix(plugin.getPluginIdentifier()), `This plugin threw an error from the characteristic '${warning.characteristic.displayName}':`, `${warning.message}.`, wikiInfo)
+        log.error(prefix, `This plugin threw an error from ${source}:`, message, wikiInfo)
         break
       case CharacteristicWarningType.DEBUG_MESSAGE:
-        log.debug(getLogPrefix(plugin.getPluginIdentifier()), `Characteristic '${warning.characteristic.displayName}':`, `${warning.message}.`, wikiInfo)
+        log.debug(prefix, `Characteristic '${warning.characteristic.displayName}' of the accessory '${accessory.displayName}':`, message, wikiInfo)
         break
       default: // generic message for yet unknown types
-        log.info(getLogPrefix(plugin.getPluginIdentifier()), `This plugin generated a warning from the characteristic '${warning.characteristic.displayName}':`, `${warning.message}.`, wikiInfo)
+        log.info(prefix, `This plugin generated a warning from ${source}:`, message, wikiInfo)
         break
     }
     if (warning.stack) {
       log.debug(getLogPrefix(plugin.getPluginIdentifier()), warning.stack)
+    }
+  }
+
+  /**
+   * Say so in plain words when the port set for the bridge is in use by
+   * another program. HAP-NodeJS can not listen on it then, and Homebridge
+   * stops with an EADDRINUSE error that does not name the setting.
+   */
+  public async checkBridgePort(): Promise<void> {
+    const port = this.bridgeConfig.port
+    if (typeof port === 'number' && port > 0 && await isPortInUse(port)) {
+      log.error(
+        'The port %d set for the bridge \'%s\' is in use by another program, so the bridge can not start on it. '
+        + 'Stop the other program, or set a different port for this bridge in the config.',
+        port,
+        this.bridgeConfig.name,
+      )
     }
   }
 
@@ -394,8 +534,15 @@ export class BridgeService {
       advertiser: bridgeConfig.advertiser,
     }
 
-    if (bridgeConfig.setupID && bridgeConfig.setupID.length === 4) {
-      publishInfo.setupID = bridgeConfig.setupID
+    if (bridgeConfig.setupID !== undefined && bridgeConfig.setupID !== null) {
+      if (typeof bridgeConfig.setupID === 'string' && bridgeConfig.setupID.length === 4) {
+        publishInfo.setupID = bridgeConfig.setupID
+        if (!SETUP_ID_FORMAT.test(bridgeConfig.setupID)) {
+          log.warn('The setupID of the bridge \'%s\' should be 4 characters from 0-9 and A-Z. The Home app may not accept the QR code with it.', bridgeConfig.name)
+        }
+      } else {
+        log.warn('The setupID of the bridge \'%s\' is not 4 characters long. Ignoring it: a random one is used.', bridgeConfig.name)
+      }
     }
 
     log.debug('Publishing bridge accessory (name: %s, publishInfo: %o).', this.bridge.displayName, BridgeService.strippingPinCode(publishInfo))
@@ -404,10 +551,7 @@ export class BridgeService {
     // them silently, so a failed publish only manifested as the bridge never
     // appearing in HomeKit with no log explanation.
     this.bridge.publish(publishInfo, this.allowInsecureAccess).catch((error: unknown) => {
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      log.error('Failed to publish bridge accessory \'%s\': %s', this.bridge.displayName, message)
+      log.error('Failed to publish bridge accessory \'%s\': %s', this.bridge.displayName, errorMessage(error))
     })
   }
 
@@ -415,29 +559,57 @@ export class BridgeService {
    * Attempt to load the cached accessories from disk.
    */
   public async loadCachedPlatformAccessoriesFromDisk(): Promise<void> {
-    let cachedAccessories: SerializedPlatformAccessory[] | null = null
+    let cachedAccessories: unknown = null
+    let fromBackup = false
 
     try {
-      cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.bridgeOptions.cachedAccessoriesItemName)
-    } catch (error: any) {
-      log.error('Failed to load cached accessories from disk:', error.message)
+      cachedAccessories = await this.storageService.getItem(this.bridgeOptions.cachedAccessoriesItemName)
+    } catch (error: unknown) {
+      log.error('Failed to load cached accessories from disk:', errorMessage(error))
       if (error instanceof SyntaxError) {
         // syntax error probably means invalid JSON / corrupted file; try and restore from backup
         cachedAccessories = await this.restoreCachedAccessoriesBackup()
+        fromBackup = true
       } else {
+        // The file may be fine and only this read failed (too many open
+        // files, a disk error). Writing the cache now would replace it with
+        // the few accessories registered since, so it is left alone.
         log.error('Not restoring cached accessories - some accessories may be reset.')
+        log.error(`The ${this.bridgeOptions.cachedAccessoriesItemName} file is left as it is: accessories will not be saved until Homebridge is restarted.`)
+        return
       }
     }
 
-    if (cachedAccessories) {
+    // Valid JSON that is not a list of accessories is as unusable as a file that does not parse
+    if (cachedAccessories !== null && !Array.isArray(cachedAccessories)) {
+      log.error(`The ${this.bridgeOptions.cachedAccessoriesItemName} file does not hold a list of accessories.`)
+      cachedAccessories = fromBackup
+        ? null
+        : await this.restoreCachedAccessoriesBackup()
+      fromBackup = true
+    }
+
+    if (Array.isArray(cachedAccessories)) {
       log.info(`Loaded ${cachedAccessories.length} cached accessories from ${this.bridgeOptions.cachedAccessoriesItemName}.`)
 
-      this.cachedPlatformAccessories = cachedAccessories.map((serialized) => {
-        return PlatformAccessory.deserialize(serialized)
-      })
+      // One entry that can not be turned back into an accessory must not stop
+      // the others loading, or stop Homebridge starting: skip it and say so.
+      const accessories: PlatformAccessory[] = []
+      for (const serialized of cachedAccessories as SerializedPlatformAccessory[]) {
+        try {
+          accessories.push(PlatformAccessory.deserialize(serialized))
+        } catch (error: unknown) {
+          log.error(
+            `Skipping the cached accessory '${serialized?.displayName ?? 'unknown'}' as it could not be read:`,
+            errorMessage(error),
+          )
+        }
+      }
+      this.cachedPlatformAccessories = accessories
 
-      if (cachedAccessories.length) {
-        // create a backup of the cache file
+      // Back the file up only when it was read in full. A file that came from
+      // the backup, or that holds a bad entry, must not replace a good backup.
+      if (!fromBackup && accessories.length > 0 && accessories.length === cachedAccessories.length) {
         await this.createCachedAccessoriesBackup()
       }
     }
@@ -448,7 +620,7 @@ export class BridgeService {
   /**
    * Return the name of the backup cache file
    */
-  private get backupCacheFileName() {
+  private get backupCacheFileName(): string {
     return `.${this.bridgeOptions.cachedAccessoriesItemName}.bak`
   }
 
@@ -459,8 +631,8 @@ export class BridgeService {
   private async createCachedAccessoriesBackup(): Promise<void> {
     try {
       await this.storageService.copyItem(this.bridgeOptions.cachedAccessoriesItemName, this.backupCacheFileName)
-    } catch (error: any) {
-      log.warn(`Failed to create a backup of the ${this.bridgeOptions.cachedAccessoriesItemName} cached accessories file:`, error.message)
+    } catch (error: unknown) {
+      log.warn(`Failed to create a backup of the ${this.bridgeOptions.cachedAccessoriesItemName} cached accessories file:`, errorMessage(error))
     }
   }
 
@@ -470,12 +642,15 @@ export class BridgeService {
    */
   private async restoreCachedAccessoriesBackup(): Promise<SerializedPlatformAccessory[] | null> {
     try {
-      const cachedAccessories = await this.storageService.getItem<SerializedPlatformAccessory[]>(this.backupCacheFileName)
-      if (cachedAccessories && cachedAccessories.length) {
+      const cachedAccessories = await this.storageService.getItem(this.backupCacheFileName)
+      if (!Array.isArray(cachedAccessories)) {
+        return null
+      }
+      if (cachedAccessories.length) {
         log.warn(`Recovered ${cachedAccessories.length} accessories from ${this.bridgeOptions.cachedAccessoriesItemName} cache backup.`)
       }
-      return cachedAccessories
-    } catch (error: any) {
+      return cachedAccessories as SerializedPlatformAccessory[]
+    } catch {
       return null
     }
   }
@@ -504,13 +679,30 @@ export class BridgeService {
         continue
       }
 
+      // A second entry with the UUID of an accessory that is on the bridge
+      // already can not be bridged. Drop it before the plugin is given it:
+      // the plugin would hold an accessory that HomeKit never sees.
+      const uuidOnBridge = accessory._associatedHAPAccessory.UUID
+      if (this.bridge.bridgedAccessories.some(bridged => bridged.UUID === uuidOnBridge)) {
+        log.warn(
+          '%s Removing the cached accessory \'%s\': an accessory with the same UUID (%s) is on the bridge already.',
+          accessory._associatedPlugin
+            ? getLogPrefix(accessory._associatedPlugin)
+            : '',
+          accessory.displayName,
+          uuidOnBridge,
+        )
+        orphanedAccessories.add(accessory)
+        continue
+      }
+
       let plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
       if (!plugin) { // a little explainer here. This section is basically here to resolve plugin name changes of dynamic platform plugins
         try {
           // resolve platform accessories by searching for plugins which registered a dynamic platform for the given name
           plugin = this.pluginManager.getPluginByActiveDynamicPlatform(accessory._associatedPlatform!)
 
-          if (plugin) { // if it's undefined the no plugin was found
+          if (plugin) { // if it's undefined then no plugin was found
             // could improve on this by calculating the Levenshtein distance to only allow platform ownership changes
             // when something like a typo happened. Are there other reasons the name could change?
             // And how would we define the threshold?
@@ -521,15 +713,15 @@ export class BridgeService {
 
             accessory._associatedPlugin = plugin.getPluginIdentifier() // update the associated plugin to the new one
           }
-        } catch (error: any) { // error is thrown if multiple plugins where found for the given platform name
+        } catch (error: unknown) { // error is thrown if multiple plugins were found for the given platform name
           log.info(`Could not find the associated plugin for the accessory '${accessory.displayName}'. `
-            + `Tried to find the plugin by the platform name but ${error.message}`)
+            + `Tried to find the plugin by the platform name but ${errorMessage(error)}`)
         }
       }
 
       const platformPlugins = plugin && plugin.getActiveDynamicPlatform(accessory._associatedPlatform!)
       if (plugin) {
-        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory, {}))
+        this.watchCharacteristicWarnings(plugin, accessory._associatedHAPAccessory)
       }
 
       if (!platformPlugins) {
@@ -541,16 +733,28 @@ export class BridgeService {
         }
       } else {
         // We set a placeholder for FirmwareRevision before configureAccessory is called so the plugin has the opportunity to override it.
+        // This means the firmware revision of a cached accessory is NOT kept over a restart: a plugin that sets it
+        // only when it first creates the accessory shows '0' from the next start on. A plugin has to set it again
+        // in configureAccessory(), or later. Kept as it is, since plugins may rely on the reset by now.
         accessory.getService(Service.AccessoryInformation)?.setCharacteristic(Characteristic.FirmwareRevision, '0')
-        platformPlugins.configureAccessory(accessory)
+        // A platform that only does Matter may have no configureAccessory
+        if (typeof platformPlugins.configureAccessory === 'function') {
+          platformPlugins.configureAccessory(accessory)
+        }
+
+        // The plugin may have unregistered this very accessory while it was
+        // being configured: it is out of the cache then, and must stay off the bridge.
+        if (!this.cachedPlatformAccessories.includes(accessory)) {
+          continue
+        }
       }
 
       try {
         this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory)
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.warn(`${accessory._associatedPlugin
           ? getLogPrefix(accessory._associatedPlugin)
-          : ''} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, error.message)
+          : ''} Could not restore cached accessory '${accessory._associatedHAPAccessory.displayName}':`, errorMessage(error))
         orphanedAccessories.add(accessory) // remove it from the list
       }
     }
@@ -563,18 +767,75 @@ export class BridgeService {
   }
 
   /**
-   * Save the cached accessories back to disk.
+   * Save the cached accessories after a plugin registered, updated or
+   * unregistered some, without writing the file more than once in
+   * {@link CACHE_SAVE_INTERVAL}.
+   *
+   * Every save writes the accessories of all plugins, and blocks while it
+   * does. Some plugins call `updatePlatformAccessories()` on each change of
+   * state, which was one full write per call. The first request is written at
+   * once; those that follow within the interval are written together when it
+   * ends. From the shutdown on every request is written at once, as nothing
+   * may be left for a timer then.
+   */
+  private requestCacheSave(): void {
+    if (this.cacheSaveTimer && !this.shuttingDown) {
+      this.cacheSavePending = true
+      return
+    }
+
+    this.saveCachedPlatformAccessoriesOnDisk()
+
+    if (!this.cacheSaveTimer && !this.shuttingDown) {
+      this.cacheSaveTimer = setTimeout(() => {
+        this.cacheSaveTimer = undefined
+        if (this.cacheSavePending) {
+          this.requestCacheSave()
+        }
+      }, CACHE_SAVE_INTERVAL)
+      this.cacheSaveTimer.unref()
+    }
+  }
+
+  /**
+   * Save the cached accessories back to disk, now.
    */
   public saveCachedPlatformAccessoriesOnDisk(): void {
+    // whatever was waiting for the timer is written by this save
+    this.cacheSavePending = false
     try {
       // only save the cache file back to disk if we have already attempted to load it
       // this should prevent the cache being deleted should homebridge be shutdown before it has finished launching
       if (this.cachedAccessoriesFileLoaded) {
-        const serializedAccessories = this.cachedPlatformAccessories.map(accessory => PlatformAccessory.serialize(accessory))
+        // One accessory that can not be written (a plugin put something in its
+        // context that JSON can not hold, like a value that refers to itself)
+        // must not stop the accessories of every plugin being saved.
+        const serializedAccessories: SerializedPlatformAccessory[] = []
+        for (const accessory of this.cachedPlatformAccessories) {
+          try {
+            const serialized = PlatformAccessory.serialize(accessory)
+            JSON.stringify(serialized)
+            serializedAccessories.push(serialized)
+            this.unsavableAccessories.delete(accessory)
+          } catch (error: unknown) {
+            // said once per accessory, not on every save
+            if (!this.unsavableAccessories.has(accessory)) {
+              this.unsavableAccessories.add(accessory)
+              log.error(
+                '%s The accessory \'%s\' can not be saved to the accessory cache, and will not be there after a restart: %s',
+                accessory._associatedPlugin
+                  ? getLogPrefix(accessory._associatedPlugin)
+                  : '',
+                accessory.displayName,
+                errorMessage(error),
+              )
+            }
+          }
+        }
         this.storageService.setItemSync(this.bridgeOptions.cachedAccessoriesItemName, serializedAccessories)
       }
-    } catch (error: any) {
-      log.error('Failed to save cached accessories to disk:', error.message)
+    } catch (error: unknown) {
+      log.error('Failed to save cached accessories to disk:', errorMessage(error))
       log.error('Your accessories will not persist between restarts until this issue is resolved.')
     }
   }
@@ -592,8 +853,8 @@ export class BridgeService {
         return
       }
       this.storageService.setItemSync(this.bridgeOptions.externalAccessoriesItemName, entries)
-    } catch (error: any) {
-      log.error('Failed to save external accessories metadata to disk:', error.message)
+    } catch (error: unknown) {
+      log.error('Failed to save external accessories metadata to disk:', errorMessage(error))
     }
   }
 
@@ -615,7 +876,7 @@ export class BridgeService {
     const bridgedAccessories = new Map(
       this.bridge.bridgedAccessories.map(accessory => [accessory.UUID, accessory]),
     )
-    const hapAccessories: Accessory[] = []
+    let added = false
 
     for (const accessory of accessories) {
       const newUUID = accessory._associatedHAPAccessory.UUID
@@ -648,6 +909,31 @@ export class BridgeService {
         continue
       }
 
+      // Into the cache only once HAP-NodeJS has taken the accessory. It refuses
+      // more than its limit of accessories on one bridge, and one that was
+      // published on its own before. That throw went back into the plugin
+      // (from didFinishLaunching it stopped Homebridge starting), with the
+      // refused accessory and the rest of the batch in the cache but not on
+      // the bridge.
+      try {
+        this.bridge.addBridgedAccessory(accessory._associatedHAPAccessory, true)
+      } catch (error: unknown) {
+        log.error(
+          '%s The accessory \'%s\' could not be added to the bridge \'%s\' and is not registered: %s%s',
+          accessory._associatedPlugin
+            ? getLogPrefix(accessory._associatedPlugin)
+            : '',
+          accessory.displayName,
+          this.bridge.displayName,
+          errorMessage(error),
+          this.bridge.bridgedAccessories.length >= MAX_BRIDGED_ACCESSORIES
+            ? `. A bridge can hold ${MAX_BRIDGED_ACCESSORIES} accessories at most: run the plugin as a child bridge, or remove accessories.`
+            : '',
+        )
+        continue
+      }
+      added = true
+
       this.cachedPlatformAccessories.push(accessory)
       cachedAccessories.set(newUUID, accessory)
 
@@ -659,16 +945,18 @@ export class BridgeService {
           log.warn('The plugin \'%s\' registered a new accessory for the platform \'%s\'. The platform couldn\'t be found though!', accessory._associatedPlugin!, accessory._associatedPlatform!)
         }
 
-        accessory._associatedHAPAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory._associatedHAPAccessory, {}))
+        this.watchCharacteristicWarnings(plugin, accessory._associatedHAPAccessory)
       } else {
         log.warn('A platform configured a new accessory under the plugin name \'%s\'. However no loaded plugin could be found for the name!', accessory._associatedPlugin)
       }
-
-      hapAccessories.push(accessory._associatedHAPAccessory)
     }
 
-    this.bridge.addBridgedAccessories(hapAccessories)
-    this.saveCachedPlatformAccessoriesOnDisk()
+    if (added) {
+      // The accessories were added one by one with the update of the
+      // configuration put off; adding an empty list sends that one update.
+      this.bridge.addBridgedAccessories([])
+    }
+    this.requestCacheSave()
   }
 
   handleUpdatePlatformAccessories(accessories: PlatformAccessory[]): void {
@@ -677,14 +965,29 @@ export class BridgeService {
       return
     }
 
-    const updatedUUIDs = new Set(accessories.map(accessory => accessory.UUID))
-    this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(
-      accessory => !updatedUUIDs.has(accessory._associatedHAPAccessory.UUID),
-    )
-    this.cachedPlatformAccessories.push(...accessories)
+    // Swap in the object the plugin passed for each accessory that is in the
+    // cache, in place. One that is not in the cache is left out: it was never
+    // registered, was unregistered since, or is an external accessory (which
+    // can not be saved, and would make every later save of the cache fail).
+    const updated = new Map<string, PlatformAccessory>()
+    for (const accessory of accessories) {
+      updated.set(accessory.UUID, accessory)
+    }
+    this.cachedPlatformAccessories = this.cachedPlatformAccessories.map((cached) => {
+      const replacement = updated.get(cached.UUID)
+      updated.delete(cached.UUID)
+      return replacement ?? cached
+    })
+    for (const accessory of updated.values()) {
+      log.warn(
+        'Ignoring an update for the accessory \'%s\' (UUID: %s), which is not registered as a platform accessory on this bridge.',
+        accessory.displayName,
+        accessory.UUID,
+      )
+    }
 
     // Update persisted accessories
-    this.saveCachedPlatformAccessoriesOnDisk()
+    this.requestCacheSave()
   }
 
   handleUnregisterPlatformAccessories(accessories: PlatformAccessory[]): void {
@@ -692,18 +995,27 @@ export class BridgeService {
     this.cachedPlatformAccessories = this.cachedPlatformAccessories.filter(
       accessory => !removedAccessories.has(accessory),
     )
-    const hapAccessories = accessories.map(accessory => accessory._associatedHAPAccessory)
+    // Only what is really on the bridge. HAP-NodeJS throws for anything else,
+    // and a plugin may well unregister an accessory that is not there (yet):
+    // a cached one from inside configureAccessory(), before the restore has
+    // reached it, or the same accessory twice. That throw went back into the
+    // plugin, and from configureAccessory() it stopped Homebridge starting.
+    const bridgedAccessories = new Set(this.bridge.bridgedAccessories)
+    const hapAccessories = accessories
+      .map(accessory => accessory._associatedHAPAccessory)
+      .filter(hapAccessory => bridgedAccessories.has(hapAccessory))
 
-    this.bridge.removeBridgedAccessories(hapAccessories)
-    this.saveCachedPlatformAccessoriesOnDisk()
+    if (hapAccessories.length > 0) {
+      this.bridge.removeBridgedAccessories(hapAccessories)
+    }
+    this.requestCacheSave()
   }
 
   async handlePublishExternalAccessories(accessories: PlatformAccessory[]): Promise<void> {
     // HAP must be enabled to publish externals, unless the bridge is in
     // externalsOnly mode (where the bridge itself is suppressed but its
     // externals continue to advertise as standalone HAP accessories).
-    const hap = this.bridgeConfig.hap
-    if (!isHapConfigEnabled(hap) && !isHapExternalsOnly(hap)) {
+    if (!isHapActive(this.bridgeConfig.hap)) {
       log.debug('Skipping external accessory HAP publish: HAP is disabled for this bridge (hap.enabled=false).')
       return
     }
@@ -714,28 +1026,63 @@ export class BridgeService {
       const hapAccessory = accessory._associatedHAPAccessory
       const advertiseAddress = generate(hapAccessory.UUID)
 
-      // get external port allocation
-      const accessoryPort = await this.externalPortService.requestPort(advertiseAddress)
-
       if (this.publishedExternalAccessories.has(advertiseAddress)) {
-        throw new Error(`Accessory ${hapAccessory.displayName} experienced an address collision.`)
-      } else {
-        this.publishedExternalAccessories.set(advertiseAddress, accessory)
-        this.publishedExternalAccessoriesMetadata.set(advertiseAddress, {
-          username: advertiseAddress,
-          plugin: accessory._associatedPlugin!,
-          displayName: hapAccessory.displayName,
-          category: accessory.category,
-          port: accessoryPort,
-        })
+        log.error(
+          'The external accessory \'%s\' is not published: an external accessory with the same UUID (%s) is published already.',
+          hapAccessory.displayName,
+          hapAccessory.UUID,
+        )
+        continue
       }
+      // Taken now, before the waits below: a second call for the same
+      // accessory that runs at the same time (a plugin that does not await
+      // the first) is then refused above, and does not publish it again.
+      this.publishedExternalAccessories.set(advertiseAddress, accessory)
+
+      // This handler runs from an event, so the plugin can not catch what it
+      // throws: an error here became an unhandled rejection, which shuts
+      // Homebridge down. A problem with one accessory is logged, and the
+      // others in the batch are still published.
+      let accessoryPort: number | undefined
+      try {
+        // get external port allocation
+        accessoryPort = await this.externalPortService.requestPort(advertiseAddress)
+      } catch (error: unknown) {
+        log.error(
+          'Could not get a port for the external accessory \'%s\', so it is not published: %s',
+          hapAccessory.displayName,
+          errorMessage(error),
+        )
+        this.publishedExternalAccessories.delete(advertiseAddress)
+        continue
+      }
+
+      // A port from the pool that another program holds would end Homebridge
+      // with an uncaught EADDRINUSE. Use a random free port for this accessory
+      // instead, as is done when the pool has run out.
+      if (accessoryPort !== undefined && await isPortInUse(accessoryPort)) {
+        log.warn(
+          'The port %d from the \'ports\' range in the config is in use by another program. The external accessory \'%s\' is given a random port instead.',
+          accessoryPort,
+          hapAccessory.displayName,
+        )
+        accessoryPort = undefined
+      }
+
+      this.publishedExternalAccessoriesMetadata.set(advertiseAddress, {
+        username: advertiseAddress,
+        plugin: accessory._associatedPlugin!,
+        displayName: hapAccessory.displayName,
+        category: accessory.category,
+        port: accessoryPort,
+      })
 
       const plugin = this.pluginManager.getPlugin(accessory._associatedPlugin!)
       if (plugin) {
-        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, hapAccessory, { ignoreSlow: true }))
+        hapAccessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(BridgeService, plugin, hapAccessory, { ignoreSlow: true }))
       } else if (PluginManager.isQualifiedPluginIdentifier(accessory._associatedPlugin!)) {
         // we did already complain in api.ts if it wasn't a qualified name
-        log.warn('A platform configured a external accessory under the plugin name \'%s\'. However no loaded plugin could be found for the name!', accessory._associatedPlugin)
+        log.warn('A platform configured an external accessory under the plugin name \'%s\'. However no loaded plugin could be found for the name!', accessory._associatedPlugin)
       }
 
       hapAccessory.on(AccessoryEventTypes.LISTENING, (port: number) => {
@@ -755,10 +1102,7 @@ export class BridgeService {
 
       log.debug('Publishing external accessory (name: %s, publishInfo: %o).', hapAccessory.displayName, BridgeService.strippingPinCode(publishInfo))
       hapAccessory.publish(publishInfo, this.allowInsecureAccess).catch((error: unknown) => {
-        const message = error instanceof Error
-          ? error.message
-          : String(error)
-        log.error('Failed to publish external accessory \'%s\': %s', hapAccessory.displayName, message)
+        log.error('Failed to publish external accessory \'%s\': %s', hapAccessory.displayName, errorMessage(error))
       })
     }
 
@@ -783,8 +1127,8 @@ export class BridgeService {
     // listen for the identify event if the accessory instance has defined an identify() method
     if (accessoryInstance.identify) {
       accessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
-        // @ts-expect-error: empty callback for backwards compatibility
-        accessoryInstance.identify!(() => {})
+        // empty callback for backwards compatibility
+        ;(accessoryInstance as LegacyIdentifyAccessoryPlugin).identify(() => {})
         callback()
       })
     }
@@ -805,7 +1149,7 @@ export class BridgeService {
       }
     })
 
-    accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(this, plugin, accessory, {}))
+    accessory.on(AccessoryEventTypes.CHARACTERISTIC_WARNING, BridgeService.printCharacteristicWriteWarning.bind(BridgeService, plugin, accessory, {}))
 
     controllers.forEach((controller) => {
       accessory.configureController(controller)
@@ -817,9 +1161,9 @@ export class BridgeService {
   public async loadPlatformAccessories(plugin: Plugin, platformInstance: StaticPlatformPlugin, platformType: PlatformName | PlatformIdentifier, logger: Logging): Promise<void> {
     // Plugin 1.0, load accessories
     return new Promise((resolve) => {
-      // warn the user if the static platform is blocking the startup of Homebridge for to long
+      // warn the user if the static platform is blocking the startup of Homebridge for too long
       const loadDelayWarningInterval = setInterval(() => {
-        log.warn(getLogPrefix(plugin.getPluginIdentifier()), 'This plugin is taking long time to load and preventing Homebridge from starting. See https://homebridge.io/w/JtMGR for more info.')
+        log.warn(getLogPrefix(plugin.getPluginIdentifier()), 'This plugin is taking a long time to load and preventing Homebridge from starting. See https://homebridge.io/w/JtMGR for more info.')
       }, 20000)
 
       platformInstance.accessories(once((accessories: AccessoryPlugin[]) => {
@@ -828,20 +1172,27 @@ export class BridgeService {
 
         // loop through accessories adding them to the list and registering them
         accessories.forEach((accessoryInstance, index) => {
-          // @ts-expect-error: assume this property was set
-          const accessoryName = accessoryInstance.name
-
-          // @ts-expect-error: optional base uuid
-          const uuidBase: string | undefined = accessoryInstance.uuid_base
+          // the name is assumed to be set; the base for the uuid is optional
+          const { name: accessoryName, uuid_base: uuidBase } = accessoryInstance as StaticPlatformAccessoryPlugin
 
           log.info('Initializing platform accessory \'%s\'...', accessoryName)
 
-          const accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryName, platformType, uuidBase)
+          // One accessory the bridge refuses (HAP-NodeJS throws for a second
+          // accessory with the same UUID, which here means the same name) must
+          // not stop the others, or stop Homebridge starting.
+          try {
+            const accessory = this.createHAPAccessory(plugin, accessoryInstance, accessoryName, platformType, uuidBase)
 
-          if (accessory) {
-            this.bridge.addBridgedAccessory(accessory)
-          } else {
-            logger('Platform %s returned an accessory at index %d with an empty set of services. Won\'t adding it to the bridge!', platformType, index)
+            if (accessory) {
+              this.bridge.addBridgedAccessory(accessory)
+            } else {
+              logger.info('Platform %s returned an accessory at index %d with an empty set of services; not adding it to the bridge.', platformType, index)
+            }
+          } catch (error: unknown) {
+            logger.error(
+              `Error loading the accessory "${accessoryName}" (index ${index}) of the platform "${platformType}" from "${plugin.getPluginIdentifier()}":`,
+              errorMessage(error),
+            )
           }
         })
 
@@ -850,12 +1201,38 @@ export class BridgeService {
     })
   }
 
-  teardown(): void {
-    void this.bridge.unpublish()
-    for (const accessory of this.publishedExternalAccessories.values()) {
-      void accessory._associatedHAPAccessory.unpublish()
-    }
+  /**
+   * Take the bridge and its external accessories off the network, save the
+   * cache and tell the plugins that Homebridge is shutting down.
+   *
+   * Everything but the wait happens before this returns. The promise is for
+   * the goodbye that HAP-NodeJS sends for each accessory: it resolves when
+   * they are all sent, or after {@link UNPUBLISH_TIMEOUT} at the latest, and
+   * never rejects (a failed unpublish is logged).
+   */
+  teardown(): Promise<void> {
+    const accessories = [
+      this.bridge,
+      ...Array.from(this.publishedExternalAccessories.values(), accessory => accessory._associatedHAPAccessory),
+    ]
+    const unpublished = Promise.allSettled(accessories.map(async accessory => accessory.unpublish()))
+      .then((results) => {
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            log.warn(
+              'Could not take \'%s\' off the network cleanly: %s',
+              accessories[index].displayName,
+              errorMessage(result.reason),
+            )
+          }
+        })
+      })
 
+    // Writes what was waiting for the save timer too. From here on a save is
+    // not put off: the process may be gone before a timer runs.
+    this.shuttingDown = true
+    clearTimeout(this.cacheSaveTimer)
+    this.cacheSaveTimer = undefined
     this.saveCachedPlatformAccessoriesOnDisk()
 
     // signalShutdown fires last so plugin shutdown listeners run with the
@@ -864,6 +1241,13 @@ export class BridgeService {
     // call api.updatePlatformAccessories() afterwards; that call needs the
     // handler in place to persist any context updates to disk.
     this.api.signalShutdown()
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, UNPUBLISH_TIMEOUT)
+      timer.unref()
+    })
+    return Promise.race([unpublished, timeout]).finally(() => clearTimeout(timer))
   }
 
   private static strippingPinCode(publishInfo: PublishInfo): PublishInfo {

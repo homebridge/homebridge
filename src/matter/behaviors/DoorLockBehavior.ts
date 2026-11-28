@@ -2,93 +2,71 @@
  * DoorLock Cluster Behavior
  *
  * Handles door lock commands for smart locks.
- * Uses the featureless DoorLockBehavior base to avoid advertising credential
- * features (PIN, RFID, etc.) that cause issues with Apple Home.
+ * Uses the DoorLockBehavior base, which implements no command, so that lock
+ * and unlock can be done here without matter.js's own DoorLockServer logic
+ * (see the class comment).
  */
 
 import { DoorLockBehavior } from '@matter/main/behaviors/door-lock'
 import { DoorLock } from '@matter/main/clusters/door-lock'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { HandlerFailure } from './BehaviorRegistry.js'
+import { registryOf } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom DoorLock Server that calls plugin handlers.
  *
- * Extends DoorLockBehavior (no credential features) instead of DoorLockServer
- * (which includes PinCredential, RfidCredential, etc.). This prevents Apple Home
- * from seeing credential capabilities that aren't fully implemented.
+ * Extends DoorLockBehavior, not matter.js's DoorLockServer. DoorLockServer's
+ * lockDoor and unlockDoor do much more than set the state (they check who is
+ * asking, the operating mode and auto-relock, and raise the LockOperation
+ * event), and they refuse a command that does not come from a paired
+ * controller - which is how the Homebridge UI sends one. So lock and unlock
+ * set `lockState` here themselves. No LockOperation event is raised.
  */
 export class HomebridgeDoorLockServer extends DoorLockBehavior {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async lockDoor(request: DoorLock.LockDoorRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request)
-
-      // Only reached if handler succeeded - update the Matter attribute.
-      // We extend the featureless DoorLockBehavior (not DoorLockServer) to avoid
-      // advertising credential features, which means there is no working
-      // super.lockDoor() to delegate to — calling it throws. Set the lockState
-      // attribute directly, mirroring DoorLockServer.lockDoor().
-      this.state.lockState = DoorLock.LockState.Locked
-
-      // Sync lock state to cache
-      registry.syncStateToCache(endpointId, 'doorLock', { lockState: DoorLock.LockState.Locked })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to lock door: ${message}`, Status.Failure)
+    // Execute user handler. A controller always sends a request; the
+    // Homebridge UI calls the command with none, so the handler is given an
+    // empty one and can read request.pinCode either way.
+    const handled = await registry.executeHandler(endpointId, 'doorLock', 'lockDoor', request ?? {})
+    // A lock is not reported as locked when nothing locked it (decided by BP):
+    // with no handler for the command, it fails and the state stays.
+    if (!handled) {
+      throw new HandlerFailure('There is no doorLock.lockDoor handler, so the door was not locked')
     }
+    await lockStateForWrite(this)
+
+    // Only reached if handler succeeded - update the Matter attribute.
+    // DoorLockBehavior has no working super.lockDoor() to delegate to
+    // (calling it throws), so set the lockState attribute directly.
+    this.state.lockState = DoorLock.LockState.Locked
+
+    // Sync lock state to cache
+    registry.syncStateToCache(endpointId, 'doorLock', { lockState: DoorLock.LockState.Locked })
   }
 
   override async unlockDoor(request: DoorLock.UnlockDoorRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler
-      await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request)
-
-      // Only reached if handler succeeded - update the Matter attribute.
-      // See lockDoor() above: the featureless base has no working super.unlockDoor(),
-      // so set the lockState attribute directly, mirroring DoorLockServer.unlockDoor().
-      this.state.lockState = DoorLock.LockState.Unlocked
-
-      // Sync lock state to cache
-      registry.syncStateToCache(endpointId, 'doorLock', { lockState: DoorLock.LockState.Unlocked })
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to unlock door: ${message}`, Status.Failure)
+    // Execute user handler (with an empty request from the UI, see lockDoor)
+    const handled = await registry.executeHandler(endpointId, 'doorLock', 'unlockDoor', request ?? {})
+    // Not reported as unlocked when nothing unlocked it (see lockDoor)
+    if (!handled) {
+      throw new HandlerFailure('There is no doorLock.unlockDoor handler, so the door was not unlocked')
     }
+    await lockStateForWrite(this)
+
+    // Only reached if handler succeeded - update the Matter attribute.
+    // See lockDoor() above: the base has no working super.unlockDoor(),
+    // so set the lockState attribute directly.
+    this.state.lockState = DoorLock.LockState.Unlocked
+
+    // Sync lock state to cache
+    registry.syncStateToCache(endpointId, 'doorLock', { lockState: DoorLock.LockState.Unlocked })
   }
 }

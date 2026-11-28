@@ -1,10 +1,12 @@
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
+import { ModeBase } from '@matter/main/clusters'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setRegistryManager } from './EndpointContext.js'
 import {
   DefaultEnergyEvseServer,
+  HomebridgeEnergyEvseModeServer,
   HomebridgeEnergyEvseServer,
 } from './EnergyEvseBehavior.js'
 import { RegistryManager } from './RegistryManager.js'
@@ -127,7 +129,6 @@ describe('homebridgeEnergyEvseServer', () => {
 
   beforeEach(() => {
     registry = {
-      getHandler: vi.fn().mockReturnValue(vi.fn()),
       executeHandler: vi.fn().mockResolvedValue(true),
       syncStateToCache: vi.fn(),
     } as any
@@ -155,18 +156,72 @@ describe('homebridgeEnergyEvseServer', () => {
   it('leaves the state alone when the plugin refuses', async () => {
     registry.executeHandler = vi.fn().mockRejectedValue(new Error('no car'))
 
-    await expect(behavior.enableCharging(enableChargingRequest)).rejects.toThrow('Failed to enable charging: no car')
+    await expect(behavior.enableCharging(enableChargingRequest)).rejects.toThrow('no car')
     expect(state.supplyState).toBe(Disabled)
     expect(registry.syncStateToCache).not.toHaveBeenCalled()
   })
 
   it('still answers a command the plugin has no handler for', async () => {
-    registry.getHandler = vi.fn().mockReturnValue(undefined)
+    // the registry says so by returning false; it does not throw
+    registry.executeHandler = vi.fn().mockResolvedValue(false)
     state.supplyState = ChargingEnabled
 
     await behavior.disable()
 
-    expect(registry.executeHandler).not.toHaveBeenCalled()
     expect(state.supplyState).toBe(Disabled)
+  })
+})
+
+/**
+ * The plugin must only hear about a mode the device lists - matter.js checks
+ * the mode in its own changeToMode, which runs after the plugin's handler.
+ */
+describe('homebridgeEnergyEvseModeServer', () => {
+  let mockRegistry: BehaviorRegistry
+  let behavior: HomebridgeEnergyEvseModeServer
+  let state: { currentMode: number, supportedModes: { label: string, mode: number, modeTags: [] }[] }
+  const endpointId = 'charger-1'
+
+  beforeEach(() => {
+    mockRegistry = {
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
+      syncStateToCache: vi.fn(),
+    } as any
+    const endpoint = { id: endpointId }
+    const registryManager = new RegistryManager()
+    setRegistryManager(endpoint, registryManager)
+    registryManager.registerEndpoint(endpointId, mockRegistry)
+
+    state = {
+      currentMode: 0,
+      supportedModes: [
+        { label: 'First', mode: 0, modeTags: [] },
+        { label: 'Second', mode: 1, modeTags: [] },
+      ],
+    }
+    behavior = Object.create(HomebridgeEnergyEvseModeServer.prototype)
+    for (const [key, value] of Object.entries({ endpoint, state })) {
+      Object.defineProperty(behavior, key, {
+        get: () => value,
+        configurable: true,
+      })
+    }
+  })
+
+  it('asks the plugin first, then records a supported mode', async () => {
+    const result = await behavior.changeToMode({ newMode: 1 })
+
+    expect(mockRegistry.runHandler).toHaveBeenCalledWith(endpointId, 'energyEvseMode', 'changeToMode', { newMode: 1 })
+    expect(result.status).toBe(ModeBase.ModeChangeStatus.Success)
+    expect(state.currentMode).toBe(1)
+  })
+
+  it('refuses a mode the device does not list, without asking the plugin', async () => {
+    const result = await behavior.changeToMode({ newMode: 7 })
+
+    expect(result.status).toBe(ModeBase.ModeChangeStatus.UnsupportedMode)
+    expect(mockRegistry.runHandler).not.toHaveBeenCalled()
+    expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+    expect(state.currentMode).toBe(0)
   })
 })

@@ -1,0 +1,687 @@
+import type { ServerNode } from '@matter/main'
+
+import type { MatterAccessory } from './types.js'
+
+import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import process from 'node:process'
+
+import { CommissioningServer } from '@matter/node'
+import { FabricManager as MatterFabricManager, TestFabric } from '@matter/protocol'
+import { FabricIndex } from '@matter/types'
+import { ManualPairingCodeCodec, QrPairingCodeCodec } from '@matter/types/schema'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { User } from '../user.js'
+import { MatterServer } from './server.js'
+import { deviceTypes } from './types.js'
+
+/**
+ * Runs real matter.js nodes (never online: an external server does not run
+ * until runServer() is called), with their storage in a temporary folder.
+ */
+describe('matterServer storage on real matter.js nodes', () => {
+  let storageRoot: string
+  let matterPath: string
+  const servers: MatterServer[] = []
+
+  // User.setStoragePath() can be called once only, so all tests share one root.
+  beforeAll(() => {
+    storageRoot = mkdtempSync(join(tmpdir(), 'hb-matter-storage-'))
+    matterPath = join(storageRoot, 'matter')
+    User.setStoragePath(storageRoot)
+  })
+
+  beforeEach(() => {
+    // The servers print their pairing codes; keep the test output clean.
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(async () => {
+    await Promise.allSettled(servers.splice(0).map(server => server.stop()))
+    vi.restoreAllMocks()
+  })
+
+  afterAll(() => {
+    rmSync(storageRoot, { recursive: true, force: true })
+  })
+
+  function externalServer(uniqueId: string, port: number): MatterServer {
+    const server = new MatterServer({
+      port,
+      uniqueId,
+      storagePath: matterPath,
+      displayName: uniqueId,
+      serialNumber: uniqueId,
+      manufacturer: 'Test',
+      model: 'Test',
+      externalAccessory: true,
+    })
+    servers.push(server)
+    return server
+  }
+
+  function bridgeServer(uniqueId: string, port: number): MatterServer {
+    const server = new MatterServer({
+      port,
+      uniqueId,
+      storagePath: matterPath,
+      displayName: uniqueId,
+      // built, but not put on the network
+      deferOnline: true,
+    })
+    servers.push(server)
+    return server
+  }
+
+  it('still calls the handler of a cluster with no state after a restart', async () => {
+    const calls: string[] = []
+    const mediaPlayer = (session: string): MatterAccessory => ({
+      UUID: 'uuid-media-player',
+      displayName: 'TV',
+      deviceType: deviceTypes.MediaPlayer,
+      serialNumber: 'S',
+      manufacturer: 'Test',
+      model: 'Test',
+      context: {},
+      clusters: {
+        onOff: { onOff: false },
+        mediaPlayback: { currentState: 0 },
+      },
+      // keypadInput has commands only: there is no state for the cache to keep
+      handlers: {
+        keypadInput: {
+          sendKey: async () => {
+            calls.push(session)
+          },
+        },
+      },
+    })
+
+    const before = bridgeServer('CCCCCCCCCCCC', 55983)
+    await before.start()
+    await before.registerPlatformAccessories('plugin', 'Platform', [
+      mediaPlayer('before restart'),
+    ])
+    await before.triggerCommand('uuid-media-player', 'keypadInput', 'sendKey', { keyCode: 1 })
+    // The cache is written two seconds after a registration.
+    await vi.waitFor(() => expect(existsSync(join(matterPath, 'CCCCCCCCCCCC', 'accessories.json'))).toBe(true), { timeout: 5000, interval: 100 })
+    await before.stop()
+
+    const after = bridgeServer('CCCCCCCCCCCC', 55983)
+    await after.start()
+    await after.registerPlatformAccessories('plugin', 'Platform', [
+      mediaPlayer('after restart'),
+    ])
+    await after.triggerCommand('uuid-media-player', 'keypadInput', 'sendKey', { keyCode: 1 })
+
+    expect(calls).toEqual(['before restart', 'after restart'])
+  }, 30000)
+
+  describe('a restored accessory the plugin registers again', () => {
+    const lamp = (overrides: Partial<MatterAccessory> = {}): MatterAccessory => ({
+      UUID: 'uuid-lamp',
+      displayName: 'Lamp',
+      deviceType: deviceTypes.OnOffLight,
+      serialNumber: 'S',
+      manufacturer: 'Test',
+      model: 'Test',
+      firmwareRevision: '1.0.0',
+      context: {},
+      // the plugin declares "off" at every start, whatever the lamp is doing
+      clusters: {
+        onOff: { onOff: false },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+          off: async () => {},
+        },
+      },
+      ...overrides,
+    })
+
+    /** Run a first session that leaves the lamp switched on in the cache. */
+    async function firstSession(uniqueId: string, port: number): Promise<void> {
+      const before = bridgeServer(uniqueId, port)
+      await before.start()
+      await before.registerPlatformAccessories('plugin', 'Platform', [
+        lamp(),
+      ])
+      await before.updateAccessoryState('uuid-lamp', 'onOff', { onOff: true })
+      const cacheFile = join(matterPath, uniqueId, 'accessories.json')
+      await vi.waitFor(() => expect(existsSync(cacheFile) && readFileSync(cacheFile, 'utf-8')).toMatch(/"onOff":\s*true/), { timeout: 5000, interval: 100 })
+      await before.stop()
+    }
+
+    it('keeps the saved state in the record, not the defaults the plugin declares', async () => {
+      await firstSession('FFFFFFFFFFF1', 55985)
+      const after = bridgeServer('FFFFFFFFFFF1', 55985)
+      await after.start()
+
+      await after.registerPlatformAccessories('plugin', 'Platform', [
+        lamp(),
+      ])
+
+      // the endpoint (what controllers see) and the record (what the ui and the cache see) agree
+      expect(after.getLiveState('uuid-lamp').onOff?.onOff).toBe(true)
+      expect(after.getAccessory('uuid-lamp')?.clusters?.onOff).toEqual({ onOff: true })
+    }, 30000)
+
+    it('puts a new name and firmware version on the live accessory', async () => {
+      await firstSession('FFFFFFFFFFF2', 55986)
+      const after = bridgeServer('FFFFFFFFFFF2', 55986)
+      await after.start()
+
+      await after.registerPlatformAccessories('plugin', 'Platform', [
+        lamp({ displayName: 'Lamp renamed', firmwareRevision: '2.0.0' }),
+      ])
+
+      expect(after.getLiveState('uuid-lamp').bridgedDeviceBasicInformation).toMatchObject({
+        nodeLabel: 'Lamp renamed',
+        softwareVersionString: '2.0.0',
+      })
+    }, 30000)
+  })
+
+  it('keeps the saved state and the plugin context when an accessory comes back with a new structure', async () => {
+    const light = (deviceType: MatterAccessory['deviceType'], clusters: MatterAccessory['clusters'], context?: Record<string, unknown>): MatterAccessory => ({
+      UUID: 'uuid-shape',
+      displayName: 'Shape',
+      deviceType,
+      serialNumber: 'S',
+      manufacturer: 'Test',
+      model: 'Test',
+      context: context as MatterAccessory['context'],
+      clusters,
+    })
+    const before = bridgeServer('ABABABABABAB', 55987)
+    await before.start()
+    await before.registerPlatformAccessories('plugin', 'Platform', [
+      light(deviceTypes.OnOffLight, {
+        onOff: { onOff: false },
+      }, { room: 'hall' }),
+    ])
+    await before.updateAccessoryState('uuid-shape', 'onOff', { onOff: true })
+    const cacheFile = join(matterPath, 'ABABABABABAB', 'accessories.json')
+    await vi.waitFor(() => expect(existsSync(cacheFile) && readFileSync(cacheFile, 'utf-8')).toMatch(/"onOff":\s*true/), { timeout: 5000, interval: 100 })
+    await before.stop()
+
+    // The plugin update turns the light into a dimmable one.
+    const after = bridgeServer('ABABABABABAB', 55987)
+    await after.start()
+    const dimmable = light(deviceTypes.DimmableLight, {
+      onOff: { onOff: false },
+      levelControl: { currentLevel: 10, minLevel: 1, maxLevel: 254 },
+    })
+    await after.registerPlatformAccessories('plugin', 'Platform', [dimmable])
+
+    expect(after.getLiveState('uuid-shape').onOff?.onOff).toBe(true)
+    expect(after.getLiveState('uuid-shape').levelControl?.currentLevel).toBe(10)
+    expect(dimmable.context).toEqual({ room: 'hall' })
+  }, 30000)
+
+  describe('a new setting the plugin declares for a restored accessory', () => {
+    const dimmer = (levelControl: Record<string, unknown>, extra: Partial<MatterAccessory> = {}): MatterAccessory => ({
+      UUID: 'uuid-dimmer',
+      displayName: 'Dimmer',
+      deviceType: deviceTypes.DimmableLight,
+      serialNumber: 'S',
+      manufacturer: 'Test',
+      model: 'Test',
+      context: {},
+      clusters: {
+        // "off" at every start, whatever the light is doing
+        onOff: { onOff: false },
+        levelControl: { currentLevel: 100, minLevel: 1, ...levelControl },
+      },
+      handlers: {
+        onOff: {
+          on: async () => {},
+          off: async () => {},
+        },
+      },
+      ...extra,
+    })
+
+    async function firstSession(uniqueId: string, port: number): Promise<void> {
+      const before = bridgeServer(uniqueId, port)
+      await before.start()
+      await before.registerPlatformAccessories('plugin', 'Platform', [
+        dimmer({ maxLevel: 254 }),
+      ])
+      await before.updateAccessoryState('uuid-dimmer', 'onOff', { onOff: true })
+      const cacheFile = join(matterPath, uniqueId, 'accessories.json')
+      await vi.waitFor(() => expect(existsSync(cacheFile) && readFileSync(cacheFile, 'utf-8')).toMatch(/"onOff":\s*true/), { timeout: 5000, interval: 100 })
+      await before.stop()
+    }
+
+    it('takes the new value, and keeps the saved state of what the plugin declares as before', async () => {
+      await firstSession('FFFFFFFFFFA2', 55962)
+
+      // the plugin now limits the light to 200
+      const after = bridgeServer('FFFFFFFFFFA2', 55962)
+      await after.start()
+      await after.registerPlatformAccessories('plugin', 'Platform', [
+        dimmer({ maxLevel: 200 }),
+      ])
+
+      expect(after.getLiveState('uuid-dimmer').levelControl?.maxLevel).toBe(200)
+      expect(after.getAccessory('uuid-dimmer')?.clusters?.levelControl).toMatchObject({ maxLevel: 200 })
+      // the light was on: "off" is only the plugin's start-up default
+      expect(after.getLiveState('uuid-dimmer').onOff?.onOff).toBe(true)
+      await after.stop()
+
+      // and it stays: the cache holds the new value
+      const again = bridgeServer('FFFFFFFFFFA2', 55962)
+      await again.start()
+      expect(again.getLiveState('uuid-dimmer').levelControl?.maxLevel).toBe(200)
+    }, 30000)
+
+    it('takes the context the plugin passes when the accessory comes back with a new structure', async () => {
+      await firstSession('FFFFFFFFFFA3', 55963)
+
+      const after = bridgeServer('FFFFFFFFFFA3', 55963)
+      await after.start()
+      // a plugin update: new handlers (a new structure) and a new context
+      const updated = dimmer({ maxLevel: 254 }, {
+        context: { version: 2 },
+        handlers: {
+          onOff: {
+            on: async () => {},
+            off: async () => {},
+          },
+          identify: {
+            identify: async () => {},
+          },
+        },
+      })
+      await after.registerPlatformAccessories('plugin', 'Platform', [updated])
+
+      expect(updated.context).toEqual({ version: 2 })
+      expect(after.getAccessory('uuid-dimmer')?.context).toEqual({ version: 2 })
+      expect(after.getLiveState('uuid-dimmer').onOff?.onOff).toBe(true)
+    }, 30000)
+  })
+
+  describe('which controllers a bridge is paired with', () => {
+    /** Pair the server with a matter.js test controller (a real fabric with made-up keys). */
+    async function pair(server: MatterServer): Promise<void> {
+      const node = (server as unknown as { serverNode: ServerNode }).serverNode
+      await TestFabric({
+        fabrics: node.env.get(MatterFabricManager),
+      })
+    }
+
+    it('reports none for a bridge that was never paired', async () => {
+      const server = bridgeServer('ADADADADADA1', 55989)
+      await server.start()
+      await server.registerPlatformAccessories('plugin', 'Platform', [
+        {
+          UUID: 'uuid-any',
+          displayName: 'Any',
+          deviceType: deviceTypes.OnOffLight,
+          serialNumber: 'S',
+          manufacturer: 'Test',
+          model: 'Test',
+          context: {},
+          clusters: {
+            onOff: { onOff: false },
+          },
+        },
+      ])
+
+      expect(server.getCommissioningSnapshot()).toEqual({ commissioned: false, fabricCount: 0, fabrics: [] })
+      expect(server.isCommissioned()).toBe(false)
+    }, 30000)
+
+    it('reports the controller as soon as it is paired, and again after a restart before going online', async () => {
+      const before = bridgeServer('ADADADADADA2', 55990)
+      await before.start()
+      await pair(before)
+
+      const paired = {
+        commissioned: true,
+        fabricCount: 1,
+        fabrics: [
+          expect.objectContaining({ fabricIndex: 1, label: 'mock-fabric-1', rootVendorId: 0xFFF1 }),
+        ],
+      }
+      expect(before.getCommissioningSnapshot()).toEqual(paired)
+      expect(before.isCommissioned()).toBe(true)
+      expect(before.hasFabric(1)).toBe(true)
+      expect(before.hasFabric(2)).toBe(false)
+      await before.stop()
+
+      // built from storage, and not online yet (#4009)
+      const after = bridgeServer('ADADADADADA2', 55990)
+      await after.start()
+
+      expect(after.getCommissioningSnapshot()).toEqual(paired)
+      expect(after.getFabricInfo()[0]).toMatchObject({
+        fabricId: expect.any(String),
+        nodeId: expect.any(String),
+      })
+    }, 30000)
+  })
+
+  it('gives the pairing codes matter.js builds for the passcode and discriminator in use', async () => {
+    const server = bridgeServer('AEAEAEAEAEAE', 55991)
+    await server.start()
+
+    const { manualPairingCode, qrCode, passcode, discriminator } = server.getCommissioningInfo()
+
+    // the same codes the matter.js codecs give for these values
+    const manualCode = ManualPairingCodeCodec.encode({ discriminator: discriminator!, passcode: passcode! })
+    expect(manualPairingCode).toBe(`${manualCode.slice(0, 4)}-${manualCode.slice(4, 7)}-${manualCode.slice(7, 11)}`)
+    expect(QrPairingCodeCodec.decode(qrCode!)).toEqual([
+      expect.objectContaining({
+        passcode,
+        discriminator,
+        vendorId: 0xFFF1,
+        productId: 0x8001,
+      }),
+    ])
+  }, 30000)
+
+  it('tells the ui once for each controller that is paired or removed', async () => {
+    const server = bridgeServer('AFAFAFAFAFAF', 55992)
+    await server.start()
+    const changes: unknown[][] = []
+    server.on('commissioning-status-changed', (...status: unknown[]) => changes.push(status))
+    const node = (server as unknown as { serverNode: ServerNode }).serverNode
+    const fabrics = node.env.get(MatterFabricManager)
+    const commissioningFile = () => JSON.parse(readFileSync(join(matterPath, 'AFAFAFAFAFAF', 'commissioning.json'), 'utf-8'))
+    // What matter.js does itself for a fabric change once the node is online
+    // (this node is not, so the test stands in for it).
+    const fabricChanged = (index: number, action: 'added' | 'deleted') =>
+      node.act(agent => agent.get(CommissioningServer).handleFabricChange(FabricIndex(index), action))
+
+    await TestFabric({ fabrics, index: 1 })
+    await fabricChanged(1, 'added')
+    const second = await TestFabric({ fabrics, index: 2 })
+    await fabricChanged(2, 'added')
+    await vi.waitFor(() => expect(commissioningFile()).toMatchObject({ commissioned: true, fabricCount: 2 }), { timeout: 5000, interval: 50 })
+
+    await second.leave()
+    await fabricChanged(2, 'deleted')
+    await vi.waitFor(() => expect(commissioningFile()).toMatchObject({ commissioned: true, fabricCount: 1 }), { timeout: 5000, interval: 50 })
+
+    expect(changes).toEqual([
+      [true, 1],
+      [true, 2],
+      [true, 1],
+    ])
+  }, 30000)
+
+  describe('stored matter data that can not be read', () => {
+    /** Create a bridge's storage with one run, and return the folder of its node. */
+    async function storedNode(uniqueId: string, port: number): Promise<string> {
+      const first = bridgeServer(uniqueId, port)
+      await first.start()
+      await first.stop()
+      return join(matterPath, uniqueId, uniqueId)
+    }
+
+    it('sets the data aside without deleting it, and asks for a restart', async () => {
+      const nodeFolder = await storedNode('BABABABABAB1', 55993)
+      // a fabric entry matter.js can not turn back into a fabric
+      writeFileSync(join(nodeFolder, 'fabrics.fabrics'), JSON.stringify([
+        { fabricIndex: 1, rootPublicKey: 'x' },
+      ]))
+
+      const second = bridgeServer('BABABABABAB1', 55993)
+      const failure = await second.start().then(() => undefined, (error: Error) => error.message)
+      expect(failure).toMatch(/set aside as .*BABABABABAB1\.corrupt-.*nothing was deleted.*Restart Homebridge/)
+
+      const setAside = readdirSync(join(matterPath, 'BABABABABAB1')).filter(name => name.startsWith('BABABABABAB1.corrupt-'))
+      expect(setAside).toHaveLength(1)
+      // the unreadable file is still there, to look at or to put back
+      expect(readFileSync(join(matterPath, 'BABABABABAB1', setAside[0], 'fabrics.fabrics'), 'utf-8')).toContain('rootPublicKey')
+    }, 30000)
+
+    // A file that can not be opened is not bad data. (root can open anything, so this can not be shown as root.)
+    it.skipIf(process.getuid?.() === 0)('leaves the data alone when it is only not readable', async () => {
+      const nodeFolder = await storedNode('BABABABABAB2', 55994)
+      const fabrics = join(nodeFolder, 'fabrics.fabrics')
+      writeFileSync(fabrics, '[]')
+      chmodSync(fabrics, 0o000)
+
+      const second = bridgeServer('BABABABABAB2', 55994)
+      const failure = await second.start().then(() => undefined, (error: Error) => error.message)
+      expect(failure).toBeDefined()
+
+      chmodSync(fabrics, 0o644)
+      expect(readdirSync(join(matterPath, 'BABABABABAB2')).filter(name => name.includes('corrupt'))).toEqual([])
+      expect(existsSync(fabrics)).toBe(true)
+    }, 30000)
+  })
+
+  // #4047: a container killed hard leaves matter.js's lock files behind, and
+  // in the next container the process id they name belongs to another program.
+  it('starts when the storage lock was left behind by an earlier run whose process id is in use again', async () => {
+    const first = bridgeServer('DDDDDDDDDDDD', 55984)
+    await first.start()
+    await first.stop()
+    // The lock an earlier run left a day ago. The process id is a live process
+    // (the test runner's parent), and it started long after that.
+    const nodeFolder = join(matterPath, 'DDDDDDDDDDDD', 'DDDDDDDDDDDD')
+    const aDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    writeFileSync(join(nodeFolder, 'matter.lock'), '')
+    writeFileSync(join(nodeFolder, 'matter.pid'), `${process.ppid} 0123456789abcdef`)
+    utimesSync(join(nodeFolder, 'matter.pid'), aDayAgo, aDayAgo)
+
+    const second = bridgeServer('DDDDDDDDDDDD', 55984)
+
+    await expect(second.start()).resolves.toBeUndefined()
+  }, 30000)
+
+  const light = (uuid: string, extra: Partial<MatterAccessory> = {}): MatterAccessory => ({
+    UUID: uuid,
+    displayName: `Light ${uuid}`,
+    deviceType: deviceTypes.DimmableLight,
+    serialNumber: 'S',
+    manufacturer: 'Test',
+    model: 'Test',
+    context: {},
+    clusters: {
+      onOff: { onOff: false },
+      levelControl: { currentLevel: 100 },
+    },
+    ...extra,
+  })
+
+  it('keeps every cached accessory when it is stopped while the cache is being restored', async () => {
+    const light = (uuid: string): MatterAccessory => ({
+      UUID: uuid,
+      displayName: `Light ${uuid}`,
+      deviceType: deviceTypes.OnOffLight,
+      serialNumber: uuid,
+      manufacturer: 'Test',
+      model: 'Test',
+      context: {},
+      clusters: {
+        onOff: { onOff: false },
+      },
+    })
+    const cacheFile = join(matterPath, 'FFFFFFFFFFA1', 'accessories.json')
+    const cachedUuids = () => (JSON.parse(readFileSync(cacheFile, 'utf-8')) as Array<{ uuid: string }>).map(entry => entry.uuid).sort()
+
+    const first = bridgeServer('FFFFFFFFFFA1', 55961)
+    await first.start()
+    await first.registerPlatformAccessories('plugin', 'Platform', [
+      light('a'),
+      light('b'),
+      light('c'),
+    ])
+    await vi.waitFor(() => expect(existsSync(cacheFile) && cachedUuids()).toEqual(['a', 'b', 'c']), { timeout: 5000, interval: 100 })
+    await first.stop()
+
+    // A stop (Homebridge got SIGTERM) right after the first cached accessory is back
+    const second = bridgeServer('FFFFFFFFFFA1', 55961)
+    const accessoryManager = (second as unknown as { accessoryManager: { registerAccessory: (...args: unknown[]) => Promise<unknown> } }).accessoryManager
+    const registerAccessory = accessoryManager.registerAccessory.bind(accessoryManager)
+    let stopping: Promise<void> | undefined
+    accessoryManager.registerAccessory = async (...args: unknown[]) => {
+      const result = await registerAccessory(...args)
+      stopping ??= second.stop()
+      return result
+    }
+    await second.start().catch(() => {})
+    await stopping
+    // longer than the cache's save delay
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    expect(cachedUuids()).toEqual(['a', 'b', 'c'])
+  }, 30000)
+
+  it('registers the other accessories of a call when the bridge refuses one of them', async () => {
+    const server = bridgeServer('batch-bridge', 5591)
+    await server.start()
+
+    await server.registerPlatformAccessories('homebridge-test', 'Test', [
+      light('batch-1'),
+      // a brightness Matter does not allow
+      light('batch-2', {
+        clusters: {
+          onOff: { onOff: false },
+          levelControl: { currentLevel: 300 },
+        },
+      }),
+      // the same UUID again
+      light('batch-1'),
+      light('batch-3'),
+    ])
+
+    expect(server.getAccessories().map(accessory => accessory.UUID).sort()).toEqual(['batch-1', 'batch-3'])
+  })
+
+  it('applies an update that comes straight after the registration of a new accessory', async () => {
+    const server = bridgeServer('update-bridge', 5592)
+    await server.start()
+    await server.registerPlatformAccessories('homebridge-test', 'Test', [
+      light('update-1'),
+    ])
+
+    // the cache file is written two seconds later: the update must not wait for it
+    await server.updatePlatformAccessories([
+      light('update-1', {
+        displayName: 'Renamed',
+        context: { room: 'hall' },
+      }),
+    ])
+
+    expect(server.getAccessory('update-1')).toMatchObject({
+      displayName: 'Renamed',
+      context: { room: 'hall' },
+    })
+  })
+
+  it('takes only the name, the device information and the context from an update', async () => {
+    const server = bridgeServer('update-fields-bridge', 5593)
+    await server.start()
+    const handlers = {
+      onOff: {
+        on: async () => {},
+      },
+    }
+    await server.registerPlatformAccessories('homebridge-test', 'Test', [
+      light('fields-1', { handlers }),
+    ])
+    const before = server.getAccessory('fields-1')!
+
+    // the shape a plugin is given in configureMatterAccessory: a plain copy of
+    // the device type, the state of the last save, no handlers
+    await server.updatePlatformAccessories([
+      {
+        UUID: 'fields-1',
+        displayName: 'Renamed',
+        deviceType: { name: 'DimmableLight' } as never,
+        serialNumber: 'S2',
+        manufacturer: 'Test',
+        model: 'Test',
+        firmwareRevision: undefined,
+        context: { room: 'hall' },
+        clusters: {
+          onOff: { onOff: true },
+          levelControl: { currentLevel: 1 },
+        },
+        handlers: undefined,
+        parts: undefined,
+      },
+    ])
+
+    const after = server.getAccessory('fields-1')!
+    expect(after).toMatchObject({
+      displayName: 'Renamed',
+      serialNumber: 'S2',
+      context: { room: 'hall' },
+    })
+    expect(after.deviceType).toBe(before.deviceType)
+    expect(after.clusters).toBe(before.clusters)
+    expect(after.handlers).toBe(handlers)
+    // and the name reaches the device a controller sees
+    const live = (server as unknown as { accessories: Map<string, { endpoint: { state: Record<string, Record<string, unknown>> } }> }).accessories
+    const endpoint = live.get('fields-1')!.endpoint
+    expect(endpoint.state.bridgedDeviceBasicInformation).toMatchObject({ nodeLabel: 'Renamed', serialNumber: 'S2' })
+  })
+
+  it('removes one paired controller and keeps the other', async () => {
+    const server = bridgeServer('remove-fabric-bridge', 5594)
+    await server.start()
+    const node = (server as unknown as { serverNode: ServerNode }).serverNode
+    const fabrics = node.env.get(MatterFabricManager)
+    for (const index of [1, 2]) {
+      await TestFabric({ fabrics, index })
+      await node.act(agent => agent.get(CommissioningServer).handleFabricChange(FabricIndex(index), 'added'))
+    }
+    expect(server.getFabricInfo().map(fabric => fabric.fabricIndex)).toEqual([1, 2])
+
+    await server.removeFabric(2)
+
+    expect(fabrics.maybeFor(FabricIndex(2))).toBeUndefined()
+    expect(fabrics.maybeFor(FabricIndex(1))).toBeDefined()
+    await vi.waitFor(() => expect(server.getFabricInfo().map(fabric => fabric.fabricIndex)).toEqual([1]), { timeout: 5000, interval: 50 })
+  })
+
+  it('says so when asked to remove a controller that is not paired', async () => {
+    const server = bridgeServer('remove-fabric-none', 5595)
+    await server.start()
+
+    const error: Error = await server.removeFabric(7).then(() => new Error('removed'), failure => failure)
+
+    expect(error.message).toContain('No controller is paired with fabric index 7')
+  })
+
+  it('adds no SIGINT or SIGTERM listener for a server', async () => {
+    const before = {
+      sigint: process.listenerCount('SIGINT'),
+      sigterm: process.listenerCount('SIGTERM'),
+    }
+
+    await externalServer('ACACACACACAC', 55988).start()
+
+    expect({
+      sigint: process.listenerCount('SIGINT'),
+      sigterm: process.listenerCount('SIGTERM'),
+    }).toEqual(before)
+  }, 30000)
+
+  it('keeps the node storage of two servers that start together in their own folders', async () => {
+    const first = externalServer('AAAAAAAAAAAA', 55981)
+    const second = externalServer('BBBBBBBBBBBB', 55982)
+
+    await Promise.all([
+      first.start(),
+      second.start(),
+    ])
+
+    // matter.js stores a node under <server folder>/<node id>/
+    const nodeFolders = (uniqueId: string): string[] => readdirSync(join(matterPath, uniqueId), { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+    expect(nodeFolders('AAAAAAAAAAAA')).toEqual(['AAAAAAAAAAAA'])
+    expect(nodeFolders('BBBBBBBBBBBB')).toEqual(['BBBBBBBBBBBB'])
+  }, 30000)
+})

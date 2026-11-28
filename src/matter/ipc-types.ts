@@ -5,8 +5,16 @@
  * main Homebridge process and child bridges.
  */
 
+import type { FabricInfo } from './server/FabricManager.js'
+
 /**
  * Matter event types
+ *
+ * `accessoryAdded` and `accessoryRemoved` come from the Matter server itself
+ * (server/AccessoryManager.ts), not from a manager. It sends them with
+ * `IpcOutgoingEvent.MATTER_EVENT`; in a child bridge they reach the main
+ * process only because that id is the same string as
+ * `ChildProcessMessageEventType.MATTER_EVENT` (`'matterEvent'`).
  */
 export type MatterEventType
   = | 'monitoringStarted'
@@ -18,6 +26,8 @@ export type MatterEventType
     | 'accessoryAdded'
     | 'accessoryRemoved'
     | 'externalBridgeRegistration' // Register an external Matter bridge (child → main)
+    | 'externalBridgeUnregistration' // The external Matter bridge is gone (child → main)
+    | 'accessoryControlClaimed' // The child has the accessory and is running the command (child → main, not passed on to the UI)
 
 /**
  * Matter event payload structure
@@ -46,6 +56,40 @@ export interface MatterStatusInfo {
    * intentionally suppressed). Mirrors `bridge.hap.externalsOnly`.
    */
   externalsOnly?: boolean
+  /**
+   * True when Matter is configured for the bridge but its server did not
+   * start (for example its port is in use). The reason is in the log.
+   */
+  startFailed?: boolean
+}
+
+/**
+ * The Matter part of the status a child bridge sends to the main process.
+ */
+export interface ChildBridgeMatterStatusInfo {
+  qrCode?: string
+  manualPairingCode?: string
+  serialNumber?: string
+  commissioned: boolean
+  deviceCount: number
+  fabricCount: number
+  fabrics: FabricInfo[]
+  /**
+   * True when Matter is configured for the child bridge but its server did
+   * not start (for example its port is in use). The reason is in the log.
+   */
+  startFailed?: boolean
+}
+
+/**
+ * A request from the UI to control one Matter accessory.
+ */
+export interface MatterControlRequest {
+  uuid: string
+  cluster: string
+  attributes: Record<string, unknown>
+  partId?: string
+  correlationId?: string
 }
 
 /**

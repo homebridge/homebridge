@@ -7,11 +7,34 @@
  *
  * Handler argument types are derived from @matter/main/clusters where possible,
  * so they automatically update when matter.js is bumped.
+ *
+ * Every handler is optional. A command the plugin has no handler for is not
+ * failed: the state changes in Matter and the plugin is not called, as HAP
+ * accepts a write to a characteristic that has no onSet. Where another handler
+ * can do the job it is called instead, so the plugin still hears about it:
+ * a level command reaches the move-to-level handler, and a blind's open or
+ * close reaches the go-to-percentage handlers (0 = open, 10000 = closed).
+ * A key press with no `sendKey` handler is answered as an unsupported key.
  */
 
-import type { ClosureControl, ColorControl, DeviceEnergyManagement, DoorLock, EnergyEvse, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, ServiceArea, Thermostat, ValveConfigurationAndControl, WaterHeaterManagement, WindowCovering } from '@matter/main/clusters'
+import type { ClosureControl, ColorControl, DeviceEnergyManagement, DoorLock, EnergyEvse, FanControl, Identify, KeypadInput, LevelControl, MediaPlayback, ModeBase, RvcOperationalState, ServiceArea, Thermostat, ValveConfigurationAndControl, WaterHeaterManagement, WindowCovering } from '@matter/main/clusters'
 
-import type { MatterCommandHandler } from './types.js'
+import type { MatterCommandHandler, MatterHandlerContext } from './types.js'
+
+/**
+ * A handler for a command that answers with a status of its own. The handler
+ * may return that answer, to say why it can not do what was asked (a vacuum
+ * that is stuck, a mode that is not possible right now, a key the player does
+ * not have). Returning nothing means the command was done, as for every other
+ * handler. Throwing still fails the command as a whole.
+ */
+export type MatterResponseHandler<TArgs, TResponse> = (args: TArgs, context: MatterHandlerContext) => Promise<TResponse | void> | TResponse | void
+
+/** A ChangeToMode handler. It may refuse the mode by returning an answer whose status is not 0 (Success). */
+export type MatterModeChangeHandler = MatterResponseHandler<ModeBase.ChangeToModeRequest, ModeBase.ChangeToModeResponse>
+
+/** A media playback handler. It may refuse by returning an answer whose status is not 0 (Success). */
+export type MatterPlaybackHandler<TArgs = unknown> = MatterResponseHandler<TArgs, MediaPlayback.PlaybackResponse>
 
 /**
  * OnOff cluster handler methods
@@ -31,14 +54,26 @@ export interface LevelControlHandlers {
   step?: MatterCommandHandler<LevelControl.StepRequest>
   stop?: MatterCommandHandler<LevelControl.StopRequest>
   moveToLevelWithOnOff?: MatterCommandHandler<LevelControl.MoveToLevelRequest>
+  // Optional: without them, these three fall back to the move, step and stop handlers
+  moveWithOnOff?: MatterCommandHandler<LevelControl.MoveRequest>
+  stepWithOnOff?: MatterCommandHandler<LevelControl.StepRequest>
+  stopWithOnOff?: MatterCommandHandler<LevelControl.StopRequest>
 }
 
 /**
  * ColorControl cluster handler methods
  *
- * Note: These use simplified argument types that the behavior passes through,
- * not the raw matter.js request types. The behavior files transform the matter.js
- * requests before calling plugin handlers.
+ * Note: These use simplified argument types, not the raw matter.js request
+ * types. Color control is the one cluster where the behavior builds the
+ * arguments itself; every other handler is given the request as matter.js has
+ * it. `transitionTime` is in tenths of a second.
+ *
+ * All are optional. One command from a controller calls one handler:
+ * - MoveToHueAndSaturation calls `moveToHueAndSaturationLogic` when the plugin
+ *   has it. Without it, `moveToHueLogic` and `moveToSaturationLogic` are called
+ *   instead (one each).
+ * - `stopAllColorMovement` is called for the StopMoveStep command. It is not
+ *   called when a command only switches the color mode.
  */
 export interface ColorControlHandlers {
   moveToColorTemperatureLogic?: MatterCommandHandler<{
@@ -78,6 +113,16 @@ export interface DoorLockHandlers {
 
 /**
  * WindowCovering cluster handler methods
+ *
+ * Once a handler has returned, Matter holds the new target position, and the
+ * current position is set to the target at once: Homebridge does not know how
+ * long the motor takes. Controllers then show the covering as already there.
+ * A plugin that knows the real position reports it with
+ * `updateAccessoryState()` while the covering moves, and again when it stops.
+ *
+ * A covering that does not know its position (open and close only) gets
+ * `upOrOpen` for a go-to-percentage command of 0 and `downOrClose` for any
+ * other value, as Matter says.
  */
 export interface WindowCoveringHandlers {
   upOrOpen?: MatterCommandHandler
@@ -89,6 +134,12 @@ export interface WindowCoveringHandlers {
 
 /**
  * Thermostat cluster handler methods
+ *
+ * The `...Change` handlers are called after a controller (or the Homebridge
+ * UI) has written the attribute. They are not called for state the plugin
+ * reports itself with `updateAccessoryState()`. The write is already accepted
+ * by then, so a handler can not refuse it: when one throws, the error is
+ * logged and the old value is put back.
  */
 export interface ThermostatHandlers {
   systemModeChange?: MatterCommandHandler<{ systemMode: number, oldSystemMode: number }>
@@ -100,11 +151,33 @@ export interface ThermostatHandlers {
     occupiedCoolingSetpoint: number
     oldOccupiedCoolingSetpoint: number
   }>
+  /** For a thermostat with the Occupancy feature: the heating setpoint used while nobody is there. */
+  unoccupiedHeatingSetpointChange?: MatterCommandHandler<{
+    unoccupiedHeatingSetpoint: number
+    oldUnoccupiedHeatingSetpoint: number
+  }>
+  /** For a thermostat with the Occupancy feature: the cooling setpoint used while nobody is there. */
+  unoccupiedCoolingSetpointChange?: MatterCommandHandler<{
+    unoccupiedCoolingSetpoint: number
+    oldUnoccupiedCoolingSetpoint: number
+  }>
+  /**
+   * Optional. Called for the SetpointRaiseLower command, before the setpoints
+   * move. The moves themselves then reach the setpoint-change handlers above
+   * as well, with the new values, so a plugin that has those does not need
+   * this one.
+   */
   setpointRaiseLower?: MatterCommandHandler<Thermostat.SetpointRaiseLowerRequest>
 }
 
 /**
  * FanControl cluster handler methods
+ *
+ * The `...Change` handlers are called after a controller (or the Homebridge
+ * UI) has written the attribute. They are not called for state the plugin
+ * reports itself with `updateAccessoryState()`. The write is already accepted
+ * by then, so a handler can not refuse it: when one throws, the error is
+ * logged and the old value is put back.
  */
 export interface FanControlHandlers {
   fanModeChange?: MatterCommandHandler<{
@@ -122,41 +195,56 @@ export interface FanControlHandlers {
  */
 export interface IdentifyHandlers {
   identify?: MatterCommandHandler<Identify.IdentifyRequest>
+  /**
+   * An identify effect was asked for (blink, breathe, okay, ...). Lights and
+   * plugs offer this command. It is answered before the handler runs, so the
+   * handler can not refuse it: an error it throws is logged.
+   */
+  triggerEffect?: MatterCommandHandler<Identify.TriggerEffectRequest>
 }
 
 /**
  * RvcRunMode cluster handler methods
  */
 export interface RvcRunModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**
  * RvcCleanMode cluster handler methods
  */
 export interface RvcCleanModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**
  * RvcOperationalState cluster handler methods
+ *
+ * A handler may return `{ commandResponseState: { errorStateId, ... } }` to
+ * say what is stopping the vacuum. Returning nothing answers "no error".
  */
 export interface RvcOperationalStateHandlers {
-  pause?: MatterCommandHandler
-  resume?: MatterCommandHandler
-  goHome?: MatterCommandHandler
+  pause?: MatterResponseHandler<unknown, RvcOperationalState.OperationalCommandResponse>
+  resume?: MatterResponseHandler<unknown, RvcOperationalState.OperationalCommandResponse>
+  goHome?: MatterResponseHandler<unknown, RvcOperationalState.OperationalCommandResponse>
 }
 
 /**
  * ServiceArea cluster handler methods
  */
 export interface ServiceAreaHandlers {
-  selectAreas?: MatterCommandHandler<ServiceArea.SelectAreasRequest>
-  skipArea?: MatterCommandHandler<ServiceArea.SkipAreaRequest>
+  selectAreas?: MatterResponseHandler<ServiceArea.SelectAreasRequest, ServiceArea.SelectAreasResponse>
+  skipArea?: MatterResponseHandler<ServiceArea.SkipAreaRequest, ServiceArea.SkipAreaResponse>
 }
 
 /**
  * ClosureControl cluster handler methods
+ *
+ * Once `moveTo` has returned, Matter holds the move as finished: the current
+ * state is set to the target at once and the main state to Stopped. No
+ * MovementCompleted or SecureStateChanged event is raised. A plugin that knows
+ * the real state (a garage door takes a while) reports `mainState` and
+ * `overallCurrentState` with `updateAccessoryState()` as the closure moves.
  *
  * `stop` is not available on a closure composed with the Instantaneous
  * feature - such a closure reaches its target immediately, so the spec has
@@ -176,25 +264,31 @@ export interface ClosureControlHandlers {
  * composes those features needs to supply its own behavior for them.
  */
 export interface MediaPlaybackHandlers {
-  play?: MatterCommandHandler
-  pause?: MatterCommandHandler
-  stop?: MatterCommandHandler
-  startOver?: MatterCommandHandler
-  previous?: MatterCommandHandler
-  next?: MatterCommandHandler
-  skipForward?: MatterCommandHandler<MediaPlayback.SkipForwardRequest>
-  skipBackward?: MatterCommandHandler<MediaPlayback.SkipBackwardRequest>
+  play?: MatterPlaybackHandler
+  pause?: MatterPlaybackHandler
+  stop?: MatterPlaybackHandler
+  startOver?: MatterPlaybackHandler
+  previous?: MatterPlaybackHandler
+  next?: MatterPlaybackHandler
+  skipForward?: MatterPlaybackHandler<MediaPlayback.SkipForwardRequest>
+  skipBackward?: MatterPlaybackHandler<MediaPlayback.SkipBackwardRequest>
 }
 
 /**
  * KeypadInput cluster handler methods
  */
 export interface KeypadInputHandlers {
-  sendKey?: MatterCommandHandler<KeypadInput.SendKeyRequest>
+  sendKey?: MatterResponseHandler<KeypadInput.SendKeyRequest, KeypadInput.SendKeyResponse>
 }
 
 /**
  * ValveConfigurationAndControl cluster handler methods
+ *
+ * Once `open` has returned, Matter holds the valve as open at once. The
+ * request's `openDuration` and `targetLevel` are given to the handler and not
+ * used otherwise: `openDuration` and `remainingDuration` are not set, and
+ * nothing closes the valve when the time is up. A plugin whose valve closes by
+ * itself reports that with `updateAccessoryState()`.
  */
 export interface ValveConfigurationAndControlHandlers {
   open?: MatterCommandHandler<ValveConfigurationAndControl.OpenRequest>
@@ -205,11 +299,16 @@ export interface ValveConfigurationAndControlHandlers {
  * WaterHeaterMode cluster handler methods
  */
 export interface WaterHeaterModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**
  * WaterHeaterManagement cluster handler methods
+ *
+ * Once `boost` has returned, `boostState` is Active, and it stays Active:
+ * nothing ends the boost when `boostInfo.duration` runs out. The plugin sets
+ * `boostState` back to 0 (Inactive) with `updateAccessoryState()` when its
+ * heater is done, or a controller sends CancelBoost.
  */
 export interface WaterHeaterManagementHandlers {
   boost?: MatterCommandHandler<WaterHeaterManagement.BoostRequest>
@@ -235,7 +334,7 @@ export interface DeviceEnergyManagementHandlers {
  * DeviceEnergyManagementMode cluster handler methods
  */
 export interface DeviceEnergyManagementModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**
@@ -257,7 +356,7 @@ export interface EnergyEvseHandlers {
  * EnergyEvseMode cluster handler methods
  */
 export interface EnergyEvseModeHandlers {
-  changeToMode?: MatterCommandHandler<ModeBase.ChangeToModeRequest>
+  changeToMode?: MatterModeChangeHandler
 }
 
 /**

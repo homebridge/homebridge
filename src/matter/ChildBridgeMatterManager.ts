@@ -8,19 +8,20 @@
 import type { HomebridgeAPI, MatterWorkTracker } from '../api.js'
 import type { BridgeConfiguration, BridgeOptions } from '../bridgeService.js'
 import type { ChildBridgeExternalPortService } from '../externalPortService.js'
-import type { AccessoryInfo } from './managerTypes.js'
-import type { FabricInfo } from './server/FabricManager.js'
+import type { ChildBridgeMatterStatusInfo } from './ipc-types.js'
+import type { AccessoryInfo, ServerAccessoryData } from './managerTypes.js'
+import type { CommissioningSnapshot } from './server/FabricManager.js'
 import type { InternalMatterAccessory, MatterAccessory, MatterConfig } from './types.js'
-
-import process from 'node:process'
 
 import { InternalAPIEvent } from '../api.js'
 import { DEFAULT_BRIDGE_DEFAULTS } from '../bridgeService.js'
 import { Logger } from '../logger.js'
 import { PluginManager } from '../pluginManager.js'
 import { User } from '../user.js'
+import { sendToParent } from '../util/ipc.js'
 import getVersion from '../version.js'
 import { BaseMatterManager } from './BaseMatterManager.js'
+import { isPortInUseError } from './errorHandler.js'
 import { publishExternalMatterAccessory } from './ExternalMatterAccessoryPublisher.js'
 import { MatterAccessoryNotOnBridgeError } from './MatterError.js'
 import { MatterServer } from './server.js'
@@ -37,23 +38,23 @@ const DEFER_ONLINE_SETTLE_MS = 2000
 const DEFER_ONLINE_CAP_MS = 45000
 const DEFER_ONLINE_POLL_MS = 500
 
-/**
- * Matter status information for child bridge IPC communication
- */
-export interface ChildBridgeMatterStatusInfo {
-  qrCode?: string
-  manualPairingCode?: string
-  serialNumber?: string
-  commissioned: boolean
-  deviceCount: number
-  fabricCount: number
-  fabrics: FabricInfo[]
-}
+export type { ChildBridgeMatterStatusInfo } from './ipc-types.js'
 
 /**
  * Manages Matter server and accessories for a child bridge
  */
 export class ChildBridgeMatterManager extends BaseMatterManager {
+  protected override getExternalCacheOwner(): string {
+    return this.bridgeConfig.username
+  }
+
+  protected override async publishRestoredExternalAccessory(accessory: InternalMatterAccessory): Promise<void> {
+    await this.handlePublishExternalAccessories([accessory], `restore-${accessory.UUID}`)
+    if (!this.externalMatterServers.has(accessory.UUID)) {
+      throw new Error('Failed to restore external Matter server')
+    }
+  }
+
   // Matter configuration from bridge config
   private readonly matterConfig?: MatterConfig
 
@@ -75,6 +76,20 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     this.externalPortService.releaseMatterPort(uniqueId)
   }
 
+  protected override forgetExternalMatterBridge(username: string): void {
+    // The parent keeps the routing list: tell it, as it was told at publish
+    sendToParent({
+      id: 'matterEvent',
+      data: {
+        type: 'externalBridgeUnregistration',
+        data: {
+          externalBridgeUsername: username,
+          childBridgeUsername: this.bridgeConfig.username,
+        },
+      },
+    })
+  }
+
   // Stored listener references so they can be removed in teardown()
   private readonly _onPublishExternalMatterAccessories = (accessories: MatterAccessory[], registrationId: string): void => {
     this.handlePublishExternalAccessories(accessories as InternalMatterAccessory[], registrationId).catch((error) => {
@@ -89,10 +104,11 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     }))
   }
 
-  private readonly _onUpdateMatterPlatformAccessories = (accessories: MatterAccessory[]): void => {
-    this.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
+  private readonly _onUpdateMatterPlatformAccessories = (accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
+    const work = this.handleUpdatePlatformAccessories(accessories as InternalMatterAccessory[]).catch((error) => {
       log.error('Failed to update Matter platform accessories:', error)
     })
+    track?.(work)
   }
 
   private readonly _onUnregisterMatterPlatformAccessories = (pluginIdentifier: string, platformName: string, accessories: MatterAccessory[], track?: MatterWorkTracker): void => {
@@ -107,31 +123,36 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     }))
   }
 
-  private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): void => {
-    this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
+  private readonly _onUpdateMatterAccessoryState = (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string, track?: MatterWorkTracker): void => {
+    const work = this.handleUpdateAccessoryState(uuid, cluster, attributes, partId).catch((error) => {
       // In externalsOnly mode the real handler is attached but the bridge node
       // never started, so a state update for a non-external accessory is an
       // expected "wrong target", not a failure. Mirror the message-handler path
       // and log it at debug instead of surfacing a red error line.
       if (error instanceof MatterAccessoryNotOnBridgeError) {
-        log.debug(`Ignoring Matter state update for ${uuid}: accessory is not on this bridge`)
+        // Without a bridge node that is the normal case. With one, the plugin
+        // has updated an accessory it never registered (or has unregistered).
+        if (this.externalsOnlyMode) {
+          log.debug(`Ignoring Matter state update for ${uuid}: accessory is not on this bridge`)
+        } else {
+          log.warn(`Ignoring Matter state update for ${uuid} (${cluster}): no accessory with this UUID is registered on this bridge`)
+        }
         return
       }
       log.error(`Failed to update Matter accessory state for ${uuid}:`, error)
     })
+    track?.(work)
   }
 
   // Stored references so listeners can be removed in teardown()
   private readonly _onMatterServerStateChange = ({ uuid, cluster, state, partId }: { uuid: string, cluster: string, state: Record<string, unknown>, partId?: string }): void => {
-    if (process.send) {
-      process.send({
-        id: 'matterEvent',
-        data: {
-          type: 'accessoryUpdate',
-          data: { uuid, cluster, state, partId },
-        },
-      })
-    }
+    sendToParent({
+      id: 'matterEvent',
+      data: {
+        type: 'accessoryUpdate',
+        data: { uuid, cluster, state, partId },
+      },
+    })
   }
 
   private _onCommissioningStatusChanged?: (commissioned: boolean, fabricCount: number) => void
@@ -156,6 +177,15 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   // which listeners were attached, so teardown removes the correct ones.
   private externalsOnlyMode = false
 
+  // Tells the parent process the status changed (given to initialize())
+  private onStatusChanged?: () => void
+
+  // The pending poll of runServerWhenSettled(), so teardown() can stop it.
+  private deferOnlineTimer?: ReturnType<typeof setTimeout>
+
+  // True once the normal-mode API listeners are attached (see setupEventListeners).
+  private eventListenersAttached = false
+
   /**
    * Initialize Matter server for child bridge. Three states:
    *
@@ -168,6 +198,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * @param onCommissioningChanged Optional callback when commissioning status changes
    */
   async initialize(onCommissioningChanged?: () => void): Promise<void> {
+    this.onStatusChanged = onCommissioningChanged
     // 1. Disabled or absent → nothing to do.
     if (!this.matterConfig) {
       return
@@ -192,28 +223,33 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     // 3. Normal mode → existing full setup follows.
     log.debug(`Child bridge ${this.bridgeConfig.username} has Matter config (Combined HAP+Matter), starting Matter server`)
 
-    // If Matter doesn't have a port configured, allocate one
-    if (!this.matterConfig.port) {
-      // Generate a unique username for Matter port allocation
-      const matterUsername = appendUsernameSuffix(this.bridgeConfig.username, 'MATTER')
-      // Use the Matter port allocator (falls back to 5530-5541 when no range is
-      // configured), NOT requestPort() which draws from the HAP external-port
-      // pool and returns undefined unless `ports` is set.
-      const matterPort = await this.externalPortService.requestMatterPort(matterUsername)
+    try {
+      // If Matter doesn't have a port configured, allocate one
+      if (!this.matterConfig.port) {
+        // Generate a unique username for Matter port allocation
+        const matterUsername = appendUsernameSuffix(this.bridgeConfig.username, 'MATTER')
+        // Use the Matter port allocator (falls back to 5530-5541 when no range is
+        // configured), NOT requestPort() which draws from the HAP external-port
+        // pool and returns undefined unless `ports` is set.
+        const matterPort = await this.externalPortService.requestMatterPort(matterUsername)
 
-      if (!matterPort) {
-        throw new Error(
-          'Failed to allocate Matter port for child bridge. '
-          + 'Please specify a port manually in the _bridge.matter configuration, or free up ports in the configured range.',
-        )
+        if (!matterPort) {
+          throw new Error(
+            'Failed to allocate Matter port for child bridge. '
+            + 'Please specify a port manually in the _bridge.matter configuration, or free up ports in the configured range.',
+          )
+        }
+
+        this.matterConfig.port = matterPort
+        log.debug(`Allocated Matter port: ${this.matterConfig.port} (HAP port: ${this.bridgeConfig.port})`)
       }
 
-      this.matterConfig.port = matterPort
-      log.debug(`Allocated Matter port: ${this.matterConfig.port} (HAP port: ${this.bridgeConfig.port})`)
+      // Start Matter server
+      await this.startMatterServer(this.matterConfig)
+    } catch (error: unknown) {
+      this.handleBridgeStartFailure(error)
+      return
     }
-
-    // Start Matter server
-    await this.startMatterServer(this.matterConfig)
 
     // Listen for commissioning status changes to update parent process
     if (onCommissioningChanged && this.matterServer) {
@@ -231,12 +267,50 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   }
 
   /**
+   * The Matter server of this child bridge did not start. Same as on the main
+   * bridge: the error is logged and the bridge carries on, so its HomeKit side
+   * is not taken down with it. Before this the error ended the child process,
+   * which was then restarted four times and switched off.
+   *
+   * The reason is kept, so a plugin that registers a Matter accessory is told
+   * why it can not, and the status sent to the parent says `startFailed`.
+   */
+  private handleBridgeStartFailure(error: unknown): void {
+    log.error(`Failed to initialize Matter server for child bridge ${this.bridgeConfig.username}:`, error)
+
+    const errorMessage = error instanceof Error
+      ? error.message
+      : String(error)
+
+    // A server that never ran is not kept: the bridge would report Matter as
+    // enabled with no pairing codes, and tell every plugin "still starting"
+    // for the rest of the run. Its port stays reserved: it may be the very
+    // port another program holds.
+    const failedServer = this.matterServer
+    this.matterServer = undefined
+    this.bridgeStartFailure = errorMessage
+    failedServer?.stop().catch((stopError: unknown) => {
+      log.debug('Could not stop the Matter server that failed to start:', stopError)
+    })
+
+    // External accessories have a server of their own and can still publish,
+    // so the listeners are attached when the failed start did not get that far.
+    if (!this.eventListenersAttached) {
+      this.setupEventListeners()
+    }
+
+    // matter.js says so with its own AddressInUseError, which has no code
+    if (isPortInUseError(error)) {
+      log.error(`Matter port ${this.matterConfig?.port} is already in use by another application.`)
+      log.error('To fix this, stop the application using this port, or set a different port for this child bridge in your config.json: "_bridge": { "matter": { "port": <different-port> } }')
+    }
+    log.error('Matter is not running on this child bridge. Its HomeKit accessories are not affected.')
+  }
+
+  /**
    * Start Matter server for child bridge
    */
   private async startMatterServer(matterConfig: MatterConfig): Promise<void> {
-    // Log Matter.js version and startup info
-    const matterJsVersion = getMatterJsVersion()
-    log.success('Homebridge v%s (Matter.js v%s) (%s) is running on port %s.', getVersion(), matterJsVersion, this.bridgeConfig.name, matterConfig.port)
     log.debug(`Starting Matter server for child bridge ${this.bridgeConfig.username}`)
 
     // Create Matter server with the provided configuration
@@ -251,6 +325,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       storagePath: User.matterPath(),
       displayName: this.bridgeConfig.name || 'Child Bridge',
       debugModeEnabled: this.bridgeOptions.debugModeEnabled,
+      hideQRCode: this.bridgeOptions.hideQRCode,
       manufacturer: this.bridgeConfig.manufacturer || DEFAULT_BRIDGE_DEFAULTS.manufacturer,
       model: this.bridgeConfig.model || DEFAULT_BRIDGE_DEFAULTS.model,
       firmwareRevision: this.bridgeConfig.firmwareRevision || getVersion(),
@@ -267,6 +342,10 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
     await this.matterServer.start()
 
+    // Said once the server has started, as on the main bridge: a failed start
+    // must not be followed by "is running".
+    log.success('Homebridge v%s (Matter.js v%s) (%s) is running on port %s.', getVersion(), getMatterJsVersion(), this.bridgeConfig.name, matterConfig.port)
+
     // Inform the API that Matter is enabled
     this.api._setMatterEnabled(true)
 
@@ -274,7 +353,8 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     this.api._setMatterServer(this.matterServer)
 
     const commissioningInfo = this.matterServer.getCommissioningInfo()
-    log.info(`Matter server started for child bridge ${this.bridgeConfig.username} with commissioning info:`, commissioningInfo)
+    // The pairing codes are not repeated here: the server prints them once, in its own banner.
+    log.info(`Matter server started for child bridge ${this.bridgeConfig.username}`)
 
     // Store the serial number for status updates
     this.matterSerialNumber = commissioningInfo.serialNumber
@@ -310,19 +390,31 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
       const capped = Date.now() - deferStartedAt >= DEFER_ONLINE_CAP_MS
 
       if (!settled && !capped) {
-        setTimeout(check, DEFER_ONLINE_POLL_MS)
+        this.deferOnlineTimer = setTimeout(check, DEFER_ONLINE_POLL_MS)
         return
       }
+
+      this.deferOnlineTimer = undefined
 
       if (capped && !settled) {
         log.warn(`Deferred Matter start: no registrations settled within ${DEFER_ONLINE_CAP_MS / 1000}s - going online anyway`)
       }
-      server.runServer().catch((error) => {
-        log.error('Deferred Matter server start failed:', error)
+      server.runServer().catch((error: unknown) => {
+        // The node is only put on the network now, so this is where a port
+        // that another program holds shows up. It is the same failed start as
+        // one in initialize(): before, it was one log line, and the bridge kept
+        // reporting its pairing codes for a server that was not running.
+        if (this.matterServer !== server) {
+          log.debug('Deferred Matter server start failed after the server was replaced:', error)
+          return
+        }
+        this.api._setMatterServer(null)
+        this.handleBridgeStartFailure(error)
+        this.onStatusChanged?.()
       })
     }
 
-    setTimeout(check, DEFER_ONLINE_POLL_MS)
+    this.deferOnlineTimer = setTimeout(check, DEFER_ONLINE_POLL_MS)
   }
 
   /**
@@ -330,6 +422,7 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * normal mode where the bridge MatterServer is running.
    */
   private setupEventListeners(): void {
+    this.eventListenersAttached = true
     this.setupExternalEventListeners()
     this.setupBridgedEventListeners()
   }
@@ -392,15 +485,20 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
         try {
           // Check if already published
           if (this.externalMatterServers.has(accessory.UUID)) {
+            if (await this.attachRestoredExternalAccessory(accessory)) {
+              continue
+            }
             log.warn(`External Matter accessory ${accessory.displayName} (${accessory.UUID}) is already published`)
             continue
           }
 
           // Publish the accessory using shared helper
           const result = await publishExternalMatterAccessory(accessory, {
+            bridgeUsername: this.bridgeConfig.username,
             portService: this.externalPortService,
             networkInterfaces,
             debugModeEnabled: this.bridgeOptions.debugModeEnabled,
+            hideQRCode: this.bridgeOptions.hideQRCode,
             disableIpv4: this.matterConfig?.disableIpv4,
           })
 
@@ -409,8 +507,8 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
             continue
           }
 
-          // Store the server instance
-          this.externalMatterServers.set(accessory.UUID, result.server)
+          // Store the server instance (with the UI's monitoring setting)
+          this.addExternalMatterServer(accessory.UUID, result.server)
 
           // Listen for state changes and forward to parent process
           // (same pattern as the child bridge server listener in initialize())
@@ -418,18 +516,16 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
 
           // Register the external bridge username with parent process for routing
           // Send via IPC to parent - parent will register in externalMatterBridgeRegistry
-          if (process.send) {
-            process.send({
-              id: 'matterEvent',
+          sendToParent({
+            id: 'matterEvent',
+            data: {
+              type: 'externalBridgeRegistration',
               data: {
-                type: 'externalBridgeRegistration',
-                data: {
-                  externalBridgeUsername: result.username,
-                  childBridgeUsername: this.bridgeConfig.username,
-                },
+                externalBridgeUsername: result.username,
+                childBridgeUsername: this.bridgeConfig.username,
               },
-            })
-          }
+            },
+          })
 
           // Log commissioning info
           if (result.commissioningInfo.qrCode && result.commissioningInfo.manualPairingCode) {
@@ -452,8 +548,22 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * Returns undefined if Matter is not enabled for this child bridge
    */
   getMatterStatusInfo(): ChildBridgeMatterStatusInfo | undefined {
-    if (!this.matterConfig || !this.matterServer) {
+    if (!this.matterConfig) {
       return undefined
+    }
+
+    // Matter is configured but its server did not start: say so, with no
+    // pairing codes, instead of looking like a bridge that has no Matter.
+    if (!this.matterServer) {
+      return this.bridgeStartFailure !== undefined
+        ? {
+            commissioned: false,
+            deviceCount: 0,
+            fabricCount: 0,
+            fabrics: [],
+            startFailed: true,
+          }
+        : undefined
     }
 
     const commissioningInfo = this.matterServer.getCommissioningInfo()
@@ -493,7 +603,10 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
    * accessories on an externalsOnly child remain controllable and listable.
    */
   override hasActiveMatter(): boolean {
-    return this.isMatterEnabled() || this.externalsOnlyMode
+    // A bridge server that failed to start still counts, as on the main
+    // bridge: the listeners are attached, external accessories can still
+    // publish, and a bridged registration gets the true reason.
+    return this.isMatterEnabled() || this.externalsOnlyMode || this.bridgeStartFailure !== undefined
   }
 
   /**
@@ -521,22 +634,20 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     const accessories: AccessoryInfo[] = []
 
     if (this.matterServer) {
-      const serverAccessories = this.matterServer.collectAccessories(
-        this.bridgeConfig.username,
-        'child',
-        this.bridgeConfig.name || 'Child Bridge',
-      )
-      accessories.push(...serverAccessories)
+      accessories.push(...this.collectAccessoriesFromServer(this.matterServer, {
+        username: this.bridgeConfig.username,
+        type: 'child',
+        name: this.bridgeConfig.name || 'Child Bridge',
+      }))
     }
 
     // Collect from external servers
     for (const server of this.externalMatterServers.values()) {
-      const externalAccessories = server.collectAccessories(
-        server.username,
-        'external',
-        server.bridgeName,
-      )
-      accessories.push(...externalAccessories)
+      accessories.push(...this.collectAccessoriesFromServer(server, {
+        username: server.username,
+        type: 'external',
+        name: server.bridgeName,
+      }))
     }
 
     return accessories
@@ -551,17 +662,25 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   getAccessoryInfo(uuid: string): AccessoryInfo | undefined {
     // Check main server
     if (this.matterServer) {
-      const info = this.matterServer.getAccessoryInfo(uuid)
+      const info: ServerAccessoryData | undefined = this.matterServer.getAccessoryInfo(uuid)
       if (info) {
-        return info
+        return this.toAccessoryInfo(this.matterServer, info, this.matterServer.getCommissioningSnapshot(), {
+          username: this.bridgeConfig.username,
+          type: 'child',
+          name: this.bridgeConfig.name || 'Child Bridge',
+        })
       }
     }
 
     // Check external servers
     for (const server of this.externalMatterServers.values()) {
-      const info = server.getAccessoryInfo(uuid)
+      const info: ServerAccessoryData | undefined = server.getAccessoryInfo(uuid)
       if (info) {
-        return info
+        return this.toAccessoryInfo(server, info, server.getCommissioningSnapshot(), {
+          username: server.username,
+          type: 'external',
+          name: server.bridgeName || 'Matter Bridge',
+        })
       }
     }
 
@@ -569,9 +688,60 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
   }
 
   /**
+   * The accessories of one server, as the UI gets them.
+   */
+  private collectAccessoriesFromServer(server: MatterServer, bridge: AccessoryInfo['bridge']): AccessoryInfo[] {
+    const serverAccessories: ServerAccessoryData[] = server.collectAccessories(bridge.username, bridge.type, bridge.name)
+    // Fabric/commissioning state is server-wide: read it once per server.
+    const snapshot = server.getCommissioningSnapshot()
+    return serverAccessories.map(accessory => this.toAccessoryInfo(server, accessory, snapshot, bridge))
+  }
+
+  /**
+   * Add what the server's own accessory object leaves out, so a child bridge
+   * sends the UI the same fields as the main bridge does: the bridge, the
+   * plugin and platform, the plugin's context, and the commissioning state.
+   * Before, those fields were missing, while the return type said they were there.
+   */
+  private toAccessoryInfo(
+    server: MatterServer,
+    accessory: ServerAccessoryData,
+    snapshot: CommissioningSnapshot,
+    bridge: AccessoryInfo['bridge'],
+  ): AccessoryInfo {
+    const cached = server.getCachedAccessory(accessory.uuid)
+
+    return {
+      ...accessory,
+      bridge,
+      plugin: cached?.plugin ?? '',
+      platform: cached?.platform ?? '',
+      context: cached?.context,
+      commissioned: snapshot.commissioned,
+      fabricCount: snapshot.fabricCount,
+      // Same mapping as the main bridge: matter.js names the vendor rootVendorId.
+      fabrics: snapshot.fabrics.map(fabric => ({
+        fabricIndex: fabric.fabricIndex,
+        fabricId: fabric.fabricId,
+        nodeId: fabric.nodeId,
+        vendorId: fabric.rootVendorId,
+        label: fabric.label,
+      })),
+    }
+  }
+
+  /**
    * Teardown Matter servers
    */
   async teardown(): Promise<void> {
+    // Stop waiting to bring the node online. The poll used to go on after a
+    // teardown and call runServer() on a server that was stopping or stopped:
+    // a quick restart logged "Deferred Matter server start failed".
+    if (this.deferOnlineTimer) {
+      clearTimeout(this.deferOnlineTimer)
+      this.deferOnlineTimer = undefined
+    }
+
     // Remove API event listeners to prevent retention of this manager after teardown.
     // EventEmitter.removeListener is a no-op when the listener was never attached,
     // so it's safe to call all removals regardless of which mode initialised this manager.
@@ -586,15 +756,18 @@ export class ChildBridgeMatterManager extends BaseMatterManager {
     this.api.removeListener(InternalAPIEvent.REGISTER_MATTER_PLATFORM_ACCESSORIES, this._onRegisterMatterPlatformAccessoriesDropped)
     this.api.removeListener(InternalAPIEvent.UNREGISTER_MATTER_PLATFORM_ACCESSORIES, this._onUnregisterMatterPlatformAccessoriesDropped)
 
-    // Stop main Matter server if it was initialized
-    if (this.matterServer) {
+    // Stop main Matter server if it was initialized. The reference is dropped
+    // first: this manager no longer has a bridge server once it is torn down.
+    const matterServer = this.matterServer
+    this.matterServer = undefined
+    if (matterServer) {
       log.debug(`Stopping Matter server for child bridge ${this.bridgeConfig.username}`)
       try {
-        this.matterServer.removeListener('stateChange', this._onMatterServerStateChange)
+        matterServer.removeListener('stateChange', this._onMatterServerStateChange)
         if (this._onCommissioningStatusChanged) {
-          this.matterServer.removeListener('commissioning-status-changed', this._onCommissioningStatusChanged)
+          matterServer.removeListener('commissioning-status-changed', this._onCommissioningStatusChanged)
         }
-        await this.matterServer.stop()
+        await matterServer.stop()
       } catch (error: unknown) {
         log.error('Error stopping Matter server:', error)
       }

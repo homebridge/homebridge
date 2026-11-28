@@ -3,7 +3,7 @@ import type { MockInstance } from 'vitest'
 import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { HAPStorage } from '@homebridge/hap-nodejs'
+import { AccessoryEventTypes, HAPStorage } from '@homebridge/hap-nodejs'
 import fs from 'fs-extra'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -52,24 +52,104 @@ describe('server', () => {
     consoleLogSpy.mockRestore()
   })
 
-  it('creates an instance of the server without errors', async () => {
+  it('creates a server from the config file, with the status pending and nothing published', () => {
     const server = new Server({
       customStoragePath: homebridgeStorageFolder,
       hideQRCode: true,
-    })
+    }) as any
 
-    expect(server).toBeInstanceOf(Server)
+    expect(server.config.bridge).toMatchObject({ name: 'Homebridge', username: 'CC:22:3D:E3:CE:30', pin: '031-45-154' })
+    expect(server.bridgeService.bridge.displayName).toBe('Homebridge')
+    expect(server.serverStatus).toBe('pending')
+    expect(server.bridgeService.bridge._accessoryInfo).toBeUndefined()
   })
 
-  it('starts without errors', async () => {
-    const server = new Server({
-      customStoragePath: homebridgeStorageFolder,
-      hideQRCode: true,
+  describe('start and teardown', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+      consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
     })
 
-    await server.start()
+    it('publishes the main bridge once from the config, reports its status, and takes it down again', async () => {
+      // No plugin from this machine is loaded, and nothing goes on the network:
+      // the two calls that would do that are replaced.
+      const initialize = vi.spyOn(PluginManager.prototype, 'initializeInstalledPlugins').mockResolvedValue(undefined)
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const bridge = (server as any).bridgeService.bridge
+      const publish = vi.spyOn(bridge, 'publish').mockResolvedValue(undefined)
+      const unpublish = vi.spyOn(bridge, 'unpublish').mockResolvedValue(undefined)
+      const ipcStart = vi.spyOn(server.ipcService, 'start').mockImplementation(() => {})
+      const ipcStop = vi.spyOn(server.ipcService, 'stop').mockImplementation(() => {})
+      const statuses: string[] = []
+      vi.spyOn(server.ipcService, 'sendMessage').mockImplementation((event: string, data: any) => {
+        if (event === 'serverStatusUpdate') {
+          statuses.push(data.status)
+        }
+      })
+      const finished = vi.fn()
+      const shutdown = vi.fn()
+      ;(server as any).api.on('didFinishLaunching', finished)
+      ;(server as any).api.on('shutdown', shutdown)
 
-    expect(server).toBeInstanceOf(Server)
+      await server.start()
+
+      expect(initialize).toHaveBeenCalledTimes(1)
+      expect(ipcStart).toHaveBeenCalledTimes(1)
+      expect(finished).toHaveBeenCalledTimes(1)
+      expect(publish).toHaveBeenCalledTimes(1)
+      expect(publish.mock.calls[0][0]).toMatchObject({
+        username: 'CC:22:3D:E3:CE:30',
+        pincode: '031-45-154',
+        advertiser: 'ciao',
+      })
+      // insecure access is off unless asked for
+      expect(publish.mock.calls[0][1]).toBe(false)
+      // the status turns ok when HAP-NodeJS says the bridge is advertised
+      expect(statuses).toEqual([])
+      bridge.emit(AccessoryEventTypes.ADVERTISED)
+      expect(statuses).toEqual(['ok'])
+
+      await server.teardown()
+
+      expect(unpublish).toHaveBeenCalledTimes(1)
+      expect(shutdown).toHaveBeenCalledTimes(1)
+      expect(ipcStop).toHaveBeenCalledTimes(1)
+      expect(statuses).toEqual(['ok', 'down'])
+    })
+
+    it('does not publish the main bridge when HAP is turned off for it, and reports ok', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: {
+          ...mockConfig.bridge,
+          hap: { enabled: false },
+          disableIpc: true,
+        },
+      })
+      try {
+        vi.spyOn(PluginManager.prototype, 'initializeInstalledPlugins').mockResolvedValue(undefined)
+        vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const publish = vi.spyOn((server as any).bridgeService.bridge, 'publish').mockResolvedValue(undefined)
+        const ipcStart = vi.spyOn(server.ipcService, 'start').mockImplementation(() => {})
+
+        await server.start()
+
+        expect(publish).not.toHaveBeenCalled()
+        // bridge.disableIpc
+        expect(ipcStart).not.toHaveBeenCalled()
+        expect((server as any).serverStatus).toBe('ok')
+      } finally {
+        await fs.writeJson(configPath, mockConfig)
+      }
+    })
   })
 
   describe('public HAP enablement during plugin initialization', () => {
@@ -217,37 +297,6 @@ describe('server', () => {
         } as any)).toBe(false)
       })
     })
-
-    describe('isMatterEnabledForBridge', () => {
-      it('returns false when bridge.matter is unset', () => {
-        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge } as any)).toBe(false)
-      })
-
-      it('returns true when bridge.matter is configured (even with no fields)', () => {
-        expect(Server.isMatterEnabledForBridge({ ...mockConfig.bridge, matter: {} } as any)).toBe(true)
-      })
-
-      it('returns true when bridge.matter has fields configured', () => {
-        expect(Server.isMatterEnabledForBridge({
-          ...mockConfig.bridge,
-          matter: { port: 5540, name: 'Test' },
-        } as any)).toBe(true)
-      })
-
-      it('returns false when bridge.matter is configured but explicitly disabled', () => {
-        expect(Server.isMatterEnabledForBridge({
-          ...mockConfig.bridge,
-          matter: { port: 5540, enabled: false },
-        } as any)).toBe(false)
-      })
-
-      it('returns true when bridge.matter.enabled is explicitly true', () => {
-        expect(Server.isMatterEnabledForBridge({
-          ...mockConfig.bridge,
-          matter: { port: 5540, enabled: true },
-        } as any)).toBe(true)
-      })
-    })
   })
 
   describe('main bridge protocol validation (loadConfig)', () => {
@@ -390,6 +439,271 @@ describe('server', () => {
       })).toThrow(/not a valid username/i)
     })
 
+    it('rejects a main bridge pin that is not a text with an error that names the pin', async () => {
+      // a pin written without quotes; this was a TypeError from inside HAP-NodeJS at publish time
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, pin: 3145154 as unknown as string },
+      })
+
+      expect(() => new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })).toThrow(/not a valid pin in bridge\.pin/i)
+    })
+
+    it.each([
+      { pin: '03145154', warning: /not in the form "031-45-154"/ },
+      { pin: '031-45-15', warning: /not in the form "031-45-154"/ },
+      { pin: '123-45-678', warning: /HomeKit refuses/ },
+      { pin: '111-11-111', warning: /HomeKit refuses/ },
+    ])('warns about the main bridge pin $pin, and still starts', async ({ pin, warning }) => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, pin },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.pin).toBe(pin)
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(warning)
+    })
+
+    it('warns when the main bridge uses the well-known default pin, and still starts', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, pin: '031-45-154' },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.pin).toBe('031-45-154')
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(/bridge\.pin is 031-45-154, the well-known default setup code/)
+      // only an unpaired bridge can be paired with it
+      expect(warnings.mock.calls.flat().join(' ')).toContain('While the bridge is not paired, anyone on your network who knows it can pair with it')
+    })
+
+    it('warns about the default pin when the config has no bridge section at all', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, { accessories: [], platforms: [] })
+
+      // eslint-disable-next-line no-new
+      new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(/the well-known default setup code/)
+    })
+
+    it('gives no warning for a good main bridge pin', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, pin: '482-91-357' },
+      })
+
+      // eslint-disable-next-line no-new
+      new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect(warnings).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      {
+        ports: { start: '52100', end: '52110' },
+        expected: { start: 52100, end: 52110 },
+        what: 'numbers written as texts',
+      },
+      {
+        ports: { start: 52100, end: 52110 },
+        expected: { start: 52100, end: 52110 },
+        what: 'numbers',
+      },
+      {
+        ports: { start: 52100.5, end: 52110 },
+        expected: undefined,
+        what: 'a number that is not whole',
+      },
+      {
+        ports: { start: -5, end: 52110 },
+        expected: undefined,
+        what: 'a negative number',
+      },
+      {
+        ports: { start: 52100, end: 70000 },
+        expected: undefined,
+        what: 'a number above 65535',
+      },
+      {
+        ports: { start: 'abc', end: 'def' },
+        expected: undefined,
+        what: 'texts that are not numbers',
+      },
+      {
+        ports: { start: 52110, end: 52100 },
+        expected: undefined,
+        what: 'an end before the start',
+      },
+      { ports: null, expected: undefined, what: 'null' },
+    ])('reads a ports range of $what as $expected', async ({ ports, expected }) => {
+      vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      await fs.writeJson(configPath, { ...mockConfig, ports })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.ports).toEqual(expected)
+    })
+
+    it('hands out numbers, one apart, from a ports range written as texts', async () => {
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        ports: { start: '52100', end: '52110' },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const portService = (server as any).externalPortService
+
+      expect([
+        await portService.requestPort('AA:AA:AA:AA:AA:01'),
+        await portService.requestPort('AA:AA:AA:AA:AA:02'),
+        await portService.requestPort('AA:AA:AA:AA:AA:03'),
+      ]).toEqual([52100, 52101, 52102])
+    })
+
+    it.each([
+      { port: '51826', expected: 51826 },
+      { port: 51826, expected: 51826 },
+      { port: 0, expected: 0 },
+      { port: 70000, expected: undefined },
+      { port: 518.26, expected: undefined },
+      { port: 'http', expected: undefined },
+    ])('reads a bridge port of $port as $expected', async ({ port, expected }) => {
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, port },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.port).toBe(expected)
+      expect(errors.mock.calls.flat().join(' ').includes('bridge.port')).toBe(expected === undefined)
+    })
+
+    it.each([
+      { content: 'null', what: 'null' },
+      { content: '[]', what: 'a list' },
+      { content: '"text"', what: 'a text' },
+      { content: '42', what: 'a number' },
+    ])('rejects a config.json that holds $what with an error that says what it must hold', async ({ content }) => {
+      await fs.writeFile(configPath, content)
+
+      expect(() => new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })).toThrow(/does not hold a configuration/)
+    })
+
+    it.each([
+      { bridge: 'Homebridge' },
+      { bridge: [] },
+      { bridge: 12 },
+    ])('rejects a bridge section of $bridge with an error that names the section', async ({ bridge }) => {
+      await fs.writeJson(configPath, { ...mockConfig, bridge })
+
+      expect(() => new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })).toThrow(/"bridge" section/)
+    })
+
+    it('uses the default bridge for a bridge section of null, as it did before, and says so', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, { ...mockConfig, bridge: null })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.name).toBe('Homebridge')
+      expect(warnings.mock.calls.flat().join(' ')).toContain('The "bridge" section of your config.json is null')
+    })
+
+    it('skips entries in accessories and platforms that are not objects, and keeps the others', async () => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        platforms: [
+          null,
+          { platform: 'Example' },
+          'text',
+        ],
+        accessories: [
+          { accessory: 'Example', name: 'Example' },
+          null,
+          5,
+        ],
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.platforms).toEqual([
+        { platform: 'Example' },
+      ])
+      expect((server as any).config.accessories).toEqual([
+        { accessory: 'Example', name: 'Example' },
+      ])
+      expect(warnings.mock.calls.flat().filter(text => /not an object/.test(String(text)))).toHaveLength(4)
+    })
+
+    it.each([
+      { name: 12, expected: '12' },
+      {
+        name: { text: 'x' },
+        expected: 'Homebridge',
+      },
+    ])('uses the bridge name $expected for a name of $name, with a warning', async ({ name, expected }) => {
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      await fs.writeJson(configPath, {
+        ...mockConfig,
+        bridge: { ...mockConfig.bridge, name },
+      })
+
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+
+      expect((server as any).config.bridge.name).toBe(expected)
+      expect((server as any).bridgeService.bridge.displayName).toBe(expected)
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(/bridge\.name is not a text/)
+    })
+
     it('accepts main bridge with externalsOnly: true + enabled: false (canonical form)', async () => {
       await fs.writeJson(configPath, {
         ...mockConfig,
@@ -474,6 +788,42 @@ describe('server', () => {
       })
     }
 
+    // The friendly "Missing required field" error lives in the validator, but
+    // the loaders used to upper-case the username before calling it, and
+    // crashed start-up on a block that had none.
+    it.each([
+      { _bridge: {}, what: 'no username' },
+      {
+        _bridge: { username: 123456 },
+        what: 'a number as username',
+      },
+      { _bridge: true, what: 'true instead of an object' },
+    ])('skips a plugin block whose _bridge has $what, without throwing', ({ _bridge }) => {
+      const server = makeServer() as any
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+      const plugin = {
+        disabled: false,
+        getPluginIdentifier: () => 'homebridge-example',
+        getPlatformConstructor: () => class {},
+        getAccessoryConstructor: () => class {},
+      }
+      server.pluginManager.getPluginForPlatform = () => plugin
+      server.pluginManager.getPluginForAccessory = () => plugin
+      server.config.platforms = [
+        { platform: 'Example', _bridge },
+      ]
+      server.config.accessories = [
+        { accessory: 'Example', name: 'Example', _bridge },
+      ]
+
+      expect(() => server.loadPlatforms()).not.toThrow()
+      expect(() => server.loadAccessories()).not.toThrow()
+
+      expect(server.childBridges.size).toBe(0)
+      expect(errors.mock.calls.flat().join(' ')).toMatch(/_bridge\.username/)
+    })
+
     it('accepts a platform child bridge with both HAP and Matter disabled', () => {
       // No `matter` block and `hap.enabled: false` means neither protocol is enabled —
       // this is now allowed; the child bridge simply advertises nothing.
@@ -519,6 +869,30 @@ describe('server', () => {
         username: 123456,
         hap: { enabled: false },
       })).toThrow(/not a valid username/i)
+    })
+
+    it('rejects a child bridge pin that is not a text with an error that names the pin', () => {
+      const server = makeServer()
+      expect(() => (server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', {
+        username: childUsername,
+        pin: 3145154,
+      })).toThrow(/not a valid pin in _bridge\.pin/i)
+    })
+
+    it('warns about a child bridge pin in the wrong form, and accepts a child bridge with no pin', () => {
+      const server = makeServer()
+      const warnings = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      // the main bridge of the test config has the default pin, which warns when the server is made
+      warnings.mockClear()
+
+      ;(server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', { username: childUsername })
+      expect(warnings).not.toHaveBeenCalled()
+
+      ;(server as any).validateChildBridgeConfig(PluginType.PLATFORM, 'homebridge-example', {
+        username: childUsername,
+        pin: '03145154',
+      })
+      expect(warnings.mock.calls.flat().join(' ')).toMatch(/_bridge\.pin is not in the form/)
     })
 
     it('accepts a platform child bridge with externalsOnly: true + enabled: false (canonical form)', () => {
@@ -642,7 +1016,7 @@ describe('server', () => {
       const uuid = 'externals-only-uuid'
       ;(server as any).handleGetMatterAccessoryInfo(uuid)
 
-      expect(externalsOnlyChild.getMatterAccessoryInfo).toHaveBeenCalledWith(uuid)
+      expect(externalsOnlyChild.getMatterAccessoryInfo).toHaveBeenCalledWith(uuid, undefined)
       expect((server as any).pendingMatterAccessoryInfoLookups.has(uuid)).toBe(true)
     })
 
@@ -685,6 +1059,124 @@ describe('server', () => {
       expect((server as any).pendingMatterAccessoryInfoLookups.has(uuid)).toBe(false)
     })
 
+    // The UI parks each lookup under a correlationId and drops any event that
+    // does not carry it. No reply echoed it, so every lookup sat through a 10s
+    // wait, a retry, another 10s wait, then an error.
+    describe('echoes the request correlationId', () => {
+      function infoEvents(sendSpy: ReturnType<typeof vi.spyOn>) {
+        return (sendSpy.mock.calls as [string, any][])
+          .filter(([id, payload]) => id === 'matterEvent' && payload?.type === 'accessoryInfoData')
+          .map(([, payload]) => payload)
+      }
+
+      function makeServer() {
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+        return { server, sendSpy }
+      }
+
+      it('when the uuid is missing', () => {
+        const { server, sendSpy } = makeServer()
+        ;(server as any).handleGetMatterAccessoryInfo(undefined, 'corr-info-1')
+        expect(infoEvents(sendSpy)).toEqual([
+          {
+            type: 'accessoryInfoData',
+            correlationId: 'corr-info-1',
+            data: { error: 'UUID is required' },
+          },
+        ])
+      })
+
+      it('when the main bridge has the accessory', () => {
+        const { server, sendSpy } = makeServer()
+        ;(server as any).matterManager = {
+          getAccessoryInfo: () => ({ uuid: 'main-uuid', displayName: 'Lamp' }),
+        }
+        ;(server as any).handleGetMatterAccessoryInfo('main-uuid', 'corr-info-2')
+        expect(infoEvents(sendSpy)).toEqual([
+          {
+            type: 'accessoryInfoData',
+            correlationId: 'corr-info-2',
+            data: { uuid: 'main-uuid', displayName: 'Lamp' },
+          },
+        ])
+      })
+
+      it('when the main bridge lookup throws', () => {
+        const { server, sendSpy } = makeServer()
+        ;(server as any).matterManager = {
+          getAccessoryInfo: () => {
+            throw new Error('boom')
+          },
+        }
+        ;(server as any).handleGetMatterAccessoryInfo('main-uuid', 'corr-info-3')
+        expect(infoEvents(sendSpy)).toEqual([
+          {
+            type: 'accessoryInfoData',
+            correlationId: 'corr-info-3',
+            data: { error: 'boom' },
+          },
+        ])
+      })
+
+      it('when no bridge can be asked', () => {
+        const { server, sendSpy } = makeServer()
+        ;(server as any).handleGetMatterAccessoryInfo('nobody-uuid', 'corr-info-4')
+        expect(infoEvents(sendSpy)).toHaveLength(1)
+        expect(infoEvents(sendSpy)[0].correlationId).toBe('corr-info-4')
+      })
+
+      it('to the child bridges, and on the timed-out reply when none of them answers', () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = makeServer()
+          const child = {
+            getMetadata: () => ({ matterConfig: {} }),
+            getMatterAccessoryInfo: vi.fn(),
+          }
+          ;(server as any).childBridges.set('CC:00:00:00:00:0A', child)
+
+          ;(server as any).handleGetMatterAccessoryInfo('child-uuid', 'corr-info-5')
+          expect(child.getMatterAccessoryInfo).toHaveBeenCalledWith('child-uuid', 'corr-info-5')
+          expect(infoEvents(sendSpy)).toHaveLength(0)
+
+          vi.advanceTimersByTime(2000)
+          expect(infoEvents(sendSpy)).toHaveLength(1)
+          expect(infoEvents(sendSpy)[0]).toMatchObject({
+            correlationId: 'corr-info-5',
+            data: { uuid: 'child-uuid', timedOut: true },
+          })
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('keeps one fallback per request, so two lookups of one accessory do not cancel each other', () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = makeServer()
+          const child = {
+            getMetadata: () => ({ matterConfig: {} }),
+            getMatterAccessoryInfo: vi.fn(),
+          }
+          ;(server as any).childBridges.set('CC:00:00:00:00:0B', child)
+
+          ;(server as any).handleGetMatterAccessoryInfo('child-uuid', 'corr-a')
+          ;(server as any).handleGetMatterAccessoryInfo('child-uuid', 'corr-b')
+          // The child answers request a only.
+          ;(server as any).cancelPendingMatterAccessoryInfoLookup('child-uuid', 'corr-a')
+
+          vi.advanceTimersByTime(2000)
+          expect(infoEvents(sendSpy).map(event => event.correlationId)).toEqual(['corr-b'])
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+    })
+
     it('clears any pending fallback timers during teardown', async () => {
       const server = new Server({
         customStoragePath: homebridgeStorageFolder,
@@ -711,6 +1203,99 @@ describe('server', () => {
       await server.teardown()
 
       expect((server as any).pendingMatterAccessoryInfoLookups.size).toBe(0)
+    })
+
+    it('reports the status "down" only once the HAP accessories are off the network', async () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      let finishUnpublish = () => {}
+      ;(server as any).bridgeService = {
+        teardown: () => new Promise<void>((resolve) => {
+          finishUnpublish = resolve
+        }),
+      }
+      const sendMessage = vi.fn()
+      ;(server as any).ipcService = {
+        stop: () => {},
+        sendMessage,
+      }
+
+      const teardown = server.teardown()
+      await new Promise(resolve => setImmediate(resolve))
+      expect(sendMessage).not.toHaveBeenCalled()
+
+      finishUnpublish()
+      await teardown
+      expect(sendMessage.mock.calls[0][1]).toMatchObject({ status: 'down' })
+    })
+  })
+
+  describe('handleGetMatterAccessories (which child bridges are asked)', () => {
+    const childA = 'CC:00:00:00:00:A1'
+    const childB = 'CC:00:00:00:00:B1'
+
+    function serverWithTwoChildren() {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+      ;(server as any).matterMonitoringActive = true
+      const children = [childA, childB].map((username) => {
+        const child = {
+          getMetadata: () => ({ username }),
+          requestMatterAccessories: vi.fn().mockResolvedValue({
+            bridgeUsername: username,
+            accessories: [
+              { uuid: `acc-${username}` },
+            ],
+          }),
+        }
+        ;(server as any).childBridges.set(username, child)
+        return child
+      })
+      const listed = () => {
+        const event = (sendSpy.mock.calls as [string, any][]).find(([, payload]) => payload?.type === 'accessoriesData')
+        return event?.[1].data.accessories.map((accessory: { uuid: string }) => accessory.uuid)
+      }
+      return { server, children, listed }
+    }
+
+    it('asks every child bridge when the request names no bridge', async () => {
+      const { server, children, listed } = serverWithTwoChildren()
+
+      await (server as any).handleGetMatterAccessories({ correlationId: 'corr-list' })
+
+      expect(children[0].requestMatterAccessories).toHaveBeenCalledTimes(1)
+      expect(children[1].requestMatterAccessories).toHaveBeenCalledTimes(1)
+      expect(listed()).toEqual([`acc-${childA}`, `acc-${childB}`])
+    })
+
+    // The filter was applied to the main bridge only: every child bridge was
+    // still asked, and every answer added to the list.
+    it('asks only the child bridge the request names', async () => {
+      const { server, children, listed } = serverWithTwoChildren()
+
+      await (server as any).handleGetMatterAccessories({
+        bridgeUsername: childB.toLowerCase(),
+        correlationId: 'corr-list',
+      })
+
+      expect(children[0].requestMatterAccessories).not.toHaveBeenCalled()
+      expect(children[1].requestMatterAccessories).toHaveBeenCalledTimes(1)
+      expect(listed()).toEqual([`acc-${childB}`])
+    })
+
+    it('asks no child bridge when the request names the main bridge', async () => {
+      const { server, children, listed } = serverWithTwoChildren()
+
+      await (server as any).handleGetMatterAccessories({ bridgeUsername: (server as any).config.bridge.username, correlationId: 'corr-list' })
+
+      expect(children[0].requestMatterAccessories).not.toHaveBeenCalled()
+      expect(children[1].requestMatterAccessories).not.toHaveBeenCalled()
+      expect(listed()).toEqual([])
     })
   })
 
@@ -905,6 +1490,184 @@ describe('server', () => {
       expect(activeChild.controlMatterAccessory).toHaveBeenCalledWith(
         expect.objectContaining({ correlationId: 'ctrl-corr-2' }),
       )
+    })
+
+    // With no bridge named, the main bridge is tried first. Every error from it
+    // used to mean "not mine, ask the child bridges": a handler that threw on
+    // the main bridge's own accessory left no log line, and the UI was told
+    // "Accessory not found" two seconds later.
+    describe('a request that names no bridge', () => {
+      function serverWithMainManager(handleTriggerCommand: () => Promise<void>) {
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+        ;(server as any).matterManager = {
+          handleTriggerCommand: vi.fn(handleTriggerCommand),
+        }
+        const child = {
+          getMetadata: () => ({
+            matterConfig: { enabled: true },
+          }),
+          controlMatterAccessory: vi.fn(() => true),
+        }
+        ;(server as any).childBridges.set('CC:00:00:00:00:09', child)
+        return { server, sendSpy, child }
+      }
+
+      const request = {
+        uuid: 'main-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+        correlationId: 'corr-broadcast',
+      }
+
+      it('reports a real failure on the main bridge, and does not ask the child bridges', async () => {
+        const { server, sendSpy, child } = serverWithMainManager(() => Promise.reject(new Error('plugin handler threw')))
+        const errorSpy = vi.spyOn(Logger.withPrefix('Matter/MainManager'), 'error')
+
+        await (server as any).handleMatterAccessoryControl(request)
+
+        expect(child.controlMatterAccessory).not.toHaveBeenCalled()
+        expect((server as any).pendingMatterControlRequests.size).toBe(0)
+        const responses = (sendSpy.mock.calls as [string, any][]).filter(([, payload]) => payload?.type === 'accessoryControlResponse')
+        expect(responses.map(([, payload]) => payload)).toEqual([
+          {
+            type: 'accessoryControlResponse',
+            correlationId: 'corr-broadcast',
+            data: { success: false, error: 'plugin handler threw', uuid: 'main-uuid' },
+          },
+        ])
+        expect(errorSpy.mock.calls.some(([msg]) => typeof msg === 'string' && msg.includes('plugin handler threw'))).toBe(true)
+        errorSpy.mockRestore()
+      })
+
+      it('still asks the child bridges when the main bridge does not have the accessory', async () => {
+        const { MatterAccessoryNotOnBridgeError } = await import('./matter/MatterError.js')
+        const { server, sendSpy, child } = serverWithMainManager(() => Promise.reject(new MatterAccessoryNotOnBridgeError('main-uuid')))
+
+        await (server as any).handleMatterAccessoryControl(request)
+
+        expect(child.controlMatterAccessory).toHaveBeenCalledWith(expect.objectContaining({ uuid: 'main-uuid' }))
+        expect((sendSpy.mock.calls as [string, any][]).filter(([, payload]) => payload?.type === 'accessoryControlResponse')).toHaveLength(0)
+        clearTimeout((server as any).pendingMatterControlRequests.get('corr-broadcast'))
+      })
+    })
+
+    // The UI names the bridge whenever it knows the accessory, so this is the
+    // normal path. A child that is not running dropped the request, and a child
+    // that does not own the accessory stays silent: either way nothing came
+    // back, and the UI waited 10s, sent the command again, then showed a failure.
+    describe('a request that names one child bridge', () => {
+      const childUsername = 'CC:00:00:00:00:08'
+
+      function serverWithNamedChild(sent: boolean) {
+        const server = new Server({
+          customStoragePath: homebridgeStorageFolder,
+          hideQRCode: true,
+        })
+        const sendSpy = vi.spyOn((server as any).ipcService, 'sendMessage').mockImplementation(() => {})
+        const child = {
+          identifier: 'TestPlatform',
+          getMetadata: () => ({
+            username: childUsername,
+            matterConfig: { enabled: true },
+          }),
+          controlMatterAccessory: vi.fn(() => sent),
+        }
+        ;(server as any).childBridges.set(childUsername, child)
+        return { server, sendSpy, child }
+      }
+
+      function controlResponses(sendSpy: ReturnType<typeof vi.spyOn>) {
+        return (sendSpy.mock.calls as [string, any][])
+          .filter(([id, payload]) => id === 'matterEvent' && payload?.type === 'accessoryControlResponse')
+          .map(([, payload]) => payload)
+      }
+
+      const request = {
+        uuid: 'named-uuid',
+        cluster: 'OnOff',
+        attributes: { on: true },
+        bridgeUsername: childUsername.toLowerCase(),
+        correlationId: 'corr-named',
+      }
+
+      it('answers at once when the child process is not running', async () => {
+        const { server, sendSpy, child } = serverWithNamedChild(false)
+
+        await (server as any).handleMatterAccessoryControl(request)
+
+        expect(child.controlMatterAccessory).toHaveBeenCalledTimes(1)
+        expect(controlResponses(sendSpy)).toEqual([
+          {
+            type: 'accessoryControlResponse',
+            correlationId: 'corr-named',
+            data: { success: false, error: 'Child bridge is not running', uuid: 'named-uuid' },
+          },
+        ])
+        expect((server as any).pendingMatterControlRequests.size).toBe(0)
+      })
+
+      it('answers after two seconds when the running child stays silent', async () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = serverWithNamedChild(true)
+
+          await (server as any).handleMatterAccessoryControl(request)
+          expect(controlResponses(sendSpy)).toHaveLength(0)
+
+          vi.advanceTimersByTime(2000)
+          expect(controlResponses(sendSpy)).toEqual([
+            {
+              type: 'accessoryControlResponse',
+              correlationId: 'corr-named',
+              data: { success: false, error: 'Accessory not found', uuid: 'named-uuid' },
+            },
+          ])
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('stays quiet when the child does answer', async () => {
+        vi.useFakeTimers()
+        try {
+          const { server, sendSpy } = serverWithNamedChild(true)
+
+          await (server as any).handleMatterAccessoryControl(request)
+          ;(server as any).cancelPendingMatterControlRequest('corr-named')
+          vi.advanceTimersByTime(5000)
+
+          expect(controlResponses(sendSpy)).toHaveLength(0)
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('no longer routes to an external accessory that was unregistered', async () => {
+        const { server, child } = serverWithNamedChild(true)
+        server.registerExternalMatterBridge('EE:00:00:00:00:01', childUsername)
+        expect((server as any).externalMatterBridgeRegistry.size).toBe(1)
+
+        server.unregisterExternalMatterBridge('ee:00:00:00:00:01')
+
+        expect((server as any).externalMatterBridgeRegistry.size).toBe(0)
+        await (server as any).handleMatterAccessoryControl({ ...request, bridgeUsername: 'EE:00:00:00:00:01' })
+        expect(child.controlMatterAccessory).not.toHaveBeenCalled()
+      })
+
+      it('answers at once for an external accessory whose owning child is not running', async () => {
+        const { server, sendSpy, child } = serverWithNamedChild(false)
+        server.registerExternalMatterBridge('EE:00:00:00:00:01', childUsername)
+
+        await (server as any).handleMatterAccessoryControl({ ...request, bridgeUsername: 'EE:00:00:00:00:01' })
+
+        expect(child.controlMatterAccessory).toHaveBeenCalledTimes(1)
+        expect(controlResponses(sendSpy)).toHaveLength(1)
+        expect(controlResponses(sendSpy)[0].data.error).toBe('Child bridge is not running')
+      })
     })
 
     // The broadcast asks every Matter child and only the owner answers - a child
@@ -1122,6 +1885,24 @@ describe('server', () => {
       expect(ack).toBeDefined()
       expect((ack![1] as any).correlationId).toBe('stop-3')
       expect((ack![1] as any).data).toMatchObject({ success: true, alreadyStopped: true })
+    })
+  })
+
+  describe('publishBridge when the publish failed early', () => {
+    it('does not throw for the missing setup payload, and prints no setup code', () => {
+      const server = new Server({
+        customStoragePath: homebridgeStorageFolder,
+        hideQRCode: true,
+      })
+      // publish() rejected before it stored anything on the bridge; the bridge service only logs that
+      vi.spyOn((server as any).bridgeService, 'publishBridge').mockImplementation(() => {})
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      consoleLogSpy.mockClear()
+
+      expect(() => (server as any).publishBridge()).not.toThrow()
+
+      expect(errors.mock.calls.flat().join(' ')).toMatch(/was not published/)
+      expect(consoleLogSpy).not.toHaveBeenCalled()
     })
   })
 

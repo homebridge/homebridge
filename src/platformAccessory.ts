@@ -6,22 +6,38 @@ import type {
   VoidCallback,
   WithUUID,
 } from '@homebridge/hap-nodejs'
-import type { ConstructorArgs } from '@homebridge/hap-nodejs/dist/types.js'
 
-import type { PlatformName, PluginIdentifier, PluginName } from './api.js'
+import type { PlatformName, PluginIdentifier } from './api.js'
 
 import { EventEmitter } from 'node:events'
 
 import { Accessory, AccessoryEventTypes, Categories } from '@homebridge/hap-nodejs'
 
+/**
+ * The arguments of a constructor. The same as `ConstructorArgs` of HAP-NodeJS,
+ * which that package does not export from its index (taking it from a file
+ * inside the package would break the day the package limits what can be imported).
+ */
+type ConstructorArgs<C> = C extends new (...args: infer A) => any ? A : never
+
 export type UnknownContext = Record<string, any>
 
 export interface SerializedPlatformAccessory<T extends UnknownContext = UnknownContext> extends SerializedAccessory {
-  plugin: PluginName
+  plugin: PluginIdentifier
   platform: PlatformName
   context: T
 }
 
+/**
+ * The events a plugin can listen for on a {@link PlatformAccessory}.
+ *
+ * This is a `const enum`. A plugin built with plain `tsc` gets the value written into its code at
+ * compile time. A plugin built with `isolatedModules` or `verbatimModuleSyntax` (esbuild, tsx, swc,
+ * Vite) can not use it: TypeScript reports TS2748 ("Cannot access ambient const enums"). Write the text
+ * value instead, which is typed the same: `accessory.on('identify', ...)`.
+ * It stays a `const enum` for now: as a normal enum, every plugin built with plain `tsc` would start
+ * to import the `homebridge` package at run time.
+ */
 // eslint-disable-next-line no-restricted-syntax
 export const enum PlatformAccessoryEvent {
   IDENTIFY = 'identify',
@@ -29,8 +45,14 @@ export const enum PlatformAccessoryEvent {
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
 export declare interface PlatformAccessory {
-  on: (event: 'identify', listener: () => void) => this
-  emit: (event: 'identify') => boolean
+  /**
+   * `identify` is sent when a HomeKit controller asks the accessory to
+   * identify itself. The listener is called with `paired` (whether the
+   * accessory is paired) and a `callback`. The callback is there for old
+   * plugins and does nothing: Homebridge answers the controller itself.
+   */
+  on: (event: 'identify', listener: (paired: boolean, callback: VoidCallback) => void) => this
+  emit: (event: 'identify', paired?: boolean, callback?: VoidCallback) => boolean
 }
 
 // eslint-disable-next-line ts/no-unsafe-declaration-merging
@@ -43,6 +65,13 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
   _associatedHAPAccessory: Accessory
 
   // ---------------- HAP Accessory mirror ----------------
+  /**
+   * The name of the accessory. Change it with {@link updateDisplayName}.
+   *
+   * For an external accessory HAP-NodeJS may add a few characters to its own
+   * copy of the name when the accessory is published (to keep names on the
+   * network unique). This property keeps the text the plugin gave.
+   */
   displayName: string
   UUID: string
   category: Categories
@@ -71,12 +100,20 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
 
     // forward identify event
     this._associatedHAPAccessory.on(AccessoryEventTypes.IDENTIFY, (paired: boolean, callback: VoidCallback) => {
-      // @ts-expect-error: empty callback for backwards compatibility
+      // empty callback for backwards compatibility
       this.emit(PlatformAccessoryEvent.IDENTIFY, paired, () => {})
       callback()
     })
   }
 
+  /**
+   * Change the display name of the accessory, here and on the HAP accessory.
+   * An empty name is ignored.
+   *
+   * This does NOT change the `Name` characteristic of the
+   * `AccessoryInformation` service; set that yourself when it should follow.
+   * The Home app keeps the name it showed when the accessory was added.
+   */
   public updateDisplayName(name: string): void {
     if (name) {
       this.displayName = name
@@ -97,11 +134,11 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
     this._associatedHAPAccessory.removeService(service)
   }
 
-  public getService<T extends WithUUID<typeof Service>>(name: string | T): Service | undefined {
+  public getService<S extends WithUUID<typeof Service>>(name: string | S): Service | undefined {
     return this._associatedHAPAccessory.getService(name)
   }
 
-  public getServiceById<T extends WithUUID<typeof Service>>(uuid: string | T, subType: string): Service | undefined {
+  public getServiceById<S extends WithUUID<typeof Service>>(uuid: string | S, subType: string): Service | undefined {
     return this._associatedHAPAccessory.getServiceById(uuid, subType)
   }
 
@@ -125,7 +162,15 @@ export class PlatformAccessory<T extends UnknownContext = UnknownContext> extend
     this._associatedHAPAccessory.removeController(controller)
   }
 
-  // private
+  /**
+   * For Homebridge itself, not for plugins.
+   *
+   * Note the side effect: the `displayName` of the platform accessory is
+   * copied onto the HAP accessory first, so a name a plugin assigned straight
+   * to `displayName` is what gets saved.
+   *
+   * @private
+   */
   static serialize(accessory: PlatformAccessory): SerializedPlatformAccessory {
     if (!accessory._associatedPlugin) {
       throw new Error(`Cannot serialize accessory '${accessory.displayName}' - missing associated plugin`)

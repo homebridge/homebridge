@@ -11,56 +11,29 @@ import type { ModeBase } from '@matter/main/clusters'
 import { WaterHeaterManagementServer } from '@matter/main/behaviors/water-heater-management'
 import { WaterHeaterModeServer } from '@matter/main/behaviors/water-heater-mode'
 import { WaterHeaterManagement } from '@matter/main/clusters/water-heater-management'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
-
-/**
- * Wrap a handler failure the way every Homebridge behavior does: a Matter
- * status the plugin threw on purpose goes back to the controller as it is,
- * anything else becomes a plain Failure so the endpoint stays up.
- */
-function asStatusError(error: unknown, action: string): unknown {
-  if (MatterStatus.isMatterProtocolError(error)) {
-    return error
-  }
-  const message = error instanceof Error
-    ? error.message
-    : String(error)
-  return new StatusResponseError(`Failed to ${action}: ${message}`, Status.Failure)
-}
+import { registryOf } from './EndpointContext.js'
+import { changeToModeWithHandler } from './handlerResponse.js'
+import { repairCurrentMode } from './modeRepair.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom WaterHeaterMode Server that calls plugin handlers.
  *
- * matter.js's base server already validates the mode and records it, so this
- * only has to tell the plugin first - otherwise a mode picked in a controller
- * changed the cluster and never reached the heater.
+ * This tells the plugin first - otherwise a mode picked in a controller changed
+ * the cluster and never reached the heater. matter.js's base server validates
+ * the mode and records it, but only after the plugin has been told, so the mode
+ * is checked here first and the plugin only hears about a mode the device lists.
  */
 export class HomebridgeWaterHeaterModeServer extends WaterHeaterModeServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
+  /** A saved mode the device no longer lists is replaced first, or matter.js refuses to start (#4057). */
+  override initialize() {
+    repairCurrentMode(this, 'waterHeaterMode')
+    return super.initialize()
   }
 
   override async changeToMode(request: ModeBase.ChangeToModeRequest): Promise<ModeBase.ChangeToModeResponse> {
-    const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
-
-    try {
-      await registry.executeHandler(endpointId, 'waterHeaterMode', 'changeToMode', request)
-
-      // Only reached if the handler succeeded
-      const result = await super.changeToMode(request)
-
-      if (request?.newMode !== undefined) {
-        registry.syncStateToCache(endpointId, 'waterHeaterMode', { currentMode: request.newMode })
-      }
-
-      return result
-    } catch (error) {
-      throw asStatusError(error, 'change water heater mode')
-    }
+    return changeToModeWithHandler(this, 'waterHeaterMode', request, () => super.changeToMode(request))
   }
 }
 
@@ -91,33 +64,23 @@ export class DefaultWaterHeaterManagementServer extends WaterHeaterManagementSer
  * default so the super calls record the boost.
  */
 export class HomebridgeWaterHeaterManagementServer extends DefaultWaterHeaterManagementServer {
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
-
   override async boost(request: WaterHeaterManagement.BoostRequest): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      await registry.executeHandler(endpointId, 'waterHeaterManagement', 'boost', request)
-      await super.boost(request)
-      registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Active })
-    } catch (error) {
-      throw asStatusError(error, 'boost water heater')
-    }
+    await registry.executeHandler(endpointId, 'waterHeaterManagement', 'boost', request)
+    await lockStateForWrite(this)
+    await super.boost(request)
+    registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Active })
   }
 
   override async cancelBoost(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      await registry.executeHandler(endpointId, 'waterHeaterManagement', 'cancelBoost')
-      await super.cancelBoost()
-      registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Inactive })
-    } catch (error) {
-      throw asStatusError(error, 'cancel water heater boost')
-    }
+    await registry.executeHandler(endpointId, 'waterHeaterManagement', 'cancelBoost')
+    await lockStateForWrite(this)
+    await super.cancelBoost()
+    registry.syncStateToCache(endpointId, 'waterHeaterManagement', { boostState: WaterHeaterManagement.BoostState.Inactive })
   }
 }

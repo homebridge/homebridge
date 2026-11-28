@@ -186,6 +186,9 @@ export interface MatterServerConfig {
   /** Enable debug mode for verbose logging */
   debugModeEnabled?: boolean
 
+  /** Do not draw the pairing QR code in the log (the `-Q` / `--no-qrcode` flag) */
+  hideQRCode?: boolean
+
   /** Display name for the Matter bridge/device */
   displayName?: string
 
@@ -200,7 +203,12 @@ export interface MatterServerConfig {
    */
   deferOnline?: boolean
 
-  /** Network interfaces to bind to (inherited from `bridge.bind` config) */
+  /**
+   * The `bridge.bind` entries (interface names or addresses). An address is
+   * resolved to the interface that owns it when the server starts. Used for
+   * Matter's mDNS only, and only the first one that matches an interface:
+   * the Matter port itself listens on every interface.
+   */
   networkInterfaces?: string[]
 
   /** When `true`, Matter mDNS runs IPv6-only (inherited from `matter.disableIpv4` config) */

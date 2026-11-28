@@ -15,7 +15,7 @@ describe('homebridgeServiceAreaServer', () => {
   beforeEach(() => {
     // Create mock registry
     mockRegistry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -36,7 +36,15 @@ describe('homebridgeServiceAreaServer', () => {
       configurable: true,
     })
     Object.defineProperty(behavior, 'state', {
-      get: () => ({ selectedAreas: [] }),
+      // the vacuum has areas 0, 1 and 2
+      get: () => ({
+        selectedAreas: [],
+        supportedAreas: [
+          { areaId: 0 },
+          { areaId: 1 },
+          { areaId: 2 },
+        ],
+      }),
       configurable: true,
     })
 
@@ -55,7 +63,7 @@ describe('homebridgeServiceAreaServer', () => {
 
       await behavior.selectAreas(request)
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'serviceArea',
         'selectAreas',
@@ -68,7 +76,7 @@ describe('homebridgeServiceAreaServer', () => {
 
       await behavior.selectAreas(request)
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'serviceArea',
         'selectAreas',
@@ -76,14 +84,26 @@ describe('homebridgeServiceAreaServer', () => {
       )
     })
 
-    it('should handle handler execution errors gracefully', async () => {
-      mockRegistry.executeHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
+    it('answers with the status the handler returned, and does not store the selection', async () => {
+      // 3 = the vacuum is in a mode that does not allow a new selection
+      const answer = { status: 3, statusText: 'Cleaning already' }
+      mockRegistry.runHandler = vi.fn().mockResolvedValue({ handled: true, response: answer })
+
+      await expect(behavior.selectAreas({
+        newAreas: [0],
+      })).resolves.toEqual(answer)
+
+      expect(mockRegistry.syncStateToCache).not.toHaveBeenCalled()
+    })
+
+    it('should pass a handler error on to matter.js', async () => {
+      mockRegistry.runHandler = vi.fn().mockRejectedValue(new Error('Handler failed'))
       const request = {
         newAreas: [0, 1],
       }
 
       // Errors are wrapped in StatusResponseError and propagated to Matter.js
-      await expect(behavior.selectAreas(request)).rejects.toThrow('Failed to select areas: Handler failed')
+      await expect(behavior.selectAreas(request)).rejects.toThrow('Handler failed')
     })
   })
 })

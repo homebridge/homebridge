@@ -6,8 +6,7 @@
  * these, and serverHelpers loads every matter.js cluster and device type the
  * moment it is imported.
  */
-import type { EndpointType } from '@matter/main'
-import type { Behavior } from '@matter/node'
+import type { Behavior, EndpointType } from '@matter/main'
 
 import { Logger } from '../logger.js'
 

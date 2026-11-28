@@ -14,6 +14,7 @@ import type {
 import type { PackageJSON } from './pluginManager.js'
 
 import assert from 'node:assert'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
@@ -29,6 +30,50 @@ const log = Logger.internal
 /**
  * Represents a loaded Homebridge plugin.
  */
+/**
+ * The entry file a package's `exports` field gives for importing the package
+ * itself, or undefined when it names none (it only lists sub-paths, say).
+ *
+ * `exports` may be a string, a list of fallbacks, a map of sub-paths (keys
+ * that start with a dot, where "." is the package itself) or a map of
+ * conditions, and conditions may be nested to any depth, see
+ * https://nodejs.org/api/packages.html#package-entry-points
+ */
+function entryFromExports(exports: unknown): string | undefined {
+  if (typeof exports === 'string') {
+    return exports
+  }
+
+  if (Array.isArray(exports)) {
+    for (const fallback of exports) {
+      const entry = entryFromExports(fallback)
+      if (entry) {
+        return entry
+      }
+    }
+    return undefined
+  }
+
+  if (typeof exports !== 'object' || exports === null) {
+    return undefined
+  }
+
+  const map = exports as Record<string, unknown>
+  if (Object.keys(map).some(key => key.startsWith('.'))) {
+    // a map of sub-paths: only "." is the package's own entry
+    return entryFromExports(map['.'])
+  }
+
+  // a map of conditions, in the order Homebridge has always preferred them
+  for (const condition of ['import', 'require', 'node', 'default']) {
+    const entry = entryFromExports(map[condition])
+    if (entry) {
+      return entry
+    }
+  }
+  return undefined
+}
+
 export class Plugin {
   private readonly pluginName: PluginName
   private readonly scope?: string // npm package scope
@@ -57,41 +102,23 @@ export class Plugin {
     this.main = ''
 
     // figure out the main module
-    // exports is available - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_package_entry_points
-    if (packageJSON.exports) {
-      // main entrypoint - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_main_entry_point_export
-      if (typeof packageJSON.exports === 'string') {
-        this.main = packageJSON.exports
-      } else { // subpath export - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_subpath_exports
-        // conditional exports - https://nodejs.org/dist/latest-v14.x/docs/api/packages.html#packages_conditional_exports
-        const exports = packageJSON.exports.import || packageJSON.exports.require || packageJSON.exports.node || packageJSON.exports.default || packageJSON.exports['.']
-
-        // check if conditional export is nested
-        if (typeof exports !== 'string') {
-          if (exports.import) {
-            this.main = exports.import
-          } else {
-            this.main = exports.require || exports.node || exports.default
-          }
-        } else {
-          this.main = exports
-        }
-      }
-    }
+    // exports is available - https://nodejs.org/api/packages.html#package-entry-points
+    this.main = entryFromExports(packageJSON.exports) ?? ''
 
     // exports search was not successful, fallback to package.main, using index.js as fallback
     if (!this.main) {
       this.main = packageJSON.main || './index.js'
     }
 
-    // very temporary fix for first wave of plugins
-    if (packageJSON.peerDependencies && (!packageJSON.engines || !packageJSON.engines.homebridge)) {
-      packageJSON.engines = packageJSON.engines || {}
-      packageJSON.engines.homebridge = packageJSON.peerDependencies.homebridge
+    // A plugin may name its Homebridge version in `peerDependencies` only. Take it from there when
+    // `engines` has none. (The caller's package.json object is left as it is.)
+    let engines = packageJSON.engines
+    if (packageJSON.peerDependencies && !engines?.homebridge) {
+      engines = { ...engines, homebridge: packageJSON.peerDependencies.homebridge }
     }
 
     this.loadContext = {
-      engines: packageJSON.engines,
+      engines,
       dependencies: packageJSON.dependencies,
     }
   }
@@ -172,6 +199,15 @@ export class Plugin {
     platforms.unshift(platformPlugin)
   }
 
+  public getUniqueActiveDynamicPlatform(): DynamicPlatformPlugin | undefined {
+    const platforms = [
+      ...this.activeDynamicPlatforms.values(),
+    ].flat()
+    return platforms.length === 1
+      ? platforms[0]
+      : undefined
+  }
+
   public getActiveDynamicPlatform(platformName: PlatformName): DynamicPlatformPlugin | undefined {
     const platforms = this.activeDynamicPlatforms.get(platformName)
     // we always use the last registered
@@ -179,7 +215,7 @@ export class Plugin {
   }
 
   public async load(): Promise<void> {
-    const context = this.loadContext!
+    const context = this.loadContext
     assert(context, 'Reached illegal state. Plugin state is undefined!')
     this.loadContext = undefined // free up memory
 
@@ -193,37 +229,48 @@ export class Plugin {
 
     // make sure the version is satisfied by the currently running version of Homebridge
     if (!satisfies(getVersion(), versionRequired, { includePrerelease: true })) {
-      // TODO - change this back to an error
-      log.warn(`The plugin "${this.pluginName}" requires a Homebridge version of ${versionRequired} which does \
+      // a warning on purpose, not an error: many plugins declare a range that is narrower than what they run on
+      log.warn(`The plugin "${this.getPluginIdentifier()}" requires a Homebridge version of ${versionRequired} which does \
 not satisfy the current Homebridge version of v${getVersion()}. You may need to update this plugin (or Homebridge) to a newer version. \
 You may face unexpected issues or stability problems running this plugin.`)
     }
 
     // make sure the version is satisfied by the currently running version of Node
     if (nodeVersionRequired && !satisfies(process.version, nodeVersionRequired)) {
-      log.warn(`The plugin "${this.pluginName}" requires a Node.js version of ${nodeVersionRequired} which does \
+      log.warn(`The plugin "${this.getPluginIdentifier()}" requires a Node.js version of ${nodeVersionRequired} which does \
 not satisfy the current Node.js version of ${process.version}. You may need to upgrade your installation of Node.js - see https://homebridge.io/w/JTKEF`)
     }
 
     const dependencies = context.dependencies || {}
     if (dependencies.homebridge || dependencies['hap-nodejs'] || dependencies['@homebridge/hap-nodejs']) {
-      log.error(`The plugin "${this.pluginName}" defines 'homebridge' and/or 'hap-nodejs' in their 'dependencies' section, \
+      log.error(`The plugin "${this.getPluginIdentifier()}" defines 'homebridge' and/or 'hap-nodejs' in their 'dependencies' section, \
 meaning they carry an additional copy of homebridge and hap-nodejs. This not only wastes disk space, but also can cause \
 major incompatibility issues and thus is considered bad practice. Please inform the developer to update their plugin!`)
     }
 
-    const mainPath = join(this.pluginPath, this.main)
+    // Find the file the way require() does: a main with no extension gets
+    // ".js", and a main that is a folder gives its index.js. import() does
+    // neither, so a CommonJS plugin with `"main": "dist/index"` or
+    // `"main": "dist"`, which loaded on Homebridge 1, would fail here. When the
+    // file can not be found the path is used as it is, and import() says why.
+    let mainPath = join(this.pluginPath, this.main)
+    try {
+      mainPath = createRequire(join(this.pluginPath, 'package.json')).resolve(mainPath)
+    } catch {
+      // import() below reports the missing file
+    }
 
     // try to import it and grab the exported initialization hook
     // pathToFileURL(specifier).href to turn a path into a "file url"
     // see https://github.com/nodejs/node/issues/31710
-    const pluginModule = await import(pathToFileURL(mainPath).href)
-    const pluginModules = pluginModule.default
+    const pluginModule: Record<string, unknown> = await import(pathToFileURL(mainPath).href)
+    // a CommonJS plugin built from ESM source puts its initializer on `default.default`
+    const pluginModules = pluginModule.default as (PluginInitializer & { default?: unknown }) | Record<string, unknown> | undefined
 
     if (typeof pluginModules === 'function') {
       this.pluginInitializer = pluginModules
     } else if (pluginModules && typeof pluginModules.default === 'function') {
-      this.pluginInitializer = pluginModules.default
+      this.pluginInitializer = pluginModules.default as PluginInitializer
     } else {
       // Be specific about what we found instead of just "doesn't export an
       // initializer". Helps plugin authors and users diagnose ESM/CJS

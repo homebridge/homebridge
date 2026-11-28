@@ -4,36 +4,35 @@
  * Handles fan control commands for fans
  */
 
-import { FanControlBehavior, FanControlServer } from '@matter/main/behaviors/fan-control'
-import { Status, StatusResponseError } from '@matter/main/types'
+import { FanControlServer } from '@matter/main/behaviors/fan-control'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
+import { isPluginUpdate } from './pluginUpdates.js'
+import { revertFailedChange } from './revertFailedChange.js'
 
 /**
  * Custom FanControl Server that calls plugin handlers
  */
 export class HomebridgeFanControlServer extends FanControlServer {
-  /**
-   * Get the registry for this behavior's endpoint
-   */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
-  }
+  override async initialize(): Promise<void> {
+    await super.initialize()
 
-  override initialize(): void {
-    super.initialize()
-
-    // React to fanMode attribute changes (on/off)
+    // React to fanMode attribute changes (off, low, medium, high, on, auto, smart)
     this.reactTo(this.events.fanMode$Changed, this.#handleFanModeChange, { offline: true })
 
-    // React to percentSetting attribute changes (speed)
+    // React to percentSetting attribute changes (the speed asked for, 0 to 100)
     this.reactTo(this.events.percentSetting$Changed, this.#handlePercentSettingChange, { offline: true })
   }
 
   async #handleFanModeChange(value: number, oldValue: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
+
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'fanControl', 'fanMode', value)) {
+      return
+    }
 
     try {
       // Execute user handler
@@ -44,34 +43,27 @@ export class HomebridgeFanControlServer extends FanControlServer {
         { fanMode: value, oldFanMode: oldValue },
       )
 
-      // Sync state to cache
-      // When turning off (fanMode = 0), also set percentSetting and percentCurrent to 0
-      // This ensures the UI correctly reflects the off state
-      const stateUpdate: Partial<FanControlBehavior.State> = { fanMode: value }
-      if (value === 0) {
-        stateUpdate.percentSetting = 0
-        stateUpdate.percentCurrent = 0
-      }
-      registry.syncStateToCache(endpointId, 'fanControl', stateUpdate)
+      // Sync state to cache: only the attribute that changed. Matter does
+      // not tie the mode and the speed together (turning the fan off leaves
+      // the speed setting as it was), so the cache says what controllers read.
+      registry.syncStateToCache(endpointId, 'fanControl', { fanMode: value })
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change fan mode: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'fanControl', 'fanMode', value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'fanControl', { fanMode: oldValue })
     }
   }
 
   async #handlePercentSettingChange(value: number | null, oldValue: number | null): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
+
+    // The plugin reported this change itself (updateAccessoryState): its
+    // device is already there, so there is nothing to ask the plugin for.
+    if (isPluginUpdate(this.endpoint, 'fanControl', 'percentSetting', value)) {
+      return
+    }
 
     try {
       // Execute user handler
@@ -82,29 +74,14 @@ export class HomebridgeFanControlServer extends FanControlServer {
         { percentSetting: value, oldPercentSetting: oldValue },
       )
 
-      // Sync state to cache
-      // When setting to 0%, also set fanMode to 0 (Off) for UI consistency
-      const stateUpdate: Partial<FanControlBehavior.State> = {
-        percentSetting: value ?? undefined,
-        percentCurrent: value ?? undefined,
-      }
-      if (value === 0) {
-        stateUpdate.fanMode = 0
-      }
-      registry.syncStateToCache(endpointId, 'fanControl', stateUpdate)
+      // Sync state to cache: only the attribute that changed. The current
+      // speed and the mode are the plugin's to report (updateAccessoryState).
+      registry.syncStateToCache(endpointId, 'fanControl', { percentSetting: value })
     } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to change fan speed: ${message}`, Status.Failure)
+      // The write is already accepted, so an error can not refuse it any more:
+      // put the old value back, so controllers show what the device really does.
+      await revertFailedChange(this.endpoint, 'fanControl', 'percentSetting', value, oldValue, error)
+      registry.syncStateToCache(endpointId, 'fanControl', { percentSetting: oldValue })
     }
   }
 }

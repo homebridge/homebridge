@@ -12,6 +12,5 @@
   "validation": {
     "invalidLink": false,
     "notExported": false
-  },
-  "inlineTags": ["@link", "@see"]
+  }
 }

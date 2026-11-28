@@ -6,7 +6,7 @@
  */
 
 import type { ChildBridgeMatterManager } from './ChildBridgeMatterManager.js'
-import type { MatterEvent } from './ipc-types.js'
+import type { MatterControlRequest, MatterEvent } from './ipc-types.js'
 
 import { Logger } from '../logger.js'
 // Import the routing sentinel from the lightweight module so this file
@@ -25,7 +25,7 @@ export class ChildBridgeMatterMessageHandler {
   constructor(
     private matterManager: ChildBridgeMatterManager | undefined,
     private bridgeUsername: string,
-    private sendMessage: (type: string, data: unknown) => void,
+    private sendMessage: (type: 'matterEvent', data: MatterEvent) => void,
   ) {}
 
   /**
@@ -101,7 +101,7 @@ export class ChildBridgeMatterMessageHandler {
    * Handle get Matter accessory info request from parent process
    */
   handleGetMatterAccessoryInfo(data: { uuid: string, correlationId?: string }): void {
-    const correlationId = data?.correlationId
+    const correlationId = data.correlationId
     try {
       // Only process if Matter is enabled for this bridge
       if (!this.matterManager?.hasActiveMatter()) {
@@ -128,7 +128,7 @@ export class ChildBridgeMatterMessageHandler {
         type: 'accessoryInfoData',
         correlationId,
         data: {
-          uuid: data?.uuid,
+          uuid: data.uuid,
           error: error instanceof Error
             ? error.message
             : 'Unknown error',
@@ -141,14 +141,8 @@ export class ChildBridgeMatterMessageHandler {
   /**
    * Handle Matter accessory control request from parent process
    */
-  handleMatterAccessoryControl(data: {
-    uuid: string
-    cluster: string
-    attributes: Record<string, unknown>
-    partId?: string
-    correlationId?: string
-  }): void {
-    const correlationId = data?.correlationId
+  handleMatterAccessoryControl(data: MatterControlRequest): void {
+    const correlationId = data.correlationId
     // Only process if Matter is enabled for this bridge
     if (!this.matterManager?.hasActiveMatter()) {
       // Silently ignore - this bridge doesn't have Matter enabled
@@ -157,6 +151,17 @@ export class ChildBridgeMatterMessageHandler {
     }
 
     log.debug(`Matter control request for child bridge ${this.bridgeUsername}: uuid=${data.uuid}, cluster=${data.cluster}, part=${data.partId || 'main'}`)
+
+    // Tell the main process at once that this bridge has the accessory. It
+    // answers "Accessory not found" when no bridge says so within two
+    // seconds, and a plugin handler that talks to a cloud can take longer.
+    if (correlationId && this.matterManager.ownsAccessory(data.uuid)) {
+      this.sendMessage('matterEvent', {
+        type: 'accessoryControlClaimed',
+        correlationId,
+        data: { uuid: data.uuid },
+      })
+    }
 
     this.matterManager.handleTriggerCommand(data.uuid, data.cluster, data.attributes, data.partId)
       .then(() => {
@@ -173,7 +178,7 @@ export class ChildBridgeMatterMessageHandler {
         }
         this.sendMessage('matterEvent', controlResponse)
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         // Silently ignore if this bridge doesn't own the accessory — the
         // parent broadcasts to all matter children, so a "wrong bridge"
         // here is expected, not a real failure.
@@ -181,15 +186,19 @@ export class ChildBridgeMatterMessageHandler {
           log.debug(`Accessory ${data.uuid} not on child bridge ${this.bridgeUsername}, ignoring`)
           return
         }
-        log.error(`Failed to control ${data.uuid} on child bridge ${this.bridgeUsername}: ${error.message}`)
+        // A plugin handler can reject with anything, `null` included. Reading
+        // `.message` off it threw inside this catch: an unhandled rejection,
+        // which ends the child bridge process.
+        const message = error instanceof Error
+          ? error.message
+          : 'Unknown error'
+        log.error(`Failed to control ${data.uuid} on child bridge ${this.bridgeUsername}: ${message}`)
         const event: MatterEvent = {
           type: 'accessoryControlResponse',
           correlationId,
           data: {
             success: false,
-            error: error instanceof Error
-              ? error.message
-              : 'Unknown error',
+            error: message,
             uuid: data.uuid,
           },
         }

@@ -1,21 +1,17 @@
 /**
- * Helper functions for MatterServer.registerAccessory()
- * Extracted from the monolithic 521-line function for better maintainability
+ * Helper functions for registering an accessory (used by server/AccessoryManager.ts):
+ * working out which cluster features an accessory needs from the state it
+ * declares, and composing them onto its device type.
  */
 
-import type { EndpointType } from '@matter/main'
-import type { LevelControl } from '@matter/main/clusters/level-control'
-import type { Behavior } from '@matter/node'
+import type { Behavior, EndpointType } from '@matter/main'
 
 import type { MatterAccessory } from './types.js'
 
 import { Logger } from '../logger.js'
-// Direct matter.js .with() API used instead of typeHelpers wrappers
 import { DefaultDeviceEnergyManagementServer } from './behaviors/DeviceEnergyManagementBehavior.js'
 import { DefaultEnergyEvseServer } from './behaviors/EnergyEvseBehavior.js'
 import {
-  HomebridgeRvcCleanModeServer,
-  HomebridgeServiceAreaServer,
   HomebridgeWindowCoveringServer,
 } from './behaviors/index.js'
 import { extractDeclaredFeatures } from './clusterFeatures.js'
@@ -29,45 +25,6 @@ type BehaviorType = Behavior.Type
 const log = Logger.withPrefix('Matter/Server')
 
 export { applyDeclaredClusterFeatures, declaredClusterFeatures, extractDeclaredFeatures } from './clusterFeatures.js'
-
-/**
- * Cluster IDs from Matter specification
- * Using Matter.js Cluster references instead of magic numbers
- */
-export const CLUSTER_IDS = {
-  AIR_QUALITY: clusters.AirQuality.Cluster.id,
-  CARBON_MONOXIDE_CONCENTRATION: clusters.CarbonMonoxideConcentrationMeasurement.Cluster.id,
-  CLOSURE_CONTROL: clusters.ClosureControl.Cluster.id,
-  COLOR_CONTROL: clusters.ColorControl.Cluster.id,
-  DOOR_LOCK: clusters.DoorLock.Cluster.id,
-  KEYPAD_INPUT: clusters.KeypadInput.Cluster.id,
-  LEVEL_CONTROL: clusters.LevelControl.Cluster.id,
-  MEDIA_PLAYBACK: clusters.MediaPlayback.Cluster.id,
-  NITROGEN_DIOXIDE_CONCENTRATION: clusters.NitrogenDioxideConcentrationMeasurement.Cluster.id,
-  ON_OFF: clusters.OnOff.Cluster.id,
-  OZONE_CONCENTRATION: clusters.OzoneConcentrationMeasurement.Cluster.id,
-  PM10_CONCENTRATION: clusters.Pm10ConcentrationMeasurement.Cluster.id,
-  PM25_CONCENTRATION: clusters.Pm25ConcentrationMeasurement.Cluster.id,
-  THERMOSTAT: clusters.Thermostat.Cluster.id,
-  WINDOW_COVERING: clusters.WindowCovering.Cluster.id,
-} as const
-
-/**
- * Behavior info extracted from device type
- */
-interface BehaviorInfo {
-  id: string
-  cluster?: {
-    id: number
-    supportedFeatures?: Record<string, boolean>
-  }
-  /**
-   * Features of a composed behavior, as recorded by matter.js's `.with(...)`.
-   * This is where the feature flags actually live for the clusters inspected
-   * here; `cluster.supportedFeatures` stays undefined for them.
-   */
-  features?: Record<string, boolean>
-}
 
 /**
  * Validates required fields on a Matter accessory
@@ -157,149 +114,31 @@ export function validateAccessoryRequiredFields(accessory: MatterAccessory): voi
 }
 
 /**
- * Convert device type behaviors to array
- * Handles array, Set, object, or iterable formats
- */
-function convertBehaviorsToArray(behaviors: unknown): BehaviorInfo[] {
-  if (Array.isArray(behaviors)) {
-    return behaviors as BehaviorInfo[]
-  }
-
-  if (typeof behaviors === 'object' && behaviors !== null) {
-    const values = Object.values(behaviors)
-    if (values.length > 0) {
-      return values as BehaviorInfo[]
-    }
-  }
-
-  try {
-    return [...behaviors as Iterable<BehaviorInfo>]
-  } catch {
-    return []
-  }
-}
-
-/**
- * Find a specific behavior by cluster ID or name
- */
-function findBehaviorByCluster(behaviors: BehaviorInfo[], clusterIdOrName: number | string): BehaviorInfo | undefined {
-  return behaviors.find((behavior) => {
-    if (typeof clusterIdOrName === 'number') {
-      return behavior.cluster?.id === clusterIdOrName
-    }
-    return behavior.id === clusterIdOrName
-  })
-}
-
-/**
- * Generic feature detection from device type behaviors
- * Extracts supported features from a device type's cluster definition
+ * The features a device type composed one of its clusters with, passed through
+ * `featureExtractor` to turn matter.js's flags into feature names.
+ *
+ * A device type's behaviors are a plain record keyed by behavior id
+ * (`onOff`, `levelControl`), and matter.js keeps the flags of a composed
+ * behavior on the behavior class itself.
  *
  * @param deviceType - The Matter device type
- * @param clusterIdOrName - Cluster ID (number) or name (string)
- * @param featureExtractor - Function to extract feature names from supportedFeatures
- * @returns Array of detected features or null if cluster not found
+ * @param clusterName - The behavior id of the cluster, as used in the plugin API
+ * @param featureExtractor - Function to extract feature names from the feature flags
+ * @returns Array of detected features or null if the device type does not carry the cluster
  */
 export function detectBehaviorFeatures(
   deviceType: EndpointType,
-  clusterIdOrName: number | string,
+  clusterName: string,
   featureExtractor: (supportedFeatures: Record<string, boolean>) => string[],
 ): string[] | null {
-  const deviceTypeDef = deviceType as { behaviors?: unknown }
-  const existingBehaviors = deviceTypeDef.behaviors
-
-  if (!existingBehaviors) {
-    return null
-  }
-
-  const behaviorsArray = convertBehaviorsToArray(existingBehaviors)
-  const behavior = findBehaviorByCluster(behaviorsArray, clusterIdOrName)
-
-  // matter.js records a composed behavior's features on the behavior itself.
-  // `cluster.supportedFeatures` is only populated for clusters that declare it,
-  // which none of the ones we inspect here do — so relying on it alone meant
-  // this always returned null and every caller fell back to its "no features"
-  // path. Read the behavior's own features when the cluster does not carry them.
-  const supportedFeatures = behavior?.cluster?.supportedFeatures ?? behavior?.features
+  const behaviors = (deviceType as { behaviors?: Record<string, { features?: Record<string, boolean> } | undefined> }).behaviors
+  const supportedFeatures = behaviors?.[clusterName]?.features
 
   if (!supportedFeatures) {
     return null
   }
 
   return featureExtractor(supportedFeatures)
-}
-
-/**
- * Extract ColorControl features from supportedFeatures
- */
-export function extractColorControlFeatures(supportedFeatures: Record<string, boolean>): string[] {
-  const features: string[] = []
-
-  if (supportedFeatures.hueSaturation) {
-    features.push('HueSaturation')
-  }
-  if (supportedFeatures.xy) {
-    features.push('Xy')
-  }
-  if (supportedFeatures.colorTemperature) {
-    features.push('ColorTemperature')
-  }
-
-  return features
-}
-
-/**
- * Extract Thermostat features from supportedFeatures
- */
-export function extractThermostatFeatures(supportedFeatures: Record<string, boolean>): string[] {
-  const features: string[] = []
-
-  if (supportedFeatures.heating) {
-    features.push('Heating')
-  }
-  if (supportedFeatures.cooling) {
-    features.push('Cooling')
-  }
-  if (supportedFeatures.occupancy) {
-    features.push('Occupancy')
-  }
-  if (supportedFeatures.autoMode) {
-    features.push('AutoMode')
-  }
-
-  return features
-}
-
-/**
- * Extract LevelControl features from supportedFeatures.
- *
- * Used to read features off a device type's declared LevelControl requirement
- * (e.g. DimmableLightDevice's `LevelControlServer.with("Lighting","OnOff")`).
- * When the device type doesn't declare LevelControl at all (e.g. PumpDevice,
- * which has LevelControl only in its `optional` requirements and not in
- * `SupportedBehaviors`), the caller should apply an empty feature set via
- * `.with()` so the Lighting feature inherited from matter.js's internal
- * `LevelControlBase = LevelControlBehavior.with(OnOff, Lighting)` is stripped
- * — otherwise the Pump endpoint inherits the `[LT]` branch of the spec
- * (minLevel constraint 1-254, initializeLighting warnings) that only applies
- * to lighting devices.
- */
-export function extractLevelControlFeatures(
-  supportedFeatures: Record<string, boolean>,
-): LevelControl.Features[] {
-  const features: LevelControl.Features[] = []
-
-  if (supportedFeatures.onOff) {
-    features.push('OnOff')
-  }
-  if (supportedFeatures.lighting) {
-    features.push('Lighting')
-  }
-  if (supportedFeatures.frequency) {
-    features.push('Frequency')
-  }
-
-  return features
 }
 
 /**
@@ -376,11 +215,13 @@ export function determineColorControlFeaturesFromClusters(
  */
 export function detectWindowCoveringFeatures(accessory: MatterAccessory): string[] {
   const features: string[] = []
-  const wcCluster = accessory.clusters?.windowCovering as Record<string, unknown> | undefined
+  const declared = accessory.clusters?.windowCovering as Record<string, unknown> | undefined
+  const hasHandlers = accessory.handlers?.windowCovering !== undefined
 
-  if (!wcCluster) {
+  if (!declared && !hasHandlers) {
     return features
   }
+  const wcCluster = declared ?? {}
 
   // Detect lift capability
   const hasLiftAttrs = 'targetPositionLiftPercent100ths' in wcCluster
@@ -399,18 +240,23 @@ export function detectWindowCoveringFeatures(accessory: MatterAccessory): string
     + `hasTiltAttrs=${hasTiltAttrs}, hasConfigTilt=${hasConfigTilt}`,
   )
 
+  // The position attributes this goes by only exist on a position-aware
+  // covering: Matter refuses them with Lift (or Tilt) alone. So a covering
+  // that declares them is position aware, whether or not its plugin also said
+  // so in configStatus.
   if (hasLiftAttrs) {
-    features.push('Lift')
-    if (hasConfigLift) {
-      features.push('PositionAwareLift')
-    }
+    features.push('Lift', 'PositionAwareLift')
   }
 
   if (hasTiltAttrs) {
-    features.push('Tilt')
-    if (hasConfigTilt) {
-      features.push('PositionAwareTilt')
-    }
+    features.push('Tilt', 'PositionAwareTilt')
+  }
+
+  // A covering that can only open and close declares no position at all.
+  // Matter still wants Lift or Tilt on every window covering, so it gets Lift:
+  // open, close and stop are all that feature brings on its own.
+  if (features.length === 0) {
+    features.push('Lift')
   }
 
   return features
@@ -778,26 +624,37 @@ export function applyEnergyEvseFeatures(deviceType: EndpointType, accessory: Mat
 }
 
 /**
- * Detect ServiceArea features from cluster attributes
+ * Accessories (and parts) whose device type already carries the WindowCovering
+ * cluster with its features, so the plain handler-calling behavior must not be
+ * put on top of it. Only needed between two steps of one registration, and
+ * kept here: it used to be written into the plugin's own `context`, which is
+ * saved to the cache and handed back to the plugin.
  */
-export function detectServiceAreaFeatures(
-  serviceAreaCluster: Record<string, unknown> | undefined,
-): string[] {
-  const features: string[] = []
+const windowCoveringComposed = new WeakSet<object>()
 
-  if (!serviceAreaCluster) {
-    return features
-  }
+/** Note that this accessory's device type carries its own WindowCovering cluster. */
+export function markWindowCoveringComposed(accessory: object): void {
+  windowCoveringComposed.add(accessory)
+}
 
-  if ('supportedMaps' in serviceAreaCluster) {
-    features.push('Maps')
-  }
+/** Whether markWindowCoveringComposed() was called for this accessory. */
+export function isWindowCoveringComposed(accessory: object): boolean {
+  return windowCoveringComposed.has(accessory)
+}
 
-  if ('progress' in serviceAreaCluster) {
-    features.push('ProgressReporting')
-  }
-
-  return features
+/**
+ * The covering types and end product types Matter allows for a covering with
+ * tilt (window covering cluster, conformance "LF & TL" and "!LF & TL"). The
+ * first of each is the one used when a plugin gives none that fits. 0xFF is
+ * "unknown", which is always allowed.
+ */
+const WINDOW_COVERING_WITH_LIFT_AND_TILT = {
+  type: [8, 0xFF], // TiltBlindLift
+  endProductType: [0x0A, 0x08, 0x0B, 0x0C, 0x0D, 0xFF], // InteriorBlind first
+}
+const WINDOW_COVERING_WITH_TILT_ONLY = {
+  type: [7, 6, 0xFF], // TiltBlindTiltOnly, Shutter
+  endProductType: [0x09, 0x15, 0x16, 0x17, 0xFF], // TiltOnlyInteriorBlind first
 }
 
 /**
@@ -819,72 +676,42 @@ export function applyWindowCoveringFeatures(
   const windowCoveringWithFeatures = (HomebridgeWindowCoveringServer as any).with(...features)
   const modifiedDeviceType = (deviceType as any).with(windowCoveringWithFeatures)
 
-  const hasTiltFeatures = features.includes('Tilt')
-  if (hasTiltFeatures && accessory.clusters) {
-    const wcCluster = accessory.clusters.windowCovering as Record<string, unknown>
-    wcCluster.type = 8 // TiltBlindLift
-    log.debug('Set WindowCovering type to 8 (TiltBlindLift) for tilt-capable device')
+  // Say in configStatus what the features say, for a plugin that left it out.
+  const windowCovering = accessory.clusters?.windowCovering as Record<string, unknown> | undefined
+  if (windowCovering) {
+    const configStatus = { ...(windowCovering.configStatus as Record<string, unknown> | undefined) }
+    if (features.includes('PositionAwareLift')) {
+      configStatus.liftPositionAware = true
+    }
+    if (features.includes('PositionAwareTilt')) {
+      configStatus.tiltPositionAware = true
+    }
+    if (Object.keys(configStatus).length > 0) {
+      windowCovering.configStatus = configStatus
+    }
   }
 
-  if (!accessory.context) {
-    accessory.context = {}
+  // Matter only allows some covering types and end product types for a
+  // covering with tilt, and matter.js's defaults (both 0, a roller shade) are
+  // not among them. A value the plugin set is kept when Matter allows it for
+  // this covering; a missing or disallowed one is replaced, so the accessory
+  // can register.
+  const wcCluster = accessory.clusters?.windowCovering as Record<string, unknown> | undefined
+  if (wcCluster && features.includes('Tilt')) {
+    const allowed = features.includes('Lift')
+      ? WINDOW_COVERING_WITH_LIFT_AND_TILT
+      : WINDOW_COVERING_WITH_TILT_ONLY
+    for (const attribute of ['type', 'endProductType'] as const) {
+      if (!allowed[attribute].includes(wcCluster[attribute] as number)) {
+        wcCluster[attribute] = allowed[attribute][0]
+        log.debug(`Set WindowCovering ${attribute} to ${allowed[attribute][0]} for ${accessory.displayName}, a covering with tilt`)
+      }
+    }
   }
-  (accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior = true
+
+  markWindowCoveringComposed(accessory)
 
   return modifiedDeviceType
-}
-
-/**
- * Build custom behaviors for RoboticVacuumCleaner devices
- */
-export function buildRvcCustomBehaviors(
-  accessory: MatterAccessory,
-  serviceAreaFeatures: string[] | null,
-): BehaviorType[] {
-  const customBehaviors: BehaviorType[] = []
-  const { RvcCleanModeServer, ServiceAreaServer } = devices.RoboticVacuumCleanerRequirements
-
-  if (accessory.clusters?.rvcCleanMode) {
-    if (accessory.handlers?.rvcCleanMode) {
-      customBehaviors.push(HomebridgeRvcCleanModeServer)
-      log.info('Adding custom RvcCleanMode behavior with handlers')
-    } else {
-      customBehaviors.push(RvcCleanModeServer)
-      log.info('Adding base RvcCleanMode server')
-    }
-  }
-
-  if (accessory.clusters?.serviceArea) {
-    let behaviorClass: BehaviorType = accessory.handlers?.serviceArea
-      ? HomebridgeServiceAreaServer
-      : ServiceAreaServer
-
-    if (serviceAreaFeatures && serviceAreaFeatures.length > 0) {
-      behaviorClass = (behaviorClass as any).with(...serviceAreaFeatures)
-      log.info(`ServiceArea ${accessory.handlers?.serviceArea ? 'custom behavior' : 'base server'} will have features: ${serviceAreaFeatures.join(', ')}`)
-    }
-
-    customBehaviors.push(behaviorClass)
-  }
-
-  return customBehaviors
-}
-
-/**
- * Apply detected features to a behavior class
- */
-export function applyFeaturesToBehavior(
-  behaviorClass: BehaviorType,
-  features: string[] | null,
-  clusterName: string,
-): BehaviorType {
-  if (!features || features.length === 0) {
-    return behaviorClass
-  }
-
-  const modifiedBehavior = (behaviorClass as any).with(...features)
-  log.info(`${clusterName} custom behavior will preserve features: ${features.join(', ')}`)
-  return modifiedBehavior
 }
 
 /**
@@ -1078,5 +905,132 @@ export function applyElectricalMeasurementClusters(
   ].filter(Boolean).join(' + ')
   log.info(`Auto-detected electrical measurement for ${accessory.displayName}: ${detected}`)
 
+  return (deviceType as any).with(...behaviors)
+}
+
+/**
+ * Measurement clusters with no features to choose, or only pressure's
+ * Extended, which the scaled attributes need. matter.js builds the rest as-is,
+ * so declaring their state is all it takes to turn them on.
+ */
+const PLAIN_MEASUREMENT_CLUSTERS = new Set([
+  'flowMeasurement',
+  'pressureMeasurement',
+  'relativeHumidityMeasurement',
+  'temperatureMeasurement',
+])
+
+/**
+ * Work out a concentration cluster's features from the attributes it declares.
+ *
+ * Matter requires at least one of NumericMeasurement and LevelIndication, and
+ * matter.js refuses the cluster without one. Returns `null` when the declared
+ * state asks for neither, so the caller can leave the cluster out.
+ *
+ * LevelIndication always brings MediumLevel and CriticalLevel with it, as the
+ * AirQuality cluster's extra levels do: without them matter.js refuses a
+ * levelValue of Medium or Critical, and a sensor only reports one level at a
+ * time, so offering all of them costs nothing.
+ */
+export function detectConcentrationMeasurementFeatures(state: Record<string, unknown>): string[] | null {
+  const declared = (...keys: string[]) => keys.some(key => state[key] !== undefined)
+  const features: string[] = []
+
+  if (declared('measuredValue', 'minMeasuredValue', 'maxMeasuredValue', 'measurementUnit', 'peakMeasuredValue', 'peakMeasuredValueWindow', 'averageMeasuredValue', 'averageMeasuredValueWindow', 'uncertainty')) {
+    features.push('NumericMeasurement')
+    if (declared('peakMeasuredValue', 'peakMeasuredValueWindow')) {
+      features.push('PeakMeasurement')
+    }
+    if (declared('averageMeasuredValue', 'averageMeasuredValueWindow')) {
+      features.push('AverageMeasurement')
+    }
+  }
+  if (declared('levelValue')) {
+    features.push('LevelIndication', 'MediumLevel', 'CriticalLevel')
+  }
+
+  return features.length > 0
+    ? features
+    : null
+}
+
+/**
+ * Add the optional measurement clusters an accessory declares state for.
+ *
+ * A device type only carries its mandatory clusters. The optional ones - the
+ * PM2.5, CO and other readings on an air quality sensor, the humidity on a
+ * thermostat, the flow and pressure on a pump - have to be composed, and
+ * nothing did. matter.js quietly ignores endpoint state for a cluster the
+ * endpoint does not have, so the readings were dropped without a word.
+ *
+ * Only clusters the device type lists as optional are added, so an accessory
+ * cannot gain a cluster its device type does not allow. A concentration
+ * cluster whose declared state would fail registration is left out with a
+ * warning instead: before this it was dropped anyway, and refusing it here
+ * keeps the rest of the accessory working.
+ */
+export function applyOptionalMeasurementClusters(deviceType: EndpointType, accessory: MatterAccessory): EndpointType {
+  const declaredClusters = accessory.clusters as Record<string, Record<string, unknown> | undefined> | undefined
+  if (!declaredClusters) {
+    return deviceType
+  }
+
+  const existing = (deviceType as { behaviors?: Record<string, unknown> }).behaviors ?? {}
+  const optional = (deviceType as { requirements?: { server?: { optional?: Record<string, BehaviorType> } } }).requirements?.server?.optional ?? {}
+  const behaviors: BehaviorType[] = []
+  const added: string[] = []
+
+  for (const server of Object.values(optional)) {
+    const clusterName = server.id
+    const state = declaredClusters[clusterName]
+    if (!state || existing[clusterName]) {
+      continue
+    }
+
+    if (PLAIN_MEASUREMENT_CLUSTERS.has(clusterName)) {
+      const extended = clusterName === 'pressureMeasurement'
+        && [
+          'scaledValue',
+          'minScaledValue',
+          'maxScaledValue',
+          'scaledTolerance',
+          'scale',
+        ].some(key => state[key] !== undefined)
+      behaviors.push(extended
+        ? (server as any).with('Extended')
+        : server)
+      added.push(extended
+        ? `${clusterName} (Extended)`
+        : clusterName)
+      continue
+    }
+
+    if (!clusterName.endsWith('ConcentrationMeasurement')) {
+      continue
+    }
+
+    const features = detectConcentrationMeasurementFeatures(state)
+    if (!features) {
+      log.warn(`${accessory.displayName}: ${clusterName} declares neither a measuredValue nor a levelValue, so it has been left out`)
+      continue
+    }
+    if (features.includes('NumericMeasurement') && state.measurementUnit === undefined) {
+      log.warn(`${accessory.displayName}: ${clusterName} declares a reading but no measurementUnit (0 = ppm, 4 = µg/m³ and so on), so it has been left out`)
+      continue
+    }
+    // MeasurementMedium is mandatory, and the example in the docs never set it.
+    // These are air quality readings, so the medium is air
+    if (state.measurementMedium === undefined) {
+      state.measurementMedium = 0 // ConcentrationMeasurement.MeasurementMedium.Air
+    }
+    behaviors.push((server as any).with(...features))
+    added.push(`${clusterName} (${features.join(', ')})`)
+  }
+
+  if (behaviors.length === 0) {
+    return deviceType
+  }
+
+  log.info(`Added the optional measurement clusters ${accessory.displayName} declares: ${added.join(', ')}`)
   return (deviceType as any).with(...behaviors)
 }

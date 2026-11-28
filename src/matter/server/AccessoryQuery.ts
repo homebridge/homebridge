@@ -7,9 +7,11 @@
 import type { Endpoint, EndpointType } from '@matter/main'
 
 import type { MatterAccessoryCache, SerializedMatterAccessory } from '../accessoryCache.js'
+import type { AccessoryInfo, ServerAccessoryData, ServerAccessoryListEntry } from '../managerTypes.js'
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 
 import { Logger } from '../../logger.js'
+import { coerceBigintsToNumbers } from './StateManager.js'
 
 const log = Logger.withPrefix('Matter/Server')
 
@@ -54,6 +56,41 @@ function withFeatureMaps(
   return enriched
 }
 
+/** The fields of the public MatterAccessory type. */
+const PUBLIC_ACCESSORY_FIELDS = [
+  'UUID',
+  'displayName',
+  'deviceType',
+  'features',
+  'serialNumber',
+  'manufacturer',
+  'model',
+  'firmwareRevision',
+  'hardwareRevision',
+  'softwareVersion',
+  'context',
+  'clusters',
+  'handlers',
+  'getState',
+  'parts',
+] as const satisfies ReadonlyArray<keyof MatterAccessory>
+
+/**
+ * The public view of an accessory record: the fields of MatterAccessory and
+ * nothing else. The record also holds the live matter.js endpoints (its own
+ * and one per part), which are not for a caller to hold and which can not be
+ * written as JSON (they refer back to themselves).
+ */
+function toPublicAccessory(accessory: InternalMatterAccessory): MatterAccessory {
+  const publicAccessory: Partial<Record<keyof MatterAccessory, unknown>> = {}
+  for (const field of PUBLIC_ACCESSORY_FIELDS) {
+    if (accessory[field] !== undefined) {
+      publicAccessory[field] = accessory[field]
+    }
+  }
+  return publicAccessory as unknown as MatterAccessory
+}
+
 export class AccessoryQuery {
   constructor(
     private readonly accessories: Map<string, InternalMatterAccessory>,
@@ -64,11 +101,7 @@ export class AccessoryQuery {
    * Get all registered accessories (Plugin API)
    */
   getAccessories(): MatterAccessory[] {
-    return Array.from(this.accessories.values(), (acc) => {
-      // eslint-disable-next-line unused-imports/no-unused-vars
-      const { endpoint, registered, ...publicAccessory } = acc
-      return publicAccessory
-    })
+    return Array.from(this.accessories.values(), toPublicAccessory)
   }
 
   /**
@@ -76,13 +109,7 @@ export class AccessoryQuery {
    */
   getAccessory(uuid: string): MatterAccessory | undefined {
     const accessory = this.accessories.get(uuid)
-    if (!accessory) {
-      return undefined
-    }
-
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    const { endpoint, registered, ...publicAccessory } = accessory
-    return publicAccessory
+    return accessory && toPublicAccessory(accessory)
   }
 
   /**
@@ -139,13 +166,47 @@ export class AccessoryQuery {
   }
 
   /**
+   * Read the live cluster state of an accessory or one of its parts, straight
+   * from its endpoint. Returns an empty object when the accessory, part or
+   * endpoint does not exist (yet).
+   *
+   * This reads the internal record: getAccessory() leaves the endpoint out of
+   * what it hands back, so a caller that only has that can never see the
+   * state (#4014).
+   */
+  getLiveState(uuid: string, partId?: string): Record<string, Record<string, unknown>> {
+    const accessory = this.accessories.get(uuid)
+    const endpoint = partId
+      ? accessory?._parts?.find(part => part.id === partId)?.endpoint
+      : accessory?.endpoint
+    const endpointState = (endpoint as { state?: Record<string, Record<string, unknown>> } | undefined)?.state
+    if (!endpointState) {
+      return {}
+    }
+
+    const state: Record<string, Record<string, unknown>> = {}
+    for (const [clusterName, clusterState] of Object.entries(endpointState)) {
+      state[clusterName] = {}
+      for (const [key, value] of Object.entries(clusterState ?? {})) {
+        if (!key.startsWith('_') && !key.startsWith('$')) {
+          // The UI gets this as JSON, which has no way to write a bigint
+          // (matter.js uses one for some 64-bit values): one such value made
+          // the whole accessory list fail to send.
+          state[clusterName][key] = coerceBigintsToNumbers(value)
+        }
+      }
+    }
+    return state
+  }
+
+  /**
    * Collect all accessories for UI display
    */
-  collectAccessories(bridgeUsername: string, bridgeType: string, bridgeName: string): any[] {
-    const accessories: any[] = []
+  collectAccessories(bridgeUsername: string, bridgeType: AccessoryInfo['bridge']['type'], bridgeName: string): ServerAccessoryListEntry[] {
+    const accessories: ServerAccessoryListEntry[] = []
 
     for (const [uuid, accessory] of this.accessories.entries()) {
-      const transformed = {
+      const transformed: ServerAccessoryListEntry = {
         uuid,
         displayName: accessory.displayName,
         deviceType: this.getDeviceTypeName(accessory.deviceType),
@@ -175,7 +236,7 @@ export class AccessoryQuery {
   /**
    * Get detailed info for a specific accessory
    */
-  getAccessoryInfo(uuid: string): any | undefined {
+  getAccessoryInfo(uuid: string): ServerAccessoryData | undefined {
     const accessory = this.accessories.get(uuid)
     if (!accessory) {
       return undefined

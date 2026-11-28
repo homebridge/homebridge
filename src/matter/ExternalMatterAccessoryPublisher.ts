@@ -7,8 +7,12 @@
 
 import type { InternalMatterAccessory } from './types.js'
 
+import { renameSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+
 import { Logger } from '../logger.js'
 import { User } from '../user.js'
+import { errorMessage } from '../util/errorMessage.js'
 import { generate } from '../util/mac.js'
 import { MatterServer } from './server.js'
 
@@ -19,6 +23,8 @@ const COLON_RE = /:/g
  * Configuration context for publishing external Matter accessories
  */
 export interface ExternalAccessoryPublishContext {
+  /** Owning main or child bridge; legacy caches are claimed on registration. */
+  bridgeUsername?: string
   /** Port service for allocating Matter ports */
   portService: {
     requestMatterPort: (uniqueId: string) => Promise<number | null | undefined>
@@ -28,6 +34,8 @@ export interface ExternalAccessoryPublishContext {
   networkInterfaces?: string[]
   /** Whether debug mode is enabled */
   debugModeEnabled?: boolean
+  /** Do not draw the pairing QR code in the log (the `-Q` flag) */
+  hideQRCode?: boolean
   /** When `true`, Matter mDNS runs IPv6-only (from `matter.disableIpv4` config) */
   disableIpv4?: boolean
 }
@@ -91,21 +99,31 @@ export async function publishExternalMatterAccessory(
 
   log.info(`Allocated port ${port} for external Matter accessory: ${accessory.displayName}`)
 
-  // Create dedicated Matter server for this accessory
-  const matterServer = new MatterServer({
-    port,
-    uniqueId,
-    storagePath: User.matterPath(),
-    displayName: accessory.displayName || 'Matter Device',
-    manufacturer: accessory.manufacturer,
-    model: accessory.model,
-    firmwareRevision: accessory.firmwareRevision,
-    serialNumber: accessory.serialNumber || uniqueId, // use uniqueId as fallback serial number
-    debugModeEnabled: context.debugModeEnabled,
-    externalAccessory: true, // external accessory, added before server runs
-    networkInterfaces: context.networkInterfaces,
-    disableIpv4: context.disableIpv4,
-  })
+  // Create dedicated Matter server for this accessory. The constructor checks
+  // its config and throws when it does not accept it (a port above 65534,
+  // say). Nothing is bound at that point, so the port goes straight back:
+  // it used to stay taken for the rest of the run.
+  let matterServer: MatterServer
+  try {
+    matterServer = new MatterServer({
+      port,
+      uniqueId,
+      storagePath: User.matterPath(),
+      displayName: accessory.displayName,
+      manufacturer: accessory.manufacturer,
+      model: accessory.model,
+      firmwareRevision: accessory.firmwareRevision,
+      serialNumber: accessory.serialNumber || uniqueId, // use uniqueId as fallback serial number
+      debugModeEnabled: context.debugModeEnabled,
+      hideQRCode: context.hideQRCode,
+      externalAccessory: true, // external accessory, added before server runs
+      networkInterfaces: context.networkInterfaces,
+      disableIpv4: context.disableIpv4,
+    })
+  } catch (error) {
+    context.portService.releaseMatterPort?.(uniqueId)
+    throw error
+  }
 
   let started = false
   try {
@@ -117,13 +135,27 @@ export async function publishExternalMatterAccessory(
     const pluginIdentifier = accessory._associatedPlugin || 'unknown'
 
     // Register the accessory to this dedicated server
-    await matterServer.registerPlatformAccessories(pluginIdentifier, 'ExternalMatter', [accessory])
+    await matterServer.registerAccessory(pluginIdentifier, accessory._associatedPlatform || 'ExternalMatter', accessory)
 
     // Now run the server with the device already attached (required for external accessories)
     await matterServer.runServer()
+    if (context.bridgeUsername) {
+      try {
+        const ownerFile = path.join(User.matterPath(), uniqueId, 'homebridge-owner.json')
+        writeFileSync(`${ownerFile}.tmp`, JSON.stringify({
+          bridge: context.bridgeUsername,
+          uuid: accessory.UUID,
+          plugin: pluginIdentifier,
+          platform: accessory._associatedPlatform || 'ExternalMatter',
+        }))
+        renameSync(`${ownerFile}.tmp`, ownerFile)
+      } catch (error) {
+        log.warn(`Could not record external Matter ownership for ${accessory.displayName}; automatic restoration may be unavailable: ${errorMessage(error)}`)
+      }
+    }
   } catch (error) {
-    // Tear down the half-started server so we don't leak SIGINT/SIGTERM
-    // handlers, an open mDNS responder, and the matter.js event loop.
+    // Tear down the half-started server so we don't leak an open mDNS
+    // responder and the matter.js event loop.
     // Only release the port back to the allocator when we *know* the
     // server isn't holding it any more — otherwise the allocator can
     // hand the same port to a subsequent publish attempt and we hit

@@ -12,12 +12,14 @@ describe('homebridgeRvcOperationalStateServer', () => {
   let mockRegistry: BehaviorRegistry
   let behavior: HomebridgeRvcOperationalStateServer
   let mockEndpoint: any
+  let operationalState: number
   const testEndpointId = 'test-endpoint-123'
 
   beforeEach(() => {
+    operationalState = 1
     // Create mock registry
     mockRegistry = {
-      executeHandler: vi.fn().mockResolvedValue(true),
+      runHandler: vi.fn().mockResolvedValue({ handled: true }),
       syncStateToCache: vi.fn(),
     } as any
 
@@ -37,9 +39,50 @@ describe('homebridgeRvcOperationalStateServer', () => {
       get: () => mockEndpoint,
       configurable: true,
     })
+    // 1 = running: every command is allowed
     Object.defineProperty(behavior, 'state', {
-      get: () => ({ operationalState: 0 }),
+      get: () => ({ operationalState }),
       configurable: true,
+    })
+  })
+
+  describe('a state the command is not allowed in', () => {
+    const invalidInState = {
+      commandResponseState: { errorStateId: RvcOperationalState.ErrorState.CommandInvalidInState },
+    }
+    const { Stopped, Error: ErrorState, Paused } = { Stopped: 0, Error: 3, Paused: 2 }
+    const { SeekingCharger, Charging, Docked } = RvcOperationalState.OperationalState
+
+    it.each([
+      ['pause', Stopped],
+      ['pause', ErrorState],
+      ['pause', Charging],
+      ['pause', Docked],
+      ['resume', Stopped],
+      ['resume', ErrorState],
+      ['resume', SeekingCharger],
+      ['goHome', Charging],
+      ['goHome', Docked],
+    ] as const)('refuses %s in state %s without calling the plugin', async (command, state) => {
+      operationalState = state
+
+      expect(await behavior[command]()).toEqual(invalidInState)
+      expect(mockRegistry.runHandler).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['pause', SeekingCharger],
+      ['resume', Paused],
+      ['resume', Docked],
+      ['goHome', Stopped],
+      ['goHome', Paused],
+    ] as const)('runs %s in state %s', async (command, state) => {
+      operationalState = state
+
+      expect(await behavior[command]()).toEqual({
+        commandResponseState: { errorStateId: 0 },
+      })
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(testEndpointId, 'rvcOperationalState', command)
     })
   })
 
@@ -47,7 +90,7 @@ describe('homebridgeRvcOperationalStateServer', () => {
     it('should execute handler for pause command', async () => {
       await behavior.pause()
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'rvcOperationalState',
         'pause',
@@ -59,7 +102,7 @@ describe('homebridgeRvcOperationalStateServer', () => {
     it('should execute handler for resume command', async () => {
       await behavior.resume()
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'rvcOperationalState',
         'resume',
@@ -71,7 +114,7 @@ describe('homebridgeRvcOperationalStateServer', () => {
     it('should execute handler for goHome command', async () => {
       await behavior.goHome()
 
-      expect(mockRegistry.executeHandler).toHaveBeenCalledWith(
+      expect(mockRegistry.runHandler).toHaveBeenCalledWith(
         testEndpointId,
         'rvcOperationalState',
         'goHome',
@@ -92,18 +135,18 @@ describe('homebridgeRvcOperationalStateServer', () => {
 
     it('should propagate a Matter protocol error from the handler unchanged', async () => {
       const protocolError = new StatusResponseError('Busy right now', Status.Busy)
-      ;(mockRegistry.executeHandler as any).mockRejectedValue(protocolError)
+      ;(mockRegistry.runHandler as any).mockRejectedValue(protocolError)
 
       // rethrown as-is, so the controller gets the status the plugin chose
       await expect(behavior.resume()).rejects.toBe(protocolError)
     })
 
     it.each([
-      ['pause', 'Failed to pause: sensor jammed'],
-      ['resume', 'Failed to resume: sensor jammed'],
-      ['goHome', 'Failed to go home: sensor jammed'],
-    ])('should wrap a plain handler error for %s', async (command, expectedMessage) => {
-      ;(mockRegistry.executeHandler as any).mockRejectedValue(new Error('sensor jammed'))
+      ['pause', 'sensor jammed'],
+      ['resume', 'sensor jammed'],
+      ['goHome', 'sensor jammed'],
+    ])('should pass on a handler error for %s', async (command, expectedMessage) => {
+      ;(mockRegistry.runHandler as any).mockRejectedValue(new Error('sensor jammed'))
 
       // the per-command wording is the one thing the collapse had to keep, and
       // "goHome" has to read as "go home"
@@ -111,9 +154,9 @@ describe('homebridgeRvcOperationalStateServer', () => {
     })
 
     it('should stringify a non-Error rejection rather than crashing the endpoint', async () => {
-      ;(mockRegistry.executeHandler as any).mockRejectedValue('just a string')
+      ;(mockRegistry.runHandler as any).mockRejectedValue('just a string')
 
-      await expect(behavior.goHome()).rejects.toThrow('Failed to go home: just a string')
+      await expect(behavior.goHome()).rejects.toThrow('just a string')
     })
   })
 })

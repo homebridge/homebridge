@@ -230,6 +230,7 @@ describe('matterAPIImpl.unregisterPlatformAccessories — guard before the manag
     const api = makeApi({
       _matterManager: {
         hasActiveMatter: () => true,
+        getExternalServer: () => undefined,
       },
     })
     const impl = new MatterAPIImpl(api)
@@ -240,6 +241,115 @@ describe('matterAPIImpl.unregisterPlatformAccessories — guard before the manag
     ])
 
     expect(api.emit).toHaveBeenCalled()
+  })
+})
+
+describe('matterAPIImpl updates — the promise waits for the bridge', () => {
+  /** An api whose listener finishes its work when `finish` is called. */
+  function slowBridge() {
+    let finish!: () => void
+    const work = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+      },
+    })
+    ;(api.emit as ReturnType<typeof vi.fn>).mockImplementation((...args: unknown[]) => {
+      const track = args.at(-1) as (work: Promise<void>) => void
+      track(work)
+      return true
+    })
+    return { api, finish }
+  }
+
+  it.each([
+    [
+      'updateAccessoryState',
+      (impl: InstanceType<typeof MatterAPIImpl>) => impl.updateAccessoryState('uuid-1', 'onOff', { onOff: true }),
+    ],
+    [
+      'updatePlatformAccessories',
+      (impl: InstanceType<typeof MatterAPIImpl>) => impl.updatePlatformAccessories([
+        { UUID: 'uuid-1' } as any,
+      ]),
+    ],
+  ])('%s resolves only when the bridge has done the work', async (_name, call) => {
+    const { api, finish } = slowBridge()
+    let resolved = false
+
+    const pending = call(new MatterAPIImpl(api)).then(() => {
+      resolved = true
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(resolved).toBe(false)
+
+    finish()
+    await pending
+    expect(resolved).toBe(true)
+  })
+})
+
+describe('matterAPIImpl.unregisterPlatformAccessories — finds the accessory by its UUID', () => {
+  const eventsFor = (api: ReturnType<typeof makeApi>) =>
+    (api.emit as ReturnType<typeof vi.fn>).mock.calls.map(call => [
+      call[0],
+      ...call.slice(1).filter(Array.isArray),
+    ])
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('unregisters a bridged accessory given only its UUID, as the docs say', async () => {
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        getExternalServer: () => undefined,
+      },
+    })
+    const accessory = { UUID: 'uuid-1' } as any
+
+    await new MatterAPIImpl(api).unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [accessory])
+
+    expect(eventsFor(api)).toEqual([
+      [
+        'unregisterMatterPlatformAccessories',
+        [accessory],
+      ],
+    ])
+  })
+
+  it('stops the external server of an accessory whose object has no usable device type', async () => {
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        getExternalServer: (uuid: string) => (uuid === 'vacuum-uuid'
+          ? {}
+          : undefined),
+      },
+    })
+    // the shape a plugin is given in configureMatterAccessory
+    const vacuum = {
+      UUID: 'vacuum-uuid',
+      displayName: 'Vacuum',
+      deviceType: { name: 'RoboticVacuumCleaner' },
+    } as any
+    const light = { UUID: 'light-uuid' } as any
+
+    await new MatterAPIImpl(api).unregisterPlatformAccessories('homebridge-test', 'TestPlatform', [vacuum, light])
+
+    expect(eventsFor(api)).toEqual([
+      [
+        'unregisterMatterPlatformAccessories',
+        [light],
+      ],
+      [
+        'unregisterExternalMatterAccessories',
+        [vacuum],
+      ],
+    ])
   })
 })
 
@@ -292,6 +402,8 @@ describe('matterAPIImpl.registerPlatformAccessories — bridged registration bef
       _matterManager: {
         hasActiveMatter: () => true,
         isBridgeServerStarting: () => true,
+        getBridgeStartFailure: () => undefined,
+        hasBridgeServerStopped: () => false,
       },
     })
     const impl = new MatterAPIImpl(api)
@@ -305,11 +417,55 @@ describe('matterAPIImpl.registerPlatformAccessories — bridged registration bef
     expect(api.emit).not.toHaveBeenCalled()
   })
 
+  it('rejects with the true reason when the bridge server failed to start', async () => {
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        isBridgeServerStarting: () => false,
+        getBridgeStartFailure: () => 'address already in use',
+        hasBridgeServerStopped: () => false,
+      },
+    })
+    const impl = new MatterAPIImpl(api)
+    vi.spyOn(impl as any, 'validateAccessories').mockReturnValue([bridgedAccessory])
+
+    const error: Error = await impl.registerPlatformAccessories('homebridge-test', 'TestPlatform', [bridgedAccessory])
+      .then(() => new Error('registered'), failure => failure)
+
+    expect(error.message).toMatch(/failed to start \(address already in use\)/)
+    expect(error.message).not.toMatch(/still starting|transient/)
+    expect(api.emit).not.toHaveBeenCalled()
+  })
+
+  it('rejects with the true reason when matter.js shut the bridge server down by itself', async () => {
+    const api = makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        // a server that is not running counts as "starting" too: the stop is checked first
+        isBridgeServerStarting: () => true,
+        getBridgeStartFailure: () => undefined,
+        hasBridgeServerStopped: () => true,
+      },
+    })
+    const impl = new MatterAPIImpl(api)
+    vi.spyOn(impl as any, 'validateAccessories').mockReturnValue([bridgedAccessory])
+
+    const error: Error = await impl.registerPlatformAccessories('homebridge-test', 'TestPlatform', [bridgedAccessory])
+      .then(() => new Error('registered'), failure => failure)
+
+    expect(error.message).toMatch(/has stopped/)
+    expect(error.message).toMatch(/Restart Homebridge/)
+    expect(error.message).not.toMatch(/still starting|transient/)
+    expect(api.emit).not.toHaveBeenCalled()
+  })
+
   it('emits the registration once the bridge server is running', async () => {
     const api = makeApi({
       _matterManager: {
         hasActiveMatter: () => true,
         isBridgeServerStarting: () => false,
+        getBridgeStartFailure: () => undefined,
+        hasBridgeServerStopped: () => false,
       },
     })
     const impl = new MatterAPIImpl(api)
@@ -320,5 +476,31 @@ describe('matterAPIImpl.registerPlatformAccessories — bridged registration bef
     ).resolves.toBeUndefined()
 
     expect(api.emit).toHaveBeenCalled()
+  })
+})
+
+describe('matterAPIImpl — a cluster name homebridge does not know', () => {
+  it('is warned about once, not at every read and update', async () => {
+    const { Logger } = await import('../logger.js')
+    const warn = vi.mocked(Logger.withPrefix('test')).warn
+    warn.mockClear()
+    const impl = new MatterAPIImpl(makeApi({
+      _matterManager: {
+        hasActiveMatter: () => true,
+        getExternalServer: () => undefined,
+      },
+    }))
+
+    // a plugin that polls its devices
+    for (let poll = 0; poll < 5; poll++) {
+      await impl.getAccessoryState('uuid-1', 'madeUpCluster')
+      await impl.updateAccessoryState('uuid-1', 'madeUpCluster', { value: poll })
+    }
+    await impl.getAccessoryState('uuid-1', 'anotherMadeUpCluster')
+
+    const warnings = warn.mock.calls.map(call => String(call[0])).filter(text => text.includes('Unknown cluster name'))
+    expect(warnings).toHaveLength(2)
+    expect(warnings[0]).toContain('\'madeUpCluster\'')
+    expect(warnings[1]).toContain('\'anotherMadeUpCluster\'')
   })
 })

@@ -7,8 +7,8 @@
 
 import type { ServerNode } from '@matter/main'
 
-import fs from 'node:fs'
-import path from 'node:path'
+import { FabricManager as MatterFabricManager } from '@matter/main/protocol'
+import { FabricIndex } from '@matter/main/types'
 
 import { Logger } from '../../logger.js'
 import { MatterDeviceError } from '../types.js'
@@ -32,124 +32,35 @@ export interface CommissioningSnapshot {
 export class FabricManager {
   constructor(
     private readonly getServerNode: () => ServerNode | null,
-    private readonly getMatterStoragePath: () => string | undefined,
   ) {}
 
   /**
-   * Get fabric information for commissioned controllers
+   * The controllers this node is paired with.
+   *
+   * matter.js loads its fabric list while the node is created, before it goes
+   * online, and gives it at `state.commissioning.fabrics`. That is the one
+   * source used: it is right for a node that is built and not online yet
+   * (#4009), and it changes the moment a controller is added or removed
+   * (#3974), which the node's `commissioned` flag and the copy in the
+   * operational credentials cluster do not.
    */
   getFabricInfo(): FabricInfo[] {
+    const serverNode = this.getServerNode()
+    if (!serverNode) {
+      return []
+    }
+
     try {
-      const serverNode = this.getServerNode()
-      if (!serverNode) {
-        return []
-      }
-
-      // Use the server node's commissioning state to read fabric info
-      const env = serverNode.env
-      if (!env) {
-        return []
-      }
-
-      // Try reading from the server node's state
-      try {
-        const serverState = serverNode as any
-        const fabrics = serverState?.state?.operationalCredentials?.fabrics
-        if (Array.isArray(fabrics) && fabrics.length > 0) {
-          return fabrics.map((fabric: any) => ({
-            fabricIndex: fabric.fabricIndex || 0,
-            fabricId: fabric.fabricId?.toString() || '',
-            nodeId: fabric.nodeId?.toString() || '',
-            // The operational credentials cluster's FabricDescriptorStruct names
-            // the vendor field `vendorId` (per the Matter spec); matter.js's
-            // internal Fabric object and persisted storage use `rootVendorId`
-            rootVendorId: fabric.rootVendorId ?? fabric.vendorId ?? 0,
-            label: fabric.label || '',
-          }))
-        }
-      } catch {
-        // Fallback to checking storage
-      }
-
-      // Fallback: read from disk storage
-      return this.readFabricsFromStorage()
+      return Object.values(serverNode.state.commissioning.fabrics).map(fabric => ({
+        fabricIndex: fabric.fabricIndex,
+        fabricId: fabric.fabricId.toString(),
+        nodeId: fabric.nodeId.toString(),
+        rootVendorId: fabric.rootVendorId,
+        label: fabric.label,
+      }))
     } catch (error) {
+      // the node is closing
       log.debug('Failed to get fabric info:', error)
-      return []
-    }
-  }
-
-  /**
-   * Whether the running server node is actually reporting its fabric list.
-   *
-   * `getFabricInfo()` returns `[]` both for "no controller is paired" and for
-   * "the list could not be read", and the two need different answers. When the
-   * operational credentials cluster hands back an array — even an empty one —
-   * that array is the truth.
-   */
-  private hasLiveFabricList(): boolean {
-    try {
-      const serverNode = this.getServerNode() as any
-      return Array.isArray(serverNode?.state?.operationalCredentials?.fabrics)
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Read fabric information from storage files
-   */
-  private readFabricsFromStorage(): FabricInfo[] {
-    try {
-      const storagePath = this.getMatterStoragePath()
-      if (!storagePath) {
-        return []
-      }
-
-      // Candidate files, in priority order:
-      //  1. matter.js native storage: `<storagePath>/<nodeId>/fabrics.fabrics`
-      //     (a bare JSON array, no `.json` extension, one directory down)
-      //  2. Legacy: any `*.json` in the storage root with a fabrics key
-      const entries = fs.readdirSync(storagePath, { withFileTypes: true })
-      const candidates: string[] = []
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          candidates.push(path.join(storagePath, entry.name, 'fabrics.fabrics'))
-        }
-      }
-      for (const entry of entries) {
-        if (entry.isFile() && entry.name.endsWith('.json')) {
-          candidates.push(path.join(storagePath, entry.name))
-        }
-      }
-
-      for (const file of candidates) {
-        try {
-          if (!fs.existsSync(file)) {
-            continue
-          }
-          const data = JSON.parse(fs.readFileSync(file, 'utf-8'))
-
-          // Check for fabrics data in various storage key formats
-          const fabricsData = Array.isArray(data)
-            ? data
-            : (data?.['fabrics.fabrics'] || data?.fabrics?.fabrics)
-          if (Array.isArray(fabricsData) && fabricsData.length > 0) {
-            return fabricsData.map((fabric: any) => ({
-              fabricIndex: fabric.fabricIndex || 0,
-              fabricId: fabric.fabricId?.value?.toString() || fabric.fabricId?.toString() || '',
-              nodeId: fabric.nodeId?.value?.toString() || fabric.nodeId?.toString() || '',
-              rootVendorId: fabric.rootVendorId ?? fabric.vendorId ?? 0,
-              label: fabric.label || '',
-            }))
-          }
-        } catch {
-          // Skip files that can't be parsed
-        }
-      }
-
-      return []
-    } catch {
       return []
     }
   }
@@ -158,28 +69,7 @@ export class FabricManager {
    * Check if the server is commissioned
    */
   isCommissioned(): boolean {
-    try {
-      const serverNode = this.getServerNode()
-      if (serverNode) {
-        // Try to check commissioned state from the server node
-        try {
-          const serverState = serverNode as any
-          const commissioned = serverState?.state?.commissioning?.commissioned
-          if (commissioned === true) {
-            return true
-          }
-        } catch {
-          // Fallback
-        }
-      }
-
-      // Fallback to checking fabric count
-      const fabrics = this.getFabricInfo()
-      return fabrics.length > 0
-    } catch (error) {
-      log.debug('Failed to check commissioned status:', error)
-      return false
-    }
+    return this.getFabricInfo().length > 0
   }
 
   /**
@@ -191,43 +81,10 @@ export class FabricManager {
 
   /**
    * Get commissioned/fabricCount/fabrics in a single pass.
-   *
-   * Coalesces what would otherwise be three separate getFabricInfo() calls
-   * (one each from isCommissioned, getCommissionedFabricCount, getFabricInfo).
-   * In the cold path that means one sync filesystem scan instead of three.
-   * Preserves the serverNode.state fast-path that isCommissioned() uses.
    */
   getCommissioningSnapshot(): CommissioningSnapshot {
     const fabrics = this.getFabricInfo()
-    const fabricCount = fabrics.length
-    if (fabricCount > 0) {
-      return { commissioned: true, fabricCount, fabrics }
-    }
-
-    // The fabric list is empty. ⚠️ The serverNode commissioning flag is NOT a
-    // tie-breaker here. It lags behind a controller-side fabric removal, so
-    // consulting it would report "commissioned" with nothing paired right up
-    // until the next restart — the #3974 symptom this snapshot exists to fix,
-    // and the state that hides the QR code the owner needs to re-pair.
-    //
-    // So only fall back to the flag when the live list could not be read at
-    // all, which is the one case where an empty list means "don't know" rather
-    // than "nothing is paired".
-    if (this.hasLiveFabricList()) {
-      return { commissioned: false, fabricCount, fabrics }
-    }
-
-    let commissioned = false
-    try {
-      const serverNode = this.getServerNode()
-      if (serverNode) {
-        const serverState = serverNode as any
-        commissioned = serverState?.state?.commissioning?.commissioned === true
-      }
-    } catch {
-      // Treat any access failure as not-commissioned.
-    }
-    return { commissioned, fabricCount, fabrics }
+    return { commissioned: fabrics.length > 0, fabricCount: fabrics.length, fabrics }
   }
 
   /**
@@ -242,21 +99,14 @@ export class FabricManager {
     try {
       log.info(`Removing fabric ${fabricIndex}...`)
 
-      interface ServerNodeWithFabrics {
-        state?: {
-          commissioning?: {
-            removeFabric?: (fabricIndex: number) => Promise<void>
-          }
-        }
+      // matter.js closes the controller's sessions and subscriptions, deletes
+      // the fabric and tells the commissioning code, which updates the pairing
+      // list the same way as when a controller removes the bridge itself.
+      const fabric = serverNode.env.get(MatterFabricManager).maybeFor(FabricIndex(fabricIndex))
+      if (!fabric) {
+        throw new MatterDeviceError(`No controller is paired with fabric index ${fabricIndex}`)
       }
-      const serverState = serverNode as unknown as ServerNodeWithFabrics
-      const removeFabric = serverState?.state?.commissioning?.removeFabric
-
-      if (typeof removeFabric !== 'function') {
-        throw new MatterDeviceError('Fabric removal not supported by Matter.js version')
-      }
-
-      await removeFabric(fabricIndex)
+      await fabric.leave()
       log.info(`Fabric ${fabricIndex} removed successfully`)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error

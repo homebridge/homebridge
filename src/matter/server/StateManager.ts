@@ -14,9 +14,41 @@ import type {
 } from '../types.js'
 
 import { Logger } from '../../logger.js'
+import { isInHandlerScope } from '../behaviors/handlerScope.js'
+import { forgetPluginUpdate, notePluginUpdate } from '../behaviors/pluginUpdates.js'
+import { deviceErrorFrom } from '../MatterError.js'
 import { MatterDeviceError } from '../types.js'
 
 const log = Logger.withPrefix('Matter/Server')
+
+/**
+ * Why a command's answer says it was not done, or undefined when it was: an
+ * answer with a status other than 0 (mode change, key press, media and area
+ * commands), or a vacuum's answer with an error state other than 0.
+ */
+function refusalIn(response: unknown): string | undefined {
+  if (typeof response !== 'object' || response === null) {
+    return undefined
+  }
+  const { status, statusText, commandResponseState } = response as {
+    status?: unknown
+    statusText?: unknown
+    commandResponseState?: { errorStateId?: unknown, errorStateLabel?: unknown, errorStateDetails?: unknown }
+  }
+  if (typeof status === 'number' && status !== 0) {
+    return typeof statusText === 'string' && statusText
+      ? `status ${status} (${statusText})`
+      : `status ${status}`
+  }
+  const errorStateId = commandResponseState?.errorStateId
+  if (typeof errorStateId === 'number' && errorStateId !== 0) {
+    const details = commandResponseState?.errorStateDetails ?? commandResponseState?.errorStateLabel
+    return typeof details === 'string' && details
+      ? `error state ${errorStateId} (${details})`
+      : `error state ${errorStateId}`
+  }
+  return undefined
+}
 
 /**
  * Recursively convert bigint values to numbers. matter.js can surface int64
@@ -26,19 +58,19 @@ const log = Logger.withPrefix('Matter/Server')
  * Number.MAX_SAFE_INTEGER (2^53 mWh is around nine billion kWh), so the
  * conversion is lossless in practice.
  */
-function coerceBigintsToNumbers(value: unknown): unknown {
+export function coerceBigintsToNumbers(value: unknown): unknown {
   if (typeof value === 'bigint') {
     return Number(value)
   }
   if (Array.isArray(value)) {
     return value.map(coerceBigintsToNumbers)
   }
-  // Only recurse into plain data objects (cluster structs). Anything with a
-  // prototype - Uint8Array byte strings, Dates, class instances - must pass
-  // through untouched or the copy would mangle it.
+  // Byte strings (Uint8Array) and dates pass through untouched, or the copy
+  // would mangle them. A struct or bitmap is copied: matter.js keeps those in
+  // the endpoint state as class instances (CumulativeEnergyImported, say), not
+  // as plain objects, and a bigint inside one (its energy) broke the JSON.
   if (value && typeof value === 'object') {
-    const proto = Object.getPrototypeOf(value)
-    if (proto !== Object.prototype && proto !== null) {
+    if (ArrayBuffer.isView(value) || value instanceof Date) {
       return value
     }
     const result: Record<string, unknown> = {}
@@ -61,6 +93,24 @@ const ENERGY_ATTRIBUTE_MAP: Record<string, { period: 'cumulativeEnergy' | 'perio
   periodicEnergyExported: { period: 'periodicEnergy', direction: 'exported' },
 }
 
+/**
+ * Whether a cluster command has request fields. matter.js describes each
+ * command of a cluster; a command with no fields there takes no request.
+ * When that description is not there, the answer is no.
+ */
+function commandTakesRequest(endpoint: unknown, cluster: string, command: string): boolean {
+  const described = endpoint as {
+    behaviors?: {
+      supported?: Record<string, {
+        cluster?: { commands?: Record<string, { schema?: { members?: { length?: unknown } } } | undefined> }
+      } | undefined>
+    }
+  }
+  const members = described.behaviors?.supported?.[cluster]?.cluster?.commands?.[command]?.schema?.members
+  const count = members?.length
+  return typeof count === 'number' && count > 0
+}
+
 export class StateManager {
   /**
    * The last command started on each endpoint. Each command runs in its own
@@ -79,12 +129,18 @@ export class StateManager {
 
   /**
    * Update the state of a Matter accessory (Plugin API)
+   *
+   * A plugin calls this to report what its device did, so the plugin's own
+   * attribute-change handlers (fan mode, thermostat setpoints and so on) are
+   * not called for it. The Homebridge UI sets these attributes through here as
+   * well, to ask for a change: it passes `callHandlers` so they are.
    */
   async updateAccessoryState(
     uuid: string,
     cluster: string,
     attributes: Record<string, unknown>,
     partId?: string,
+    options: { callHandlers?: boolean } = {},
   ): Promise<void> {
     const accessory = this.accessories.get(uuid)
     if (!accessory) {
@@ -118,8 +174,10 @@ export class StateManager {
       displayName = accessory.displayName
     }
 
-    // Defer the update to avoid "read-only transaction" errors when called from handlers
-    return new Promise((resolve, reject) => {
+    // Defer the update to avoid "read-only transaction" errors when called from handlers.
+    // setImmediate is enough: it runs after the current call stack and its
+    // promise jobs, so the handler's own (read-only) step has returned by then.
+    const update = new Promise<void>((resolve, reject) => {
       setImmediate(async () => {
         try {
           if (cluster === 'electricalEnergyMeasurement') {
@@ -129,7 +187,15 @@ export class StateManager {
             await this.applyEnergyMeasurementUpdate(targetEndpoint, attributes)
           } else {
             const updateObject = { [cluster]: attributes }
-            await targetEndpoint.set(updateObject)
+            const noted = options.callHandlers
+              ? []
+              : notePluginUpdate(targetEndpoint, cluster, attributes, (targetEndpoint.state as Record<string, Record<string, unknown> | undefined>)[cluster])
+            try {
+              await targetEndpoint.set(updateObject)
+            } catch (error) {
+              forgetPluginUpdate(targetEndpoint, cluster, noted)
+              throw error
+            }
           }
 
           // Update cached clusters object for persistence
@@ -157,10 +223,19 @@ export class StateManager {
             ? ` part ${partId}`
             : ''
           log.error(`Failed to update state for accessory ${uuid}${partInfo}:`, error)
-          reject(new MatterDeviceError(`Failed to update accessory state: ${error}`))
+          reject(deviceErrorFrom('Failed to update accessory state', error))
         }
       })
     })
+
+    // From inside a plugin's handler the update is not waited for: the
+    // command may hold the cluster's state until the handler returns, and the
+    // update can only be written after that. A failure is logged above.
+    if (isInHandlerScope()) {
+      update.catch(() => {})
+      return
+    }
+    return update
   }
 
   /**
@@ -210,7 +285,7 @@ export class StateManager {
       return undefined
     }
 
-    let targetEndpoint: any
+    let targetEndpoint: Endpoint
     let displayName: string
 
     if (partId) {
@@ -231,37 +306,17 @@ export class StateManager {
     }
 
     try {
-      if (!targetEndpoint.state) {
-        log.debug(`endpoint.state is undefined for ${displayName}`)
+      const clusterState = (targetEndpoint.state as Record<string, Record<string, unknown> | undefined> | undefined)?.[cluster]
+      if (!clusterState) {
+        log.debug(`Cluster '${cluster}' not found on ${displayName}. Available: ${Object.keys(targetEndpoint.state ?? {}).join(', ')}`)
         return undefined
       }
 
-      if (!targetEndpoint.state[cluster]) {
-        const availableClusters = Object.keys(targetEndpoint.state || {})
-        log.debug(`Cluster '${cluster}' not found on ${displayName}. Available: ${availableClusters.join(', ')}`)
-        return undefined
-      }
-
-      const clusterState = targetEndpoint.state[cluster]
+      // matter.js lists every attribute of a cluster's state as a plain entry
       const result: Record<string, unknown> = {}
-
-      const allKeys = new Set([
-        ...Object.keys(clusterState),
-        ...Object.getOwnPropertyNames(clusterState),
-      ])
-
-      for (const key of allKeys) {
-        try {
-          if (key.startsWith('_') || key.startsWith('$')) {
-            continue
-          }
-          const value = clusterState[key]
-          if (typeof value === 'function' || value === undefined) {
-            continue
-          }
+      for (const [key, value] of Object.entries(clusterState)) {
+        if (!key.startsWith('_') && !key.startsWith('$') && typeof value !== 'function' && value !== undefined) {
           result[key] = coerceBigintsToNumbers(value)
-        } catch (propError) {
-          log.debug(`Could not read property ${key} from ${cluster}:`, propError)
         }
       }
 
@@ -317,28 +372,36 @@ export class StateManager {
       log.debug(`Triggering command ${cluster}.${command} for ${displayName}${partInfo}`, args)
 
       const previous = this.commandQueues.get(targetEndpoint) ?? Promise.resolve()
-      const run = previous.catch(() => {}).then(() => targetEndpoint.act((agent: any) => {
-        const clusterBehavior = agent[cluster]
-        if (!clusterBehavior) {
-          throw new Error(`Cluster '${cluster}' not found on endpoint`)
-        }
-        if (typeof clusterBehavior[command] !== 'function') {
-          throw new TypeError(`Command '${command}' not found on cluster '${cluster}'`)
-        }
-
-        if (args && Object.keys(args).length > 0) {
-          return clusterBehavior[command](args)
-        } else {
-          return clusterBehavior[command]()
-        }
-      }))
+      // matter.js looks the command up and runs it in a context of its own.
+      // It fails for a cluster the endpoint does not have and for a command
+      // the cluster does not implement.
+      //
+      // Over Matter, a command that has request fields always arrives with a
+      // request object, also when every field is left out. The same holds
+      // here, so a handler can read its request whether the command came
+      // from a controller or from the UI. A command with no request (on,
+      // off, stop and so on) gets none.
+      const request = args && Object.keys(args).length > 0
+        ? args
+        : commandTakesRequest(targetEndpoint, cluster, command)
+          ? {}
+          : undefined
+      const run = previous.catch(() => {}).then(() => targetEndpoint.commandsOf(cluster)[command](request))
       this.commandQueues.set(targetEndpoint, run)
+      let response: unknown
       try {
-        await run
+        response = await run
       } finally {
         if (this.commandQueues.get(targetEndpoint) === run) {
           this.commandQueues.delete(targetEndpoint)
         }
+      }
+      // Some commands do not fail but answer that they can not be done (a
+      // vacuum sent home from its dock, a mode it does not have). The UI was
+      // told such a command worked.
+      const refusal = refusalIn(response)
+      if (refusal) {
+        throw new MatterDeviceError(`${cluster}.${command} was refused: ${refusal}`)
       }
 
       log.debug(`Command ${cluster}.${command} succeeded for ${displayName}${partInfo}`)
@@ -347,7 +410,7 @@ export class StateManager {
         ? ` part ${partId}`
         : ''
       log.error(`Failed to trigger command for accessory ${uuid}${partInfo}:`, error)
-      throw new MatterDeviceError(`Failed to trigger command: ${error}`)
+      throw deviceErrorFrom('Failed to trigger command', error)
     }
   }
 

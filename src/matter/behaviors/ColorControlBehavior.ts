@@ -16,26 +16,40 @@ import type {
 import type { BehaviorRegistry } from './BehaviorRegistry.js'
 
 import { ColorControlServer } from '@matter/main/behaviors/color-control'
-import { Status, StatusResponseError } from '@matter/main/types'
 
-import { MatterStatus } from '../errors.js'
-import { getRegistryManager } from './EndpointContext.js'
+import { registryOf } from './EndpointContext.js'
+import { lockStateForWrite } from './stateLock.js'
 
 /**
  * Custom ColorControl Server that calls plugin handlers
  *
  * ColorControl handles color changes for lights (hue, saturation, XY color, color temperature).
- * Plugin developers can override these *Logic methods to handle color changes in their hardware.
+ * A plugin registers a handler under the name of the *Logic method (see ColorControlHandlers);
+ * each override here calls that handler and then lets matter.js store the new color.
  *
  * Features (Xy, ColorTemperature, HueSaturation) are added by the device type, not this behavior.
  * This ensures each device only gets the features it needs.
  */
 export class HomebridgeColorControlServer extends ColorControlServer {
   /**
-   * Get the registry for this behavior's endpoint
+   * True while matter.js is calling one of these methods as a step of its own
+   * work, not because a controller asked for it. The plugin was (or will be)
+   * told about the command itself, so it is not told about the step as well.
    */
-  private getRegistry() {
-    return getRegistryManager(this.endpoint).getRegistry(this.endpoint.id)
+  private internalStep = false
+
+  /**
+   * Run matter.js logic that calls other methods of this class as steps,
+   * without telling the plugin about each step.
+   */
+  private async asInternalStep(logic: () => unknown): Promise<void> {
+    const previous = this.internalStep
+    this.internalStep = true
+    try {
+      await logic()
+    } finally {
+      this.internalStep = previous
+    }
   }
 
   /**
@@ -44,7 +58,8 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    * All ColorControl handlers are optional, and matter.js calls some of these methods
    * internally: moveToHueAndSaturationLogic calls moveToHueLogic and moveToSaturationLogic,
    * and every color mode switch calls stopAllColorMovement. When the plugin did not register
-   * a handler, skip it so the default matter.js logic still runs.
+   * a handler, skip it so the default matter.js logic still runs. The plugin is also not
+   * called for an internal step of a command it has already been told about.
    */
   private async runOptionalHandler(
     registry: BehaviorRegistry,
@@ -52,54 +67,43 @@ export class HomebridgeColorControlServer extends ColorControlServer {
     commandName: string,
     args?: unknown,
   ): Promise<void> {
+    if (this.internalStep) {
+      return
+    }
     if (!registry.getHandler(endpointId, 'colorControl', commandName)) {
       return
     }
     await registry.executeHandler(endpointId, 'colorControl', commandName, args)
+    await lockStateForWrite(this)
   }
 
   /**
    * Called when color temperature is changed
    * @param colorTemperatureMireds - Target color temperature in mireds (micro reciprocal degrees)
-   * @param transitionTime - Transition time in seconds (0 = as fast as possible)
+   * @param transitionTime - Transition time in tenths of a second (0 = as fast as possible)
    */
   override async moveToColorTemperatureLogic(colorTemperatureMireds: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler, if the plugin registered one
-      await this.runOptionalHandler(
-        registry,
-        endpointId,
-        'moveToColorTemperatureLogic',
-        { colorTemperatureMireds, transitionTime },
-      )
+    // Execute user handler, if the plugin registered one
+    await this.runOptionalHandler(
+      registry,
+      endpointId,
+      'moveToColorTemperatureLogic',
+      { colorTemperatureMireds, transitionTime },
+    )
 
-      // Only reached if handler succeeded - update Matter state
-      await super.moveToColorTemperatureLogic(colorTemperatureMireds, transitionTime)
+    // Only reached if handler succeeded - update Matter state
+    await super.moveToColorTemperatureLogic(colorTemperatureMireds, transitionTime)
 
-      // Sync color temperature to cache
-      // Note: We extract the specific numeric value from the complex Matter.js state type
-      const currentState = this.state as ColorTemperatureState
-      if (currentState.colorTemperatureMireds !== undefined) {
-        registry.syncStateToCache(endpointId, 'colorControl', {
-          colorTemperatureMireds: currentState.colorTemperatureMireds,
-        })
-      }
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set color temperature: ${message}`, Status.Failure)
+    // Sync color temperature to cache
+    // Note: We extract the specific numeric value from the complex Matter.js state type
+    const currentState = this.state as ColorTemperatureState
+    if (currentState.colorTemperatureMireds !== undefined) {
+      registry.syncStateToCache(endpointId, 'colorControl', {
+        colorTemperatureMireds: currentState.colorTemperatureMireds,
+      })
     }
   }
 
@@ -107,192 +111,140 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    * Called when hue and saturation are changed together
    * @param hue - Target hue value (0-254 for normal hue, 0-65535 for enhanced hue)
    * @param saturation - Target saturation value (0-254)
-   * @param transitionTime - Transition time in seconds (0 = as fast as possible)
+   * @param transitionTime - Transition time in tenths of a second (0 = as fast as possible)
    */
   override async moveToHueAndSaturationLogic(hue: number, saturation: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler, if the plugin registered one
-      await this.runOptionalHandler(
-        registry,
-        endpointId,
-        'moveToHueAndSaturationLogic',
-        { hue, saturation, transitionTime },
-      )
+    // Execute user handler, if the plugin registered one
+    await this.runOptionalHandler(
+      registry,
+      endpointId,
+      'moveToHueAndSaturationLogic',
+      { hue, saturation, transitionTime },
+    )
 
-      // Only reached if handler succeeded - update Matter state
-      await super.moveToHueAndSaturationLogic(hue, saturation, transitionTime)
-
-      // Sync hue and saturation to cache
-      const currentState = this.state as HueSaturationState
-      const stateUpdate: Partial<HueSaturationState> = {}
-      if (currentState.currentHue !== undefined) {
-        stateUpdate.currentHue = currentState.currentHue
-      }
-      if (currentState.currentSaturation !== undefined) {
-        stateUpdate.currentSaturation = currentState.currentSaturation
-      }
-      registry.syncStateToCache(endpointId, 'colorControl', stateUpdate)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set hue and saturation: ${message}`, Status.Failure)
+    // Only reached if handler succeeded - update Matter state. matter.js does this
+    // through moveToHueLogic and moveToSaturationLogic. A plugin with a handler for
+    // the combined command has been told already, so those two stay quiet. A plugin
+    // with only the two single handlers still gets them.
+    const applyState = () => super.moveToHueAndSaturationLogic(hue, saturation, transitionTime)
+    if (registry.getHandler(endpointId, 'colorControl', 'moveToHueAndSaturationLogic')) {
+      await this.asInternalStep(applyState)
+    } else {
+      await applyState()
     }
+
+    // Sync hue and saturation to cache
+    const currentState = this.state as HueSaturationState
+    const stateUpdate: Partial<HueSaturationState> = {}
+    if (currentState.currentHue !== undefined) {
+      stateUpdate.currentHue = currentState.currentHue
+    }
+    if (currentState.currentSaturation !== undefined) {
+      stateUpdate.currentSaturation = currentState.currentSaturation
+    }
+    registry.syncStateToCache(endpointId, 'colorControl', stateUpdate)
   }
 
   /**
    * Called when XY color coordinates are changed
    * @param targetX - Target X value (0-65535 representing 0.0-1.0 in CIE color space)
    * @param targetY - Target Y value (0-65535 representing 0.0-1.0 in CIE color space)
-   * @param transitionTime - Transition time in seconds (0 = as fast as possible)
+   * @param transitionTime - Transition time in tenths of a second (0 = as fast as possible)
    */
   override async moveToColorLogic(targetX: number, targetY: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler, if the plugin registered one
-      await this.runOptionalHandler(
-        registry,
-        endpointId,
-        'moveToColorLogic',
-        { targetX, targetY, transitionTime },
-      )
+    // Execute user handler, if the plugin registered one
+    await this.runOptionalHandler(
+      registry,
+      endpointId,
+      'moveToColorLogic',
+      { targetX, targetY, transitionTime },
+    )
 
-      // Only reached if handler succeeded - update Matter state
-      await super.moveToColorLogic(targetX, targetY, transitionTime)
+    // Only reached if handler succeeded - update Matter state
+    await super.moveToColorLogic(targetX, targetY, transitionTime)
 
-      // Sync XY color to cache
-      const currentState = this.state as XYColorState
-      const stateUpdate: Partial<XYColorState> = {}
-      if (currentState.currentX !== undefined) {
-        stateUpdate.currentX = currentState.currentX
-      }
-      if (currentState.currentY !== undefined) {
-        stateUpdate.currentY = currentState.currentY
-      }
-      registry.syncStateToCache(endpointId, 'colorControl', stateUpdate)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set XY color: ${message}`, Status.Failure)
+    // Sync XY color to cache
+    const currentState = this.state as XYColorState
+    const stateUpdate: Partial<XYColorState> = {}
+    if (currentState.currentX !== undefined) {
+      stateUpdate.currentX = currentState.currentX
     }
+    if (currentState.currentY !== undefined) {
+      stateUpdate.currentY = currentState.currentY
+    }
+    registry.syncStateToCache(endpointId, 'colorControl', stateUpdate)
   }
 
   /**
    * Called when hue is changed individually
    * @param targetHue - Target hue value
    * @param direction - Direction to move (shortest, longest, up, down)
-   * @param transitionTime - Transition time in seconds
+   * @param transitionTime - Transition time in tenths of a second
    * @param isEnhancedHue - Whether this is enhanced hue (16-bit) or normal hue (8-bit)
    */
   override async moveToHueLogic(targetHue: number, direction: ColorControl.Direction, transitionTime: number, isEnhancedHue = false): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler, if the plugin registered one
-      await this.runOptionalHandler(
-        registry,
-        endpointId,
-        'moveToHueLogic',
-        {
-          targetHue,
-          direction,
-          transitionTime,
-          isEnhancedHue,
-        },
-      )
+    // Execute user handler, if the plugin registered one
+    await this.runOptionalHandler(
+      registry,
+      endpointId,
+      'moveToHueLogic',
+      {
+        targetHue,
+        direction,
+        transitionTime,
+        isEnhancedHue,
+      },
+    )
 
-      // Only reached if handler succeeded - update Matter state
-      await super.moveToHueLogic(targetHue, direction, transitionTime, isEnhancedHue)
+    // Only reached if handler succeeded - update Matter state
+    await super.moveToHueLogic(targetHue, direction, transitionTime, isEnhancedHue)
 
-      // Sync hue to cache
-      const currentState = this.state as HueState
-      const stateUpdate: Partial<HueState> = {}
-      if (isEnhancedHue && currentState.enhancedCurrentHue !== undefined) {
-        stateUpdate.enhancedCurrentHue = currentState.enhancedCurrentHue
-      } else if (currentState.currentHue !== undefined) {
-        stateUpdate.currentHue = currentState.currentHue
-      }
-      registry.syncStateToCache(endpointId, 'colorControl', stateUpdate)
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set hue: ${message}`, Status.Failure)
+    // Sync hue to cache
+    const currentState = this.state as HueState
+    const stateUpdate: Partial<HueState> = {}
+    if (isEnhancedHue && currentState.enhancedCurrentHue !== undefined) {
+      stateUpdate.enhancedCurrentHue = currentState.enhancedCurrentHue
+    } else if (currentState.currentHue !== undefined) {
+      stateUpdate.currentHue = currentState.currentHue
     }
+    registry.syncStateToCache(endpointId, 'colorControl', stateUpdate)
   }
 
   /**
    * Called when saturation is changed individually
    * @param targetSaturation - Target saturation value (0-254)
-   * @param transitionTime - Transition time in seconds
+   * @param transitionTime - Transition time in tenths of a second
    */
   override async moveToSaturationLogic(targetSaturation: number, transitionTime: number): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler, if the plugin registered one
-      await this.runOptionalHandler(
-        registry,
-        endpointId,
-        'moveToSaturationLogic',
-        { targetSaturation, transitionTime },
-      )
+    // Execute user handler, if the plugin registered one
+    await this.runOptionalHandler(
+      registry,
+      endpointId,
+      'moveToSaturationLogic',
+      { targetSaturation, transitionTime },
+    )
 
-      // Only reached if handler succeeded - update Matter state
-      await super.moveToSaturationLogic(targetSaturation, transitionTime)
+    // Only reached if handler succeeded - update Matter state
+    await super.moveToSaturationLogic(targetSaturation, transitionTime)
 
-      // Sync saturation to cache
-      const currentState = this.state as SaturationState
-      if (currentState.currentSaturation !== undefined) {
-        registry.syncStateToCache(endpointId, 'colorControl', {
-          currentSaturation: currentState.currentSaturation,
-        })
-      }
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
-
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to set saturation: ${message}`, Status.Failure)
+    // Sync saturation to cache
+    const currentState = this.state as SaturationState
+    if (currentState.currentSaturation !== undefined) {
+      registry.syncStateToCache(endpointId, 'colorControl', {
+        currentSaturation: currentState.currentSaturation,
+      })
     }
   }
 
@@ -301,31 +253,36 @@ export class HomebridgeColorControlServer extends ColorControlServer {
    */
   override async stopAllColorMovement(): Promise<void> {
     const endpointId = this.endpoint.id
-    const registry = this.getRegistry()
+    const registry = registryOf(this.endpoint)
 
-    try {
-      // Execute user handler, if the plugin registered one
-      await this.runOptionalHandler(
-        registry,
-        endpointId,
-        'stopAllColorMovement',
-      )
+    // Execute user handler, if the plugin registered one
+    await this.runOptionalHandler(
+      registry,
+      endpointId,
+      'stopAllColorMovement',
+    )
 
-      // Only reached if handler succeeded - update Matter state
-      await super.stopAllColorMovement()
-    } catch (error) {
-      // If user handler already threw a StatusResponseError, propagate it as-is
-      // This sends a proper Matter protocol error response to the controller
-      if (MatterStatus.isMatterProtocolError(error)) {
-        throw error
-      }
+    // Only reached if handler succeeded - update Matter state
+    await super.stopAllColorMovement()
+  }
 
-      // For other errors, wrap in appropriate StatusResponseError
-      // This prevents the endpoint from crashing and keeps the device online
-      const message = error instanceof Error
-        ? error.message
-        : String(error)
-      throw new StatusResponseError(`Failed to stop color movement: ${message}`, Status.Failure)
-    }
+  /**
+   * Called for the StopMoveStep command. matter.js does not route that command
+   * through stopAllColorMovement, so the plugin's stop handler is called here.
+   */
+  override async stopMoveStepLogic(): Promise<void> {
+    await this.runOptionalHandler(registryOf(this.endpoint), this.endpoint.id, 'stopAllColorMovement')
+
+    await super.stopMoveStepLogic()
+  }
+
+  /**
+   * Called when a command needs another color mode (for example a hue command
+   * while the light is in color temperature mode). matter.js stops any running
+   * color movement first. That stop is a step of the new command, which the
+   * plugin hears about next, so the plugin's stop handler is not called for it.
+   */
+  override async switchColorMode(oldMode: ColorControl.ColorMode, newMode: ColorControl.ColorMode): Promise<void> {
+    await this.asInternalStep(() => super.switchColorMode(oldMode, newMode))
   }
 }

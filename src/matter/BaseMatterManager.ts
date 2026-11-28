@@ -7,15 +7,17 @@ import type { PluginManager } from '../pluginManager.js'
 import type { SerializedMatterAccessory } from './accessoryCache.js'
 import type { InternalMatterAccessory, MatterAccessory } from './types.js'
 
-import { rmSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 
 import { Logger } from '../logger.js'
 import { User } from '../user.js'
+import { errorMessage } from '../util/errorMessage.js'
 import { generate } from '../util/mac.js'
 import { mapAttributesToCommand } from './ClusterCommandMapper.js'
+import { applyDeclaredClusterFeatures } from './clusterFeatures.js'
 import { MatterServer } from './server.js'
-import { MatterAccessoryNotOnBridgeError } from './types.js'
+import { deviceTypes, MatterAccessoryNotOnBridgeError } from './types.js'
 
 const log = Logger.withPrefix('Matter/BaseManager')
 const COLON_RE = /:/g
@@ -28,9 +30,18 @@ export abstract class BaseMatterManager {
   protected matterServer?: MatterServer
   protected readonly externalMatterServers: Map<string, MatterServer> = new Map()
   protected readonly pluginManager: PluginManager
+  private readonly pendingExternalRegistrations = new Set<string>()
+
+  // Whether the UI has state monitoring switched on, so a server made later
+  // (an external accessory) can be given the same setting.
+  private stateMonitoringEnabled = false
 
   constructor(pluginManager: PluginManager) {
     this.pluginManager = pluginManager
+  }
+
+  protected getExternalCacheOwner(): string | undefined {
+    return undefined
   }
 
   /**
@@ -64,6 +75,26 @@ export abstract class BaseMatterManager {
    * bridge server at all (`matterServer` is undefined) and bridged registrations
    * are intentionally dropped by the drop stubs — that must not throw.
    */
+  /**
+   * Why the bridge's Matter server did not start, when it did not. Set by the
+   * manager that starts it. A failed start is not "still starting": nothing
+   * will finish it in this run.
+   */
+  protected bridgeStartFailure: string | undefined
+
+  getBridgeStartFailure(): string | undefined {
+    return this.bridgeStartFailure
+  }
+
+  /**
+   * Whether the bridge's Matter server was running and matter.js then shut it
+   * down by itself. Like a failed start, this is not "still starting":
+   * nothing brings the server back in this run.
+   */
+  hasBridgeServerStopped(): boolean {
+    return this.matterServer?.hasStoppedByItself() ?? false
+  }
+
   isBridgeServerStarting(): boolean {
     // In deferOnline mode the server is deliberately built but kept offline
     // until the initial registration burst settles, so registrations MUST be
@@ -88,6 +119,16 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Called when the server of an external accessory has been stopped and
+   * dropped (the plugin unregistered the accessory). Subclasses override to
+   * take the bridge out of the routing list the UI's requests go by.
+   */
+  // eslint-disable-next-line unused-imports/no-unused-vars
+  protected forgetExternalMatterBridge(username: string): void {
+    // overridden by subclasses
+  }
+
+  /**
    * Get an external Matter server by accessory UUID
    *
    * @param uuid - Accessory UUID
@@ -98,67 +139,64 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Whether this bridge has the accessory: on an external accessory's own
+   * server, or on the bridge server.
+   */
+  ownsAccessory(uuid: string): boolean {
+    return this.externalMatterServers.has(uuid) || !!this.matterServer?.getAccessoryInfo(uuid)
+  }
+
+  /**
    * Handle Matter accessory command (triggers user handlers)
    * This is for UI/external control that should invoke plugin handlers
    * Checks both external servers and bridge server
    */
   async handleTriggerCommand(uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string): Promise<void> {
-    // Map attributes to command using centralized mapper
-    const commandMapping = mapAttributesToCommand(cluster, attributes)
-
-    // Debug logging — pass objects as %j format args so JSON.stringify only
-    // runs when debug is enabled (Logger.log short-circuits on level first).
     log.debug(`handleTriggerCommand: uuid=${uuid}, cluster=${cluster}, partId=${partId}`)
+    // Pass objects as %j format args so JSON.stringify only runs when debug
+    // is enabled (Logger.log short-circuits on level first).
     log.debug('Attributes: %j', attributes)
-    if (commandMapping) {
-      log.debug('Command mapping: %j', commandMapping)
-    } else {
-      log.debug('Command mapping: null (state-only update)')
-    }
     log.debug(`External servers count: ${this.externalMatterServers.size}`)
     if (this.externalMatterServers.size > 0) {
-      // Pass the keys iterator as a %j arg so the spread+join only runs once
-      // util.format is reached (i.e. when debug is enabled).
       log.debug('External server UUIDs: %j', [
         ...this.externalMatterServers.keys(),
       ])
     }
 
-    // Check if this is an external accessory first
-    const externalServer = this.externalMatterServers.get(uuid)
-    if (externalServer) {
-      log.debug(`Found external server for ${uuid}`)
-      if (commandMapping) {
-        // Explicit command invocation
-        await externalServer.triggerCommand(uuid, cluster, commandMapping.command, commandMapping.args, partId)
-        // After a command, read back the current state and notify so the UI updates
-        this.notifyCurrentState(externalServer, uuid, cluster, partId)
-      } else {
-        // State-only update (triggers change handlers automatically)
-        await externalServer.updateAccessoryState(uuid, cluster, attributes, partId)
-      }
-      return
-    }
-
-    // Otherwise, try the bridge Matter server. If this bridge doesn't own the
+    // Find the server that has the accessory first: an external accessory's
+    // own server, or else the bridge server. If this bridge doesn't own the
     // UUID, throw the routing sentinel rather than letting the StateManager
     // throw a plain MatterDeviceError("Accessory ... not found or not
     // registered") — otherwise control broadcasts from the UI emit a real
     // error from every non-owner matter-enabled child bridge.
-    if (!this.matterServer || !this.matterServer.getAccessoryInfo(uuid)) {
-      log.debug(`Bridge does not own ${uuid}; signalling routing sentinel`)
-      throw new MatterAccessoryNotOnBridgeError(uuid)
+    //
+    // This comes before the command mapping on purpose. The mapping throws for
+    // a cluster it does not know, and a bridge that does not have the
+    // accessory must answer "not mine", not report that error.
+    let server = this.externalMatterServers.get(uuid)
+    if (server) {
+      log.debug(`Found external server for ${uuid}`)
+    } else {
+      if (!this.matterServer || !this.matterServer.getAccessoryInfo(uuid)) {
+        log.debug(`Bridge does not own ${uuid}; signalling routing sentinel`)
+        throw new MatterAccessoryNotOnBridgeError(uuid)
+      }
+      log.debug(`Trying matterServer for ${uuid}`)
+      server = this.matterServer
     }
 
-    log.debug(`Trying matterServer for ${uuid}`)
+    // Map attributes to command using centralized mapper
+    const commandMapping = mapAttributesToCommand(cluster, attributes)
     if (commandMapping) {
+      log.debug('Command mapping: %j', commandMapping)
       // Explicit command invocation
-      await this.matterServer.triggerCommand(uuid, cluster, commandMapping.command, commandMapping.args, partId)
+      await server.triggerCommand(uuid, cluster, commandMapping.command, commandMapping.args, partId)
       // After a command, read back the current state and notify so the UI updates
-      this.notifyCurrentState(this.matterServer, uuid, cluster, partId)
+      this.notifyCurrentState(server, uuid, cluster, partId)
     } else {
-      // State-only update (triggers change handlers automatically)
-      await this.matterServer.updateAccessoryState(uuid, cluster, attributes, partId)
+      log.debug('Command mapping: null (state-only update)')
+      // State-only update: the change is asked for, so the plugin's change handlers are called
+      await server.updateAccessoryState(uuid, cluster, attributes, partId, { callHandlers: true })
     }
   }
 
@@ -186,9 +224,27 @@ export abstract class BaseMatterManager {
   }
 
   /**
+   * Keep the server of an external accessory that has just been published.
+   *
+   * A server starts with monitoring off, and the UI switches it on once, for
+   * the servers that exist at that moment. An external accessory published
+   * after that (a plugin that publishes late, or a child bridge that restarts
+   * with the accessories page open) sent the UI no state updates until the
+   * page was opened again. So the server is given the setting the UI last
+   * asked for.
+   */
+  protected addExternalMatterServer(uuid: string, server: MatterServer): void {
+    this.externalMatterServers.set(uuid, server)
+    if (this.stateMonitoringEnabled) {
+      server.enableStateMonitoring()
+    }
+  }
+
+  /**
    * Enable state monitoring on all Matter servers
    */
   enableStateMonitoring(): void {
+    this.stateMonitoringEnabled = true
     this.matterServer?.enableStateMonitoring()
     for (const externalServer of this.externalMatterServers.values()) {
       externalServer.enableStateMonitoring()
@@ -212,6 +268,7 @@ export abstract class BaseMatterManager {
    * Disable state monitoring on all Matter servers
    */
   disableStateMonitoring(): void {
+    this.stateMonitoringEnabled = false
     this.matterServer?.disableStateMonitoring()
     for (const externalServer of this.externalMatterServers.values()) {
       externalServer.disableStateMonitoring()
@@ -221,8 +278,12 @@ export abstract class BaseMatterManager {
   /**
    * Restore cached Matter accessories (matching HAP pattern)
    */
-  restoreCachedAccessories(keepOrphaned: boolean): void {
+  async restoreCachedAccessories(keepOrphaned: boolean): Promise<void> {
+    if (!this.hasActiveMatter()) {
+      return
+    }
     if (!this.matterServer) {
+      await this.restoreExternalCacheForPlugins()
       return
     }
 
@@ -273,6 +334,128 @@ export abstract class BaseMatterManager {
         }
       }
     }
+    await this.restoreExternalCacheForPlugins()
+  }
+
+  protected async publishRestoredExternalAccessory(accessory: InternalMatterAccessory): Promise<void> {
+    throw new Error(`External cache publishing not implemented for ${accessory.displayName}`)
+  }
+
+  protected async attachRestoredExternalAccessory(accessory: InternalMatterAccessory): Promise<boolean> {
+    const server = this.externalMatterServers.get(accessory.UUID)
+    if (!server || !this.pendingExternalRegistrations.has(accessory.UUID)) {
+      return false
+    }
+    // Reuse the existing shape reconciliation and handler registration path.
+    await server.registerAccessory(accessory._associatedPlugin || 'unknown',
+      accessory._associatedPlatform || 'ExternalMatter', accessory)
+    this.pendingExternalRegistrations.delete(accessory.UUID)
+    accessory._eventEmitter?.emit('ready', server.port)
+    return true
+  }
+
+  private async restoreExternalCacheForPlugins(): Promise<void> {
+    const root = User.matterPath()
+    if (!existsSync(root)) {
+      return
+    }
+    let dirs: string[]
+    try {
+      dirs = readdirSync(root)
+    } catch {
+      log.warn('Could not read external Matter cache directory; leaving storage unchanged')
+      return
+    }
+    for (const dir of dirs) {
+      if (!/^[0-9A-F]{12}$/i.test(dir)) {
+        continue
+      }
+      const file = path.join(root, dir, 'accessories.json')
+      if (!existsSync(file)) {
+        continue
+      }
+      let displayName = dir
+      let phase = 'reading metadata'
+      try {
+        // Old caches have no reliable bridge ownership. Let an explicit plugin
+        // registration claim them rather than guessing across main/child processes.
+        const ownerFile = path.join(root, dir, 'homebridge-owner.json')
+        if (!existsSync(ownerFile)) {
+          continue
+        }
+        const owner = JSON.parse(readFileSync(ownerFile, 'utf8'))
+        const bridge = this.getExternalCacheOwner()
+        if (!bridge || owner.bridge !== bridge) {
+          continue
+        }
+        const entries = JSON.parse(readFileSync(file, 'utf8')) as SerializedMatterAccessory[]
+        if (!Array.isArray(entries) || entries.length !== 1) {
+          continue
+        }
+        const cached = entries[0]
+        if (typeof cached?.displayName === 'string') {
+          displayName = cached.displayName.replace(/[\r\n]/g, ' ')
+        }
+        if (owner.uuid !== cached?.uuid || owner.plugin !== cached?.plugin || owner.platform !== cached?.platform) {
+          continue
+        }
+        if (typeof cached?.uuid !== 'string' || generate(cached.uuid).replace(COLON_RE, '').toUpperCase() !== dir.toUpperCase()) {
+          continue
+        }
+        if (this.externalMatterServers.has(cached.uuid)) {
+          continue
+        }
+        const plugin = this.pluginManager.getPlugin(cached.plugin)
+        const platform = cached.platform && cached.platform !== 'ExternalMatter'
+          ? plugin?.getActiveDynamicPlatform(cached.platform)
+          : plugin?.getUniqueActiveDynamicPlatform()
+        if (platform?.restoreExternalMatterAccessories !== true || !platform.configureMatterAccessory) {
+          continue
+        }
+        const type = deviceTypes[cached.deviceType?.name as keyof typeof deviceTypes]
+        if (!type) {
+          continue
+        }
+        const accessory = this.deserializeMatterAccessory(cached) as InternalMatterAccessory
+        accessory.deviceType = applyDeclaredClusterFeatures(type, cached.deviceType?.clusterFeatures)
+        accessory.features = cached.features
+        accessory._declared = cached.declared
+        accessory._restoredFromCache = true
+        // Compose cluster behaviors before the plugin supplies its live handlers.
+        accessory.handlers = Object.fromEntries([
+          ...new Set([
+            ...Object.keys(cached.clusters ?? {}),
+            ...cached.handlerClusters ?? [],
+          ]),
+        ].map(name => [name, {}]))
+        accessory._associatedPlugin = cached.plugin
+        accessory._associatedPlatform = cached.platform
+        accessory.parts = cached.parts?.map((part) => {
+          const partType = deviceTypes[part.deviceType?.name as keyof typeof deviceTypes]
+          if (!partType) {
+            throw new Error('Unknown cached external part type')
+          }
+          return {
+            ...part,
+            deviceType: applyDeclaredClusterFeatures(partType, part.deviceType.clusterFeatures),
+            handlers: Object.fromEntries([
+              ...new Set([
+                ...Object.keys(part.clusters ?? {}),
+                ...part.handlerClusters ?? [],
+              ]),
+            ].map(name => [name, {}])),
+          }
+        })
+        phase = 'publishing the node'
+        await this.publishRestoredExternalAccessory(accessory)
+        this.pendingExternalRegistrations.add(cached.uuid)
+        // Never deliver a phantom accessory after a failed bind/start.
+        phase = 'configuring the plugin'
+        platform.configureMatterAccessory(accessory)
+      } catch (error) {
+        log.warn(`Could not restore external Matter accessory ${displayName} while ${phase}: ${errorMessage(error)}`)
+      }
+    }
   }
 
   /**
@@ -282,6 +465,15 @@ export abstract class BaseMatterManager {
     if (!this.matterServer) {
       log.warn('Cannot register Matter accessories - Matter server is not running')
       return
+    }
+    // The same two warnings a HAP registration gives. With a wrong name the
+    // accessories work until the next start, and are then removed as orphans:
+    // the cache can not find the platform to hand them back to.
+    const plugin = this.pluginManager.getPlugin(pluginIdentifier)
+    if (!plugin) {
+      log.warn(`A platform configured a new Matter accessory under the plugin name '${pluginIdentifier}'. However no loaded plugin could be found for the name!`)
+    } else if (!plugin.getActiveDynamicPlatform(platformName)) {
+      log.warn(`The plugin '${pluginIdentifier}' registered a new Matter accessory for the platform '${platformName}'. The platform couldn't be found though!`)
     }
     await this.matterServer.registerPlatformAccessories(pluginIdentifier, platformName, accessories)
   }
@@ -344,7 +536,7 @@ export abstract class BaseMatterManager {
           continue
         }
 
-        log.info(`Stopping external Matter server for ${accessory.displayName}`)
+        log.info(`Stopping external Matter server for ${accessory.displayName ?? accessory.UUID}`)
 
         // Stop the Matter server. stop() now rejects when the underlying node
         // fails to close (it may still be bound to its port). In that case we
@@ -361,8 +553,12 @@ export abstract class BaseMatterManager {
           continue
         }
 
-        // Remove from the map
+        // Remove from the map, and from the list requests are routed by
         this.externalMatterServers.delete(accessory.UUID)
+        if (matterServer.username) {
+          this.forgetExternalMatterBridge(matterServer.username)
+        }
+        this.pendingExternalRegistrations.delete(accessory.UUID)
 
         // Clean up storage folder
         // Generate the same uniqueId that was used when creating the server

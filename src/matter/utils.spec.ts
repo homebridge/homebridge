@@ -2,6 +2,8 @@
  * Tests for Matter utility functions
  */
 
+import type { NetworkInterfaceInfo } from 'node:os'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -11,6 +13,7 @@ import {
   getMatterJsVersion,
   isNodeError,
   normalizeBindConfig,
+  resolveInterfaceNames,
   stripVendorFromLabel,
 } from './utils.js'
 
@@ -104,6 +107,104 @@ describe('matter utilities', () => {
     })
   })
 
+  describe('resolveInterfaceNames', () => {
+    const address = (value: string, family: 'IPv4' | 'IPv6' = 'IPv4', scopeid?: number) => ({ address: value, family, scopeid }) as NetworkInterfaceInfo
+    // A dual-homed Docker container: Docker brings eth0/eth1 up in a random order, so
+    // which of them sits on which network changes from one start to the next.
+    const interfaces = {
+      eth0: [
+        address('192.168.1.10'),
+        address('fd00:1234::10', 'IPv6', 0),
+        address('fe80::1', 'IPv6', 2),
+      ],
+      wlan0: [
+        address('10.0.0.5'),
+        address('fe80::1', 'IPv6', 3),
+      ],
+    }
+
+    it('keeps an interface name', () => {
+      expect(resolveInterfaceNames(['wlan0'], interfaces)).toEqual({
+        names: ['wlan0'],
+        unknown: [],
+        unspecified: [],
+      })
+    })
+
+    it('turns an address into the name of the interface that owns it', () => {
+      expect(resolveInterfaceNames(['192.168.1.10'], interfaces)).toEqual({
+        names: ['eth0'],
+        unknown: [],
+        unspecified: [],
+      })
+      expect(resolveInterfaceNames(['fd00:1234::10'], interfaces)).toEqual({
+        names: ['eth0'],
+        unknown: [],
+        unspecified: [],
+      })
+    })
+
+    it('follows the address when the interfaces swap networks between starts', () => {
+      const swapped = { eth0: interfaces.wlan0, wlan0: interfaces.eth0 }
+      expect(resolveInterfaceNames(['192.168.1.10'], interfaces).names).toEqual(['eth0'])
+      expect(resolveInterfaceNames(['192.168.1.10'], swapped).names).toEqual(['wlan0'])
+    })
+
+    it('matches an IPv6 address however it is spelled, as HAP does', () => {
+      // Node reports addresses in canonical form; a user may well type them otherwise.
+      expect(resolveInterfaceNames(['FD00:1234:0000:0000:0000:0000:0000:0010'], interfaces).names).toEqual(['eth0'])
+      expect(resolveInterfaceNames(['fd00:1234:0:0:0:0:0:10'], interfaces).names).toEqual(['eth0'])
+    })
+
+    it('uses the zone of a link-local address to pick the interface', () => {
+      // fe80::1 is on both interfaces; the zone says which one is meant.
+      expect(resolveInterfaceNames(['fe80::1%wlan0'], interfaces).names).toEqual(['wlan0'])
+      expect(resolveInterfaceNames(['fe80::1%eth0'], interfaces).names).toEqual(['eth0'])
+      // A numeric zone is the scope id Node reports for the interface.
+      expect(resolveInterfaceNames(['fe80::1%3'], interfaces).names).toEqual(['wlan0'])
+      // Without a zone the first interface that has the address wins.
+      expect(resolveInterfaceNames(['fe80::1'], interfaces).names).toEqual(['eth0'])
+    })
+
+    it('reports a zone that names no interface as unknown', () => {
+      expect(resolveInterfaceNames(['fe80::1%eth9'], interfaces)).toEqual({
+        names: [],
+        unknown: ['fe80::1%eth9'],
+        unspecified: [],
+      })
+    })
+
+    it('names an interface once when it is given by name and by address', () => {
+      expect(resolveInterfaceNames(['eth0', '192.168.1.10', 'wlan0'], interfaces)).toEqual({
+        names: ['eth0', 'wlan0'],
+        unknown: [],
+        unspecified: [],
+      })
+    })
+
+    it('reports an entry that is no interface and no address of one', () => {
+      expect(resolveInterfaceNames(['eth9', '192.168.99.99', 'wlan0'], interfaces)).toEqual({
+        names: ['wlan0'],
+        unknown: ['eth9', '192.168.99.99'],
+        unspecified: [],
+      })
+    })
+
+    it('sets the unspecified addresses aside rather than calling them unknown', () => {
+      // HAP reads 0.0.0.0 and :: in bridge.bind as "listen on everything", not as a restriction.
+      expect(resolveInterfaceNames(['0.0.0.0', 'wlan0', '::'], interfaces)).toEqual({
+        names: ['wlan0'],
+        unknown: [],
+        unspecified: ['0.0.0.0', '::'],
+      })
+      expect(resolveInterfaceNames(['0:0:0:0:0:0:0:0'], interfaces).unspecified).toEqual(['0:0:0:0:0:0:0:0'])
+    })
+
+    it('does not take a subnet for an address', () => {
+      expect(resolveInterfaceNames(['192.168.1.0/24'], interfaces).unknown).toEqual(['192.168.1.0/24'])
+    })
+  })
+
   describe('createMatterUsername', () => {
     it('should format hex string as MAC address', () => {
       expect(createMatterUsername('ABCDEF123456')).toBe('AB:CD:EF:12:34:56')
@@ -183,6 +284,14 @@ describe('matter utilities', () => {
       expect(stripVendorFromLabel('Front Door', 'Eufy')).toBe('Front Door')
     })
 
+    it('returns an empty string when the vendor is inside a word, which matter.js refuses too', () => {
+      expect(stripVendorFromLabel('LGTV Lounge', 'LG')).toBe('')
+      expect(stripVendorFromLabel('Evening Lamp', 'Eve')).toBe('')
+      expect(stripVendorFromLabel('Lamp 2000', '200')).toBe('')
+      // with another case it is not the vendor, for matter.js either
+      expect(stripVendorFromLabel('Garage Door', 'GE')).toBe('Garage Door')
+    })
+
     it('returns an empty string when stripping consumes the entire label', () => {
       // Matches the main-bridge edge case where displayName === vendorName.
       // Callers are expected to supply a non-vendor fallback in this case.
@@ -200,8 +309,26 @@ describe('matter utilities', () => {
       expect(stripVendorFromLabel(undefined, 'Eufy')).toBe('')
     })
 
-    it('only strips the first occurrence of the vendor', () => {
-      expect(stripVendorFromLabel('Eufy Eufy Camera', 'Eufy')).toBe('Eufy Camera')
+    it('strips every occurrence of the vendor', () => {
+      expect(stripVendorFromLabel('Eufy Eufy Camera', 'Eufy')).toBe('Camera')
+      expect(stripVendorFromLabel('Eve Light by Eve', 'Eve')).toBe('Light by')
+    })
+
+    it.each([
+      { label: 'Garage Door', vendor: 'GE' },
+      { label: 'Bulgaria Lamp', vendor: 'LG' },
+    ])('leaves "$label" alone for the vendor "$vendor", which is only part of a word with another case', ({ label, vendor }) => {
+      expect(stripVendorFromLabel(label, vendor)).toBe(label)
+    })
+
+    it('copes with a vendor name that holds characters with a meaning in patterns', () => {
+      expect(stripVendorFromLabel('A.C.M.E (EU) Plug', 'A.C.M.E (EU)')).toBe('Plug')
+      expect(stripVendorFromLabel('AxCxMxE Plug', 'A.C.M.E')).toBe('AxCxMxE Plug')
+    })
+
+    it('strips a vendor next to punctuation', () => {
+      expect(stripVendorFromLabel('Eufy: Front Door', 'Eufy')).toBe('Front Door')
+      expect(stripVendorFromLabel('Front Door (Eufy)', 'Eufy')).toBe('Front Door ()')
     })
 
     it('collapses repeated whitespace introduced by the strip', () => {

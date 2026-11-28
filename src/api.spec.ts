@@ -1,10 +1,12 @@
-import type { AccessoryPlugin, DynamicPlatformPlugin } from './api.js'
+import type { AccessoryPlugin, API, DynamicPlatformPlugin } from './api.js'
 import type { MatterAccessory } from './matter/index.js'
 
-import { Service } from '@homebridge/hap-nodejs'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Service, uuid } from '@homebridge/hap-nodejs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomebridgeAPI, InternalAPIEvent } from './api.js'
+import { Logger } from './logger.js'
+import { PlatformAccessory } from './platformAccessory.js'
 
 const api = new HomebridgeAPI()
 const emitSpy = vi.spyOn(api, 'emit')
@@ -28,6 +30,137 @@ const accessoryName = 'MyCoolAccessory'
 const platformName = 'MyCoolPlatform'
 
 describe('homebridgeAPI', () => {
+  describe('tryLoadMatterAPI', () => {
+    it('says Matter can be used once the Matter API is loaded', async () => {
+      const api = new HomebridgeAPI()
+
+      await expect(api.tryLoadMatterAPI()).resolves.toBe(true)
+
+      expect(api.matter).toBeDefined()
+      expect(api.isMatterEnabled()).toBe(true)
+    })
+
+    // matter.js can fail to load at all, for example when the installer left
+    // out one of its packages. A bridge that also serves HomeKit must still start.
+    it('logs the failure and leaves Matter off when matter.js can not be loaded', async () => {
+      const api = new HomebridgeAPI()
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      const missing = new Error('Cannot find package \'@matter/nodejs\'')
+      vi.spyOn(api, 'loadMatterAPI').mockRejectedValue(missing)
+
+      await expect(api.tryLoadMatterAPI()).resolves.toBe(false)
+
+      expect(errors).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Matter could not be loaded'), missing)
+      expect(api.matter).toBeUndefined()
+      expect(api.isMatterEnabled()).toBe(false)
+      errors.mockRestore()
+    })
+  })
+
+  describe('listener limit', () => {
+    // Almost every platform listens for `didFinishLaunching`. Node's default limit of 10 listeners
+    // per event made a bridge with 11 platforms print a memory leak warning.
+    it('gives no Node warning when more than 10 plugins listen for the same event', () => {
+      const api = new HomebridgeAPI()
+      const warnings = vi.spyOn(process, 'emitWarning').mockImplementation(() => {})
+
+      for (let i = 0; i < 25; i++) {
+        api.on('didFinishLaunching', () => {})
+        api.on('shutdown', () => {})
+      }
+
+      expect(warnings).not.toHaveBeenCalled()
+      expect(api.listenerCount('didFinishLaunching')).toBe(25)
+      warnings.mockRestore()
+    })
+
+    it('stays unlimited when a child bridge raises and lowers the limit by one', () => {
+      const api = new HomebridgeAPI()
+      const warnings = vi.spyOn(process, 'emitWarning').mockImplementation(() => {})
+
+      api.setMaxListeners(api.getMaxListeners() + 1)
+      api.setMaxListeners(Math.max(0, api.getMaxListeners() - 1))
+      for (let i = 0; i < 25; i++) {
+        api.on('shutdown', () => {})
+      }
+
+      expect(warnings).not.toHaveBeenCalled()
+      warnings.mockRestore()
+    })
+  })
+
+  describe('the event methods of the public API type', () => {
+    // `api` is typed as the public `API` here on purpose: this must compile without a cast.
+    it('lets a plugin listen once and remove a listener', () => {
+      const api: API = new HomebridgeAPI()
+      const launched = vi.fn()
+      const removed = vi.fn()
+      const alsoRemoved = vi.fn()
+
+      api.once('didFinishLaunching', launched)
+      api.on('shutdown', removed)
+      api.on('didFinishLaunching', alsoRemoved)
+      api.off('shutdown', removed)
+      api.removeListener('didFinishLaunching', alsoRemoved)
+
+      const homebridgeApi = api as HomebridgeAPI
+      homebridgeApi.signalFinished()
+      homebridgeApi.signalFinished()
+      homebridgeApi.emit('shutdown')
+
+      expect(launched).toHaveBeenCalledOnce()
+      expect(removed).not.toHaveBeenCalled()
+      expect(alsoRemoved).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('versionGreaterOrEqual', () => {
+    // The public docs promise exactly this, so it is pinned here.
+    it('compares a full semver version with the running version', () => {
+      const api = new HomebridgeAPI()
+
+      expect(api.versionGreaterOrEqual('1.2.0')).toBe(true)
+      expect(api.versionGreaterOrEqual(api.serverVersion)).toBe(true)
+      expect(api.versionGreaterOrEqual(`v${api.serverVersion}`)).toBe(true)
+      expect(api.versionGreaterOrEqual('999.0.0')).toBe(false)
+    })
+
+    it.each(['2', '2.5', 'abc', undefined])('throws a TypeError for %s, which is not a full semver version', (version) => {
+      const api = new HomebridgeAPI()
+
+      expect(() => api.versionGreaterOrEqual(version as string)).toThrow(TypeError)
+    })
+  })
+
+  describe('signalShutdown', () => {
+    it('still calls the other shutdown listeners when one throws or rejects', async () => {
+      const api = new HomebridgeAPI()
+      const errors = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+      const called: string[] = []
+      api.on('shutdown', () => {
+        called.push('first')
+        throw new Error('plugin shutdown bug')
+      })
+      api.on('shutdown', async () => {
+        called.push('second')
+        throw new Error('late plugin shutdown bug')
+      })
+      api.once('shutdown', () => {
+        called.push('third')
+      })
+
+      expect(() => api.signalShutdown()).not.toThrow()
+      // let the rejected promise of the second listener settle
+      await new Promise(resolve => setImmediate(resolve))
+
+      expect(called).toEqual(['first', 'second', 'third'])
+      expect(errors).toHaveBeenCalledTimes(2)
+      // a `once` listener is used up, as with a plain emit
+      expect(api.listenerCount('shutdown')).toBe(2)
+      errors.mockRestore()
+    })
+  })
+
   describe('isHapEnabled', () => {
     it('defaults to enabled through the public API interface', () => {
       const pluginAPI: import('./api.js').API = new HomebridgeAPI()
@@ -73,7 +206,222 @@ describe('homebridgeAPI', () => {
     })
   })
 
+  describe('signalFinished', () => {
+    it('calls every didFinishLaunching listener', () => {
+      const api = new HomebridgeAPI()
+      const first = vi.fn()
+      const second = vi.fn()
+      api.on('didFinishLaunching', first)
+      api.on('didFinishLaunching', second)
+
+      api.signalFinished()
+
+      expect(first).toHaveBeenCalledOnce()
+      expect(second).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('platform accessories', () => {
+    let api: HomebridgeAPI
+    let events: Array<[string, unknown[]]>
+
+    function listenFor(event: InternalAPIEvent): void {
+      api.on(event as any, (...args: unknown[]) => events.push([event, args]))
+    }
+
+    beforeEach(() => {
+      api = new HomebridgeAPI()
+      events = []
+    })
+
+    it('registerPlatformAccessories notes the plugin and platform on each accessory and passes them on', () => {
+      listenFor(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES)
+      const accessories = [
+        new PlatformAccessory('One', uuid.generate('one')),
+        new PlatformAccessory('Two', uuid.generate('two')),
+      ]
+
+      api.registerPlatformAccessories(pluginName, platformName, accessories)
+
+      for (const accessory of accessories) {
+        expect(accessory._associatedPlugin).toBe(pluginName)
+        expect(accessory._associatedPlatform).toBe(platformName)
+      }
+      expect(events).toEqual([
+        [
+          InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES,
+          [accessories],
+        ],
+      ])
+    })
+
+    it('registerPlatformAccessories refuses something that is not a PlatformAccessory', () => {
+      listenFor(InternalAPIEvent.REGISTER_PLATFORM_ACCESSORIES)
+
+      expect(() => api.registerPlatformAccessories(pluginName, platformName, [
+        { displayName: 'Fake' } as any,
+      ]))
+        .toThrow(new TypeError(`${pluginName} - ${platformName} attempt to register an accessory that isn't PlatformAccessory!`))
+      expect(events).toEqual([])
+    })
+
+    it('leaves every accessory untouched when one in the same call is not a PlatformAccessory', () => {
+      const good = new PlatformAccessory('Good', uuid.generate('good'))
+      const alsoGood = new PlatformAccessory('Also good', uuid.generate('also-good'))
+
+      expect(() => api.registerPlatformAccessories(pluginName, platformName, [
+        good,
+        { displayName: 'Fake' } as any,
+      ])).toThrow(TypeError)
+      expect(() => api.publishExternalAccessories(pluginName, [
+        alsoGood,
+        { displayName: 'Fake' } as any,
+      ])).toThrow(TypeError)
+
+      expect(good._associatedPlugin).toBeUndefined()
+      expect(good._associatedPlatform).toBeUndefined()
+      expect(alsoGood._associatedPlugin).toBeUndefined()
+    })
+
+    it('updatePlatformAccessories passes the accessories on', () => {
+      listenFor(InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES)
+      const accessories = [
+        new PlatformAccessory('One', uuid.generate('one')),
+      ]
+
+      api.updatePlatformAccessories(accessories)
+
+      expect(events).toEqual([
+        [
+          InternalAPIEvent.UPDATE_PLATFORM_ACCESSORIES,
+          [accessories],
+        ],
+      ])
+    })
+
+    it('unregisterPlatformAccessories passes the accessories on', () => {
+      listenFor(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES)
+      const accessories = [
+        new PlatformAccessory('One', uuid.generate('one')),
+      ]
+
+      api.unregisterPlatformAccessories(pluginName, platformName, accessories)
+
+      expect(events).toEqual([
+        [
+          InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES,
+          [accessories],
+        ],
+      ])
+    })
+
+    it('unregisterPlatformAccessories refuses something that is not a PlatformAccessory', () => {
+      listenFor(InternalAPIEvent.UNREGISTER_PLATFORM_ACCESSORIES)
+
+      expect(() => api.unregisterPlatformAccessories(pluginName, platformName, [
+        { displayName: 'Fake' } as any,
+      ]))
+        .toThrow(new TypeError(`${pluginName} - ${platformName} attempt to unregister an accessory that isn't PlatformAccessory!`))
+      expect(events).toEqual([])
+    })
+
+    describe('publishExternalAccessories', () => {
+      let infoSpy: ReturnType<typeof vi.spyOn>
+
+      beforeEach(() => {
+        infoSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+        listenFor(InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES)
+      })
+
+      afterEach(() => {
+        infoSpy.mockRestore()
+      })
+
+      it('notes the plugin on each accessory and passes them on', () => {
+        const accessories = [
+          new PlatformAccessory('Camera', uuid.generate('camera')),
+        ]
+
+        api.publishExternalAccessories(pluginName, accessories)
+
+        expect(accessories[0]._associatedPlugin).toBe(pluginName)
+        expect(accessories[0]._associatedPlatform).toBeUndefined()
+        expect(events).toEqual([
+          [
+            InternalAPIEvent.PUBLISH_EXTERNAL_ACCESSORIES,
+            [accessories],
+          ],
+        ])
+        expect(infoSpy).not.toHaveBeenCalled()
+      })
+
+      it('says so when a plugin passes its platform name in place of its plugin identifier, and still publishes', () => {
+        const accessories = [
+          new PlatformAccessory('Camera', uuid.generate('camera')),
+        ]
+
+        api.publishExternalAccessories(platformName, accessories)
+
+        expect(infoSpy).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(`using the platform name (${platformName})`))
+        expect(events).toHaveLength(1)
+      })
+
+      it('refuses something that is not a PlatformAccessory', () => {
+        expect(() => api.publishExternalAccessories(pluginName, [
+          { displayName: 'Fake' } as any,
+        ]))
+          .toThrow(new TypeError(`${pluginName} attempt to register an accessory that isn't PlatformAccessory!`))
+        expect(events).toEqual([])
+      })
+    })
+  })
+
+  describe('_resolveExternalRegistration', () => {
+    it('calls the waiting resolve function once and forgets it', () => {
+      const api = new HomebridgeAPI()
+      const resolve = vi.fn()
+      ;(api as any)._pendingExternalRegistrations.set('registration-1', resolve)
+
+      api._resolveExternalRegistration('registration-1')
+      api._resolveExternalRegistration('registration-1')
+      api._resolveExternalRegistration('never-registered')
+
+      expect(resolve).toHaveBeenCalledOnce()
+      expect((api as any)._pendingExternalRegistrations.size).toBe(0)
+    })
+  })
+
+  describe('the kind of a platform', () => {
+    it('knows a static platform by its accessories method', () => {
+      const platform = {
+        accessories: () => {},
+      }
+
+      expect(HomebridgeAPI.isStaticPlatformPlugin(platform)).toBe(true)
+      expect(HomebridgeAPI.isDynamicPlatformPlugin(platform)).toBe(false)
+    })
+
+    it('knows a dynamic platform by its configureAccessory method', () => {
+      const platform = new ExamplePlatform()
+
+      expect(HomebridgeAPI.isDynamicPlatformPlugin(platform)).toBe(true)
+      expect(HomebridgeAPI.isStaticPlatformPlugin(platform)).toBe(false)
+    })
+
+    it('takes a platform with neither method as an independent platform', () => {
+      const platform = {}
+
+      expect(HomebridgeAPI.isDynamicPlatformPlugin(platform)).toBe(false)
+      expect(HomebridgeAPI.isStaticPlatformPlugin(platform)).toBe(false)
+    })
+  })
+
   describe('homebridgeAPI.prototype.registerAccessory', () => {
+    // `api` and `emitSpy` are shared by this whole file: start each test with no recorded calls
+    beforeEach(() => {
+      emitSpy.mockClear()
+    })
+
     it('should register accessory with legacy style signature', () => {
       api.registerAccessory(pluginName, accessoryName, ExampleAccessory)
       expect(emitSpy).toHaveBeenLastCalledWith(InternalAPIEvent.REGISTER_ACCESSORY, accessoryName, ExampleAccessory, pluginName)
@@ -123,6 +471,8 @@ describe('homebridgeAPI', () => {
         getExternalServer: () => undefined,
         hasActiveMatter: () => true,
         isBridgeServerStarting: () => false,
+        getBridgeStartFailure: () => undefined,
+        hasBridgeServerStopped: () => false,
       }
     })
 
@@ -319,6 +669,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenLastCalledWith(
           InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
           matterAccessories,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
 
@@ -349,6 +700,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenLastCalledWith(
           InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
           matterAccessories,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
 
@@ -369,6 +721,7 @@ describe('homebridgeAPI', () => {
         expect(emitSpy).toHaveBeenLastCalledWith(
           InternalAPIEvent.UPDATE_MATTER_PLATFORM_ACCESSORIES,
           [accessory],
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
     })
@@ -672,6 +1025,7 @@ describe('homebridgeAPI', () => {
           cluster,
           attributes,
           undefined, // no partId
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
 
@@ -689,6 +1043,7 @@ describe('homebridgeAPI', () => {
           cluster,
           attributes,
           partId,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
 
@@ -703,6 +1058,7 @@ describe('homebridgeAPI', () => {
           matter.clusterNames.OnOff,
           { onOff: true },
           undefined,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
 
         // Update LevelControl cluster
@@ -713,30 +1069,40 @@ describe('homebridgeAPI', () => {
           matter.clusterNames.LevelControl,
           { currentLevel: 200 },
           undefined,
+          expect.any(Function), // reports the work back, so the call can wait for it
         )
       })
     })
 
     describe('matter.getAccessoryState', () => {
-      it('should have getAccessoryState method', () => {
-        expect(typeof matter.getAccessoryState).toBe('function')
+      afterEach(() => {
+        api._matterServer = null
       })
 
-      it('should accept uuid and cluster parameters', () => {
+      it('resolves with undefined while no Matter server is running', async () => {
         const uuid = matter.uuid.generate('test-light-get')
-        const cluster = matter.clusterNames.OnOff
 
-        // Just verify it can be called without error
-        // Actual state retrieval requires MatterServer to be running
-        expect(() => matter.getAccessoryState(uuid, cluster)).not.toThrow()
+        await expect(matter.getAccessoryState(uuid, matter.clusterNames.OnOff)).resolves.toBeUndefined()
       })
 
-      it('should accept optional partId parameter', () => {
-        const uuid = matter.uuid.generate('test-power-strip-get')
-        const cluster = matter.clusterNames.OnOff
-        const partId = 'outlet-1'
+      it('resolves with the state the Matter server of the bridge holds', async () => {
+        const uuid = matter.uuid.generate('test-light-get')
+        const getAccessoryState = vi.fn().mockReturnValue({ onOff: true })
+        api._matterServer = { getAccessoryState } as any
 
-        expect(() => matter.getAccessoryState(uuid, cluster, partId)).not.toThrow()
+        await expect(matter.getAccessoryState(uuid, matter.clusterNames.OnOff)).resolves.toEqual({ onOff: true })
+
+        expect(getAccessoryState).toHaveBeenCalledExactlyOnceWith(uuid, 'onOff', undefined)
+      })
+
+      it('passes the optional partId on', async () => {
+        const uuid = matter.uuid.generate('test-power-strip-get')
+        const getAccessoryState = vi.fn().mockReturnValue({ onOff: false })
+        api._matterServer = { getAccessoryState } as any
+
+        await expect(matter.getAccessoryState(uuid, matter.clusterNames.OnOff, 'outlet-1')).resolves.toEqual({ onOff: false })
+
+        expect(getAccessoryState).toHaveBeenCalledExactlyOnceWith(uuid, 'onOff', 'outlet-1')
       })
     })
 
@@ -795,5 +1161,30 @@ describe('homebridgeAPI', () => {
         expect(matter.deviceTypes.SmokeSensor).toBeDefined()
       })
     })
+  })
+})
+
+describe('which platforms get their cached accessories back', () => {
+  it('counts a platform that only does Matter as a dynamic platform', () => {
+    expect(HomebridgeAPI.isDynamicPlatformPlugin({
+      configureMatterAccessory: () => {},
+    } as never)).toBe(true)
+  })
+
+  it('still counts a platform with configureAccessory, and no other', () => {
+    expect(HomebridgeAPI.isDynamicPlatformPlugin({
+      configureAccessory: () => {},
+    } as never)).toBe(true)
+    expect(HomebridgeAPI.isDynamicPlatformPlugin({} as never)).toBe(false)
+  })
+
+  it('leaves a static platform static, also when it has configureMatterAccessory', () => {
+    const platform = {
+      accessories: () => {},
+      configureMatterAccessory: () => {},
+    } as never
+
+    expect(HomebridgeAPI.isDynamicPlatformPlugin(platform)).toBe(false)
+    expect(HomebridgeAPI.isStaticPlatformPlugin(platform)).toBe(true)
   })
 })

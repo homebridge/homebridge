@@ -100,6 +100,39 @@ describe('matterServer restore-from-cache attribution', () => {
     expect(registered[0]._associatedPlugin).toBe('@homebridge-plugins/homebridge-updater')
     expect(registered[0]._associatedPlatform).toBe('Updater')
   })
+
+  // Homebridge up to v2.5.0 wrote a flag of its own into the plugin's context,
+  // and the cache saved it. It is not the plugin's, so it is not handed back.
+  it('drops the old internal flag from a cached plugin context', async () => {
+    const server = new MatterServer({ uniqueId: 'AA:BB:CC:DD:EE:FF' })
+    const registered: any[] = []
+    ;(server as any).accessoryManager = {
+      registerAccessory: vi.fn(async (_p: string, _n: string, accessory: any) => {
+        registered.push(accessory)
+      }),
+    }
+    ;(server as any).accessoryCache = {
+      load: async () => new Map([
+        [
+          'blind-uuid',
+          {
+            uuid: 'blind-uuid',
+            displayName: 'Blind',
+            plugin: 'homebridge-test',
+            platform: 'Test',
+            deviceType: { name: 'WindowCovering' },
+            serialNumber: 'ABC123',
+            context: { mine: 1, _skipWindowCoveringBehavior: true },
+            clusters: {},
+          },
+        ],
+      ]),
+    }
+
+    await (server as any).getLifecycleDeps().restoreAccessoriesFromCache()
+
+    expect(registered[0].context).toEqual({ mine: 1 })
+  })
 })
 
 describe('matterServer.updatePlatformAccessories', () => {
@@ -182,7 +215,8 @@ describe('matterServer.updatePlatformAccessories', () => {
     expect(accessories.size).toBe(1)
   })
 
-  it('leaves an accessory that is not in the cache alone', async () => {
+  it('updates a registered accessory that the cache file does not hold yet', async () => {
+    // a new accessory is written to the cache two seconds after it is registered
     ;(server as any).accessoryCache.hasCached = () => false
     const before = accessories.get(uuid)!
 
@@ -190,6 +224,59 @@ describe('matterServer.updatePlatformAccessories', () => {
       pluginCopy(uuid),
     ])
 
-    expect(accessories.get(uuid)).toBe(before)
+    expect(accessories.get(uuid)).not.toBe(before)
+    expect(accessories.get(uuid)!.endpoint).toBe(before.endpoint)
+  })
+})
+
+describe('matterServer logging of matter.js', () => {
+  // matter.js drops these lines itself, by the facility levels it is given
+  it('leaves out the pairing codes and the optional-feature warnings matter.js prints, and keeps its commissioning warnings', async () => {
+    const { Logger: MatterLogger } = await import('@matter/main')
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const server = new MatterServer({ uniqueId: 'AA:BB:CC:DD:EE:02', debugModeEnabled: true })
+    expect(server).toBeDefined()
+
+    MatterLogger.get('Commissioning').notice('the pairing code')
+    MatterLogger.get('Commissioning').info('the pairing state')
+    MatterLogger.get('ValidatedElements').warn('an optional feature is not there')
+    MatterLogger.get('ValidatedElements').error('nor is this one')
+    MatterLogger.get('Commissioning').warn('a commissioning warning')
+    MatterLogger.get('Commissioning').error('a commissioning error')
+    MatterLogger.get('SomethingElse').notice('a normal line')
+
+    const lines = (spy: typeof stdout) => spy.mock.calls.map(call => String(call[0])).filter(line => !line.includes('[Matter/Server]'))
+    expect(lines(stdout)).toEqual([
+      expect.stringContaining('a normal line'),
+    ])
+    expect(lines(stderr)).toEqual([
+      expect.stringContaining('a commissioning warning'),
+      expect.stringContaining('a commissioning error'),
+    ])
+    vi.restoreAllMocks()
+  })
+
+  it('writes matter.js warnings and errors to stderr and the rest to stdout, as the homebridge logger does', async () => {
+    const { Logger: MatterLogger, LogLevel } = await import('@matter/main')
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const server = new MatterServer({ uniqueId: 'AA:BB:CC:DD:EE:01' })
+    expect(server).toBeDefined()
+    const write = MatterLogger.destinations.default.write as (text: string, message: { level: number }) => void
+
+    write('a notice', { level: LogLevel.NOTICE })
+    write('a warning', { level: LogLevel.WARN })
+    write('an error', { level: LogLevel.ERROR })
+    write('   ', { level: LogLevel.ERROR })
+
+    expect(stdout.mock.calls).toEqual([
+      ['a notice'],
+    ])
+    expect(stderr.mock.calls).toEqual([
+      ['a warning'],
+      ['an error'],
+    ])
+    vi.restoreAllMocks()
   })
 })

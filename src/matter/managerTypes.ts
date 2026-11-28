@@ -67,57 +67,21 @@ export interface AccessoryInfo {
 /**
  * Information about a part of a composed accessory
  */
+/**
+ * What a MatterServer returns for one accessory: the identity, device type,
+ * state and parts, without the fields that need the bridge, the accessory
+ * cache or the commissioning state.
+ */
+export type ServerAccessoryData = Pick<AccessoryInfo, 'uuid' | 'displayName' | 'deviceType' | 'manufacturer' | 'model' | 'serialNumber' | 'firmwareRevision' | 'clusters' | 'parts'>
+
+/**
+ * What a MatterServer lists for the UI: {@link ServerAccessoryData} and the bridge it is on.
+ */
+export type ServerAccessoryListEntry = ServerAccessoryData & Pick<AccessoryInfo, 'bridge'>
+
 export interface AccessoryPartInfo {
   id: string
   displayName?: string
   deviceType: string
   clusters: Record<string, Record<string, unknown>>
-}
-
-/**
- * Matter cluster attribute map
- * Used throughout the codebase for passing cluster attributes
- */
-export type MatterAttributeMap = Record<string, unknown>
-
-/**
- * Command mapping result from ClusterCommandMapper
- */
-export interface CommandMapping {
-  /** Command name to invoke */
-  command: string
-  /** Optional command arguments */
-  args?: Record<string, unknown>
-}
-
-/**
- * Attribute-to-command mapping function
- */
-export interface AttributeToCommandMapping {
-  /**
-   * Map attributes to a command name and optional arguments
-   *
-   * @param attributes - Cluster attributes to map
-   * @returns Command mapping or null if no command needed (state-only update)
-   */
-  map: (attributes: MatterAttributeMap) => CommandMapping | null
-}
-
-/**
- * Result of publishing an external Matter accessory
- */
-export interface PublishExternalAccessoryResult {
-  /** The MatterServer instance for this accessory */
-  server: unknown // Avoid circular dependency, imported where needed
-  /** Port the server is running on */
-  port: number
-  /** Username (MAC address) of the external Matter bridge */
-  username: string
-  /** Commissioning information */
-  commissioningInfo: {
-    qrCode?: string
-    manualPairingCode?: string
-    serialNumber?: string
-    commissioned: boolean
-  }
 }

@@ -2,9 +2,10 @@ import type { MockInstance } from 'vitest'
 
 import type { InternalMatterAccessory } from '../types.js'
 
+import { Status, StatusResponseError } from '@matter/main/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BehaviorRegistry } from './BehaviorRegistry.js'
+import { BehaviorRegistry, HandlerFailure } from './BehaviorRegistry.js'
 
 describe('behaviorRegistry', () => {
   let registry: BehaviorRegistry
@@ -37,6 +38,37 @@ describe('behaviorRegistry', () => {
   })
 
   describe('registerHandler', () => {
+    it('dispatches commands added or replaced after restoring an endpoint', async () => {
+      const accessory = {
+        handlers: { serviceArea: {} },
+      } as InternalMatterAccessory
+      registry.registerHandlerSource('restored', () => accessory.handlers)
+      await expect(registry.executeHandler('restored', 'serviceArea', 'selectAreas', {
+        newAreas: [1],
+      })).resolves.toBe(false)
+      const selectAreas = vi.fn()
+      const changeToMode = vi.fn()
+      accessory.handlers = {
+        serviceArea: { selectAreas },
+        rvcCleanMode: { changeToMode },
+      }
+      await registry.executeHandler('restored', 'serviceArea', 'selectAreas', {
+        newAreas: [1],
+      })
+      await registry.executeHandler('restored', 'rvcCleanMode', 'changeToMode', { newMode: 0 })
+      expect(selectAreas).toHaveBeenCalledWith({
+        newAreas: [1],
+      }, { uuid: 'restored' })
+      expect(changeToMode).toHaveBeenCalledWith({ newMode: 0 }, { uuid: 'restored' })
+      accessory.handlers = {}
+      expect(registry.getHandler('restored', 'serviceArea', 'selectAreas')).toBeUndefined()
+      registry.removeEndpoint('restored')
+      accessory.handlers = {
+        serviceArea: { selectAreas },
+      }
+      expect(registry.getHandler('restored', 'serviceArea', 'selectAreas')).toBeUndefined()
+    })
+
     it('should register a handler', () => {
       const handler = vi.fn()
       registry.registerHandler('endpoint1', 'onOff', 'toggle', handler)
@@ -127,7 +159,7 @@ describe('behaviorRegistry', () => {
       const args = { level: 100, transitionTime: 200 }
       const result = await registry.executeHandler('endpoint1', 'onOff', 'moveToLevel', args)
 
-      expect(handler).toHaveBeenCalledWith(args, undefined)
+      expect(handler).toHaveBeenCalledWith(args, { uuid: 'endpoint1' })
       expect(result).toBe(true)
     })
 
@@ -143,10 +175,8 @@ describe('behaviorRegistry', () => {
       expect(result).toBe(true)
     })
 
-    it('should throw when handler does not exist', async () => {
-      await expect(registry.executeHandler('nonexistent', 'onOff', 'toggle'))
-        .rejects
-        .toThrow('No handler registered for nonexistent.onOff.toggle')
+    it('returns false, and does not throw, when the plugin has no handler for the command', async () => {
+      await expect(registry.executeHandler('nonexistent', 'onOff', 'toggle')).resolves.toBe(false)
     })
 
     it('should log and rethrow errors from handlers', async () => {
@@ -170,6 +200,46 @@ describe('behaviorRegistry', () => {
 
       await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toThrow('Async handler failed')
       expect(consoleErrorSpy).toHaveBeenCalled()
+    })
+
+    // The behaviors rely on this: none of them wraps a handler error itself.
+    it('turns a plain handler error into a matter failure that names the handler and keeps the cause', async () => {
+      const cause = new Error('device offline')
+      registry.registerHandler('endpoint1', 'onOff', 'toggle', async () => {
+        throw cause
+      })
+
+      const failure = await registry.executeHandler('endpoint1', 'onOff', 'toggle').catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(StatusResponseError)
+      expect(failure).toBeInstanceOf(HandlerFailure)
+      expect(failure).toMatchObject({
+        message: 'The onOff.toggle handler failed: device offline',
+        code: Status.Failure,
+        cause,
+      })
+    })
+
+    it('turns a rejection that is not an Error into a matter failure too', async () => {
+      registry.registerHandler('endpoint1', 'onOff', 'toggle', async () => {
+        // eslint-disable-next-line no-throw-literal
+        throw 'just a string'
+      })
+
+      await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toMatchObject({
+        message: 'The onOff.toggle handler failed: just a string',
+        code: Status.Failure,
+      })
+    })
+
+    it('passes on the matter status a plugin threw on purpose', async () => {
+      const busy = new StatusResponseError('device is busy', Status.Busy)
+      registry.registerHandler('endpoint1', 'onOff', 'toggle', async () => {
+        throw busy
+      })
+
+      await expect(registry.executeHandler('endpoint1', 'onOff', 'toggle')).rejects.toBe(busy)
+      expect(busy).not.toBeInstanceOf(HandlerFailure)
     })
   })
 

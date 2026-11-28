@@ -1,15 +1,12 @@
 /**
  * Cluster Behavior Map
  *
- * Single authoritative mapping from cluster names to custom Homebridge behavior classes.
- * Consolidates the duplicate maps that existed in server.ts and serverHelpers.ts.
+ * The one mapping from cluster names to custom Homebridge behavior classes.
  */
 
-import type { Behavior } from '@matter/node'
+import type { Behavior } from '@matter/main'
 
 import {
-  HomebridgeAirQualityServer,
-  HomebridgeCarbonMonoxideConcentrationMeasurementServer,
   HomebridgeClosureControlServer,
   HomebridgeColorControlServer,
   HomebridgeDeviceEnergyManagementModeServer,
@@ -22,11 +19,7 @@ import {
   HomebridgeKeypadInputServer,
   HomebridgeLevelControlServer,
   HomebridgeMediaPlaybackServer,
-  HomebridgeNitrogenDioxideConcentrationMeasurementServer,
   HomebridgeOnOffServer,
-  HomebridgeOzoneConcentrationMeasurementServer,
-  HomebridgePm10ConcentrationMeasurementServer,
-  HomebridgePm25ConcentrationMeasurementServer,
   HomebridgeRvcCleanModeServer,
   HomebridgeRvcOperationalStateServer,
   HomebridgeRvcRunModeServer,
@@ -43,11 +36,8 @@ type BehaviorType = Behavior.Type
 /**
  * Maps cluster names to custom Homebridge behavior classes.
  *
- * The "core" map contains only clusters with user-triggered commands that need
- * custom behaviors (used by server.ts for the CLUSTER_BEHAVIOR_MAP).
- *
- * The "full" map adds sensor/measurement clusters that don't have user commands
- * but still need custom behaviors for state management.
+ * It holds the clusters with commands a controller can send, which need a
+ * custom behavior to call the plugin's handlers (used by server/AccessoryManager.ts).
  */
 export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
   // Core controls
@@ -89,25 +79,4 @@ export const CORE_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
   deviceEnergyManagementMode: HomebridgeDeviceEnergyManagementModeServer,
   energyEvse: HomebridgeEnergyEvseServer,
   energyEvseMode: HomebridgeEnergyEvseModeServer,
-} as const
-
-/**
- * Full cluster behavior map including sensor/measurement behaviors.
- *
- * ⚠️ Nothing consumes this. Every entry below is a no-op subclass that only calls
- * `super.initialize()`, so attaching them would change no behaviour - the base
- * matter.js servers the device type already carries do the work. Kept for now
- * because the classes are exported API; see STATE_ONLY_CLUSTERS above for how the
- * behavior builder handles these clusters instead.
- */
-export const FULL_CLUSTER_BEHAVIOR_MAP: Record<string, BehaviorType> = {
-  ...CORE_CLUSTER_BEHAVIOR_MAP,
-
-  // Air quality & concentration measurement sensors
-  airQuality: HomebridgeAirQualityServer,
-  carbonMonoxideConcentrationMeasurement: HomebridgeCarbonMonoxideConcentrationMeasurementServer,
-  nitrogenDioxideConcentrationMeasurement: HomebridgeNitrogenDioxideConcentrationMeasurementServer,
-  ozoneConcentrationMeasurement: HomebridgeOzoneConcentrationMeasurementServer,
-  pm10ConcentrationMeasurement: HomebridgePm10ConcentrationMeasurementServer,
-  pm25ConcentrationMeasurement: HomebridgePm25ConcentrationMeasurementServer,
 } as const

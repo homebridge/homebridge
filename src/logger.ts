@@ -4,7 +4,7 @@ import chalk from 'chalk'
 
 /**
  * Log levels to indicate importance of the logged message.
- * Every level corresponds to a certain color.
+ * Every level gives the message a certain color (the timestamp is always white and the prefix cyan).
  *
  * - INFO: no color
  * - SUCCESS: green
@@ -13,6 +13,13 @@ import chalk from 'chalk'
  * - DEBUG: gray
  *
  * Messages with DEBUG level are only displayed if explicitly enabled.
+ *
+ * This is a `const enum`. A plugin built with plain `tsc` gets the value written into its code at
+ * compile time. A plugin built with `isolatedModules` or `verbatimModuleSyntax` (esbuild, tsx, swc,
+ * Vite) can not use it: TypeScript reports TS2748 ("Cannot access ambient const enums"). Call the
+ * method of the level instead: `log.info(...)`, `log.warn(...)`, `log.error(...)`, `log.debug(...)`.
+ * It stays a `const enum` for now: as a normal enum, every plugin built with plain `tsc` would start
+ * to import the `homebridge` package at run time.
  */
 // eslint-disable-next-line no-restricted-syntax
 export const enum LogLevel {
@@ -36,17 +43,6 @@ export interface Logging {
   error: (message: string, ...parameters: any[]) => void
   debug: (message: string, ...parameters: any[]) => void
   log: (level: LogLevel, message: string, ...parameters: any[]) => void
-}
-
-interface IntermediateLogging { // some auxiliary interface used to correctly type stuff happening in "withPrefix"
-  prefix?: string
-  (message: string, ...parameters: any[]): void
-  info?: (message: string, ...parameters: any[]) => void
-  success?: (message: string, ...parameters: any[]) => void
-  warn?: (message: string, ...parameters: any[]) => void
-  error?: (message: string, ...parameters: any[]) => void
-  debug?: (message: string, ...parameters: any[]) => void
-  log?: (level: LogLevel, message: string, ...parameters: any[]) => void
 }
 
 /**
@@ -77,18 +73,20 @@ export class Logger {
     } else {
       const logger = new Logger(prefix)
 
-      const log: IntermediateLogging = logger.info.bind(logger)
-      log.info = logger.info
-      log.success = logger.success
-      log.warn = logger.warn
-      log.error = logger.error
-      log.debug = logger.debug
-      log.log = logger.log
-
-      log.prefix = logger.prefix
-
-      // @ts-expect-error: I aimed to not use ts-ignore in this project, but this evil "thing" above is hell
-      const logging: Logging = log
+      // The device is a function (INFO logging) that also carries a method for each level.
+      // Every method is bound to the device, so it still works when a plugin passes it around
+      // on its own (`promise.catch(log.error)`, `emitter.on('error', log.warn)`, `const { debug } = log`).
+      // The device itself is the `this`, as it is for `log.info('x')`, so `log.prefix` stays the prefix in use.
+      const device = logger.info.bind(logger)
+      const logging: Logging = Object.assign(device, {
+        prefix,
+        info: logger.info.bind(device),
+        success: logger.success.bind(device),
+        warn: logger.warn.bind(device),
+        error: logger.error.bind(device),
+        debug: logger.debug.bind(device),
+        log: logger.log.bind(device),
+      })
       Logger.loggerCache.set(prefix, logging)
       return logging
     }
@@ -125,7 +123,9 @@ export class Logger {
    * Forces color in logging output, even if it seems like color is unsupported.
    */
   public static forceColor(): void {
-    chalk.level = 1 // `1` - Basic 16 colors support.
+    // `1` is basic 16 colour support, which is all Homebridge uses. Never lower a level that is
+    // already higher: on a terminal with 256 or true colour, a plugin that uses chalk keeps it.
+    chalk.level = Math.max(chalk.level, 1) as typeof chalk.level
   }
 
   public info(message: string, ...parameters: any[]): void {
@@ -187,8 +187,8 @@ export class Logger {
 }
 
 /**
- * Gets the prefix
- * @param prefix
+ * The prefix as it is written in front of a log message: in square brackets, in cyan.
+ * @param prefix - the name of the plugin, accessory or Homebridge part that logs
  */
 export function getLogPrefix(prefix: string): string {
   return chalk.cyan(`[${prefix}]`)

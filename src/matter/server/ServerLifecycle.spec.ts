@@ -5,24 +5,15 @@ import process from 'node:process'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Tests for the network.interface env-var handling added in
- *   fix: Matter crash when bridge bind config is set (network.interface env var)
+ * Tests for what ServerLifecycle.start() puts in the matter.js environment.
  *
- * Rationale: `Environment.default` is a process-wide singleton. Before the fix,
- *   (a) `environment.vars.set('network.interface', ...)` was called BEFORE
- *       `MatterServerNode.create()`, which caused `Behaviors.defaultsFor('network')`
- *       to see an `interface` key NetworkBehavior.State doesn't declare and the
- *       ValueCaster threw `[unsupported-cast] Property "interface" is unsupported`.
- *   (b) Even after fixing the ordering, a second ServerNode in the same process
- *       (e.g. an external accessory like RoboticVacuumCleaner) would still crash
- *       because the first server's `network.interface` was left in the singleton.
+ * `Environment.default` is a process-wide singleton. start() sets the mDNS
+ * variables on it before the node is created (matter.js reads them at that
+ * moment) and clears what an earlier server in the same process left there.
  *
- * The fix in ServerLifecycle.start() is:
- *   1. Before ServerNode creation, `delete` any existing `network.interface` from
- *      the env vars (VariableService.get returns a live reference so this mutates
- *      the backing store).
- *   2. After ServerNode creation, `set('network.interface', ...)` — safe because
- *      ServerNetworkRuntime reads it lazily via a getter at run() time.
+ * It no longer sets `network.interface` (#3910 was about the order it was set
+ * in). matter.js only uses that variable to label interfaces in a diagnostics
+ * list; it never limited which interfaces the Matter port listens on.
  */
 
 // Shared fake Environment.default.vars with matter.js dot-path semantics and
@@ -67,15 +58,12 @@ const sharedVarsState: FakeVarsState = { store: {}, calls: [] }
 const sharedVars = makeFakeVars(sharedVarsState)
 
 // Track ServerNode.create invocations so tests can anchor "before/after" assertions
-// against the network.interface clear/set operations on sharedVars.
+// against the clear/set operations on sharedVars.
 const serverNodeCreateCalls: Array<{ t: number, networkInterfaceAtCreate: unknown, mdnsIpv4AtCreate: unknown }> = []
 let serverNodeCreateInvocationIndex = 0
 
-vi.mock('@matter/general', () => ({
-  Filesystem: { name: 'Filesystem' },
-}))
-
 vi.mock('@matter/main', () => ({
+  Filesystem: { name: 'Filesystem' },
   Endpoint: class MockEndpoint {
     deviceType: unknown
     options: unknown
@@ -84,12 +72,15 @@ vi.mock('@matter/main', () => ({
       this.options = options
     }
   },
-  Environment: {
-    default: {
+  Environment: class MockEnvironment {
+    static default = {
       vars: sharedVars,
       set: vi.fn(),
       get: vi.fn(),
-    },
+    }
+
+    set = vi.fn()
+    get = vi.fn()
   },
   ServerNode: {
     create: vi.fn(async () => {
@@ -103,7 +94,10 @@ vi.mock('@matter/main', () => ({
         mdnsIpv4AtCreate: mdnsVars?.ipv4,
       })
       return {
-        run: vi.fn(() => Promise.resolve()),
+        start: vi.fn(async () => {}),
+        construction: {
+          closed: new Promise<void>(() => {}),
+        },
         add: vi.fn(),
         close: vi.fn(),
       }
@@ -124,6 +118,23 @@ vi.mock('@matter/nodejs', () => ({
     }
   },
 }))
+
+// The machine these tests pretend to run on: eno1 and wlan0, as used in bridge.bind below.
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>()
+  return {
+    ...actual,
+    networkInterfaces: () => ({
+      eno1: [
+        { address: '192.168.1.10', family: 'IPv4' },
+        { address: 'fd00:1234::10', family: 'IPv6', scopeid: 0 },
+      ],
+      wlan0: [
+        { address: '10.0.0.5', family: 'IPv4' },
+      ],
+    }),
+  }
+})
 
 vi.mock('../../bridgeService.js', () => ({
   DEFAULT_BRIDGE_DEFAULTS: { vendorName: 'Homebridge' },
@@ -165,9 +176,6 @@ vi.mock('../types.js', () => {
 })
 
 vi.mock('./ServerConfig.js', () => ({
-  SERVER_INIT_DELAY_MS: 0,
-  SERVER_READY_POLL_INTERVAL_MS: 0,
-  SERVER_READY_TIMEOUT_MS: 1000,
   STORAGE_LOCK_RETRY_ATTEMPTS: 3,
   STORAGE_LOCK_RETRY_DELAY_MS: 0,
 }))
@@ -204,6 +212,7 @@ function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLif
     getAccessoryCache: vi.fn(() => ({
       load: vi.fn(async () => new Map()),
       cancelPendingSave: vi.fn(),
+      hasPendingSave: vi.fn(() => false),
     }) as unknown as ReturnType<ServerLifecycleDeps['getAccessoryCache']>),
     setAccessoryCache: vi.fn(),
     setServerNode: vi.fn((n) => {
@@ -219,16 +228,13 @@ function createMockDeps(overrides: Partial<ServerLifecycleDeps> = {}): ServerLif
     }),
     getIsRunning: vi.fn(() => running),
     cleanupHandlers: [],
-    getShutdownHandler: () => null,
-    setShutdownHandler: vi.fn(),
-    onStop: vi.fn(async () => {}),
     ...overrides,
   }
 
   return deps
 }
 
-describe('serverLifecycle — network.interface env var handling (#3910)', () => {
+describe('serverLifecycle — the matter.js environment at start', () => {
   let lifecycle: InstanceType<typeof ServerLifecycle>
 
   beforeEach(() => {
@@ -238,8 +244,7 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     serverNodeCreateCalls.length = 0
     serverNodeCreateInvocationIndex = 0
 
-    // ServerLifecycle.start() registers SIGINT/SIGTERM handlers on the real process.
-    // Stub them out so each `start()` call doesn't leak listeners across tests.
+    // Watched so the tests can check start() adds no listener to the real process.
     vi.spyOn(process, 'on').mockImplementation(() => process)
 
     lifecycle = new ServerLifecycle()
@@ -261,51 +266,6 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     vi.restoreAllMocks()
   })
 
-  describe('clearing network.interface before ServerNode creation', () => {
-    it('deletes a pre-existing network.interface before MatterServerNode.create is called', async () => {
-      // Simulate a prior server having set network.interface on the singleton.
-      sharedVarsState.store.network = {
-        interface: {
-          eno1: { type: 2 },
-        },
-      }
-
-      await lifecycle.start(createMockDeps())
-
-      expect(serverNodeCreateCalls).toHaveLength(1)
-      expect(serverNodeCreateCalls[0].networkInterfaceAtCreate).toBeUndefined()
-    })
-
-    it('leaves the network vars object in place (only removes the interface key)', async () => {
-      sharedVarsState.store.network = {
-        interface: {
-          eno1: { type: 2 },
-        },
-        someOtherKey: 'preserved',
-      }
-
-      await lifecycle.start(createMockDeps())
-
-      const networkVars = sharedVarsState.store.network as Record<string, unknown>
-      expect(networkVars).toBeDefined()
-      expect('interface' in networkVars).toBe(false)
-      expect(networkVars.someOtherKey).toBe('preserved')
-    })
-
-    it('does not throw or mutate when no network vars exist', async () => {
-      await expect(lifecycle.start(createMockDeps())).resolves.not.toThrow()
-      // No networkInterfaces configured → nothing should have been set on `network`.
-      expect(sharedVarsState.store.network).toBeUndefined()
-    })
-
-    it('does not throw when network vars exist but have no interface key', async () => {
-      sharedVarsState.store.network = { unrelated: true }
-
-      await expect(lifecycle.start(createMockDeps())).resolves.not.toThrow()
-      expect((sharedVarsState.store.network as Record<string, unknown>).unrelated).toBe(true)
-    })
-  })
-
   describe('process signals', () => {
     // matter.js trapping SIGTERM raced Homebridge's own shutdown: it closed the
     // shared mDNS service while the nodes were still withdrawing their
@@ -316,6 +276,36 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
       const signalSets = sharedVarsState.calls.filter(c => c.op === 'set' && c.name === 'runtime.signals')
       expect(signalSets.length).toBeGreaterThan(0)
       expect((sharedVarsState.store.runtime as Record<string, unknown>)?.signals).toBe(false)
+    })
+
+    // The manager stops every server on shutdown. A listener per server stopped
+    // each one twice, and the eleventh server in a process made Node warn.
+    it('adds no signal listener of its own', async () => {
+      await lifecycle.start(createMockDeps())
+
+      expect(process.on).not.toHaveBeenCalledWith('SIGINT', expect.anything())
+      expect(process.on).not.toHaveBeenCalledWith('SIGTERM', expect.anything())
+    })
+  })
+
+  describe('logging', () => {
+    // Logs get shared. The pairing banner (CommissioningManager) is the one
+    // place the pairing codes are shown.
+    it('does not write the passcode to the log while starting', async () => {
+      const { Logger } = await import('../../logger.js')
+      const logger = vi.mocked(Logger.withPrefix('test'))
+
+      await lifecycle.start(createMockDeps())
+
+      const logged = [
+        logger.info,
+        logger.warn,
+        logger.error,
+        logger.debug,
+      ].flatMap(level => level.mock.calls).flat().join('\n')
+      expect(logged).toContain('Port=5540')
+      // the passcode of the mock commissioning manager
+      expect(logged).not.toContain('20202021')
     })
   })
 
@@ -392,157 +382,68 @@ describe('serverLifecycle — network.interface env var handling (#3910)', () =>
     })
   })
 
-  describe('setting network.interface after ServerNode creation', () => {
-    it('sets network.interface only after MatterServerNode.create resolves', async () => {
-      const deps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eno1'],
-        },
-      })
+  describe('bridge.bind and the matter.js environment', () => {
+    const withBind = (networkInterfaces: string[]) => createMockDeps({
+      config: {
+        ...createMockDeps().config,
+        networkInterfaces,
+      },
+    })
+    const touchedNetworkInterface = () => sharedVarsState.calls.filter(call => call.name === 'network.interface' || call.name === 'network')
 
-      await lifecycle.start(deps)
+    it('gives matter.js the interface name for mDNS when bridge.bind holds an address', async () => {
+      await lifecycle.start(withBind(['10.0.0.5']))
 
-      // Find the first 'set' call for 'network.interface' and confirm it came after
-      // ServerNode.create was invoked. Call ordering is preserved in sharedVarsState.calls.
-      const setCallIndex = sharedVarsState.calls.findIndex(c => c.op === 'set' && c.name === 'network.interface')
-      expect(setCallIndex).toBeGreaterThanOrEqual(0)
-
-      // ServerNode.create ran exactly once during this start()
-      expect(serverNodeCreateCalls).toHaveLength(1)
-      // …and at the moment of creation, interface was not yet set.
-      expect(serverNodeCreateCalls[0].networkInterfaceAtCreate).toBeUndefined()
-
-      // After start() completes, interface is present with the expected shape.
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({
-          eno1: { type: 2 },
-        })
+      expect((sharedVarsState.store.mdns as Record<string, unknown>).networkInterface).toBe('wlan0')
     })
 
-    it('encodes each configured interface with type=2', async () => {
-      const deps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eno1', 'wlan0'],
-        },
-      })
+    it('sets no mDNS interface when bridge.bind matches nothing on this machine, so matter.js can still start', async () => {
+      await lifecycle.start(withBind(['eth9', '192.168.99.99']))
 
-      await lifecycle.start(deps)
-
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({
-          eno1: { type: 2 },
-          wlan0: { type: 2 },
-        })
+      expect((sharedVarsState.store.mdns as Record<string, unknown> | undefined)?.networkInterface).toBeUndefined()
     })
 
-    it('does not set network.interface when no networkInterfaces are configured', async () => {
-      await lifecycle.start(createMockDeps())
+    it('matches an IPv6 address in bridge.bind by value, not by spelling', async () => {
+      await lifecycle.start(withBind(['FD00:1234:0:0:0:0:0:10']))
 
-      const setCalls = sharedVarsState.calls.filter(c => c.op === 'set' && c.name === 'network.interface')
-      expect(setCalls).toHaveLength(0)
+      expect((sharedVarsState.store.mdns as Record<string, unknown>).networkInterface).toBe('eno1')
+    })
+
+    it('reads an unspecified address as "every interface", as HAP does, and does not call it unknown', async () => {
+      const { Logger } = await import('../../logger.js')
+      const log = Logger.withPrefix('test')
+
+      await lifecycle.start(withBind(['0.0.0.0']))
+
+      expect((sharedVarsState.store.mdns as Record<string, unknown> | undefined)?.networkInterface).toBeUndefined()
+      expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('is not the name or an address'))
+      expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('bridge.bind is not set'))
+      expect(log.info).toHaveBeenCalledWith(expect.stringContaining('0.0.0.0'))
+    })
+
+    it('still limits mDNS to the named interface when an unspecified address sits beside it', async () => {
+      const { Logger } = await import('../../logger.js')
+      const log = Logger.withPrefix('test')
+
+      await lifecycle.start(withBind(['eno1', '0.0.0.0']))
+
+      expect((sharedVarsState.store.mdns as Record<string, unknown>).networkInterface).toBe('eno1')
+      expect(log.warn).not.toHaveBeenCalled()
+    })
+
+    it('does not set network.interface: matter.js only labels a diagnostics list with it, and logs an error for it when the last controller is removed', async () => {
+      await lifecycle.start(withBind(['eno1', 'wlan0']))
+
       expect(sharedVarsState.store.network).toBeUndefined()
+      expect(touchedNetworkInterface()).toEqual([])
     })
 
-    it('does not set network.interface when networkInterfaces is an empty array', async () => {
-      const deps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: [],
-        },
-      })
+    it('leaves a network variable that something else set as it is', async () => {
+      sharedVarsState.store.network = { unrelated: true }
 
-      await lifecycle.start(deps)
+      await lifecycle.start(withBind(['eno1']))
 
-      const setCalls = sharedVarsState.calls.filter(c => c.op === 'set' && c.name === 'network.interface')
-      expect(setCalls).toHaveLength(0)
-    })
-  })
-
-  describe('sequential starts against the Environment.default singleton', () => {
-    it('a second start clears the first start\'s network.interface before creating its ServerNode', async () => {
-      // First lifecycle sets network.interface (main bridge).
-      const firstDeps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eno1'],
-        },
-      })
-      await lifecycle.start(firstDeps)
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({
-          eno1: { type: 2 },
-        })
-
-      // Second lifecycle (e.g. external accessory / RoboticVacuumCleaner) starts
-      // against the same Environment.default.
-      const secondLifecycle = new ServerLifecycle()
-      vi.spyOn(secondLifecycle, 'setupStorage').mockImplementation(async () => {
-        secondLifecycle.matterStoragePath = '/fake/storage/TEST0002'
-        return {
-          load: vi.fn(async () => new Map()),
-        } as never
-      })
-      const secondProto = Object.getPrototypeOf(secondLifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
-      vi.spyOn(secondProto, 'startServerNode').mockImplementation(async () => {})
-
-      const secondDeps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          uniqueId: 'TEST0002',
-          serialNumber: 'TEST0002',
-          externalAccessory: true,
-          networkInterfaces: ['eno1'],
-        },
-      })
-      await secondLifecycle.start(secondDeps)
-
-      // The second ServerNode.create must have seen a clean environment — this is
-      // the exact regression the PR guards against.
-      expect(serverNodeCreateCalls).toHaveLength(2)
-      expect(serverNodeCreateCalls[1].networkInterfaceAtCreate).toBeUndefined()
-
-      // After the second start completes, interface is reapplied for the runtime.
-      expect((sharedVarsState.store.network as Record<string, unknown>).interface)
-        .toEqual({
-          eno1: { type: 2 },
-        })
-    })
-
-    it('a second start with no networkInterfaces leaves the first start\'s interface cleared', async () => {
-      const firstDeps = createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          networkInterfaces: ['eno1'],
-        },
-      })
-      await lifecycle.start(firstDeps)
-
-      const secondLifecycle = new ServerLifecycle()
-      vi.spyOn(secondLifecycle, 'setupStorage').mockImplementation(async () => {
-        secondLifecycle.matterStoragePath = '/fake/storage/TEST0002'
-        return {
-          load: vi.fn(async () => new Map()),
-        } as never
-      })
-      const secondProto = Object.getPrototypeOf(secondLifecycle) as { startServerNode: (...args: unknown[]) => Promise<void> }
-      vi.spyOn(secondProto, 'startServerNode').mockImplementation(async () => {})
-
-      await secondLifecycle.start(createMockDeps({
-        config: {
-          ...createMockDeps().config,
-          uniqueId: 'TEST0002',
-          serialNumber: 'TEST0002',
-          externalAccessory: true,
-        },
-      }))
-
-      expect(serverNodeCreateCalls[1].networkInterfaceAtCreate).toBeUndefined()
-
-      // No networkInterfaces on the second lifecycle → interface remains unset after start too.
-      const networkVars = sharedVarsState.store.network as Record<string, unknown> | undefined
-      expect(networkVars?.interface).toBeUndefined()
+      expect(sharedVarsState.store.network).toEqual({ unrelated: true })
     })
   })
 })
@@ -554,16 +455,14 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     lifecycle = new ServerLifecycle()
   })
 
-  it('still runs full cleanup when serverNode + shutdownHandler are set but isRunning is false', async () => {
+  it('still runs full cleanup when the serverNode is set but isRunning is false', async () => {
     // Models the external-accessory window between start() and runServer():
-    // matter.js handlers are registered and the ServerNode is created, but
-    // isRunning is still false. A naive stop() that returns on !isRunning
-    // would leak the handlers — these assertions pin the new behaviour.
+    // the ServerNode is created, but isRunning is still false. A naive stop()
+    // that returns on !isRunning would leak the node — these assertions pin
+    // the behaviour.
     const close = vi.fn(async () => {})
     const setServerNode = vi.fn()
-    const setShutdownHandler = vi.fn()
     const cleanupHandler = vi.fn(async () => {})
-    const shutdownHandler = vi.fn(async () => {})
 
     let serverNode: unknown = { close }
     let running = false
@@ -577,8 +476,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       setIsRunning: vi.fn((v) => {
         running = v
       }),
-      getShutdownHandler: () => shutdownHandler,
-      setShutdownHandler,
       cleanupHandlers: [cleanupHandler],
     })
 
@@ -586,7 +483,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
 
     expect(close).toHaveBeenCalledTimes(1)
     expect(cleanupHandler).toHaveBeenCalledTimes(1)
-    expect(setShutdownHandler).toHaveBeenCalledWith(null)
     // cleanup() nulls out the serverNode reference so the next stop() is a no-op.
     expect(setServerNode).toHaveBeenCalledWith(null)
   })
@@ -594,8 +490,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
   it('runs cleanup handlers then rethrows when serverNode.close() throws', async () => {
     // A never-ran ServerNode may throw on close(). Three requirements:
     //   1. cleanupHandlers must still run so process-level state is released.
-    //      The SIGINT/SIGTERM handler is deliberately KEPT (see the dedicated
-    //      test below) so the still-bound node retains a shutdown hook.
     //   2. stop() must reject so the caller knows the port may still be
     //      bound — `publishExternalMatterAccessory` gates port release on
     //      stop() resolving cleanly, and a swallowed close error would
@@ -608,107 +502,23 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       throw new Error('close failed')
     })
     const cleanupHandler = vi.fn(async () => {})
-    const setShutdownHandler = vi.fn()
     const setServerNode = vi.fn()
     const setAggregator = vi.fn()
-    const shutdownHandler = vi.fn(async () => {})
 
     const deps = createMockDeps({
       getServerNode: vi.fn(() => ({ close }) as never),
       setServerNode,
       setAggregator,
       getIsRunning: vi.fn(() => false),
-      getShutdownHandler: () => shutdownHandler,
-      setShutdownHandler,
       cleanupHandlers: [cleanupHandler],
     })
 
     await expect(lifecycle.stop(deps, new Map())).rejects.toThrow('close failed')
 
     expect(cleanupHandler).toHaveBeenCalledTimes(1)
-    // The shutdown handler is preserved (not nulled) so the orphaned node
-    // still tears down on process exit.
-    expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
     // Reference preservation: we did NOT null out serverNode or aggregator.
     expect(setServerNode).not.toHaveBeenCalledWith(null)
     expect(setAggregator).not.toHaveBeenCalledWith(null)
-  })
-
-  it('keeps the SIGINT/SIGTERM shutdown handler registered when close() fails (#3944)', async () => {
-    // When close() fails the node may still be bound to its port. The sole
-    // caller (ExternalMatterAccessoryPublisher) never retries stop(), so if
-    // cleanup removed the process shutdown handler the orphaned node would be
-    // left with no graceful-shutdown hook. cleanup() must therefore leave the
-    // SIGINT/SIGTERM handler in place while close() failed.
-    const offSpy = vi.spyOn(process, 'off')
-    try {
-      const close = vi.fn(async () => {
-        throw new Error('close failed')
-      })
-      const setShutdownHandler = vi.fn()
-      const shutdownHandler = vi.fn(async () => {})
-
-      const deps = createMockDeps({
-        getServerNode: vi.fn(() => ({ close }) as never),
-        getIsRunning: vi.fn(() => false),
-        // A real handler must be visible to cleanup() via the getter, otherwise
-        // the assertions below pass vacuously (a null handler is never detached
-        // regardless of the fix).
-        getShutdownHandler: () => shutdownHandler,
-        setShutdownHandler,
-        cleanupHandlers: [],
-      })
-
-      await expect(lifecycle.stop(deps, new Map())).rejects.toThrow('close failed')
-
-      // The (real, registered) handler was neither detached from the process
-      // nor cleared, because close() failed and the node is being preserved.
-      expect(offSpy).not.toHaveBeenCalledWith('SIGINT', shutdownHandler)
-      expect(offSpy).not.toHaveBeenCalledWith('SIGTERM', shutdownHandler)
-      expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
-    } finally {
-      offSpy.mockRestore()
-    }
-  })
-
-  it.each([false, true])('continues shutdown after cache rejection (close also fails: %s)', async (closeFails) => {
-    const close = vi.fn(async () => {
-      if (closeFails) {
-        throw new Error('close failed')
-      }
-    })
-    const save = vi.fn().mockRejectedValue(new Error('disk full'))
-    const cancelPendingSave = vi.fn()
-    const cleanupHandler = vi.fn(async () => {})
-    const setServerNode = vi.fn()
-    const deps = createMockDeps({
-      getServerNode: vi.fn(() => ({ close }) as never),
-      setServerNode,
-      getIsRunning: vi.fn(() => true),
-      getAccessoryCache: vi.fn(() => ({ save, cancelPendingSave }) as never),
-      cleanupHandlers: [cleanupHandler],
-    })
-    const accessories = new Map<string, any>([
-      [
-        'uuid-1',
-        { UUID: 'uuid-1' },
-      ],
-    ])
-    const { Logger } = await import('../../logger.js')
-    const log = Logger.withPrefix('test')
-
-    const error = await lifecycle.stop(deps, accessories as never).then(() => undefined, error => error)
-    expect(error?.message).toBe(closeFails ? 'close failed' : undefined)
-    expect(accessories.size).toBe(closeFails ? 1 : 0)
-    expect(setServerNode.mock.calls).toEqual(closeFails
-      ? []
-      : [
-          [null],
-        ])
-    expect(close).toHaveBeenCalledTimes(1)
-    expect(cleanupHandler).toHaveBeenCalledTimes(1)
-    expect(log.debug).not.toHaveBeenCalledWith('Saved accessory cache before shutdown')
-    expect(log.error).toHaveBeenCalledWith('Failed to save accessory cache before shutdown:', expect.any(Error))
   })
 
   it('cancels a pending debounced cache save before clearing the map (#3944)', async () => {
@@ -721,7 +531,10 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     const deps = createMockDeps({
       getServerNode: vi.fn(() => ({ close }) as never),
       getIsRunning: vi.fn(() => false), // init-but-never-ran external server
-      getAccessoryCache: vi.fn(() => ({ cancelPendingSave }) as never),
+      getAccessoryCache: vi.fn(() => ({
+        cancelPendingSave,
+        hasPendingSave: () => false,
+      }) as never),
     })
     const accessories = new Map<string, any>([
       [
@@ -800,7 +613,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
       setIsRunning: vi.fn((v) => {
         running = v
       }),
-      getShutdownHandler: () => vi.fn(async () => {}) as never,
       cleanupHandlers: [],
     })
 
@@ -821,7 +633,6 @@ describe('serverLifecycle.stop — initialised-but-not-running cleanup', () => {
     const deps = createMockDeps({
       getServerNode: vi.fn(() => null),
       getIsRunning: vi.fn(() => false),
-      getShutdownHandler: () => null,
     })
 
     await expect(lifecycle.stop(deps, new Map())).resolves.toBeUndefined()
@@ -866,7 +677,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const close = vi.fn(async () => {})
     const { ServerNode } = await import('@matter/main')
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -903,7 +717,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     })
     const { ServerNode } = await import('@matter/main')
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -936,7 +753,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const { ServerNode } = await import('@matter/main')
     // Make sure no node is created — but if it were, close would be observable.
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -962,59 +782,12 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     expect(close).not.toHaveBeenCalled()
   })
 
-  it('detaches the SIGINT/SIGTERM handler registered mid-start when a later step fails (#3944)', async () => {
-    // Regression for the deps snapshot bug: getLifecycleDeps used to copy
-    // `shutdownHandler` by value when the deps object was built (null at that
-    // point). start() registers the handler partway through via
-    // setShutdownHandler, so a cleanup() in the SAME failed start() read the
-    // stale null and never detached the process listeners. With a
-    // getShutdownHandler getter, cleanup sees the live handler and removes it.
-    const offSpy = vi.spyOn(process, 'off')
-    const close = vi.fn(async () => {})
-    const { ServerNode } = await import('@matter/main')
-    vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
-      add: vi.fn(),
-      close,
-    } as never)
-
-    // Fail AFTER the shutdown handler is registered — startServerNode runs
-    // after setShutdownHandler in start(). This is the exact window flagged.
-    const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...a: unknown[]) => Promise<void> }
-    vi.spyOn(proto, 'startServerNode').mockRejectedValueOnce(new Error('boom in startServerNode'))
-
-    // Wire shutdownHandler the way the real manager does: a getter over mutable
-    // state that setShutdownHandler updates. A by-value snapshot would leave
-    // getShutdownHandler returning null and reproduce the leak.
-    let stored: (() => Promise<void>) | null = null
-    const setShutdownHandler = vi.fn((h: (() => Promise<void>) | null) => {
-      stored = h
-    })
-    const deps = createMockDeps({
-      getShutdownHandler: () => stored,
-      setShutdownHandler,
-    })
-
-    await expect(lifecycle.start(deps)).rejects.toThrow('boom in startServerNode')
-
-    // A handler was registered during start()...
-    expect(setShutdownHandler).toHaveBeenCalled()
-    // ...and cleanup() saw it via the getter and detached both listeners.
-    expect(offSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function))
-    expect(offSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function))
-    // ...then cleared the stored handler.
-    expect(setShutdownHandler).toHaveBeenLastCalledWith(null)
-  })
-
-  it('preserves the node reference and keeps the shutdown handler when the half-built node fails to close (#3944)', async () => {
-    // Complement of the test above: when start() fails after registering the
-    // handler AND closing the half-built node also fails, the node may still be
-    // bound to its port (the caller keeps the port reserved via
-    // portMayStillBeBound). cleanup() must therefore NOT null the node reference
-    // and NOT detach the SIGINT/SIGTERM handler — otherwise the orphaned,
-    // still-bound node is left with no retry handle and no graceful-shutdown
-    // hook on process exit.
-    const offSpy = vi.spyOn(process, 'off')
+  it('preserves the node reference when the half-built node fails to close (#3944)', async () => {
+    // When start() fails AND closing the half-built node also fails, the node
+    // may still be bound to its port (the caller keeps the port reserved via
+    // portMayStillBeBound). cleanup() must therefore NOT null the node
+    // reference — otherwise the orphaned, still-bound node is left with no
+    // retry handle.
     const close = vi.fn(async () => {
       throw new Error('close failed')
     })
@@ -1025,7 +798,10 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     // succeeds — masking the close-failure path under test.
     vi.mocked(ServerNode.create).mockReset()
     vi.mocked(ServerNode.create).mockResolvedValueOnce({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close,
     } as never)
@@ -1033,10 +809,6 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const proto = Object.getPrototypeOf(lifecycle) as { startServerNode: (...a: unknown[]) => Promise<void> }
     vi.spyOn(proto, 'startServerNode').mockRejectedValueOnce(new Error('boom in startServerNode'))
 
-    let stored: (() => Promise<void>) | null = null
-    const setShutdownHandler = vi.fn((h: (() => Promise<void>) | null) => {
-      stored = h
-    })
     // Keep getServerNode/setServerNode linked so start() can hand the created
     // node back to the catch path (where close() runs), while still spying on
     // setServerNode to assert the reference is never nulled.
@@ -1047,8 +819,6 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
     const deps = createMockDeps({
       getServerNode: vi.fn(() => serverNode as never),
       setServerNode,
-      getShutdownHandler: () => stored,
-      setShutdownHandler,
     })
 
     let thrown: any
@@ -1061,10 +831,6 @@ describe('serverLifecycle.start — close half-built ServerNode on failure', () 
 
     // Node reference preserved (never nulled) — retry handle survives.
     expect(setServerNode).not.toHaveBeenCalledWith(null)
-    // Shutdown handler kept registered — graceful-shutdown hook survives.
-    expect(offSpy).not.toHaveBeenCalledWith('SIGINT', stored)
-    expect(offSpy).not.toHaveBeenCalledWith('SIGTERM', stored)
-    expect(setShutdownHandler).not.toHaveBeenCalledWith(null)
   })
 })
 
@@ -1097,7 +863,10 @@ describe('serverLifecycle.start — port-binding signal when the half-built node
   // and avoids leaking a once-mock on the shared ServerNode.create.
   function depsThatFailAfterNodeCreation(close: () => Promise<void>): ServerLifecycleDeps {
     const partialNode = {
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close: vi.fn(close),
     }
@@ -1158,6 +927,20 @@ describe('serverLifecycle.createServerNodeWithRecovery — transient storage-loc
     // first attempt, then releases it.
     vi.mocked(MatterServerNode.create).mockRejectedValueOnce(
       new Error('Storage is locked by another process (pid 1234)'),
+    )
+
+    const node = await lifecycle.createServerNodeWithRecovery({} as never, 'TEST0001')
+
+    expect(node).toBeDefined()
+    expect(MatterServerNode.create).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries when matter.js reports the lock as the cause of another error', async () => {
+    // What matter.js 0.18 really throws (#4047): the lock is one level down.
+    vi.mocked(MatterServerNode.create).mockRejectedValueOnce(
+      new Error('[crashed-dependency] node store unavailable due to initialization error', {
+        cause: new Error('[storage-lock] Storage is locked by another process (pid 160)'),
+      }),
     )
 
     const node = await lifecycle.createServerNodeWithRecovery({} as never, 'TEST0001')
@@ -1280,7 +1063,10 @@ describe('serverLifecycle — BasicInformation identity (#3996)', () => {
     // create() permanently rejecting via mockRejectedValue, so put a working
     // one back rather than inheriting it
     vi.mocked(MatterServerNode.create).mockImplementation(async () => ({
-      run: vi.fn(() => Promise.resolve()),
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
       add: vi.fn(),
       close: vi.fn(),
     }) as never)
@@ -1371,5 +1157,245 @@ describe('serverLifecycle — BasicInformation identity (#3996)', () => {
     })
 
     expect(basicInformation.productName).toHaveLength(32)
+  })
+})
+
+/**
+ * A node that cannot go online (its port is taken, say) used to be reported as
+ * started: run() was not awaited, so its failure was only logged.
+ */
+describe('serverLifecycle — a node that fails to go online', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+  let close: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    close = vi.fn(async () => {})
+    vi.mocked(MatterServerNode.create).mockImplementation(async () => ({
+      start: vi.fn(async () => {
+        throw new Error('bind EADDRINUSE 0.0.0.0:5540')
+      }),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
+      add: vi.fn(),
+      close,
+    }) as never)
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+    lifecycle = new ServerLifecycle()
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return {
+        load: vi.fn(async () => new Map()),
+        cancelPendingSave: vi.fn(),
+        hasPendingSave: vi.fn(() => false),
+      } as never
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('rejects start() and is not marked as running', async () => {
+    const deps = createMockDeps()
+
+    await expect(lifecycle.start(deps)).rejects.toThrow('EADDRINUSE')
+
+    expect(deps.getIsRunning()).toBe(false)
+    expect(deps.setIsRunning).not.toHaveBeenCalledWith(true)
+    // the half-built node is closed again
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects runServer() for a deferred server and is not marked as running', async () => {
+    const deps = createMockDeps()
+    deps.config.deferOnline = true
+    await lifecycle.start(deps)
+
+    await expect(lifecycle.runServer(deps)).rejects.toThrow('EADDRINUSE')
+
+    expect(deps.getIsRunning()).toBe(false)
+  })
+})
+
+/**
+ * matter.js can shut a node down by itself: a failed background task of any
+ * node stops every node in the process.
+ */
+describe('serverLifecycle — a node that goes offline without being asked to', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+  let offlineListeners: Array<() => void>
+  let nodeLifecycle: { shouldBeOnline: boolean, offline: { on: (listener: () => void) => void, off: (listener: () => void) => void } }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    offlineListeners = []
+    nodeLifecycle = {
+      shouldBeOnline: true,
+      offline: {
+        on: (listener) => {
+          offlineListeners.push(listener)
+        },
+        off: (listener) => {
+          offlineListeners = offlineListeners.filter(existing => existing !== listener)
+        },
+      },
+    }
+    vi.mocked(MatterServerNode.create).mockImplementation(async () => ({
+      start: vi.fn(async () => {}),
+      construction: {
+        closed: new Promise<void>(() => {}),
+      },
+      lifecycle: nodeLifecycle,
+      add: vi.fn(),
+      close: vi.fn(async () => {}),
+    }) as never)
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+    lifecycle = new ServerLifecycle()
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return {
+        load: vi.fn(async () => new Map()),
+        cancelPendingSave: vi.fn(),
+        hasPendingSave: vi.fn(() => false),
+      } as never
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const goOffline = (): void => offlineListeners.forEach(listener => listener())
+  // the logger is mocked in this file: every prefix shares one set of spies
+  const mockedLogError = async () => vi.mocked((await import('../../logger.js')).Logger.withPrefix('test')).error
+
+  it('is reported as an error and no longer counts as running', async () => {
+    const errorSpy = await mockedLogError()
+    const noteStoppedByItself = vi.fn()
+    const deps = createMockDeps({ noteStoppedByItself })
+    await lifecycle.start(deps)
+    expect(deps.getIsRunning()).toBe(true)
+
+    // matter.js closed the node: it no longer wants to be online
+    nodeLifecycle.shouldBeOnline = false
+    goOffline()
+
+    expect(deps.getIsRunning()).toBe(false)
+    expect(noteStoppedByItself).toHaveBeenCalledOnce()
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('went offline without being asked to'))
+  })
+
+  it('is left alone while matter.js resets the node after the last controller removed it', async () => {
+    const errorSpy = await mockedLogError()
+    const deps = createMockDeps()
+    await lifecycle.start(deps)
+
+    // offline for the reset, and coming straight back
+    goOffline()
+
+    expect(deps.getIsRunning()).toBe(true)
+    expect(errorSpy).not.toHaveBeenCalled()
+  })
+
+  it('says nothing when homebridge stops the server itself', async () => {
+    const errorSpy = await mockedLogError()
+    const deps = createMockDeps()
+    await lifecycle.start(deps)
+    vi.mocked(deps.getServerNode()!.close).mockImplementation(async () => {
+      nodeLifecycle.shouldBeOnline = false
+      goOffline()
+    })
+
+    await lifecycle.stop(deps, new Map())
+
+    expect(errorSpy).not.toHaveBeenCalled()
+    // and the listener is taken off the node again
+    expect(offlineListeners).toEqual([])
+  })
+})
+
+/** A SIGTERM while Matter is still starting: stop() runs before start() is done. */
+describe('serverLifecycle — a stop that comes while the server is still starting', () => {
+  let lifecycle: InstanceType<typeof ServerLifecycle>
+  let nodeStart: ReturnType<typeof vi.fn>
+  let nodeClose: ReturnType<typeof vi.fn>
+  let finishCreate: () => void
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sharedVarsState.store = {}
+    nodeStart = vi.fn(async () => {})
+    nodeClose = vi.fn(async () => {})
+    const created = new Promise<void>((resolve) => {
+      finishCreate = resolve
+    })
+    vi.mocked(MatterServerNode.create).mockImplementation(async () => {
+      await created
+      return {
+        start: nodeStart,
+        construction: {
+          closed: new Promise<void>(() => {}),
+        },
+        lifecycle: {
+          shouldBeOnline: true,
+          offline: {
+            on: vi.fn(),
+            off: vi.fn(),
+          },
+        },
+        add: vi.fn(),
+        close: nodeClose,
+      } as never
+    })
+    vi.spyOn(process, 'on').mockImplementation(() => process)
+    lifecycle = new ServerLifecycle()
+    vi.spyOn(lifecycle, 'setupStorage').mockImplementation(async () => {
+      lifecycle.matterStoragePath = '/fake/storage/TEST0001'
+      return {
+        load: vi.fn(async () => new Map()),
+        cancelPendingSave: vi.fn(),
+        hasPendingSave: vi.fn(() => false),
+      } as never
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('does not put the node on the network afterwards, and closes it', async () => {
+    const deps = createMockDeps()
+    const starting = lifecycle.start(deps)
+    const outcome = starting.then(() => 'started', (error: Error) => error.message)
+    // let start() get as far as creating the node
+    await vi.waitFor(() => expect(MatterServerNode.create).toHaveBeenCalled())
+
+    // the node does not exist yet, so there is nothing for stop() to close
+    await lifecycle.stop(deps, new Map())
+    finishCreate()
+
+    expect(await outcome).toContain('cancelled because it was asked to stop')
+    expect(nodeStart).not.toHaveBeenCalled()
+    expect(nodeClose).toHaveBeenCalledTimes(1)
+    expect(deps.getIsRunning()).toBe(false)
+    expect(deps.getServerNode()).toBeNull()
+  })
+
+  it('starts as normal the next time', async () => {
+    const deps = createMockDeps()
+    const first = lifecycle.start(deps).catch(() => {})
+    await vi.waitFor(() => expect(MatterServerNode.create).toHaveBeenCalled())
+    await lifecycle.stop(deps, new Map())
+    finishCreate()
+    await first
+
+    await lifecycle.start(deps)
+
+    expect(nodeStart).toHaveBeenCalledTimes(1)
+    expect(deps.getIsRunning()).toBe(true)
   })
 })

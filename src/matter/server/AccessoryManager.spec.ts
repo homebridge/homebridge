@@ -1,11 +1,11 @@
 import type { InternalMatterAccessory, MatterAccessory } from '../types.js'
 import type { AccessoryManagerDeps } from './AccessoryManager.js'
 
-import { DescriptorServer, FixedLabelServer } from '@matter/main/behaviors'
-import { PowerSourceServer } from '@matter/node/behaviors'
+import { DescriptorServer, FixedLabelServer, PowerSourceServer } from '@matter/main/behaviors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Logger } from '../../logger.js'
+import { BehaviorRegistry } from '../behaviors/BehaviorRegistry.js'
 import { HomebridgeRvcCleanModeServer } from '../behaviors/RvcCleanModeBehavior.js'
 import {
   applyElectricalMeasurementClusters,
@@ -19,6 +19,7 @@ import {
   detectWindowCoveringFeatures,
   determineColorControlFeaturesFromClusters,
   determineColorControlFeaturesFromHandlers,
+  isWindowCoveringComposed,
 } from '../serverHelpers.js'
 import { AccessoryManager } from './AccessoryManager.js'
 
@@ -67,14 +68,13 @@ vi.mock('@matter/main/behaviors', () => ({
     with: vi.fn((...args: any[]) => ({ name: `DescriptorServer.with(${args.join(',')})` })),
   },
   FixedLabelServer: { name: 'FixedLabelServer' },
-}))
-vi.mock('@matter/node/behaviors', () => ({
   PowerSourceServer: {
     name: 'PowerSourceServer',
     with: vi.fn((...args: any[]) => ({ name: `PowerSourceServer.with(${args.join(',')})` })),
   },
 }))
 vi.mock('../behaviors/EndpointContext.js', () => ({
+  setDeclaredClusters: vi.fn(),
   setRegistryManager: vi.fn(),
 }))
 vi.mock('../behaviors/RvcCleanModeBehavior.js', () => ({
@@ -89,7 +89,11 @@ vi.mock('../behaviors/ServiceAreaBehavior.js', () => ({
     with: vi.fn((...args: any[]) => ({ name: `HomebridgeServiceAreaServer.with(${args.join(',')})` })),
   },
 }))
+// The two window covering notes are kept real: they are plain bookkeeping.
+const windowCoveringComposed = vi.hoisted(() => new WeakSet<object>())
 vi.mock('../serverHelpers.js', () => ({
+  markWindowCoveringComposed: (accessory: object) => windowCoveringComposed.add(accessory),
+  isWindowCoveringComposed: (accessory: object) => windowCoveringComposed.has(accessory),
   validateAccessoryRequiredFields: vi.fn(),
   detectWindowCoveringFeatures: vi.fn(() => []),
   applyWindowCoveringFeatures: vi.fn((dt: any) => dt),
@@ -101,24 +105,15 @@ vi.mock('../serverHelpers.js', () => ({
   applyDeviceEnergyManagementFeatures: vi.fn((dt: any) => dt),
   applyEnergyEvseFeatures: vi.fn((dt: any) => dt),
   applyRoomAirConditionerAutoMode: vi.fn((dt: any) => dt),
+  applyOptionalMeasurementClusters: vi.fn((dt: any) => dt),
   detectElectricalMeasurementClusters: vi.fn(() => ({ hasPowerMeasurement: false, energyFeatures: [] })),
   applyElectricalMeasurementDefaults: vi.fn(),
   applyLevelControlLightingFloor: vi.fn(),
   applyElectricalMeasurementClusters: vi.fn((dt: any) => dt),
   detectBehaviorFeatures: vi.fn(() => null),
-  extractColorControlFeatures: vi.fn(() => []),
-  extractLevelControlFeatures: vi.fn(() => []),
-  extractThermostatFeatures: vi.fn(() => []),
   extractDeclaredFeatures: vi.fn(() => []),
   determineColorControlFeaturesFromHandlers: vi.fn(() => []),
   determineColorControlFeaturesFromClusters: vi.fn(() => []),
-  CLUSTER_IDS: {
-    CLOSURE_CONTROL: 0x0104,
-    COLOR_CONTROL: 0x0300,
-    LEVEL_CONTROL: 0x0008,
-    MEDIA_PLAYBACK: 0x0506,
-    THERMOSTAT: 0x0201,
-  },
 }))
 vi.mock('../types.js', () => {
   class MatterDeviceError extends Error {
@@ -221,6 +216,7 @@ function createMockDeps(overrides: Partial<AccessoryManagerDeps> = {}): Accessor
     accessories: new Map<string, InternalMatterAccessory>(),
     behaviorRegistry: {
       registerHandler: vi.fn(),
+      registerHandlerSource: vi.fn(),
       registerPartEndpoint: vi.fn(),
       removeEndpoint: vi.fn((endpointId: string) => [endpointId]),
     } as any,
@@ -473,61 +469,23 @@ describe('accessoryManager', () => {
       expect(serverNode.act).not.toHaveBeenCalled()
     })
 
-    it('retries the parts-list notification when the config-version bump hits a synchronous lock (#3970)', async () => {
-      const increaseConfigurationVersion = vi.fn()
+    it('does not fail the registration when the notification fails, and tries once (#3970)', async () => {
       const deps = createMockDeps({
         isCommissioned: () => true,
       })
       const serverNode = deps.getServerNode() as any
-      // First act() loses the lock race (matter.js-internal offline transaction),
-      // then the lock clears and it succeeds.
-      serverNode.act = vi.fn()
-        .mockRejectedValueOnce(new Error('Cannot lock test-bridge.basicInformation.state synchronously'))
-        .mockImplementation(async (fn: any) => fn({
-          get: vi.fn(() => ({ increaseConfigurationVersion })),
-        }))
+      serverNode.act = vi.fn().mockRejectedValue(new Error('some failure'))
       const accessory = createMockAccessory()
 
-      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
-
-      expect(serverNode.act).toHaveBeenCalledTimes(2)
-      expect(increaseConfigurationVersion).toHaveBeenCalledTimes(1)
-    })
-
-    it('gives up without throwing when the lock never clears (#3970)', async () => {
-      const deps = createMockDeps({
-        isCommissioned: () => true,
-      })
-      const serverNode = deps.getServerNode() as any
-      serverNode.act = vi.fn().mockRejectedValue(
-        new Error('Cannot lock test-bridge.basicInformation.state synchronously'),
-      )
-      const accessory = createMockAccessory()
-
-      // The failure must be swallowed — a dropped notification must never fail
-      // the accessory registration.
-      await expect(
-        manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps),
-      ).resolves.toBeUndefined()
-
-      // PARTS_LIST_NOTIFY_ATTEMPTS = 5.
-      expect(serverNode.act).toHaveBeenCalledTimes(5)
-      expect(deps.accessories.has('test-uuid-001')).toBe(true)
-    })
-
-    it('does not retry a non-lock notification error (#3970)', async () => {
-      const deps = createMockDeps({
-        isCommissioned: () => true,
-      })
-      const serverNode = deps.getServerNode() as any
-      serverNode.act = vi.fn().mockRejectedValue(new Error('some other failure'))
-      const accessory = createMockAccessory()
-
+      // A dropped notification must never fail the accessory registration.
+      // There is no retry: the write waits for its lock (see the real-node
+      // test in server.cache.spec.ts).
       await expect(
         manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps),
       ).resolves.toBeUndefined()
 
       expect(serverNode.act).toHaveBeenCalledTimes(1)
+      expect(deps.accessories.has('test-uuid-001')).toBe(true)
     })
 
     it('should reject duplicate UUIDs', async () => {
@@ -548,10 +506,99 @@ describe('accessoryManager', () => {
     // the existing endpoint in place (no parts-list churn) rather than hitting the
     // duplicate-UUID error, and a genuine structural change must re-register fresh.
     describe('cache-restored attach-in-place (#3969)', () => {
+      it('keeps live part handlers when the cached object itself is registered again', async () => {
+        const deps = createMockDeps()
+        const part = createComposedPart()
+        const restored = {
+          ...createMockAccessory({
+            parts: [part],
+          }),
+          endpoint: { marker: 'restored-endpoint' },
+          _parts: [part],
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set(restored.UUID, restored)
+        const registry = new BehaviorRegistry(deps.accessories)
+        deps.behaviorRegistry = registry
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', restored, deps)
+        const handler = vi.fn()
+        restored.parts[0].handlers = {
+          onOff: { on: handler },
+        }
+        expect(registry.getHandler(`${restored.UUID}-part-${part.id}`, 'onOff', 'on')).toBe(handler)
+        restored.parts[0].handlers = undefined
+        expect(registry.getHandler(`${restored.UUID}-part-${part.id}`, 'onOff', 'on')).toBeUndefined()
+      })
+
+      it('rebuilds a retained part when its device type changes', async () => {
+        const deps = createMockDeps()
+        const part = createComposedPart()
+        const restored = {
+          ...createMockAccessory({
+            parts: [part],
+          }),
+          endpoint: {
+            marker: 'restored-endpoint',
+            close: vi.fn(),
+          },
+          _parts: [part],
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set(restored.UUID, restored)
+        const unregister = vi.spyOn(manager, 'unregisterAccessory')
+        const replacement = {
+          ...part,
+          deviceType: createChainableDeviceType({ deviceType: 0x010A, name: 'OnOffPlugInUnit' }),
+        }
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory({
+          parts: [replacement],
+        }), deps)
+        expect(unregister).toHaveBeenCalledWith(restored.UUID, deps, { keepStorage: true })
+        expect(deps.accessories.get(restored.UUID)?.endpoint).not.toBe(restored.endpoint)
+      })
+
+      it('removes old parent and part handlers when a replacement omits them', async () => {
+        const deps = createMockDeps()
+        const oldHandler = vi.fn()
+        const part = createComposedPart()
+        const restored = {
+          ...createMockAccessory({
+            parts: [part],
+          }),
+          endpoint: { marker: 'restored-endpoint' },
+          _parts: [part],
+          registered: false,
+          _restoredFromCache: true,
+        } as any
+        deps.accessories.set(restored.UUID, restored)
+        const registry = new BehaviorRegistry(deps.accessories)
+        deps.behaviorRegistry = registry
+        const partId = `${restored.UUID}-part-${part.id}`
+        registry.registerHandler(restored.UUID, 'onOff', 'on', oldHandler)
+        registry.registerHandler(partId, 'onOff', 'on', oldHandler)
+        registry.registerHandlerSource(partId, () => ({
+          onOff: { on: oldHandler },
+        }))
+        registry.registerPartEndpoint(partId, restored.UUID, part.id)
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform',
+          createMockAccessory({
+            parts: [part],
+          }), deps)
+
+        expect(registry.getHandler(restored.UUID, 'onOff', 'on')).toBeUndefined()
+        expect(registry.getHandler(partId, 'onOff', 'on')).toBeUndefined()
+        expect(oldHandler).not.toHaveBeenCalled()
+      })
+
       it('attaches a plugin registration to a restored accessory in place when the shape is unchanged', async () => {
         const deps = createMockDeps()
         const restored = {
           ...createMockAccessory(),
+          // a restore makes an empty handler stub per cached cluster
+          handlers: { onOff: {} },
           endpoint: { marker: 'restored-endpoint' },
           registered: false,
           _restoredFromCache: true,
@@ -578,6 +625,40 @@ describe('accessoryManager', () => {
         expect(deps.accessories.size).toBe(1)
         // The plugin's handlers were wired to the existing endpoint.
         expect(deps.behaviorRegistry.registerHandler).toHaveBeenCalledWith('test-uuid-001', 'onOff', 'on', expect.any(Function))
+      })
+
+      // The Homebridge behavior that calls a plugin's handlers is only on the
+      // endpoint for clusters that had a handler set when it was built. A cache
+      // written before the handler names were saved knows nothing of a cluster
+      // with handlers and no state (keypadInput), so attaching in place would
+      // wire the handlers to an endpoint that never calls them.
+      it('re-registers when the plugin has handlers for a cluster the restored accessory had none for', async () => {
+        const deps = createMockDeps()
+        deps.accessories.set('test-uuid-001', {
+          ...createMockAccessory(),
+          handlers: { onOff: {} },
+          endpoint: {
+            marker: 'restored-endpoint',
+            close: vi.fn(),
+          },
+          registered: false,
+          _restoredFromCache: true,
+        } as any)
+        const unregisterSpy = vi.spyOn(manager, 'unregisterAccessory')
+
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory({
+          handlers: {
+            onOff: {
+              on: vi.fn(),
+            },
+            keypadInput: {
+              sendKey: vi.fn(),
+            },
+          },
+        } as any), deps)
+
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps, { keepStorage: true })
+        expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toEqual(expect.objectContaining({ marker: 'restored-endpoint' }))
       })
 
       it('treats an omitted feature and an explicit false value as the same shape', async () => {
@@ -737,7 +818,7 @@ describe('accessoryManager', () => {
 
         await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
 
-        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps, { keepStorage: true })
         expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toBe(restored.endpoint)
       })
 
@@ -796,7 +877,7 @@ describe('accessoryManager', () => {
 
         await manager.registerAccessory('homebridge-test', 'TestPlatform', pluginAccessory, deps)
 
-        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps, { keepStorage: true })
         expect((deps.accessories.get('test-uuid-001') as any).endpoint).not.toBe(restored.endpoint)
       })
 
@@ -840,11 +921,52 @@ describe('accessoryManager', () => {
         // Plugin registers the same UUID but as a different device type.
         await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)
 
-        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps)
+        expect(unregisterSpy).toHaveBeenCalledWith('test-uuid-001', deps, { keepStorage: true })
         const stored = deps.accessories.get('test-uuid-001') as any
         expect(stored).toBeDefined()
         expect((stored.deviceType as any).name).toBe('OnOffLight')
         expect(stored._restoredFromCache).toBeFalsy()
+      })
+
+      // The cached entry is what the next start restores from. It is held
+      // until the new structure is registered, so a failed attempt keeps it.
+      it('holds the cached entry over a re-registration, and lets go once that worked', async () => {
+        const mockCache = {
+          retain: vi.fn(),
+          release: vi.fn(),
+          hasCached: vi.fn(() => false),
+          getCached: vi.fn(),
+          removeCached: vi.fn(),
+          requestSave: vi.fn(),
+        }
+        const deps = createMockDeps({ accessoryCache: mockCache as any })
+        const restoredDoorLock = () => ({
+          ...createMockAccessory(),
+          deviceType: { deviceType: 0x000A, name: 'DoorLock' },
+          endpoint: {
+            close: vi.fn(),
+          },
+          registered: false,
+          _restoredFromCache: true,
+        }) as any
+
+        deps.accessories.set('test-uuid-001', restoredDoorLock())
+        await manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)
+
+        expect(mockCache.retain).toHaveBeenCalledWith('test-uuid-001')
+        expect(mockCache.retain.mock.invocationCallOrder[0]).toBeLessThan(mockCache.removeCached.mock.invocationCallOrder[0])
+        expect(mockCache.release).toHaveBeenCalledWith('test-uuid-001')
+
+        // the same again, but this time the new registration fails
+        mockCache.retain.mockClear()
+        mockCache.release.mockClear()
+        deps.accessories.set('test-uuid-001', restoredDoorLock())
+        vi.spyOn(manager as any, 'prepareDeviceType').mockRejectedValueOnce(new Error('conformance'))
+
+        await expect(manager.registerAccessory('homebridge-test', 'TestPlatform', createMockAccessory(), deps)).rejects.toThrow('conformance')
+
+        expect(mockCache.retain).toHaveBeenCalledWith('test-uuid-001')
+        expect(mockCache.release).not.toHaveBeenCalled()
       })
 
       // A composed device type never matches the base type the cache restores,
@@ -950,6 +1072,21 @@ describe('accessoryManager', () => {
       ).rejects.toThrow('Maximum device limit')
     })
 
+    it('keeps restored handler lookup connected to the object returned to the plugin', async () => {
+      const deps = createMockDeps()
+      const accessory = createMockAccessory() as InternalMatterAccessory
+      accessory._restoredFromCache = true
+      accessory.handlers = { serviceArea: {} }
+      await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
+      const source = vi.mocked(deps.behaviorRegistry.registerHandlerSource).mock.calls.find(call => call[0] === accessory.UUID)?.[1]
+      expect(source).toBeTypeOf('function')
+      const selectAreas = vi.fn()
+      accessory.handlers = {
+        serviceArea: { selectAreas },
+      }
+      expect(source?.()?.serviceArea?.selectAreas).toBe(selectAreas)
+    })
+
     it('should register handlers when provided', async () => {
       const deps = createMockDeps()
       const accessory = createMockAccessory({
@@ -970,6 +1107,8 @@ describe('accessoryManager', () => {
 
     it('should save to cache after registration', async () => {
       const mockCache = {
+        retain: vi.fn(),
+        release: vi.fn(),
         requestSave: vi.fn(),
         hasCached: vi.fn(() => false),
         getCached: vi.fn(),
@@ -990,6 +1129,8 @@ describe('accessoryManager', () => {
         context: { savedKey: 'savedValue' },
       }
       const mockCache = {
+        retain: vi.fn(),
+        release: vi.fn(),
         hasCached: vi.fn(() => true),
         getCached: vi.fn(() => cachedData),
         requestSave: vi.fn(),
@@ -1128,7 +1269,8 @@ describe('accessoryManager', () => {
 
       await manager.registerAccessory('homebridge-test', 'TestPlatform', accessory, deps)
 
-      expect((accessory.context as Record<string, unknown>)._skipWindowCoveringBehavior).toBe(true)
+      expect(isWindowCoveringComposed(accessory)).toBe(true)
+      expect(accessory.context).not.toHaveProperty('_skipWindowCoveringBehavior')
     })
   })
 
@@ -1978,6 +2120,8 @@ describe('accessoryManager', () => {
 
     it('should remove from cache when unregistering', async () => {
       const mockCache = {
+        retain: vi.fn(),
+        release: vi.fn(),
         hasCached: vi.fn(() => false),
         getCached: vi.fn(),
         removeCached: vi.fn(),

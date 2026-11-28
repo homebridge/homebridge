@@ -13,6 +13,10 @@ describe('clusterCommandMapper', () => {
       const result = mapAttributesToCommand('onOff', { onOff: false })
       expect(result).toEqual({ command: 'off' })
     })
+
+    it.each(['false', 'true', 0, 1, null])('does not turn a light on or off for the value %j, which is not a boolean', (onOff) => {
+      expect(mapAttributesToCommand('onOff', { onOff })).toBeNull()
+    })
   })
 
   describe('levelControl cluster', () => {
@@ -30,6 +34,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: 128,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
@@ -42,6 +47,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: 0,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
@@ -54,6 +60,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: 254,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
@@ -168,16 +175,33 @@ describe('clusterCommandMapper', () => {
         })
       })
 
-      it('should default to 0 for missing hue or saturation', () => {
+      // It used to send the missing one as 0, which turned the light red or white
+      it('moves only the hue when no saturation is given', () => {
         const result = mapAttributesToCommand('colorControl', {
           currentHue: 100,
         })
         expect(result).toEqual({
-          command: 'moveToHueAndSaturation',
+          command: 'moveToHue',
           args: {
             hue: 100,
-            saturation: 0,
+            direction: 0,
             transitionTime: 0,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
+          },
+        })
+      })
+
+      it('moves only the saturation when no hue is given', () => {
+        const result = mapAttributesToCommand('colorControl', {
+          currentSaturation: 200,
+          transitionTime: 5,
+        })
+        expect(result).toEqual({
+          command: 'moveToSaturation',
+          args: {
+            saturation: 200,
+            transitionTime: 5,
             optionsMask: { executeIfOff: true },
             optionsOverride: { executeIfOff: true },
           },
@@ -287,6 +311,44 @@ describe('clusterCommandMapper', () => {
         command: 'goToTiltPercentage',
         args: { tiltPercent100thsValue: 7500 },
       })
+    })
+
+    it.each(['upOrOpen', 'downOrClose', 'stopMotion'])('should map _command=%s to that command', (command) => {
+      expect(mapAttributesToCommand('windowCovering', { _command: command })).toEqual({ command })
+    })
+
+    it('should not turn an unknown _command into a command', () => {
+      expect(mapAttributesToCommand('windowCovering', { _command: 'calibrate' })).toBeNull()
+      // the position that came with it is still used
+      expect(mapAttributesToCommand('windowCovering', { _command: 'calibrate', targetPositionLiftPercent100ths: 0 })).toEqual({
+        command: 'goToLiftPercentage',
+        args: { liftPercent100thsValue: 0 },
+      })
+    })
+  })
+
+  describe('serviceArea cluster', () => {
+    it('should map selectedAreas to "selectAreas"', () => {
+      expect(mapAttributesToCommand('serviceArea', {
+        selectedAreas: [1, 3],
+      })).toEqual({
+        command: 'selectAreas',
+        args: {
+          newAreas: [1, 3],
+        },
+      })
+    })
+
+    it('should map skipArea to "skipArea"', () => {
+      expect(mapAttributesToCommand('serviceArea', { skipArea: 2 })).toEqual({
+        command: 'skipArea',
+        args: { skippedArea: 2 },
+      })
+    })
+
+    it('should return null for selectedAreas that is not a list, and for other attributes', () => {
+      expect(mapAttributesToCommand('serviceArea', { selectedAreas: 1 })).toBeNull()
+      expect(mapAttributesToCommand('serviceArea', { currentArea: 1 })).toBeNull()
     })
   })
 
@@ -409,6 +471,63 @@ describe('clusterCommandMapper', () => {
     })
   })
 
+  describe('the mode clusters of water heaters, energy devices and ev chargers', () => {
+    it.each([
+      'rvcCleanMode',
+      'waterHeaterMode',
+      'deviceEnergyManagementMode',
+      'energyEvseMode',
+    ])('should map currentMode of %s to "changeToMode"', (cluster) => {
+      expect(mapAttributesToCommand(cluster, { currentMode: 2 })).toEqual({
+        command: 'changeToMode',
+        args: { newMode: 2 },
+      })
+      expect(mapAttributesToCommand(cluster, { supportedModes: [] })).toBeNull()
+    })
+  })
+
+  describe('media players and identify', () => {
+    it('maps a media playback command that takes no request', () => {
+      for (const command of [
+        'play',
+        'pause',
+        'stop',
+        'startOver',
+        'previous',
+        'next',
+      ]) {
+        expect(mapAttributesToCommand('mediaPlayback', { _command: command })).toEqual({ command })
+      }
+    })
+
+    it('has no command for a media playback command it does not know', () => {
+      expect(mapAttributesToCommand('mediaPlayback', { _command: 'seek' })).toBeNull()
+    })
+
+    it('maps the wanted playback state to play, pause and stop', () => {
+      expect(mapAttributesToCommand('mediaPlayback', { currentState: 0 })).toEqual({ command: 'play' })
+      expect(mapAttributesToCommand('mediaPlayback', { currentState: 1 })).toEqual({ command: 'pause' })
+      expect(mapAttributesToCommand('mediaPlayback', { currentState: 2 })).toEqual({ command: 'stop' })
+      expect(mapAttributesToCommand('mediaPlayback', { currentState: 3 })).toBeNull()
+    })
+
+    it('maps a key code to a key press', () => {
+      expect(mapAttributesToCommand('keypadInput', { keyCode: 4 })).toEqual({
+        command: 'sendKey',
+        args: { keyCode: 4 },
+      })
+      expect(mapAttributesToCommand('keypadInput', { keyCode: '4' })).toBeNull()
+    })
+
+    it('maps an identify time to the identify command', () => {
+      expect(mapAttributesToCommand('identify', { identifyTime: 10 })).toEqual({
+        command: 'identify',
+        args: { identifyTime: 10 },
+      })
+      expect(mapAttributesToCommand('identify', {})).toBeNull()
+    })
+  })
+
   describe('unknown cluster', () => {
     it('should throw error for unmapped clusters', () => {
       expect(() => mapAttributesToCommand('unknownCluster', { someAttr: 123 }))
@@ -428,6 +547,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: null,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },
@@ -440,6 +560,7 @@ describe('clusterCommandMapper', () => {
         command: 'moveToLevelWithOnOff',
         args: {
           level: undefined,
+          transitionTime: null,
           optionsMask: { executeIfOff: true },
           optionsOverride: { executeIfOff: true },
         },

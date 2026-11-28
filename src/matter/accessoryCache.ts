@@ -7,7 +7,7 @@
  * Similar to HAP's cached accessories, but designed for Matter's simpler API.
  */
 
-import type { InternalMatterAccessory } from './types.js'
+import type { DeclaredClusterState, InternalMatterAccessory } from './types.js'
 
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -35,6 +35,8 @@ export interface SerializedMatterAccessoryPart {
       [attributeName: string]: unknown
     }
   }
+  /** Names of the clusters the plugin registered handlers for, see handlerClusterNames */
+  handlerClusters?: string[]
 }
 
 /**
@@ -65,7 +67,29 @@ export interface SerializedMatterAccessory {
       [attributeName: string]: unknown
     }
   }
+  /**
+   * Names of the clusters the plugin registered handlers for. The handlers
+   * are functions and cannot be saved, but a restore needs to know which
+   * clusters had them: a cluster with handlers and no state to declare
+   * (keypadInput, say) is otherwise restored without its Homebridge behavior.
+   */
+  handlerClusters?: string[]
   parts?: SerializedMatterAccessoryPart[]
+  /**
+   * What the plugin declared at its last registration, before the known state
+   * was put over it. Missing in a cache written before this was saved.
+   */
+  declared?: DeclaredClusterState
+}
+
+/**
+ * The sorted names of the clusters a handlers object covers, or undefined when there are none.
+ */
+export function handlerClusterNames(handlers?: Record<string, unknown>): string[] | undefined {
+  const names = Object.keys(handlers ?? {}).sort()
+  return names.length > 0
+    ? names
+    : undefined
 }
 
 /**
@@ -74,6 +98,9 @@ export interface SerializedMatterAccessory {
 export class MatterAccessoryCache {
   private readonly cacheFilePath: string
   private cachedAccessories: Map<string, SerializedMatterAccessory> = new Map()
+  private readonly retained: Map<string, SerializedMatterAccessory> = new Map()
+  /** Accessories already reported as not savable, so the log line is not repeated at every save. */
+  private readonly unsavable: Set<string> = new Set()
   private cacheLoaded = false
   private cacheReadFailed = false
   private saveQueue: Promise<void> = Promise.resolve()
@@ -173,6 +200,7 @@ export class MatterAccessoryCache {
 
     // Schedule a new save after the debounce period
     this.saveDebounceTimer = setTimeout(() => {
+      this.saveDebounceTimer = null
       this.save(accessories).catch((error) => {
         log.error('Debounced cache save failed:', error)
       })
@@ -197,6 +225,11 @@ export class MatterAccessoryCache {
       return true
     }
     return false
+  }
+
+  /** True while a debounced save is waiting to be written. */
+  hasPendingSave(): boolean {
+    return this.saveDebounceTimer !== null
   }
 
   /**
@@ -237,8 +270,23 @@ export class MatterAccessoryCache {
     const tempFilePath = `${this.cacheFilePath}.tmp`
 
     try {
-      // Serialize accessories (strip out functions and non-serializable objects)
-      const serialized: SerializedMatterAccessory[] = Array.from(accessories.values(), accessory => this.serializeAccessory(accessory))
+      // Serialize accessories (strip out functions and non-serializable objects).
+      // Each one on its own: an accessory with a value that can not be copied
+      // (a function in its cluster state) must not stop the save for the rest.
+      let serialized: SerializedMatterAccessory[] = []
+      for (const accessory of accessories.values()) {
+        try {
+          serialized.push(this.serializeAccessory(accessory))
+        } catch (error) {
+          this.keepPreviousEntry(serialized, accessory.UUID, accessory.displayName, error)
+        }
+      }
+      // Entries held for an accessory that is being registered again
+      for (const [uuid, entry] of this.retained) {
+        if (!accessories.has(uuid)) {
+          serialized.push(entry)
+        }
+      }
 
       // Ensure directory exists (only check once, not on every save)
       if (!this.directoryEnsured) {
@@ -249,7 +297,25 @@ export class MatterAccessoryCache {
       }
 
       // Write to temporary file first (atomic write pattern to prevent corruption)
-      await writeFile(tempFilePath, JSON.stringify(serialized, null, 2), 'utf-8')
+      let contents: string
+      try {
+        contents = JSON.stringify(serialized, null, 2)
+      } catch {
+        // One entry can not be written as JSON (a bigint or a circular
+        // reference in a plugin's context). Find it, and save the others.
+        const writable: SerializedMatterAccessory[] = []
+        for (const entry of serialized) {
+          try {
+            JSON.stringify(entry)
+            writable.push(entry)
+          } catch (error) {
+            this.keepPreviousEntry(writable, entry.uuid, entry.displayName, error)
+          }
+        }
+        serialized = writable
+        contents = JSON.stringify(serialized, null, 2)
+      }
+      await writeFile(tempFilePath, contents, 'utf-8')
 
       // Atomically move temp file to final location
       await rename(tempFilePath, this.cacheFilePath)
@@ -280,6 +346,28 @@ export class MatterAccessoryCache {
   }
 
   /**
+   * For an accessory that can not be saved: say which one and why (once per
+   * accessory), and put the entry of its last good save in its place, so the
+   * accessory is still restored at the next start.
+   */
+  private keepPreviousEntry(entries: SerializedMatterAccessory[], uuid: string, displayName: string, error: unknown): void {
+    const previous = this.cachedAccessories.get(uuid)
+    if (previous) {
+      entries.push(previous)
+    }
+    if (!this.unsavable.has(uuid)) {
+      this.unsavable.add(uuid)
+      const reason = error instanceof Error
+        ? error.message
+        : String(error)
+      log.error(`Matter accessory ${displayName} (${uuid}) can not be saved to the cache: ${reason}. ${previous
+        ? 'Its last saved entry is kept.'
+        : 'It is left out of the cache.'} The other accessories are saved as normal. `
+        + 'The plugin has put a value in the accessory context or cluster state that can not be written as JSON.')
+    }
+  }
+
+  /**
    * Get cached accessory by UUID
    */
   getCached(uuid: string): SerializedMatterAccessory | undefined {
@@ -298,6 +386,34 @@ export class MatterAccessoryCache {
    */
   removeCached(uuid: string): void {
     this.cachedAccessories.delete(uuid)
+  }
+
+  /**
+   * Hold on to an accessory's cached entry while the accessory is taken off
+   * the bridge to be registered again with a new structure. A save in that
+   * window still writes the entry, so if the new registration fails the cache
+   * keeps what it had, and the next start can restore the accessory.
+   *
+   * Also used for a cached accessory that could not be rebuilt at start: it
+   * is not on the bridge, and every save writes the bridge's accessories, so
+   * without this its entry (and the plugin's context in it) was gone after
+   * the first save.
+   */
+  retain(uuid: string): void {
+    const entry = this.cachedAccessories.get(uuid)
+    if (entry) {
+      this.retained.set(uuid, entry)
+    }
+  }
+
+  /**
+   * Let go of an entry held with retain(), once the accessory is registered
+   * again or removed for good.
+   *
+   * @returns true if an entry was held
+   */
+  release(uuid: string): boolean {
+    return this.retained.delete(uuid)
   }
 
   /**
@@ -340,6 +456,7 @@ export class MatterAccessoryCache {
           },
           features: structuredClone(part.features),
           clusters: structuredClone(part.clusters),
+          handlerClusters: handlerClusterNames(part.handlers),
         }
       })
     }
@@ -359,7 +476,9 @@ export class MatterAccessoryCache {
       softwareVersion: accessory.softwareVersion,
       context: accessory.context,
       clusters: structuredClone(accessory.clusters),
+      handlerClusters: handlerClusterNames(accessory.handlers),
       parts: serializedParts,
+      declared: structuredClone(accessory._declared),
     }
   }
 }

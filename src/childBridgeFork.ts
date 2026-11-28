@@ -12,13 +12,13 @@ import type {
 import type {
   ChildBridgePairedStatusEventData,
   ChildProcessLoadEventData,
-  ChildProcessMessageEvent,
+  ChildProcessMessage,
   ChildProcessPluginLoadedEventData,
   ChildProcessPortAllocatedEventData,
   ChildProcessPortRequestEventData,
 } from './childBridgeService.js'
 import type { ChildBridgeMatterManager } from './matter/index.js'
-import type { MatterEvent } from './matter/ipc-types.js'
+import type { MatterControlRequest, MatterEvent } from './matter/ipc-types.js'
 import type { Plugin } from './plugin.js'
 
 import process from 'node:process'
@@ -34,6 +34,7 @@ import { ChildBridgeMatterMessageHandler } from './matter/ChildBridgeMatterMessa
 import { isMatterActive, isMatterExternalsOnly } from './matter/config.js'
 import { PluginManager } from './pluginManager.js'
 import { User } from './user.js'
+import { sendToParent } from './util/ipc.js'
 
 import 'source-map-support/register.js'
 
@@ -69,7 +70,14 @@ export class ChildBridgeFork {
   private bridgeConfig!: BridgeConfiguration
   private bridgeOptions!: BridgeOptions
 
+  // Whether the Matter API was loaded for this bridge (Matter is configured, and matter.js could be loaded)
+  private matterLoaded = false
+
   private pendingPortRequests = new Map<MacAddress, PendingPortRequest>()
+
+  // Set by shutdown(). A load or start that is under way stops at its next
+  // step: nothing new is started for a process that is ending.
+  private shuttingDown = false
 
   constructor() {
     // tell the parent process we are ready to accept plugin config
@@ -77,12 +85,7 @@ export class ChildBridgeFork {
   }
 
   sendMessage<T = unknown>(type: ChildProcessMessageEventType, data?: T): void {
-    if (process.send) {
-      process.send({
-        id: type,
-        data,
-      })
-    }
+    sendToParent({ id: type, data })
   }
 
   async loadPlugin(data: ChildProcessLoadEventData): Promise<void> {
@@ -134,14 +137,28 @@ export class ChildBridgeFork {
     // `isMatterActive` includes externalsOnly mode so plugins can still call
     // api.matter.publishExternalAccessories even when the bridge node itself
     // is suppressed.
+    // If matter.js can not be loaded, the child bridge starts without Matter.
     if (isMatterActive(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
-      await this.api.loadMatterAPI()
+      this.matterLoaded = await this.api.tryLoadMatterAPI()
+    }
+
+    if (this.shuttingDown) {
+      return
     }
 
     // load plugin
     this.plugin = this.pluginManager.loadPlugin(data.pluginPath)
     await this.plugin.load()
+    if (this.shuttingDown) {
+      return
+    }
     await this.pluginManager.initializePlugin(this.plugin, data.identifier)
+
+    // A signal that arrived while the plugin was loading: do not report it as
+    // loaded, or the parent tells this process to start the bridge.
+    if (this.shuttingDown) {
+      return
+    }
 
     // change process title to include plugin name
     process.title = `homebridge: ${this.plugin.getPluginIdentifier()}`
@@ -152,6 +169,10 @@ export class ChildBridgeFork {
   }
 
   async startBridge(): Promise<void> {
+    if (this.shuttingDown) {
+      return
+    }
+
     // Conditionally load Matter support only if this child bridge has Matter active
     // (configured + enabled OR externalsOnly). Prevents loading heavy Matter.js
     // libraries for child bridges that don't use it.
@@ -159,7 +180,7 @@ export class ChildBridgeFork {
       matterLogger.warn('Matter is not supported on accessory child bridges. Ignoring matter configuration.')
     }
 
-    if (isMatterActive(this.bridgeConfig.matter) && this.type !== PluginType.ACCESSORY) {
+    if (this.matterLoaded) {
       matterLogger.info('Loading Matter support for child bridge...')
 
       // Note: api.loadMatterAPI() was already called at the start of loadPlugin()
@@ -186,12 +207,20 @@ export class ChildBridgeFork {
         this.sendPairedStatusEvent()
       })
 
+      // A signal that arrived while the Matter server was starting: shutdown()
+      // tore the manager down before it had a server, so stop the server it
+      // has now, and start nothing else.
+      if (this.shuttingDown) {
+        await this.matterManager.teardown()
+        return
+      }
+
       // Create Matter message handler to delegate IPC handling
       matterLogger.debug('Creating ChildBridgeMatterMessageHandler...')
       this.matterMessageHandler = new ChildBridgeMatterMessageHandler(
         this.matterManager,
         this.bridgeConfig.username,
-        (type, data) => this.sendMessage(type as ChildProcessMessageEventType, data),
+        (_type, data) => this.sendMessage(ChildProcessMessageEventType.MATTER_EVENT, data),
       )
       matterLogger.debug(`Matter message handler created for child bridge ${this.bridgeConfig.username}`)
     } else {
@@ -223,6 +252,9 @@ export class ChildBridgeFork {
 
     // load the cached accessories
     await this.bridgeService.loadCachedPlatformAccessoriesFromDisk()
+    if (this.shuttingDown) {
+      return
+    }
 
     for (const config of this.pluginConfig) {
       if (this.type === PluginType.PLATFORM) {
@@ -246,7 +278,7 @@ export class ChildBridgeFork {
 
         if (!displayName) {
           Logger.internal.warn('Could not load accessory %s as it is missing the required \'name\' property!', this.identifier)
-          return
+          continue
         }
 
         const logger = Logger.withPrefix(displayName)
@@ -257,11 +289,23 @@ export class ChildBridgeFork {
         const accessory = this.bridgeService.createHAPAccessory(plugin, accessoryInstance, displayName, this.identifier, config.uuid_base)
 
         if (accessory) {
-          this.bridgeService.bridge.addBridgedAccessory(accessory)
+          try {
+            this.bridgeService.bridge.addBridgedAccessory(accessory)
+          } catch (error: unknown) {
+            logger.error(`Error loading the accessory "${this.identifier}" from "${plugin.getPluginIdentifier()}" requested in your config.json:`, error instanceof Error
+              ? error.message
+              : error)
+          }
         } else {
-          logger('Accessory %s returned empty set of services. Won\'t adding it to the bridge!', this.identifier)
+          logger.info('Accessory %s returned empty set of services; not adding it to the bridge.', this.identifier)
         }
       }
+    }
+
+    // A signal that arrived while a platform was loading its accessories: the
+    // bridge is not published for a process that is ending.
+    if (this.shuttingDown) {
+      return
     }
 
     // restore the cached accessories
@@ -269,13 +313,23 @@ export class ChildBridgeFork {
 
     // Restore Matter accessories if Matter is enabled for this bridge
     if (this.matterManager) {
-      this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
+      await this.matterManager.restoreCachedAccessories(this.bridgeOptions.keepOrphanedCachedAccessories ?? false)
     }
 
     // Publish HAP only when not opted out via hap.enabled=false and not in
     // externalsOnly mode. Both protocols may be disabled or in externalsOnly
     // mode, in which case this child bridge advertises nothing of its own
     // (externals can still publish independently in externalsOnly mode).
+    const hap = this.bridgeConfig.hap
+    if (isHapConfigEnabled(hap) && !isHapExternalsOnly(hap)) {
+      // Says so in plain words when the port set for this child bridge is in
+      // use by another program, as the main bridge does.
+      await this.bridgeService.checkBridgePort()
+      // A signal that arrived during the check
+      if (this.shuttingDown) {
+        return
+      }
+    }
     this.publishHapIfEnabled()
     this.api.signalFinished()
 
@@ -439,34 +493,41 @@ export class ChildBridgeFork {
   /**
    * Handle get Matter accessory info request from parent process
    */
-  handleGetMatterAccessoryInfo(data: { uuid: string }): void {
+  handleGetMatterAccessoryInfo(data: { uuid: string, correlationId?: string }): void {
     this.matterMessageHandler?.handleGetMatterAccessoryInfo(data)
   }
 
   /**
    * Handle Matter accessory control request from parent process
    */
-  handleMatterAccessoryControl(data: {
-    uuid: string
-    cluster: string
-    attributes: Record<string, unknown>
-    partId?: string
-    correlationId?: string
-  }): void {
+  handleMatterAccessoryControl(data: MatterControlRequest): void {
     this.matterMessageHandler?.handleMatterAccessoryControl(data)
   }
 
-  shutdown(): void {
+  /**
+   * Take the bridge off the network, save the cache and tell the plugin.
+   * All of that is started before this returns. The promise is for the wait:
+   * it resolves once HAP has said goodbye for each accessory (or its time
+   * limit has passed) and the Matter servers have stopped. It never rejects.
+   */
+  async shutdown(): Promise<void> {
+    this.shuttingDown = true
+
     // bridgeService is only assigned once the bridge has started, and a signal
     // can arrive before that.
-    this.bridgeService?.teardown()
+    let hapUnpublished: Promise<void> | undefined
+    try {
+      hapUnpublished = this.bridgeService?.teardown()
+    } catch (error: unknown) {
+      Logger.internal.error('Error during child bridge shutdown:', error)
+    }
 
     // Teardown Matter servers (main bridge and external accessories)
-    if (this.matterManager) {
-      this.matterManager.teardown().catch((error: unknown) => {
-        matterLogger.error('Error tearing down Matter manager:', error)
-      })
-    }
+    const matterStopped = this.matterManager?.teardown().catch((error: unknown) => {
+      matterLogger.error('Error tearing down Matter manager:', error)
+    })
+
+    await Promise.all([hapUnpublished, matterStopped])
   }
 }
 
@@ -476,22 +537,37 @@ export class ChildBridgeFork {
 const childPluginFork = new ChildBridgeFork()
 
 /**
+ * True once the process has been told to end: see shutdownAndExit().
+ */
+let shuttingDown = false
+
+/**
  * Handle incoming IPC messages from the parent Homebridge process
  */
-process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
-  if (typeof message !== 'object' || !message.id) {
+process.on('message', (message: ChildProcessMessage) => {
+  if (!message || typeof message !== 'object' || !message.id) {
     return
   }
 
   switch (message.id) {
     case ChildProcessMessageEventType.LOAD: {
-      childPluginFork.loadPlugin(message.data as ChildProcessLoadEventData).catch((error: unknown) => {
+      // The process is ending (a signal, or the parent has gone): do not
+      // load a plugin or start a bridge now. Before, a signal during the load
+      // was followed by the bridge being published, then cut off five seconds
+      // later with no goodbye.
+      if (shuttingDown) {
+        break
+      }
+      childPluginFork.loadPlugin(message.data).catch((error: unknown) => {
         Logger.internal.error('Child bridge failed to load plugin:', error)
         process.exit(1)
       })
       break
     }
     case ChildProcessMessageEventType.START: {
+      if (shuttingDown) {
+        break
+      }
       childPluginFork.startBridge().catch((error: unknown) => {
         Logger.internal.error('Child bridge failed to start:', error)
         process.exit(1)
@@ -499,7 +575,7 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
       break
     }
     case ChildProcessMessageEventType.PORT_ALLOCATED: {
-      childPluginFork.handleExternalResponse(message.data as ChildProcessPortAllocatedEventData)
+      childPluginFork.handleExternalResponse(message.data)
       break
     }
     case ChildProcessMessageEventType.START_MATTER_MONITORING: {
@@ -515,45 +591,54 @@ process.on('message', (message: ChildProcessMessageEvent<unknown>) => {
       break
     }
     case ChildProcessMessageEventType.GET_MATTER_ACCESSORY_INFO: {
-      childPluginFork.handleGetMatterAccessoryInfo(message.data as { uuid: string })
+      childPluginFork.handleGetMatterAccessoryInfo(message.data)
       break
     }
     case ChildProcessMessageEventType.MATTER_ACCESSORY_CONTROL: {
-      childPluginFork.handleMatterAccessoryControl(message.data as {
-        uuid: string
-        cluster: string
-        attributes: Record<string, unknown>
-        partId?: string
-        correlationId?: string
-      })
+      childPluginFork.handleMatterAccessoryControl(message.data)
       break
     }
     default: {
-      Logger.internal.warn(`Received unknown message type from parent process: ${message.id}`)
+      Logger.internal.warn(`Received unknown message type from parent process: ${String((message as { id: unknown }).id)}`)
       break
     }
   }
 })
 
 /**
- * Handle the sigterm shutdown signals
+ * Tear the child bridge down and let the process end, with `exitCode`.
+ *
+ * The process ends by itself once nothing is left to do: the HAP and Matter
+ * teardown, and whatever a plugin does in its shutdown listener. The IPC
+ * channel to the parent would keep it alive for ever, so it stops counting
+ * here. Before this the force-exit timer was the only way out, and every
+ * child bridge restart and every Homebridge shutdown waited the full five
+ * seconds. The timer stays as the upper limit, for a plugin that leaves
+ * something running.
  */
-let shuttingDown = false
-function signalHandler(signal: NodeJS.Signals, signalNum: number): void {
+function shutdownAndExit(reason: string, exitCode: number): void {
   if (shuttingDown) {
     return
   }
   shuttingDown = true
 
-  Logger.internal.info('Got %s, shutting down child bridge process...', signal)
+  Logger.internal.info('%s, shutting down child bridge process...', reason)
 
-  try {
-    childPluginFork.shutdown()
-  } catch (error: unknown) {
+  // Not waited for here: the process ends by itself when the teardown is done.
+  childPluginFork.shutdown().catch((error: unknown) => {
     Logger.internal.error('Error during child bridge shutdown:', error)
-  }
+  })
 
-  setTimeout(() => process.exit(128 + signalNum), 5000).unref()
+  process.exitCode = exitCode
+  process.channel?.unref()
+  setTimeout(() => process.exit(exitCode), 5000).unref()
+}
+
+/**
+ * Handle the sigterm shutdown signals
+ */
+function signalHandler(signal: NodeJS.Signals, signalNum: number): void {
+  shutdownAndExit(`Got ${signal}`, 128 + signalNum)
 }
 
 process.on('SIGINT', signalHandler.bind(undefined, 'SIGINT', 2))
@@ -562,11 +647,10 @@ process.on('SIGTERM', signalHandler.bind(undefined, 'SIGTERM', 15))
 /**
  * Ensure orphaned processes are cleaned up. The parent IPC channel emits
  * `disconnect` immediately when it closes — listen for that instead of
- * polling `process.connected` every 5 seconds, so a child whose parent
- * crashed exits without a multi-second delay (and we burn no idle ticks
- * in the steady state).
+ * polling `process.connected` every 5 seconds. The child goes through the same
+ * teardown as for a signal: the cached accessories are saved and the plugin
+ * gets its shutdown event, which a plain exit skipped.
  */
 process.on('disconnect', () => {
-  Logger.internal.info('Parent process disconnected, terminating process...')
-  process.exit(1)
+  shutdownAndExit('Parent process disconnected', 1)
 })

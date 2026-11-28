@@ -6,17 +6,35 @@
  */
 
 import type { MatterServer } from '../server.js'
-import type { InternalMatterAccessory, MatterHandlerContext } from '../types.js'
+import type { InternalMatterAccessory, MatterAccessory, MatterHandlerContext } from '../types.js'
+
+import { Status, StatusResponseError } from '@matter/main/types'
 
 import { Logger } from '../../logger.js'
+import { MatterStatus } from '../errors.js'
+import { runInHandlerScope } from './handlerScope.js'
 
 const log = Logger.withPrefix('Matter/Behaviors')
 
 /**
- * Handler function signature
- * Matches the signature from types.ts to maintain compatibility with user-defined handlers
+ * The Failure status executeHandler raises itself, when a plugin handler threw
+ * something that is not a Matter status, or when there is no handler. A class
+ * of its own so the few clusters that answer a failed handler with their own
+ * status (keypad input, media playback) can tell it from a status the plugin
+ * threw on purpose.
  */
-export type MatterCommandHandler = (args?: unknown, context?: MatterHandlerContext) => void | Promise<void>
+export class HandlerFailure extends StatusResponseError {
+  constructor(message: string) {
+    super(message, Status.Failure)
+  }
+}
+
+/**
+ * A handler as the registry stores it: any command's handler, so the request
+ * is not typed. The typed one a plugin writes is MatterCommandHandler in
+ * types.ts (the same name, for a plugin's handler of one known command).
+ */
+export type MatterCommandHandler = (args?: unknown, context?: MatterHandlerContext) => unknown
 
 /**
  * Accessory map type
@@ -30,9 +48,21 @@ export type MatterAccessoryMap = Map<string, InternalMatterAccessory>
 export class BehaviorRegistry {
   // Handler storage: endpointId -> clusterName -> commandName -> handler
   private handlers = new Map<string, Map<string, Map<string, MatterCommandHandler>>>()
+  private handlerSources = new Map<string, () => MatterAccessory['handlers']>()
+
+  registerHandlerSource(endpointId: string, source?: () => MatterAccessory['handlers']): void {
+    if (source) {
+      this.handlerSources.set(endpointId, source)
+    } else {
+      this.handlerSources.delete(endpointId)
+    }
+  }
 
   // Part endpoint mapping: endpointId -> { parentUuid, partId }
   private partEndpoints = new Map<string, { parentUuid: string, partId: string }>()
+
+  /** The commands already reported as having no handler, so each is said once. */
+  private reportedMissing = new Set<string>()
 
   // Reference to accessories map (not owned by registry)
   private accessoriesMap: MatterAccessoryMap
@@ -46,13 +76,6 @@ export class BehaviorRegistry {
   }
 
   /**
-   * Set the MatterServer reference (called after server is created)
-   */
-  setServer(server: MatterServer): void {
-    this.server = server
-  }
-
-  /**
    * Register a command handler for an endpoint
    */
   registerHandler(
@@ -61,16 +84,18 @@ export class BehaviorRegistry {
     commandName: string,
     handler: MatterCommandHandler,
   ): void {
-    if (!this.handlers.has(endpointId)) {
-      this.handlers.set(endpointId, new Map())
+    let endpointHandlers = this.handlers.get(endpointId)
+    if (!endpointHandlers) {
+      endpointHandlers = new Map()
+      this.handlers.set(endpointId, endpointHandlers)
     }
 
-    const endpointHandlers = this.handlers.get(endpointId)!
-    if (!endpointHandlers.has(clusterName)) {
-      endpointHandlers.set(clusterName, new Map())
+    let clusterHandlers = endpointHandlers.get(clusterName)
+    if (!clusterHandlers) {
+      clusterHandlers = new Map()
+      endpointHandlers.set(clusterName, clusterHandlers)
     }
 
-    const clusterHandlers = endpointHandlers.get(clusterName)!
     clusterHandlers.set(commandName, handler)
 
     log.debug(`Registered handler: ${endpointId}.${clusterName}.${commandName}`)
@@ -84,7 +109,23 @@ export class BehaviorRegistry {
     clusterName: string,
     commandName: string,
   ): MatterCommandHandler | undefined {
+    const source = this.handlerSources.get(endpointId)
+    if (source) {
+      // The registry erases each command's typed request/context signature.
+      return source()?.[clusterName]?.[commandName] as MatterCommandHandler | undefined
+    }
     return this.handlers.get(endpointId)?.get(clusterName)?.get(commandName)
+  }
+
+  /**
+   * What a handler is told about where the command arrived: the accessory,
+   * and the part when it was one of the accessory's parts.
+   */
+  private contextOf(endpointId: string): MatterHandlerContext {
+    const part = this.partEndpoints.get(endpointId)
+    return part
+      ? { uuid: part.parentUuid, partId: part.partId }
+      : { uuid: endpointId }
   }
 
   /**
@@ -94,9 +135,9 @@ export class BehaviorRegistry {
    * @param clusterName - Cluster name
    * @param commandName - Command name
    * @param args - Optional arguments to pass to the handler
-   * @param context - Optional context information
-   * @returns True once the handler has run successfully
-   * @throws Error if no handler is registered for the endpoint/cluster/command
+   * @param context - Passed to the handler in place of the endpoint's own context
+   * @returns True once the handler has run successfully, false when the plugin has no handler for the command
+   * @throws a Matter status error: the plugin's own, or Failure when the handler threw anything else
    */
   async executeHandler(
     endpointId: string,
@@ -105,17 +146,56 @@ export class BehaviorRegistry {
     args?: unknown,
     context?: MatterHandlerContext,
   ): Promise<boolean> {
+    return (await this.runHandler(endpointId, clusterName, commandName, args, context)).handled
+  }
+
+  /**
+   * Execute a handler if it exists, and also give back what it returned. For
+   * the commands that answer with a status of their own (see
+   * handlerResponse.ts); every other command uses executeHandler().
+   *
+   * @returns `handled` as executeHandler() returns it, and `response`: what the handler returned
+   * @throws as executeHandler() does
+   */
+  async runHandler(
+    endpointId: string,
+    clusterName: string,
+    commandName: string,
+    args?: unknown,
+    context?: MatterHandlerContext,
+  ): Promise<{ handled: boolean, response?: unknown }> {
     const handler = this.getHandler(endpointId, clusterName, commandName)
     if (!handler) {
-      throw new Error(`No handler registered for ${endpointId}.${clusterName}.${commandName}`)
+      // Every handler is optional. With none, the command is not failed: the
+      // caller carries on and matter.js updates the state, as HAP accepts a
+      // write to a characteristic that has no onSet. Said once per command,
+      // at debug level, for the plugin author who forgot one.
+      const key = `${endpointId}.${clusterName}.${commandName}`
+      if (!this.reportedMissing.has(key)) {
+        this.reportedMissing.add(key)
+        log.debug(`No handler registered for ${key}: the state is updated without calling the plugin`)
+      }
+      return { handled: false }
     }
 
     try {
-      await handler(args, context)
-      return true
+      const response = await runInHandlerScope(() => handler(args, context ?? this.contextOf(endpointId)))
+      return { handled: true, response }
     } catch (error) {
       log.error(`Handler error for ${endpointId}.${clusterName}.${commandName}:`, error)
-      throw error
+      // A Matter status a plugin threw on purpose (api.matter.status) goes to
+      // the controller as it is. Anything else becomes a plain Failure that
+      // names the handler. This is the one place that does it: every behavior
+      // calls its handlers through here, so none needs a catch block of its own.
+      if (MatterStatus.isMatterProtocolError(error)) {
+        throw error
+      }
+      const message = error instanceof Error
+        ? error.message
+        : String(error)
+      const failure = new HandlerFailure(`The ${clusterName}.${commandName} handler failed: ${message}`)
+      failure.cause = error
+      throw failure
     }
   }
 
@@ -136,65 +216,35 @@ export class BehaviorRegistry {
 
   /**
    * Sync cluster state to cache
-   * Updates the accessory's cached cluster state when values change
+   * Updates the cached cluster state of the accessory, or of the part the
+   * endpoint belongs to, and tells the server (for UI updates)
    */
   syncStateToCache(
     endpointId: string,
     clusterName: string,
     attributes: Record<string, unknown>,
   ): void {
-    // Check if this is a part endpoint
     const partInfo = this.partEndpoints.get(endpointId)
+    const uuid = partInfo?.parentUuid ?? endpointId
+    const accessory = this.accessoriesMap.get(uuid)
+    const target = partInfo
+      ? accessory?._parts?.find(part => part.id === partInfo.partId)
+      : accessory
+    if (!target?.clusters) {
+      return
+    }
+
+    target.clusters[clusterName] = {
+      ...target.clusters[clusterName],
+      ...attributes,
+    }
 
     if (partInfo) {
-      // Update part cluster state
-      const accessory = this.accessoriesMap.get(partInfo.parentUuid)
-      if (!accessory?._parts) {
-        return
-      }
-
-      const part = accessory._parts.find(p => p.id === partInfo.partId)
-      if (!part?.clusters) {
-        return
-      }
-
-      if (!part.clusters[clusterName]) {
-        part.clusters[clusterName] = {}
-      }
-
-      part.clusters[clusterName] = {
-        ...part.clusters[clusterName],
-        ...attributes,
-      }
-
       log.debug(`Synced ${clusterName} state to cache for part ${partInfo.partId}:`, attributes)
-
-      // Notify server of state change (for UI updates)
-      if (this.server) {
-        this.server.notifyStateChange(partInfo.parentUuid, clusterName, attributes, partInfo.partId)
-      }
+      this.server?.notifyStateChange(uuid, clusterName, attributes, partInfo.partId)
     } else {
-      // Update main accessory cluster state
-      const accessory = this.accessoriesMap.get(endpointId)
-      if (!accessory?.clusters) {
-        return
-      }
-
-      if (!accessory.clusters[clusterName]) {
-        accessory.clusters[clusterName] = {}
-      }
-
-      accessory.clusters[clusterName] = {
-        ...accessory.clusters[clusterName],
-        ...attributes,
-      }
-
       log.debug(`Synced ${clusterName} state to cache for ${endpointId}:`, attributes)
-
-      // Notify server of state change (for UI updates)
-      if (this.server) {
-        this.server.notifyStateChange(endpointId, clusterName, attributes)
-      }
+      this.server?.notifyStateChange(uuid, clusterName, attributes)
     }
   }
 
@@ -211,14 +261,21 @@ export class BehaviorRegistry {
     // (e.g. RegistryManager, which has no parent-aware sweep of its own).
     const removed: string[] = [endpointId]
     this.handlers.delete(endpointId)
+    this.handlerSources.delete(endpointId)
+    for (const key of this.reportedMissing) {
+      if (key.startsWith(`${endpointId}.`) || key.startsWith(`${endpointId}-part-`)) {
+        this.reportedMissing.delete(key)
+      }
+    }
     // Sweep any part endpoints whose parent matches the unregistering UUID,
     // and drop their handler tables too.
-    for (const [partId, info] of this.partEndpoints) {
-      if (info.parentUuid === endpointId || partId === endpointId) {
-        this.partEndpoints.delete(partId)
-        this.handlers.delete(partId)
-        if (partId !== endpointId) {
-          removed.push(partId)
+    for (const [partEndpointId, info] of this.partEndpoints) {
+      if (info.parentUuid === endpointId || partEndpointId === endpointId) {
+        this.partEndpoints.delete(partEndpointId)
+        this.handlers.delete(partEndpointId)
+        this.handlerSources.delete(partEndpointId)
+        if (partEndpointId !== endpointId) {
+          removed.push(partEndpointId)
         }
       }
     }
@@ -230,7 +287,9 @@ export class BehaviorRegistry {
    */
   clear(): void {
     this.handlers.clear()
+    this.handlerSources.clear()
     this.partEndpoints.clear()
+    this.reportedMissing.clear()
   }
 
   /**

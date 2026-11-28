@@ -161,6 +161,33 @@ describe('pluginManager', () => {
     })
   })
 
+  describe('addNpmPrefixToSearchPaths when npm can not be run', () => {
+    // A service that runs node by its full path may have no npm on its PATH.
+    // Until v2.5.0 this lookup could not fail; since then it stopped start-up.
+    it('carries on with the other search paths', async () => {
+      vi.resetModules()
+      vi.doMock('node:child_process', () => ({
+        execFileSync: vi.fn(() => {
+          throw Object.assign(new Error('spawnSync npm ENOENT'), { code: 'ENOENT' })
+        }),
+      }))
+
+      try {
+        const { PluginManager: FreshPM } = await import('./pluginManager.js')
+        const { HomebridgeAPI: FreshAPI } = await import('./api.js')
+        const manager = new FreshPM(new FreshAPI())
+        const before = [...(manager as any).searchPaths]
+
+        expect(() => (manager as any).addNpmPrefixToSearchPaths()).not.toThrow()
+
+        expect([...(manager as any).searchPaths]).toEqual(before)
+      } finally {
+        vi.doUnmock('node:child_process')
+        vi.resetModules()
+      }
+    })
+  })
+
   describe('plugin discovery', () => {
     it('discovers direct, scoped, and linked plugin directories using directory entries', () => {
       const searchPath = mkdtempSync(join(tmpdir(), 'homebridge-plugin-discovery-'))
@@ -194,6 +221,57 @@ describe('pluginManager', () => {
     })
   })
 
+  describe('the plugins allow-list when the plugin path points at a single plugin', () => {
+    let pluginPath: string
+    let infoSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      infoSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+      // the folder name is not the package name on purpose: the package name is what counts
+      pluginPath = mkdtempSync(join(tmpdir(), 'checkout-of-plugin-b-'))
+      writeFileSync(join(pluginPath, 'package.json'), JSON.stringify({
+        name: 'homebridge-b',
+        version: '1.0.0',
+        keywords: ['homebridge-plugin'],
+        main: 'index.js',
+      }))
+    })
+
+    afterEach(() => {
+      infoSpy.mockRestore()
+      rmSync(pluginPath, { force: true, recursive: true })
+    })
+
+    function loadedPlugins(activePlugins?: string[]): string[] {
+      const manager = new PluginManager(new HomebridgeAPI(), {
+        customPluginPath: pluginPath,
+        strictPluginResolution: true,
+        activePlugins,
+      })
+      ;(manager as any).loadInstalledPlugins()
+      return [
+        ...(manager as any).plugins.keys(),
+      ]
+    }
+
+    it('does not load a plugin that is not on the list', () => {
+      const warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+
+      expect(loadedPlugins(['homebridge-a'])).toEqual([])
+
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('Not loading plugin \'homebridge-b\''))
+      warnSpy.mockRestore()
+    })
+
+    it('loads a plugin that is on the list', () => {
+      expect(loadedPlugins(['homebridge-a', 'homebridge-b'])).toEqual(['homebridge-b'])
+    })
+
+    it('loads the plugin when there is no list', () => {
+      expect(loadedPlugins()).toEqual(['homebridge-b'])
+    })
+  })
+
   describe('initializePlugin currentInitializingPlugin reset', () => {
     function buildPluginStub(initialize: (api: any) => void | Promise<void>) {
       return {
@@ -215,15 +293,16 @@ describe('pluginManager', () => {
     it('clears currentInitializingPlugin even when the initializer throws', async () => {
       const api = new HomebridgeAPI()
       const manager = new PluginManager(api)
-      // Silence the manager's "ERROR INITIALIZING PLUGIN" log line.
-      vi.spyOn(console, 'log').mockImplementation(() => {})
-      vi.spyOn(console, 'error').mockImplementation(() => {})
+      // Silence the manager's "ERROR INITIALIZING PLUGIN" log lines, for this test only.
+      const errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
 
       const plugin = buildPluginStub(() => {
         throw new Error('boom')
       })
 
       await manager.initializePlugin(plugin, 'homebridge-stub')
+      expect(errorSpy).toHaveBeenCalledWith('ERROR INITIALIZING PLUGIN homebridge-stub:')
+      errorSpy.mockRestore()
 
       // Without the finally{} reset, a stale reference here would let any
       // late async registration get attributed to a now-deleted plugin.
@@ -231,20 +310,460 @@ describe('pluginManager', () => {
     })
   })
 
-  describe('...Name', () => {
-    it('should extract accessory name correctly', () => {
-      const accessoryId = 'homebridge-example-accessory.example'
-      expect(PluginManager.getAccessoryName(accessoryId)).toBe('example')
+  describe('registration and lookup', () => {
+    function pluginStub(identifier: string, initialize: (api: HomebridgeAPI) => void | Promise<void>) {
+      return {
+        getPluginIdentifier: () => identifier,
+        registerPlatform: vi.fn(),
+        registerAccessory: vi.fn(),
+        disabled: false,
+        initialize,
+      } as any
+    }
+
+    async function managerWith(...plugins: any[]): Promise<PluginManager> {
+      const manager = new PluginManager(new HomebridgeAPI())
+      for (const plugin of plugins) {
+        ;(manager as any).plugins.set(plugin.getPluginIdentifier(), plugin)
+        await manager.initializePlugin(plugin, plugin.getPluginIdentifier())
+      }
+      return manager
+    }
+
+    let infoSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      infoSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
     })
 
-    it('should extract platform name correctly', () => {
-      const accessoryId = 'homebridge-example-platform.example'
-      expect(PluginManager.getPlatformName(accessoryId)).toBe('example')
+    afterEach(() => {
+      infoSpy.mockRestore()
     })
 
-    it('should extract plugin name correctly', () => {
-      const accessoryId = 'homebridge-example-plugin.example'
-      expect(PluginManager.getPluginIdentifier(accessoryId)).toBe('homebridge-example-plugin')
+    it('refuses a registration made outside the initializer', async () => {
+      const api = new HomebridgeAPI()
+      const manager = new PluginManager(api)
+      const plugin = pluginStub('homebridge-late', () => {})
+      ;(manager as any).plugins.set('homebridge-late', plugin)
+      await manager.initializePlugin(plugin, 'homebridge-late')
+
+      expect(() => api.registerPlatform('homebridge-late', 'LatePlat', class {} as any))
+        .toThrow('Unexpected platform registration. Plugin \'homebridge-late\' tried to register outside the initializer function!')
+      expect(() => api.registerAccessory('LateAcc', class {} as any))
+        .toThrow('Unexpected accessory registration. Plugin tried to register outside the initializer function!')
+      expect(plugin.registerPlatform).not.toHaveBeenCalled()
+      expect(plugin.registerAccessory).not.toHaveBeenCalled()
+    })
+
+    it('hands the registration to the plugin that is being initialized', async () => {
+      const Platform = class {} as any
+      const Accessory = class {} as any
+      const plugin = pluginStub('homebridge-one', (api) => {
+        api.registerPlatform('Plat', Platform)
+        api.registerAccessory('homebridge-one', 'Acc', Accessory)
+      })
+      const manager = await managerWith(plugin)
+
+      expect(plugin.registerPlatform).toHaveBeenCalledExactlyOnceWith('Plat', Platform)
+      expect(plugin.registerAccessory).toHaveBeenCalledExactlyOnceWith('Acc', Accessory)
+      expect(manager.getPluginForPlatform('Plat')).toBe(plugin)
+      expect(manager.getPluginForPlatform('homebridge-one.Plat')).toBe(plugin)
+      expect(manager.getPluginForAccessory('Acc')).toBe(plugin)
+      expect(manager.getPluginForAccessory('homebridge-one.Acc')).toBe(plugin)
+    })
+
+    it('still finds a plugin that registered with a wrong plugin identifier', async () => {
+      const plugin = pluginStub('homebridge-real-name', (api) => {
+        api.registerAccessory('homebridge-wrong-name', 'Acc', class {} as any)
+      })
+      const manager = await managerWith(plugin)
+
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('tried to register with an incorrect plugin identifier: \'homebridge-wrong-name\''))
+      expect(manager.hasPluginRegistered('homebridge-wrong-name')).toBe(true)
+      expect(manager.getPlugin('homebridge-wrong-name')).toBe(plugin)
+      expect(manager.getPluginForAccessory('homebridge-wrong-name.Acc')).toBe(plugin)
+      expect(manager.getPluginForAccessory('homebridge-real-name.Acc')).toBe(plugin)
+    })
+
+    it('says so when nothing registered the name, or the plugin is not there', async () => {
+      const manager = await managerWith()
+
+      expect(() => manager.getPluginForPlatform('Nope')).toThrow('No plugin was found for the platform "Nope" in your config.json.')
+      expect(() => manager.getPluginForAccessory('Nope')).toThrow('No plugin was found for the accessory "Nope" in your config.json.')
+      expect(() => manager.getPluginForPlatform('homebridge-gone.Plat')).toThrow('The requested plugin \'homebridge-gone\' was not registered.')
+      expect(() => manager.getPluginForAccessory('homebridge-gone.Acc')).toThrow('The requested plugin \'homebridge-gone\' was not registered.')
+      expect(manager.getPlugin('homebridge-gone')).toBeUndefined()
+    })
+
+    it('asks for the long form when two plugins registered the same name', async () => {
+      const one = pluginStub('homebridge-one', (api) => {
+        api.registerPlatform('Same', class {} as any)
+        api.registerAccessory('Same', class {} as any)
+      })
+      const two = pluginStub('homebridge-two', (api) => {
+        api.registerPlatform('Same', class {} as any)
+        api.registerAccessory('Same', class {} as any)
+      })
+      const manager = await managerWith(one, two)
+
+      expect(() => manager.getPluginForPlatform('Same'))
+        .toThrow('The requested platform \'Same\' has been registered multiple times. Please be more specific by writing one of: homebridge-one.Same, homebridge-two.Same')
+      expect(() => manager.getPluginForAccessory('Same'))
+        .toThrow('The requested accessory \'Same\' has been registered multiple times. Please be more specific by writing one of: homebridge-one.Same, homebridge-two.Same')
+      expect(manager.getPluginForPlatform('homebridge-two.Same')).toBe(two)
+      expect(manager.getPluginForAccessory('homebridge-one.Same')).toBe(one)
+    })
+
+    it('takes the one that is not disabled when two plugins registered the same name', async () => {
+      const one = pluginStub('homebridge-one', api => api.registerPlatform('Same', class {} as any))
+      const two = pluginStub('homebridge-two', api => api.registerPlatform('Same', class {} as any))
+      const manager = await managerWith(one, two)
+      one.disabled = true
+
+      expect(manager.getPluginForPlatform('Same')).toBe(two)
+    })
+
+    it('finds the plugin of an active dynamic platform, and refuses an ambiguous one', async () => {
+      const one = pluginStub('homebridge-one', api => api.registerPlatform('Same', class {} as any))
+      const two = pluginStub('homebridge-two', api => api.registerPlatform('Same', class {} as any))
+      one.getActiveDynamicPlatform = vi.fn().mockReturnValue(undefined)
+      two.getActiveDynamicPlatform = vi.fn().mockReturnValue({})
+      const manager = await managerWith(one, two)
+
+      expect(manager.getPluginByActiveDynamicPlatform('Nope')).toBeUndefined()
+      expect(manager.getPluginByActiveDynamicPlatform('Same')).toBe(two)
+
+      one.getActiveDynamicPlatform.mockReturnValue({})
+
+      expect(() => manager.getPluginByActiveDynamicPlatform('Same'))
+        .toThrow('\'Same\' is an ambiguous platform name. It was registered by multiple plugins: homebridge-one, homebridge-two')
+    })
+  })
+
+  describe('loading plugins from disk', () => {
+    let root: string
+    let warnSpy: ReturnType<typeof vi.spyOn>
+    let infoSpy: ReturnType<typeof vi.spyOn>
+    let errorSpy: ReturnType<typeof vi.spyOn>
+
+    function writePlugin(folder: string, packageJSON: Record<string, unknown> | string, main = 'export default () => {}\n'): string {
+      const pluginPath = join(root, folder)
+      mkdirSync(pluginPath, { recursive: true })
+      writeFileSync(join(pluginPath, 'package.json'), typeof packageJSON === 'string'
+        ? packageJSON
+        : JSON.stringify(packageJSON))
+      writeFileSync(join(pluginPath, 'index.js'), main)
+      return pluginPath
+    }
+
+    const validPackage = (name: string) => ({
+      name,
+      version: '1.2.3',
+      type: 'module',
+      main: 'index.js',
+      keywords: ['homebridge-plugin'],
+      engines: { homebridge: '>=2.0.0' },
+    })
+
+    function managerFor(options: { activePlugins?: string[], disabledPlugins?: string[] } = {}): PluginManager {
+      return new PluginManager(new HomebridgeAPI(), { customPluginPath: root, strictPluginResolution: true, ...options })
+    }
+
+    beforeEach(() => {
+      root = mkdtempSync(join(tmpdir(), 'homebridge-plugins-'))
+      warnSpy = vi.spyOn(Logger.internal, 'warn').mockImplementation(() => {})
+      infoSpy = vi.spyOn(Logger.internal, 'info').mockImplementation(() => {})
+      errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      warnSpy.mockRestore()
+      infoSpy.mockRestore()
+      errorSpy.mockRestore()
+      rmSync(root, { force: true, recursive: true })
+    })
+
+    it('loads and initializes every plugin it finds', async () => {
+      writePlugin('homebridge-one', validPackage('homebridge-one'), 'export default (api) => api.registerPlatform(\'OnePlat\', class {})\n')
+      writePlugin('@scope/homebridge-two', validPackage('@scope/homebridge-two'))
+      const manager = managerFor()
+
+      await manager.initializeInstalledPlugins()
+
+      expect(manager.hasPluginRegistered('homebridge-one')).toBe(true)
+      expect(manager.hasPluginRegistered('@scope/homebridge-two')).toBe(true)
+      expect(manager.getPluginForPlatform('OnePlat').getPluginIdentifier()).toBe('homebridge-one')
+      expect(infoSpy).toHaveBeenCalledWith('Loaded plugin: homebridge-one@1.2.3')
+      expect(infoSpy).toHaveBeenCalledWith('Loaded plugin: @scope/homebridge-two@1.2.3')
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
+
+    it('says so when there is no plugin', async () => {
+      await managerFor().initializeInstalledPlugins()
+
+      expect(warnSpy).toHaveBeenCalledExactlyOnceWith('No plugins found.')
+    })
+
+    it('only loads the plugins on the plugins list', async () => {
+      writePlugin('homebridge-one', validPackage('homebridge-one'))
+      writePlugin('homebridge-two', validPackage('homebridge-two'))
+      const manager = managerFor({
+        activePlugins: ['homebridge-two'],
+      })
+
+      await manager.initializeInstalledPlugins()
+
+      expect(manager.hasPluginRegistered('homebridge-one')).toBe(false)
+      expect(manager.hasPluginRegistered('homebridge-two')).toBe(true)
+    })
+
+    it('loads a plugin on the disabledPlugins list, but marks it as disabled', async () => {
+      writePlugin('homebridge-one', validPackage('homebridge-one'))
+      const manager = managerFor({
+        disabledPlugins: ['homebridge-one'],
+      })
+
+      await manager.initializeInstalledPlugins()
+
+      expect(manager.getPlugin('homebridge-one')?.disabled).toBe(true)
+      expect(warnSpy).toHaveBeenCalledExactlyOnceWith('Disabled plugin: homebridge-one@1.2.3')
+    })
+
+    it('drops a plugin that can not be loaded, and carries on with the others', async () => {
+      writePlugin('homebridge-broken', validPackage('homebridge-broken'), 'throw new Error(\'broken at import\')\n')
+      writePlugin('homebridge-fine', validPackage('homebridge-fine'))
+      const manager = managerFor()
+
+      await manager.initializeInstalledPlugins()
+
+      expect(errorSpy).toHaveBeenCalledWith('ERROR LOADING PLUGIN homebridge-broken:')
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('broken at import'))
+      expect(manager.hasPluginRegistered('homebridge-broken')).toBe(false)
+      expect(manager.hasPluginRegistered('homebridge-fine')).toBe(true)
+    })
+
+    it.each([
+      {
+        why: 'no package.json',
+        folder: 'homebridge-empty',
+        packageJSON: undefined,
+        message: 'does not contain a package.json.',
+      },
+      {
+        why: 'a package.json that is not JSON',
+        folder: 'homebridge-bad',
+        packageJSON: '{ not json',
+        message: 'contains an invalid package.json.',
+      },
+      {
+        why: 'a package.json that holds null',
+        folder: 'homebridge-null',
+        packageJSON: 'null',
+        message: 'does not have a package name that begins with \'homebridge-\'',
+      },
+      {
+        why: 'a name that is a number',
+        folder: 'homebridge-number',
+        packageJSON: {
+          name: 5,
+          keywords: ['homebridge-plugin'],
+        },
+        message: 'does not have a package name that begins with \'homebridge-\'',
+      },
+      {
+        why: 'no name',
+        folder: 'homebridge-noname',
+        packageJSON: {
+          version: '1.0.0',
+          keywords: ['homebridge-plugin'],
+        },
+        message: 'does not have a package name that begins with \'homebridge-\'',
+      },
+      {
+        why: 'a name that is not a plugin name',
+        folder: 'homebridge-wrongname',
+        packageJSON: {
+          name: 'something-else',
+          keywords: ['homebridge-plugin'],
+        },
+        message: 'does not have a package name that begins with \'homebridge-\'',
+      },
+      {
+        why: 'no homebridge-plugin keyword',
+        folder: 'homebridge-nokeyword',
+        packageJSON: {
+          name: 'homebridge-nokeyword',
+          keywords: ['other'],
+        },
+        message: 'package.json does not contain the keyword \'homebridge-plugin\'.',
+      },
+      {
+        why: 'no keywords at all',
+        folder: 'homebridge-nokeywords',
+        packageJSON: { name: 'homebridge-nokeywords' },
+        message: 'package.json does not contain the keyword \'homebridge-plugin\'.',
+      },
+    ])('refuses a plugin folder with $why', ({ folder, packageJSON, message }) => {
+      const pluginPath = join(root, folder)
+      mkdirSync(pluginPath, { recursive: true })
+      if (packageJSON !== undefined) {
+        writePlugin(folder, packageJSON)
+      }
+
+      expect(() => managerFor().loadPlugin(pluginPath)).toThrow(message)
+    })
+
+    it('skips such a folder with a warning when it searches for plugins', async () => {
+      writePlugin('homebridge-nokeyword', {
+        name: 'homebridge-nokeyword',
+        keywords: ['other'],
+      })
+      const manager = managerFor()
+
+      await manager.initializeInstalledPlugins()
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('does not contain the keyword \'homebridge-plugin\''))
+      expect(manager.hasPluginRegistered('homebridge-nokeyword')).toBe(false)
+    })
+
+    it.each([
+      { thrown: '\'device list is empty\'', shows: 'A value that is not an Error was thrown: \'device list is empty\'' },
+      { thrown: '{ code: 42 }', shows: 'A value that is not an Error was thrown: { code: 42 }' },
+      { thrown: 'null', shows: 'A value that is not an Error was thrown: null' },
+    ])('says what a plugin threw when it is not an Error ($thrown)', async ({ thrown, shows }) => {
+      writePlugin('homebridge-load', validPackage('homebridge-load'), `throw ${thrown}\n`)
+      writePlugin('homebridge-init', validPackage('homebridge-init'), `export default () => { throw ${thrown} }\n`)
+      const manager = managerFor()
+
+      await manager.initializeInstalledPlugins()
+
+      const logged: unknown[] = errorSpy.mock.calls.map((call: unknown[]) => call[0])
+      expect(logged).toContain('ERROR LOADING PLUGIN homebridge-load:')
+      expect(logged).toContain('ERROR INITIALIZING PLUGIN homebridge-init:')
+      expect(logged.filter(line => line === shows)).toHaveLength(2)
+      expect(logged).not.toContain(undefined)
+      expect(manager.hasPluginRegistered('homebridge-load')).toBe(false)
+      expect(manager.hasPluginRegistered('homebridge-init')).toBe(false)
+    })
+
+    it('does not load the same plugin a second time from another folder', () => {
+      const first = writePlugin('homebridge-one', validPackage('homebridge-one'))
+      const second = writePlugin('copy/homebridge-one', validPackage('homebridge-one'))
+      const manager = managerFor()
+
+      const plugin = manager.loadPlugin(first)
+
+      expect(() => manager.loadPlugin(second)).toThrow(`skipping plugin found at '${second}' since we already loaded the same plugin from '${first}'.`)
+      expect(manager.getPlugin('homebridge-one')).toBe(plugin)
+    })
+  })
+
+  describe('a plugin whose initializer fails', () => {
+    function failingPlugin(identifier: string, initialize: (api: HomebridgeAPI) => void | Promise<void>) {
+      return {
+        getPluginIdentifier: () => identifier,
+        registerPlatform: vi.fn(),
+        registerAccessory: vi.fn(),
+        disabled: false,
+        initialize,
+      } as any
+    }
+
+    let errorSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      errorSpy = vi.spyOn(Logger.internal, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      errorSpy.mockRestore()
+    })
+
+    it('is not found any more by the short name of what it registered before it failed', async () => {
+      const manager = new PluginManager(new HomebridgeAPI())
+      const plugin = failingPlugin('homebridge-halfinit', async (api) => {
+        api.registerPlatform('wrong-plugin-name', 'HalfPlat', class {} as any)
+        api.registerAccessory('HalfAcc', class {} as any)
+        throw new Error('boom')
+      })
+      ;(manager as any).plugins.set('homebridge-halfinit', plugin)
+
+      await manager.initializePlugin(plugin, 'homebridge-halfinit')
+
+      expect(errorSpy).toHaveBeenCalledWith('ERROR INITIALIZING PLUGIN homebridge-halfinit:')
+      expect(manager.hasPluginRegistered('homebridge-halfinit')).toBe(false)
+      expect(manager.hasPluginRegistered('wrong-plugin-name')).toBe(false)
+      expect(() => manager.getPluginForPlatform('HalfPlat')).toThrow('No plugin was found for the platform "HalfPlat"')
+      expect(() => manager.getPluginForAccessory('HalfAcc')).toThrow('No plugin was found for the accessory "HalfAcc"')
+      expect(() => manager.getPluginForPlatform('homebridge-halfinit.HalfPlat')).toThrow('was not registered')
+      expect(() => manager.getPluginForPlatform('wrong-plugin-name.HalfPlat')).toThrow('was not registered')
+    })
+
+    it('leaves a working plugin that registered the same name in place', async () => {
+      const manager = new PluginManager(new HomebridgeAPI())
+      const good = failingPlugin('homebridge-good', (api) => {
+        api.registerPlatform('SharedPlat', class {} as any)
+      })
+      const bad = failingPlugin('homebridge-bad', (api) => {
+        api.registerPlatform('SharedPlat', class {} as any)
+        throw new Error('boom')
+      })
+      ;(manager as any).plugins.set('homebridge-good', good)
+      ;(manager as any).plugins.set('homebridge-bad', bad)
+
+      await manager.initializePlugin(good, 'homebridge-good')
+      await manager.initializePlugin(bad, 'homebridge-bad')
+
+      expect(manager.getPluginForPlatform('SharedPlat')).toBe(good)
+      expect(manager.getPluginForPlatform('homebridge-good.SharedPlat')).toBe(good)
+    })
+  })
+
+  describe('accessory and platform identifiers', () => {
+    // [identifier as written in config.json, plugin part, accessory or platform name]
+    const forms: Array<[string, string, string]> = [
+      ['example', 'example', 'example'],
+      ['homebridge-example-plugin.example', 'homebridge-example-plugin', 'example'],
+      ['@organisation/homebridge-example.example', '@organisation/homebridge-example', 'example'],
+      // a scope may hold dots: only a dot after the `/` ends the plugin part
+      ['@my.scope/homebridge-x.Plat', '@my.scope/homebridge-x', 'Plat'],
+      ['@my.scope.two/homebridge-x.Plat', '@my.scope.two/homebridge-x', 'Plat'],
+      // everything after the first dot of the plugin part is the name
+      ['homebridge-x.My.Platform', 'homebridge-x', 'My.Platform'],
+      ['@organisation/homebridge-x.My.Platform', '@organisation/homebridge-x', 'My.Platform'],
+    ]
+
+    it.each(forms)('reads the accessory name of %s', (identifier, _plugin, name) => {
+      expect(PluginManager.getAccessoryName(identifier)).toBe(name)
+    })
+
+    it.each(forms)('reads the platform name of %s', (identifier, _plugin, name) => {
+      expect(PluginManager.getPlatformName(identifier)).toBe(name)
+    })
+
+    it.each(forms)('reads the plugin identifier of %s', (identifier, plugin) => {
+      expect(PluginManager.getPluginIdentifier(identifier)).toBe(plugin)
+    })
+
+    it('finds a platform and an accessory of a plugin whose scope holds a dot', async () => {
+      const api = new HomebridgeAPI()
+      const manager = new PluginManager(api)
+      const plugin = {
+        getPluginIdentifier: () => '@my.scope/homebridge-x',
+        registerPlatform: vi.fn(),
+        registerAccessory: vi.fn(),
+        initialize: (api: HomebridgeAPI) => {
+          api.registerPlatform('Plat', class {} as any)
+          api.registerAccessory('Acc', class {} as any)
+        },
+      } as any
+      ;(manager as any).plugins.set('@my.scope/homebridge-x', plugin)
+      await manager.initializePlugin(plugin, '@my.scope/homebridge-x')
+
+      expect(manager.getPluginForPlatform('@my.scope/homebridge-x.Plat')).toBe(plugin)
+      expect(manager.getPluginForAccessory('@my.scope/homebridge-x.Acc')).toBe(plugin)
+      expect(manager.getPluginForPlatform('Plat')).toBe(plugin)
+      expect(manager.getPluginForAccessory('Acc')).toBe(plugin)
     })
   })
 })
